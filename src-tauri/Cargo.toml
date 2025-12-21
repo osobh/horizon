@@ -1,0 +1,84 @@
+[package]
+name = "horizon"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Unified HPC-AI Platform - Single pane of glass for the entire stack"
+build = "build.rs"
+
+[lib]
+name = "horizon_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "horizon"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+tauri.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid = { version = "1.11", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+sysinfo = "0.30"  # For system/GPU detection
+
+# Internal crate dependencies
+hpc-channels.workspace = true
+notebook-kernel = { workspace = true, optional = true }
+stratoswarm-cluster-mesh = { path = "../../05-stratoswarm/crates/cluster-mesh", optional = true }
+rtx-distributed = { path = "../../07-rustytorch/crates/training/rtx-distributed", optional = true, default-features = false }
+warp-core = { path = "../../04-warp/crates/warp-core", optional = true }
+warp-format = { path = "../../04-warp/crates/warp-format", optional = true }
+# vortex-core = { workspace = true, optional = true }
+
+[features]
+# Default: embedded kernel for notebook execution
+default = ["embedded-kernel"]
+
+# Embed notebook-kernel for ~10-50ns latency code execution
+embedded-kernel = ["notebook-kernel"]
+
+# Embed stratoswarm cluster-mesh for real cluster management
+# NOTE: Currently Linux-only due to procfs dependency in cluster-mesh
+# On macOS/Windows, the mock implementation is used automatically
+embedded-cluster = ["stratoswarm-cluster-mesh"]
+
+# Embed rtx-distributed for real distributed training
+# NOTE: Requires CUDA/NCCL - on non-CUDA systems, mock implementation is used
+embedded-training = ["rtx-distributed"]
+
+# Embed warp-core for real file transfers
+# Works on all platforms - local and remote transfers
+embedded-storage = ["warp-core", "warp-format"]
+
+# Embed vortex for protocol transmutation (when available)
+# embedded-vortex = ["vortex-core"]
+
+# Embed all optional crates for full functionality
+full = ["embedded-kernel", "embedded-cluster", "embedded-training", "embedded-storage"]
+
+# Minimal build without embedded crates (uses mocks)
+minimal = []
+
+[profile.release]
+# Optimize for size while maintaining reasonable performance
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev]
+# Faster incremental builds
+opt-level = 0
+incremental = true

@@ -1,0 +1,44 @@
+[workspace]
+resolver = "2"
+members = ["src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["HPC-AI Team"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/hpc-ai/horizon"
+rust-version = "1.75"
+
+[workspace.dependencies]
+# Tauri
+tauri = { version = "2.1", features = [] }
+tauri-build = "2.0"
+
+# Async
+tokio = { version = "1.42", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Internal crates (paths to sibling projects)
+hpc-channels = { path = "../00-hpc-channels" }
+notebook-kernel = { path = "../08-rustybooks/crates/core/notebook-kernel" }
+# stratoswarm-client = { path = "../05-stratoswarm/crates/stratoswarm-client" }
+# vortex-core = { path = "../09-vortex/crates/vortex-core" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

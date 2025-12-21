@@ -1,0 +1,50 @@
+# Rust
+/target/
+/src-tauri/target/
+**/*.rs.bk
+Cargo.lock
+
+# Node.js
+/web/node_modules/
+/web/dist/
+/web/.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tauri
+/src-tauri/target/
+/src-tauri/*.pem
+
+# Build outputs
+*.dmg
+*.app
+*.exe
+*.msi
+*.deb
+*.AppImage
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+/coverage/
+
+# TypeScript
+*.tsbuildinfo
