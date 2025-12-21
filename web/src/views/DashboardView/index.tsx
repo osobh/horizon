@@ -15,7 +15,6 @@ import {
   DollarSign,
   Zap,
   Clock,
-  TrendingUp,
   AlertCircle,
 } from 'lucide-react';
 import { useClusterStore } from '../../stores/clusterStore';
@@ -23,6 +22,7 @@ import { useTrainingStore } from '../../stores/trainingStore';
 import SystemInfoPanel from '../../components/SystemInfoPanel';
 import RealTimeMetrics from '../../components/RealTimeMetrics';
 import GpuCompilerPanel from '../../components/GpuCompilerPanel';
+import EvolutionPanel from '../../components/EvolutionPanel';
 
 // Mock data for visualization
 const gpuUtilization = [
@@ -41,12 +41,6 @@ const costData = [
   { name: 'Sun', cost: 67 },
 ];
 
-const evolutionEvents = [
-  { time: '10:34', event: 'DGM improved model checkpoint efficiency by 12%' },
-  { time: '09:15', event: 'SwarmAgentic rebalanced GPU workloads across 3 nodes' },
-  { time: '08:45', event: 'ADAS discovered optimal batch size for dataset X' },
-  { time: 'Yesterday', event: 'Behavioral learning prevented 2 predicted failures' },
-];
 
 export default function DashboardView() {
   const { connected, nodeCount, healthyNodes } = useClusterStore();
@@ -155,28 +149,9 @@ export default function DashboardView() {
             <RealTimeMetrics />
           </div>
 
-          {/* Evolution Insights */}
+          {/* Evolution Panel - Self-Improving Agents */}
           <div className="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-green-400" />
-              <h3 className="font-medium">Evolution Insights</h3>
-              <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">
-                Self-improving
-              </span>
-            </div>
-            <div className="space-y-3">
-              {evolutionEvents.map((event, i) => (
-                <div
-                  key={i}
-                  className="flex items-start gap-3 p-3 bg-slate-700/50 rounded-lg"
-                >
-                  <div className="w-12 text-xs text-slate-400 flex-shrink-0">
-                    {event.time}
-                  </div>
-                  <div className="text-sm">{event.event}</div>
-                </div>
-              ))}
-            </div>
+            <EvolutionPanel />
           </div>
         </div>
 

@@ -3,6 +3,7 @@
 //! Centralized state for the Horizon application.
 
 use crate::cluster_bridge::ClusterBridge;
+use crate::evolution_bridge::EvolutionBridge;
 use crate::gpu_compiler_bridge::GpuCompilerBridge;
 use crate::kernel_bridge::KernelBridge;
 use crate::storage_bridge::StorageBridge;
@@ -27,6 +28,8 @@ pub struct AppState {
     pub storage: Arc<StorageBridge>,
     /// GPU compiler bridge for accelerated Rust compilation
     pub gpu_compiler: Arc<GpuCompilerBridge>,
+    /// Evolution bridge for self-improving agents
+    pub evolution: Arc<EvolutionBridge>,
 }
 
 impl AppState {
@@ -39,6 +42,7 @@ impl AppState {
             training: Arc::new(TrainingBridge::new()),
             storage: Arc::new(StorageBridge::new()),
             gpu_compiler: Arc::new(GpuCompilerBridge::new()),
+            evolution: Arc::new(EvolutionBridge::new()),
         }
     }
 

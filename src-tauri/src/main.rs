@@ -11,6 +11,7 @@
 mod cluster_bridge;
 mod commands;
 mod events;
+mod evolution_bridge;
 mod gpu_compiler_bridge;
 mod kernel_bridge;
 mod state;
@@ -121,6 +122,13 @@ fn main() {
             commands::gpu_compiler::gpu_compile,
             commands::gpu_compiler::gpu_compile_quick,
             commands::gpu_compiler::benchmark_gpu_compiler,
+            // Evolution commands
+            commands::evolution::get_evolution_status,
+            commands::evolution::get_adas_metrics,
+            commands::evolution::get_dgm_metrics,
+            commands::evolution::get_swarm_metrics,
+            commands::evolution::get_evolution_events,
+            commands::evolution::simulate_evolution_step,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");
