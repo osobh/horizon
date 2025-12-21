@@ -31,6 +31,7 @@ tracing-subscriber.workspace = true
 uuid = { version = "1.11", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 sysinfo = "0.30"  # For system/GPU detection
+hex = "0.4"  # For encoding merkle roots
 
 # Internal crate dependencies
 hpc-channels.workspace = true

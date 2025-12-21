@@ -263,6 +263,86 @@ impl StorageBridge {
     }
 
     /// Start an upload transfer.
+    #[cfg(feature = "embedded-storage")]
+    pub async fn upload(&self, source: String, destination: String, _config: Option<TransferConfig>) -> Result<Transfer, String> {
+        let mut counter = self.transfer_counter.write().await;
+        *counter += 1;
+        let transfer_id = format!("transfer-{:03}", *counter);
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Extract filename from path
+        let name = std::path::Path::new(&source)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("upload")
+            .to_string();
+
+        let mut transfer = Transfer {
+            id: transfer_id.clone(),
+            name,
+            operation: TransferOperation::Upload,
+            status: TransferStatus::Analyzing,
+            progress: TransferProgress::default(),
+            source: source.clone(),
+            destination: destination.clone(),
+            created_at: now,
+            started_at: Some(now),
+            completed_at: None,
+            merkle_root: None,
+            error: None,
+        };
+
+        self.transfers.write().await.insert(transfer_id.clone(), transfer.clone());
+        tracing::info!("Started upload transfer: {} (using warp-core)", transfer_id);
+
+        // Use real warp-core TransferEngine
+        let source_path = std::path::Path::new(&source);
+        let transfers = self.transfers.clone();
+        let tid = transfer_id.clone();
+
+        // Spawn async task to perform the transfer
+        let engine = self.engine.clone();
+        tokio::spawn(async move {
+            match engine.send(source_path, &destination).await {
+                Ok(session) => {
+                    let mut transfers_guard = transfers.write().await;
+                    if let Some(t) = transfers_guard.get_mut(&tid) {
+                        t.status = TransferStatus::Completed;
+                        t.completed_at = Some(
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs()
+                        );
+                        t.merkle_root = session.merkle_root.map(|r| hex::encode(r));
+                        t.progress.bytes_transferred = session.transferred_bytes;
+                        t.progress.total_bytes = session.total_bytes;
+                        t.progress.completion_percentage = 100.0;
+                        tracing::info!("Upload transfer {} completed", tid);
+                    }
+                }
+                Err(e) => {
+                    let mut transfers_guard = transfers.write().await;
+                    if let Some(t) = transfers_guard.get_mut(&tid) {
+                        t.status = TransferStatus::Failed;
+                        t.error = Some(e.to_string());
+                        tracing::error!("Upload transfer {} failed: {}", tid, e);
+                    }
+                }
+            }
+        });
+
+        // Update status to transferring
+        transfer.status = TransferStatus::Transferring;
+        Ok(transfer)
+    }
+
+    /// Start an upload transfer (mock implementation).
+    #[cfg(not(feature = "embedded-storage"))]
     pub async fn upload(&self, source: String, destination: String, _config: Option<TransferConfig>) -> Result<Transfer, String> {
         let mut counter = self.transfer_counter.write().await;
         *counter += 1;
@@ -306,11 +386,91 @@ impl StorageBridge {
             }).await;
         }
 
-        tracing::info!("Started upload transfer: {}", transfer_id);
+        tracing::info!("Started upload transfer: {} (mock)", transfer_id);
         Ok(transfer)
     }
 
     /// Start a download transfer.
+    #[cfg(feature = "embedded-storage")]
+    pub async fn download(&self, source: String, destination: String, _config: Option<TransferConfig>) -> Result<Transfer, String> {
+        let mut counter = self.transfer_counter.write().await;
+        *counter += 1;
+        let transfer_id = format!("transfer-{:03}", *counter);
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Extract filename from path
+        let name = std::path::Path::new(&source)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("download")
+            .to_string();
+
+        let mut transfer = Transfer {
+            id: transfer_id.clone(),
+            name,
+            operation: TransferOperation::Download,
+            status: TransferStatus::Analyzing,
+            progress: TransferProgress::default(),
+            source: source.clone(),
+            destination: destination.clone(),
+            created_at: now,
+            started_at: Some(now),
+            completed_at: None,
+            merkle_root: None,
+            error: None,
+        };
+
+        self.transfers.write().await.insert(transfer_id.clone(), transfer.clone());
+        tracing::info!("Started download transfer: {} (using warp-core)", transfer_id);
+
+        // Use real warp-core TransferEngine
+        let dest_path = std::path::Path::new(&destination).to_path_buf();
+        let transfers = self.transfers.clone();
+        let tid = transfer_id.clone();
+
+        // Spawn async task to perform the transfer
+        let engine = self.engine.clone();
+        tokio::spawn(async move {
+            match engine.fetch(&source, &dest_path).await {
+                Ok(session) => {
+                    let mut transfers_guard = transfers.write().await;
+                    if let Some(t) = transfers_guard.get_mut(&tid) {
+                        t.status = TransferStatus::Completed;
+                        t.completed_at = Some(
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs()
+                        );
+                        t.merkle_root = session.merkle_root.map(|r| hex::encode(r));
+                        t.progress.bytes_transferred = session.transferred_bytes;
+                        t.progress.total_bytes = session.total_bytes;
+                        t.progress.completion_percentage = 100.0;
+                        tracing::info!("Download transfer {} completed", tid);
+                    }
+                }
+                Err(e) => {
+                    let mut transfers_guard = transfers.write().await;
+                    if let Some(t) = transfers_guard.get_mut(&tid) {
+                        t.status = TransferStatus::Failed;
+                        t.error = Some(e.to_string());
+                        tracing::error!("Download transfer {} failed: {}", tid, e);
+                    }
+                }
+            }
+        });
+
+        // Update status to transferring
+        transfer.status = TransferStatus::Transferring;
+        Ok(transfer)
+    }
+
+    /// Start a download transfer (mock implementation).
+    #[cfg(not(feature = "embedded-storage"))]
     pub async fn download(&self, source: String, destination: String, _config: Option<TransferConfig>) -> Result<Transfer, String> {
         let mut counter = self.transfer_counter.write().await;
         *counter += 1;
@@ -355,7 +515,7 @@ impl StorageBridge {
             }).await;
         }
 
-        tracing::info!("Started download transfer: {}", transfer_id);
+        tracing::info!("Started download transfer: {} (mock)", transfer_id);
         Ok(transfer)
     }
 

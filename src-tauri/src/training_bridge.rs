@@ -11,7 +11,7 @@
 //! ## Architecture
 //!
 //! The training bridge wraps either:
-//! - Real `DistributedTransformerTrainer` from rtx-distributed (with embedded-training)
+//! - Real `MultiGpuTrainer` from rtx-distributed (with embedded-training)
 //! - Mock training jobs with simulated progress (without embedded-training)
 //!
 //! Both implementations expose the same API to the Tauri commands.
@@ -22,12 +22,21 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+// Import real rtx-distributed types when feature is enabled
+#[cfg(feature = "embedded-training")]
+use rtx_distributed::{
+    MultiGpuTrainer, TrainingMetrics as RtxTrainingMetrics,
+};
+
 /// Bridge to the rustytorch training system.
 pub struct TrainingBridge {
     /// Active training jobs
     jobs: Arc<RwLock<HashMap<String, TrainingJob>>>,
     /// Job counter for generating IDs
     job_counter: Arc<RwLock<u64>>,
+    /// Real multi-GPU trainer (when embedded-training feature is enabled)
+    #[cfg(feature = "embedded-training")]
+    trainer: Arc<RwLock<Option<MultiGpuTrainer>>>,
 }
 
 /// A training job.
@@ -140,15 +149,37 @@ pub struct TrainingSummary {
 }
 
 impl TrainingBridge {
-    /// Create a new training bridge.
+    /// Create a new training bridge (with embedded-training feature).
+    #[cfg(feature = "embedded-training")]
     pub fn new() -> Self {
+        tracing::info!("TrainingBridge initialized with rtx-distributed (CUDA required)");
+        let bridge = Self {
+            jobs: Arc::new(RwLock::new(HashMap::new())),
+            job_counter: Arc::new(RwLock::new(0)),
+            trainer: Arc::new(RwLock::new(None)),
+        };
+
+        // Add mock jobs for demo (same as mock implementation)
+        Self::add_demo_jobs(bridge.jobs.clone());
+        bridge
+    }
+
+    /// Create a new training bridge (mock implementation).
+    #[cfg(not(feature = "embedded-training"))]
+    pub fn new() -> Self {
+        tracing::info!("TrainingBridge initialized with mock data (embedded-training feature disabled)");
         let bridge = Self {
             jobs: Arc::new(RwLock::new(HashMap::new())),
             job_counter: Arc::new(RwLock::new(0)),
         };
 
-        // Add some mock jobs for demo
-        let jobs = bridge.jobs.clone();
+        // Add mock jobs for demo
+        Self::add_demo_jobs(bridge.jobs.clone());
+        bridge
+    }
+
+    /// Add demo jobs for development/demo purposes.
+    fn add_demo_jobs(jobs: Arc<RwLock<HashMap<String, TrainingJob>>>) {
         tokio::spawn(async move {
             let mut jobs_guard = jobs.write().await;
 
@@ -236,8 +267,36 @@ impl TrainingBridge {
                 completed_at: Some(1703000000),
             });
         });
+    }
 
-        bridge
+    /// Initialize the real multi-GPU trainer (embedded-training feature only).
+    #[cfg(feature = "embedded-training")]
+    pub async fn init_trainer(&self, world_size: usize, local_rank: usize) -> Result<(), String> {
+        tracing::info!("Initializing MultiGpuTrainer with world_size={}, local_rank={}", world_size, local_rank);
+
+        match MultiGpuTrainer::new(world_size, local_rank).await {
+            Ok(trainer) => {
+                let mut guard = self.trainer.write().await;
+                *guard = Some(trainer);
+                tracing::info!("MultiGpuTrainer initialized successfully");
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!("Failed to initialize MultiGpuTrainer: {}", e);
+                Err(format!("Failed to initialize trainer: {}", e))
+            }
+        }
+    }
+
+    /// Get real-time metrics from the trainer (embedded-training feature only).
+    #[cfg(feature = "embedded-training")]
+    pub async fn get_real_metrics(&self) -> Option<RtxTrainingMetrics> {
+        let guard = self.trainer.read().await;
+        if let Some(ref trainer) = *guard {
+            Some(trainer.get_metrics().await)
+        } else {
+            None
+        }
     }
 
     /// Start a new training job.
