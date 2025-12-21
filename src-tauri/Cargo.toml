@@ -75,6 +75,11 @@ embedded-storage = ["warp-core", "warp-format"]
 # Linux/Windows: Uses CUDA GPU acceleration
 gpu-compiler = ["rustg"]
 
+# Embed nebula for RDMA transport and ZK proofs
+# NOTE: RDMA requires Linux with InfiniBand/RoCE
+# On non-Linux systems, mock implementation is used
+# embedded-nebula = ["nebula-rdma", "nebula-zk", "nebula-relay"]
+
 # Embed all optional crates for full functionality
 full = ["embedded-kernel", "embedded-cluster", "embedded-training", "embedded-storage", "gpu-compiler"]
 

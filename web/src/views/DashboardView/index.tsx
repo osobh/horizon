@@ -15,7 +15,6 @@ import {
   DollarSign,
   Zap,
   Clock,
-  AlertCircle,
 } from 'lucide-react';
 import { useClusterStore } from '../../stores/clusterStore';
 import { useTrainingStore } from '../../stores/trainingStore';
@@ -23,6 +22,7 @@ import SystemInfoPanel from '../../components/SystemInfoPanel';
 import RealTimeMetrics from '../../components/RealTimeMetrics';
 import GpuCompilerPanel from '../../components/GpuCompilerPanel';
 import EvolutionPanel from '../../components/EvolutionPanel';
+import NetworkTopology from '../../components/NetworkTopology';
 
 // Mock data for visualization
 const gpuUtilization = [
@@ -167,15 +167,9 @@ export default function DashboardView() {
             <GpuCompilerPanel />
           </div>
 
-          {/* Active Incidents */}
+          {/* Network Topology - RDMA + ZK */}
           <div className="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <AlertCircle className="w-4 h-4 text-amber-400" />
-              <h3 className="font-medium">Active Incidents</h3>
-            </div>
-            <div className="text-sm text-slate-400 text-center py-8">
-              No active incidents. System operating normally.
-            </div>
+            <NetworkTopology />
           </div>
         </div>
       </div>

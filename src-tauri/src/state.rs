@@ -6,6 +6,7 @@ use crate::cluster_bridge::ClusterBridge;
 use crate::evolution_bridge::EvolutionBridge;
 use crate::gpu_compiler_bridge::GpuCompilerBridge;
 use crate::kernel_bridge::KernelBridge;
+use crate::nebula_bridge::NebulaBridge;
 use crate::storage_bridge::StorageBridge;
 use crate::training_bridge::TrainingBridge;
 use std::sync::Arc;
@@ -30,6 +31,8 @@ pub struct AppState {
     pub gpu_compiler: Arc<GpuCompilerBridge>,
     /// Evolution bridge for self-improving agents
     pub evolution: Arc<EvolutionBridge>,
+    /// Nebula bridge for RDMA and ZK proofs
+    pub nebula: Arc<NebulaBridge>,
 }
 
 impl AppState {
@@ -43,6 +46,7 @@ impl AppState {
             storage: Arc::new(StorageBridge::new()),
             gpu_compiler: Arc::new(GpuCompilerBridge::new()),
             evolution: Arc::new(EvolutionBridge::new()),
+            nebula: Arc::new(NebulaBridge::new()),
         }
     }
 

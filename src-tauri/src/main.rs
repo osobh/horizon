@@ -14,6 +14,7 @@ mod events;
 mod evolution_bridge;
 mod gpu_compiler_bridge;
 mod kernel_bridge;
+mod nebula_bridge;
 mod state;
 mod storage_bridge;
 mod training_bridge;
@@ -129,6 +130,12 @@ fn main() {
             commands::evolution::get_swarm_metrics,
             commands::evolution::get_evolution_events,
             commands::evolution::simulate_evolution_step,
+            // Nebula commands (RDMA + ZK + Mesh)
+            commands::nebula::get_nebula_status,
+            commands::nebula::get_rdma_stats,
+            commands::nebula::get_zk_stats,
+            commands::nebula::get_mesh_topology,
+            commands::nebula::simulate_nebula_activity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");
