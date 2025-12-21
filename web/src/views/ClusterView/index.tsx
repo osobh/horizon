@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useClusterStore } from '../../stores/clusterStore';
 import SwarmConfigEditor from '../../components/SwarmConfigEditor';
+import TensorMesh from '../../components/TensorMesh';
 
 const NODE_TYPE_ICONS = {
   datacenter: Server,
@@ -32,7 +33,7 @@ const STATUS_COLORS = {
   starting: 'bg-blue-500',
 };
 
-type TabId = 'nodes' | 'config';
+type TabId = 'nodes' | 'config' | 'mesh';
 
 export default function ClusterView() {
   const {
@@ -95,6 +96,17 @@ export default function ClusterView() {
             >
               <FileCode className="w-4 h-4" />
               .swarm Config
+            </button>
+            <button
+              onClick={() => setActiveTab('mesh')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
+                activeTab === 'mesh'
+                  ? 'bg-slate-600 text-white'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Cpu className="w-4 h-4" />
+              Tensor Mesh
             </button>
           </div>
 
@@ -256,7 +268,7 @@ export default function ClusterView() {
             </div>
           </div>
         )
-      ) : (
+      ) : activeTab === 'config' ? (
         /* Swarm Config Editor */
         <SwarmConfigEditor
           onSave={(config) => {
@@ -268,6 +280,13 @@ export default function ClusterView() {
             // TODO: Send to stratoswarm for deployment
           }}
         />
+      ) : (
+        /* Tensor Mesh - GPU-to-GPU Distributed Operations */
+        <div className="flex-1 overflow-auto p-6">
+          <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+            <TensorMesh />
+          </div>
+        </div>
       )}
     </div>
   );

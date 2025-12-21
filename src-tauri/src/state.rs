@@ -8,6 +8,7 @@ use crate::gpu_compiler_bridge::GpuCompilerBridge;
 use crate::kernel_bridge::KernelBridge;
 use crate::nebula_bridge::NebulaBridge;
 use crate::storage_bridge::StorageBridge;
+use crate::tensor_mesh_bridge::TensorMeshBridge;
 use crate::training_bridge::TrainingBridge;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -33,6 +34,8 @@ pub struct AppState {
     pub evolution: Arc<EvolutionBridge>,
     /// Nebula bridge for RDMA and ZK proofs
     pub nebula: Arc<NebulaBridge>,
+    /// Tensor mesh bridge for distributed GPU-to-GPU operations
+    pub tensor_mesh: Arc<TensorMeshBridge>,
 }
 
 impl AppState {
@@ -47,6 +50,7 @@ impl AppState {
             gpu_compiler: Arc::new(GpuCompilerBridge::new()),
             evolution: Arc::new(EvolutionBridge::new()),
             nebula: Arc::new(NebulaBridge::new()),
+            tensor_mesh: Arc::new(TensorMeshBridge::new()),
         }
     }
 

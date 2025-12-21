@@ -17,6 +17,7 @@ mod kernel_bridge;
 mod nebula_bridge;
 mod state;
 mod storage_bridge;
+mod tensor_mesh_bridge;
 mod training_bridge;
 
 use events::MetricsCollector;
@@ -136,6 +137,12 @@ fn main() {
             commands::nebula::get_zk_stats,
             commands::nebula::get_mesh_topology,
             commands::nebula::simulate_nebula_activity,
+            // Tensor Mesh commands (RMPI + RDMA distributed training)
+            commands::tensor_mesh::get_tensor_mesh_status,
+            commands::tensor_mesh::get_collective_stats,
+            commands::tensor_mesh::get_active_transfers,
+            commands::tensor_mesh::get_tensor_nodes,
+            commands::tensor_mesh::simulate_tensor_mesh_activity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");

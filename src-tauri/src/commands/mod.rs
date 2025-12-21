@@ -9,4 +9,5 @@ pub mod nebula;
 pub mod notebook;
 pub mod storage;
 pub mod system;
+pub mod tensor_mesh;
 pub mod training;
