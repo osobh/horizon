@@ -22,6 +22,7 @@ import { useClusterStore } from '../../stores/clusterStore';
 import { useTrainingStore } from '../../stores/trainingStore';
 import SystemInfoPanel from '../../components/SystemInfoPanel';
 import RealTimeMetrics from '../../components/RealTimeMetrics';
+import GpuCompilerPanel from '../../components/GpuCompilerPanel';
 
 // Mock data for visualization
 const gpuUtilization = [
@@ -179,11 +180,16 @@ export default function DashboardView() {
           </div>
         </div>
 
-        {/* Bottom Section: Local System + Incidents */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Bottom Section: Local System + GPU Compiler + Incidents */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Local System Info */}
           <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
             <SystemInfoPanel />
+          </div>
+
+          {/* GPU Compiler */}
+          <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+            <GpuCompilerPanel />
           </div>
 
           {/* Active Incidents */}

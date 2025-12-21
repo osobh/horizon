@@ -42,6 +42,10 @@ warp-core = { path = "../../04-warp/crates/warp-core", optional = true }
 warp-format = { path = "../../04-warp/crates/warp-format", optional = true }
 # vortex-core = { workspace = true, optional = true }
 
+# GPU-accelerated Rust compilation (10x faster)
+# Works on macOS (Metal) and Linux/Windows (CUDA)
+rustg = { path = "../../01-rust/rustg", optional = true, default-features = false }
+
 [features]
 # Default: embedded kernel for notebook execution
 default = ["embedded-kernel"]
@@ -65,8 +69,14 @@ embedded-storage = ["warp-core", "warp-format"]
 # Embed vortex for protocol transmutation (when available)
 # embedded-vortex = ["vortex-core"]
 
+# GPU-accelerated Rust compilation via rustg
+# Provides 10x faster compilation in notebook cells
+# macOS: Uses Metal GPU acceleration
+# Linux/Windows: Uses CUDA GPU acceleration
+gpu-compiler = ["rustg"]
+
 # Embed all optional crates for full functionality
-full = ["embedded-kernel", "embedded-cluster", "embedded-training", "embedded-storage"]
+full = ["embedded-kernel", "embedded-cluster", "embedded-training", "embedded-storage", "gpu-compiler"]
 
 # Minimal build without embedded crates (uses mocks)
 minimal = []

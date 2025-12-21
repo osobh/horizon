@@ -11,6 +11,7 @@
 mod cluster_bridge;
 mod commands;
 mod events;
+mod gpu_compiler_bridge;
 mod kernel_bridge;
 mod state;
 mod storage_bridge;
@@ -33,6 +34,7 @@ fn main() {
     // Create app state
     let app_state = AppState::new();
     let kernel = Arc::clone(&app_state.kernel);
+    let gpu_compiler = Arc::clone(&app_state.gpu_compiler);
 
     // Create metrics collector (updates every 2 seconds)
     let metrics_collector = Arc::new(MetricsCollector::new(2000));
@@ -51,6 +53,22 @@ fn main() {
                     tracing::error!("Failed to initialize kernel: {}", e);
                 } else {
                     tracing::info!("Kernel initialized successfully");
+                }
+            });
+
+            // Initialize GPU compiler in background
+            let gpu_compiler_clone = Arc::clone(&gpu_compiler);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing GPU compiler...");
+                if let Err(e) = gpu_compiler_clone.initialize().await {
+                    tracing::warn!("GPU compiler initialization warning: {}", e);
+                } else {
+                    let status = gpu_compiler_clone.status().await;
+                    tracing::info!(
+                        "GPU compiler initialized: backend={}, available={}",
+                        status.backend,
+                        status.available
+                    );
                 }
             });
 
@@ -97,6 +115,12 @@ fn main() {
             // System commands
             commands::system::detect_gpus,
             commands::system::get_system_info,
+            // GPU Compiler commands
+            commands::gpu_compiler::init_gpu_compiler,
+            commands::gpu_compiler::get_gpu_compiler_status,
+            commands::gpu_compiler::gpu_compile,
+            commands::gpu_compiler::gpu_compile_quick,
+            commands::gpu_compiler::benchmark_gpu_compiler,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");
