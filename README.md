@@ -31,6 +31,78 @@ Horizon is the unified interface for the HPC-AI ecosystem, bringing together:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## Advanced Synergies
+
+Horizon integrates unique capabilities from across the HPC-AI stack that no other platform offers:
+
+### Synergy 1: GPU-Compiled Notebooks
+**Projects**: 01-rust + 08-rustybooks + 07-rustytorch
+```
+User types Rust code → GPU compiler (10x faster) → RTX tensor ops → Output
+                         ↓
+                  Sub-100ms feedback loop
+```
+- **Component**: `GpuCompilerPanel.tsx`
+- **Bridge**: `gpu_compiler_bridge.rs`
+- **Feature Flag**: `gpu-compiler`
+- **Unique**: No notebook system compiles on GPU. We achieve instant compilation.
+
+### Synergy 2: Evolution Dashboard
+**Projects**: 05-stratoswarm (ADAS + DGM + SwarmAgentic)
+```
+ADAS explores design space → DGM evolves agent code → SwarmAgentic optimizes
+        ↓                           ↓                        ↓
+   New agent designs        Self-modifying code       Population search
+```
+- **Component**: `EvolutionPanel.tsx`
+- **Bridge**: `evolution_bridge.rs`
+- **Unique**: Three evolution engines working in concert with real-time visualization.
+
+### Synergy 3: RDMA + ZK Visualization
+**Projects**: 10-nebula (RDMA + ZK Proofs + Mesh)
+```
+GPU A (Machine 1) ←→ 400Gbps RDMA ←→ GPU B (Machine 2)
+                          ↓
+            Zero-knowledge proof of correct training
+```
+- **Component**: `NetworkTopology.tsx`
+- **Bridge**: `nebula_bridge.rs`
+- **Feature Flag**: `embedded-nebula`
+- **Unique**: GPU-direct transfers with cryptographic verification.
+
+### Synergy 4: GPU Data Pipeline
+**Projects**: 04-warp + 08-rustybooks + 10-nebula
+```
+Data arrives → WARP GPU encryption (20GB/s) → GPUDirect to GPU memory
+                        ↓                              ↓
+              ChaCha20-Poly1305              Training starts without CPU touch
+```
+- **Component**: `DataPipeline.tsx`
+- **Bridge**: `data_pipeline_bridge.rs`
+- **Unique**: End-to-end GPU data path from network to training with 20+ GB/s encryption.
+
+### Synergy 5: Intelligent Edge Proxy
+**Projects**: 09-vortex + 03-SLAI + 05-stratoswarm
+```
+HTTP request → Vortex proxy → SLAI Brain routes → Knowledge graph decides
+                    ↓                 ↓                    ↓
+         Protocol transmutation   GPU health ML      Best node selection
+```
+- **Component**: `EdgeProxy.tsx`
+- **Bridge**: `edge_proxy_bridge.rs`
+- **Unique**: AI-driven request routing with GPU failure prediction and preemptive migration.
+
+### Synergy 6: Tensor Mesh
+**Projects**: 10-nebula RDMA + 02-RMPI + 07-rustytorch
+```
+Distributed GPUs ←→ Type-safe RMPI collectives ←→ RDMA transport
+                          ↓
+            All-reduce, broadcast, scatter at 400+ Gbps
+```
+- **Component**: `TensorMesh.tsx`
+- **Bridge**: `tensor_mesh_bridge.rs`
+- **Unique**: GPU-direct distributed training with compile-time safety.
+
 ## Features
 
 ### Notebook View (ML Researchers)
@@ -111,6 +183,8 @@ The backend supports optional feature flags for embedding additional functionali
 | `embedded-cluster` | Real cluster management via stratoswarm | Linux only |
 | `embedded-training` | Distributed training via rtx-distributed | CUDA required |
 | `embedded-storage` | File transfers via warp-core | All |
+| `gpu-compiler` | GPU-accelerated Rust compilation (Synergy 1) | Metal/CUDA |
+| `embedded-nebula` | RDMA + ZK proofs + mesh (Synergies 3 & 6) | Linux + InfiniBand |
 
 ```bash
 # Build with all embedded features (Linux with CUDA)
@@ -137,13 +211,25 @@ cargo tauri build --features minimal
 │       ├── kernel_bridge.rs      # Notebook execution (mock/real)
 │       ├── training_bridge.rs    # ML training jobs (mock/real)
 │       ├── storage_bridge.rs     # File transfers (mock/real)
+│       ├── gpu_compiler_bridge.rs # GPU compilation (Synergy 1)
+│       ├── evolution_bridge.rs   # Evolution engines (Synergy 2)
+│       ├── nebula_bridge.rs      # RDMA + ZK + mesh (Synergy 3)
+│       ├── data_pipeline_bridge.rs # GPU encryption pipeline (Synergy 4)
+│       ├── edge_proxy_bridge.rs  # Vortex + SLAI routing (Synergy 5)
+│       ├── tensor_mesh_bridge.rs # Tensor mesh ops (Synergy 6)
 │       └── commands/
 │           ├── mod.rs
 │           ├── cluster.rs        # Cluster IPC commands
 │           ├── notebook.rs       # Notebook IPC commands
 │           ├── training.rs       # Training IPC commands
 │           ├── storage.rs        # Storage IPC commands
-│           └── system.rs         # GPU detection, system info
+│           ├── system.rs         # GPU detection, system info
+│           ├── gpu_compiler.rs   # GPU compiler commands
+│           ├── evolution.rs      # Evolution engine commands
+│           ├── nebula.rs         # RDMA/ZK/mesh commands
+│           ├── data_pipeline.rs  # GPU pipeline commands (Synergy 4)
+│           ├── edge_proxy.rs     # Edge proxy commands (Synergy 5)
+│           └── tensor_mesh.rs    # Tensor mesh commands
 └── web/                          # React frontend
     ├── package.json
     ├── vite.config.ts
@@ -163,7 +249,13 @@ cargo tauri build --features minimal
         ├── components/
         │   ├── SwarmConfigEditor.tsx   # .swarm DSL editor
         │   ├── SystemInfoPanel.tsx     # GPU/system info display
-        │   └── RealTimeMetrics.tsx     # Live metrics charts
+        │   ├── RealTimeMetrics.tsx     # Live metrics charts
+        │   ├── GpuCompilerPanel.tsx    # GPU compiler status (Synergy 1)
+        │   ├── EvolutionPanel.tsx      # Evolution metrics (Synergy 2)
+        │   ├── NetworkTopology.tsx     # RDMA mesh visualization (Synergy 3)
+        │   ├── DataPipeline.tsx        # GPU encryption pipeline (Synergy 4)
+        │   ├── EdgeProxy.tsx           # Vortex + SLAI routing (Synergy 5)
+        │   └── TensorMesh.tsx          # Tensor mesh ops (Synergy 6)
         └── views/
             ├── NotebookView/     # Monaco cells + variable panel
             ├── ClusterView/      # Nodes grid + .swarm editor tabs
@@ -223,6 +315,14 @@ cargo tauri build --features minimal
 - [x] Tauri updater configuration
 - [x] Optimized release build (~5MB)
 - [x] Cross-platform support (macOS, Linux, Windows)
+
+### Phase 8: Advanced Synergies ✓
+- [x] **Synergy 1**: GPU-compiled notebooks (`gpu_compiler_bridge.rs`, `GpuCompilerPanel.tsx`)
+- [x] **Synergy 2**: Evolution dashboard (`evolution_bridge.rs`, `EvolutionPanel.tsx`)
+- [x] **Synergy 3**: RDMA + ZK visualization (`nebula_bridge.rs`, `NetworkTopology.tsx`)
+- [x] **Synergy 4**: GPU data pipeline (`data_pipeline_bridge.rs`, `DataPipeline.tsx`)
+- [x] **Synergy 5**: Intelligent edge proxy (`edge_proxy_bridge.rs`, `EdgeProxy.tsx`)
+- [x] **Synergy 6**: Tensor mesh operations (`tensor_mesh_bridge.rs`, `TensorMesh.tsx`)
 
 ## GPU Support
 

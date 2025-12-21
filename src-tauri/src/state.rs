@@ -3,6 +3,8 @@
 //! Centralized state for the Horizon application.
 
 use crate::cluster_bridge::ClusterBridge;
+use crate::data_pipeline_bridge::DataPipelineBridge;
+use crate::edge_proxy_bridge::EdgeProxyBridge;
 use crate::evolution_bridge::EvolutionBridge;
 use crate::gpu_compiler_bridge::GpuCompilerBridge;
 use crate::kernel_bridge::KernelBridge;
@@ -36,6 +38,10 @@ pub struct AppState {
     pub nebula: Arc<NebulaBridge>,
     /// Tensor mesh bridge for distributed GPU-to-GPU operations
     pub tensor_mesh: Arc<TensorMeshBridge>,
+    /// Data pipeline bridge for GPU-accelerated encryption (Synergy 4)
+    pub data_pipeline: Arc<DataPipelineBridge>,
+    /// Edge proxy bridge for Vortex + SLAI routing (Synergy 5)
+    pub edge_proxy: Arc<EdgeProxyBridge>,
 }
 
 impl AppState {
@@ -51,6 +57,8 @@ impl AppState {
             evolution: Arc::new(EvolutionBridge::new()),
             nebula: Arc::new(NebulaBridge::new()),
             tensor_mesh: Arc::new(TensorMeshBridge::new()),
+            data_pipeline: Arc::new(DataPipelineBridge::new()),
+            edge_proxy: Arc::new(EdgeProxyBridge::new()),
         }
     }
 

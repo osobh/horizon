@@ -17,6 +17,8 @@ import {
 import { useClusterStore } from '../../stores/clusterStore';
 import SwarmConfigEditor from '../../components/SwarmConfigEditor';
 import TensorMesh from '../../components/TensorMesh';
+import EdgeProxy from '../../components/EdgeProxy';
+import DataPipeline from '../../components/DataPipeline';
 
 const NODE_TYPE_ICONS = {
   datacenter: Server,
@@ -33,7 +35,7 @@ const STATUS_COLORS = {
   starting: 'bg-blue-500',
 };
 
-type TabId = 'nodes' | 'config' | 'mesh';
+type TabId = 'nodes' | 'config' | 'mesh' | 'proxy' | 'pipeline';
 
 export default function ClusterView() {
   const {
@@ -107,6 +109,28 @@ export default function ClusterView() {
             >
               <Cpu className="w-4 h-4" />
               Tensor Mesh
+            </button>
+            <button
+              onClick={() => setActiveTab('proxy')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
+                activeTab === 'proxy'
+                  ? 'bg-slate-600 text-white'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Wifi className="w-4 h-4" />
+              Edge Proxy
+            </button>
+            <button
+              onClick={() => setActiveTab('pipeline')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
+                activeTab === 'pipeline'
+                  ? 'bg-slate-600 text-white'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <HardDrive className="w-4 h-4" />
+              GPU Pipeline
             </button>
           </div>
 
@@ -280,11 +304,25 @@ export default function ClusterView() {
             // TODO: Send to stratoswarm for deployment
           }}
         />
-      ) : (
+      ) : activeTab === 'mesh' ? (
         /* Tensor Mesh - GPU-to-GPU Distributed Operations */
         <div className="flex-1 overflow-auto p-6">
           <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
             <TensorMesh />
+          </div>
+        </div>
+      ) : activeTab === 'proxy' ? (
+        /* Edge Proxy - Vortex + SLAI Intelligent Routing (Synergy 5) */
+        <div className="flex-1 overflow-auto p-6">
+          <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+            <EdgeProxy />
+          </div>
+        </div>
+      ) : (
+        /* GPU Data Pipeline - WARP Encryption (Synergy 4) */
+        <div className="flex-1 overflow-auto p-6">
+          <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+            <DataPipeline />
           </div>
         </div>
       )}

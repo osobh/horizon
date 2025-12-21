@@ -10,6 +10,8 @@
 
 mod cluster_bridge;
 mod commands;
+mod data_pipeline_bridge;
+mod edge_proxy_bridge;
 mod events;
 mod evolution_bridge;
 mod gpu_compiler_bridge;
@@ -143,6 +145,20 @@ fn main() {
             commands::tensor_mesh::get_active_transfers,
             commands::tensor_mesh::get_tensor_nodes,
             commands::tensor_mesh::simulate_tensor_mesh_activity,
+            // Data Pipeline commands (GPU-accelerated encryption - Synergy 4)
+            commands::data_pipeline::get_data_pipeline_status,
+            commands::data_pipeline::get_pipeline_stats,
+            commands::data_pipeline::get_pipeline_stages,
+            commands::data_pipeline::get_pipeline_jobs,
+            commands::data_pipeline::simulate_pipeline_activity,
+            // Edge Proxy commands (Vortex + SLAI - Synergy 5)
+            commands::edge_proxy::get_edge_proxy_status,
+            commands::edge_proxy::get_proxy_status,
+            commands::edge_proxy::get_brain_status,
+            commands::edge_proxy::get_failure_predictions,
+            commands::edge_proxy::get_backend_health,
+            commands::edge_proxy::get_routing_decisions,
+            commands::edge_proxy::simulate_edge_proxy_activity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");
