@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "embedded-cluster")]
 use stratoswarm_cluster_mesh::{
     ClusterMesh, ClusterNode as MeshClusterNode, NodeStatus as MeshNodeStatus,
-    NodeClass, ClusterStatistics as MeshClusterStats, NodeCapabilities as MeshNodeCapabilities,
+    NodeClass, ClusterStatistics,
 };
 
 /// Bridge to the stratoswarm cluster mesh.
@@ -251,7 +251,7 @@ impl ClusterBridge {
     }
 
     /// Convert mesh ClusterStatistics to our ClusterStats type.
-    fn convert_mesh_stats(stats: MeshClusterStats) -> ClusterStats {
+    fn convert_mesh_stats(stats: ClusterStatistics) -> ClusterStats {
         ClusterStats {
             total_nodes: stats.total_nodes,
             online_nodes: stats.online_nodes,
