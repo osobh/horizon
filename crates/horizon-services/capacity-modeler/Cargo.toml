@@ -1,0 +1,62 @@
+[package]
+name = "capacity-modeler"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "capacity-modeler"
+path = "src/main.rs"
+
+[dependencies]
+# Forecasting
+augurs-ets = "0.4"
+augurs-core = "0.4"
+
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# OpenAPI
+utoipa = { version = "4.0", features = ["axum_extras", "chrono"] }
+utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP
+hyper = "1.0"
+http-body-util = "0.1"
+
+# Horizon crates
+hpc-error = { path = "../../hpc-foundation/hpc-error", features = ["axum"] }
+hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
+hpc-config = { path = "../../hpc-foundation/hpc-config" }
+hpc-tsdb = { path = "../../hpc-foundation/hpc-tsdb" }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
+tokio-test = "0.4"
+tempfile = "3.8"
+tower = { version = "0.4", features = ["util"] }
+
+[[bench]]
+name = "forecast_benchmarks"
+harness = false

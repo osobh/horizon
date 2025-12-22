@@ -1,0 +1,191 @@
+{
+  "id": "47a19ab6-ea1c-4354-8c79-9cb1e7cbdc9e",
+  "title": "Memory Usage Report",
+  "generated_at": "2025-08-06T18:01:54.766802934Z",
+  "time_range": [
+    "2025-08-06T17:41:54.766799034Z",
+    "2025-08-06T18:00:54.766799034Z"
+  ],
+  "format": "Csv",
+  "sections": [
+    {
+      "title": "Performance Summary",
+      "content_type": "Summary",
+      "data": {
+        "metric_types": [
+          "MemoryUsage"
+        ],
+        "statistics_count": 1,
+        "total_metrics": 20
+      }
+    },
+    {
+      "title": "Metric Statistics",
+      "content_type": "Table",
+      "data": [
+        {
+          "average": 150.0,
+          "maximum": 200.0,
+          "metric_type": "MemoryUsage",
+          "minimum": 100.0,
+          "p95": 190.0,
+          "p99": 199.0,
+          "sample_count": 100,
+          "std_deviation": 25.0,
+          "window_end": "2025-08-06T18:01:54.766802634Z",
+          "window_start": "2025-08-06T17:01:54.766802414Z"
+        }
+      ]
+    },
+    {
+      "title": "Performance Trends",
+      "content_type": "Chart",
+      "data": {
+        "chart_type": "time_series",
+        "data": [
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:41:54.766799034Z",
+            "value": 100.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:42:54.766799034Z",
+            "value": 110.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:43:54.766799034Z",
+            "value": 120.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:44:54.766799034Z",
+            "value": 130.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:45:54.766799034Z",
+            "value": 140.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:46:54.766799034Z",
+            "value": 150.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:47:54.766799034Z",
+            "value": 160.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:48:54.766799034Z",
+            "value": 170.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:49:54.766799034Z",
+            "value": 180.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:50:54.766799034Z",
+            "value": 190.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:51:54.766799034Z",
+            "value": 200.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:52:54.766799034Z",
+            "value": 210.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:53:54.766799034Z",
+            "value": 220.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:54:54.766799034Z",
+            "value": 230.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:55:54.766799034Z",
+            "value": 240.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:56:54.766799034Z",
+            "value": 250.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:57:54.766799034Z",
+            "value": 260.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:58:54.766799034Z",
+            "value": 270.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:59:54.766799034Z",
+            "value": 280.0
+          },
+          {
+            "metric_type": "MemoryUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T18:00:54.766799034Z",
+            "value": 290.0
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {}
+}

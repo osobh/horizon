@@ -5,9 +5,13 @@
 Cargo.lock
 
 # Node.js
+node_modules/
 /web/node_modules/
 /web/dist/
 /web/.vite/
+
+# Duplicate frontend (using web/ instead)
+/horizon-frontend/
 
 # IDE
 .idea/

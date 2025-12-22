@@ -1,0 +1,25 @@
+[package]
+name = "stratoswarm-gpu-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "GPU runtime backend selection for StratoSwarm"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/anthropics/stratoswarm"
+keywords = ["gpu", "metal", "cuda", "runtime"]
+categories = ["development-tools"]
+
+[features]
+default = []
+metal = ["dep:stratoswarm-metal-core"]
+metal3 = ["metal", "stratoswarm-metal-core/metal3"]
+metal4 = ["metal", "stratoswarm-metal-core/metal4"]
+cuda = []  # CUDA support placeholder
+
+[dependencies]
+thiserror = "2.0"
+tracing = "0.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+stratoswarm-metal-core = { path = "../metal-core", optional = true }
+
+[dev-dependencies]

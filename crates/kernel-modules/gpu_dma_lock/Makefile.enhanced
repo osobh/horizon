@@ -1,0 +1,71 @@
+# Enhanced GPU DMA Lock Kernel Module Makefile
+
+obj-m += gpu_dma_lock.o
+
+# Source files
+gpu_dma_lock-objs := gpu_dma_lock.o
+
+# Kernel build directory
+KDIR ?= /lib/modules/$(shell uname -r)/build
+
+# Module installation directory
+INSTALL_MOD_DIR ?= kernel/drivers/swarm
+
+# Compiler flags
+ccflags-y := -I$(src)/../../common
+ccflags-y += -Wall -Wextra -Werror
+ccflags-y += -DMODULE_NAME=\"gpu_dma_lock\"
+
+# Debug build
+ifdef DEBUG
+ccflags-y += -DDEBUG -g -O0
+else
+ccflags-y += -O2
+endif
+
+# Coverage build
+ifdef COVERAGE
+ccflags-y += -fprofile-arcs -ftest-coverage
+ldflags-y += -lgcov
+endif
+
+all: modules
+
+modules:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+
+clean:
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	rm -f *.gcno *.gcda *.gcov
+
+install:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules_install
+	depmod -a
+
+test: modules
+	# Build test module
+	$(MAKE) -C $(KDIR) M=$(PWD)/tests modules
+	# Load main module
+	sudo insmod gpu_dma_lock.ko debug=1
+	# Run tests
+	sudo insmod tests/test_gpu_dma_lock.ko
+	# Check results
+	sudo dmesg | tail -50
+	# Unload modules
+	sudo rmmod test_gpu_dma_lock
+	sudo rmmod gpu_dma_lock
+
+coverage: clean
+	$(MAKE) COVERAGE=1
+	$(MAKE) test
+	gcov gpu_dma_lock.c
+	lcov --capture --directory . --output-file coverage.info
+	genhtml coverage.info --output-directory coverage_report
+	@echo "Coverage report generated in coverage_report/index.html"
+
+benchmark: modules
+	sudo insmod gpu_dma_lock.ko
+	./tests/benchmark.sh
+	sudo rmmod gpu_dma_lock
+
+.PHONY: all modules clean install test coverage benchmark

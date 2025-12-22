@@ -1,0 +1,40 @@
+[package]
+name = "exorust-governance"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Core async and serialization
+async-trait.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling and logging
+thiserror.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+
+# Time and UUID
+chrono.workspace = true
+uuid.workspace = true
+
+# Thread-safe collections
+dashmap.workspace = true
+parking_lot = "0.12"
+
+# Internal crates
+exorust-bootstrap = { path = "../bootstrap" }
+exorust-emergency-controls = { path = "../emergency-controls" }
+exorust-compliance = { path = "../compliance" }
+exorust-agent-core = { path = "../agent-core" }
+exorust-evolution-engines = { path = "../evolution-engines" }
+
+# Testing
+[dev-dependencies]
+tokio-test = "0.4"
+proptest.workspace = true
+criterion.workspace = true

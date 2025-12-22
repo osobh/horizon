@@ -1,0 +1,49 @@
+# Makefile for gpu_dma_lock with coverage support
+
+obj-m += gpu_dma_lock.o
+gpu_dma_lock-objs := src/main.o
+
+# Include paths
+ccflags-y += -I$(src)/src
+ccflags-y += -DCONFIG_GPU_DMA_LOCK_DEBUG
+
+# Coverage flags
+ifdef COVERAGE
+ccflags-y += -fprofile-arcs -ftest-coverage
+ldflags-y += -lgcov
+endif
+
+# Rust library path
+RUST_LIB := target/release/libgpu_dma_lock.a
+
+KDIR ?= /lib/modules/$(shell uname -r)/build
+PWD := $(shell pwd)
+
+all: rust_lib
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+
+rust_lib:
+	cargo build --release
+
+clean:
+	cargo clean
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	rm -f *.gcno *.gcda *.gcov coverage.info
+	rm -rf coverage_html
+
+coverage: clean
+	COVERAGE=1 $(MAKE) all
+
+install: all
+	sudo insmod gpu_dma_lock.ko debug=1
+
+remove:
+	-sudo rmmod gpu_dma_lock
+
+test-load: all
+	-sudo rmmod gpu_dma_lock 2>/dev/null || true
+	sudo insmod gpu_dma_lock.ko debug=1
+	lsmod | grep gpu_dma_lock
+	dmesg | tail -20
+
+.PHONY: all clean coverage install remove test-load rust_lib

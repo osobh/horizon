@@ -1,0 +1,64 @@
+[package]
+name = "telemetry-collector"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "telemetry-collector"
+path = "src/main.rs"
+
+[dependencies]
+hpc-error = { path = "../../hpc-foundation/hpc-error" }
+hpc-types = { path = "../../hpc-foundation/hpc-types" }
+hpc-config = { path = "../../hpc-foundation/hpc-config" }
+hpc-auth = { path = "../../hpc-foundation/hpc-auth" }
+hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
+
+tokio = { workspace = true }
+quinn = { workspace = true }
+prost = { workspace = true }
+bytes = { workspace = true }
+
+# InfluxDB client
+influxdb = "0.7"
+
+# Parquet writing
+arrow = { workspace = true }
+parquet = { workspace = true }
+
+# Metrics
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+
+# Configuration
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Utilities
+futures = { workspace = true }
+async-trait = { workspace = true }
+rustls = { workspace = true }
+rustls-pemfile = { workspace = true }
+regex = "1.10"
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
+criterion = { workspace = true }
+proptest = { workspace = true }
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[lib]
+name = "telemetry_collector"
+path = "src/lib.rs"

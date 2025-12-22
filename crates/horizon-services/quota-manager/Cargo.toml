@@ -1,0 +1,61 @@
+[package]
+name = "horizon-quota-manager"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "quota-manager"
+path = "src/main.rs"
+
+[dependencies]
+# Internal dependencies
+hpc-error = { path = "../../hpc-foundation/hpc-error", features = ["sqlx", "axum", "reqwest"] }
+hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
+hpc-config = { path = "../../hpc-foundation/hpc-config" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Web framework
+axum = { workspace = true }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database
+sqlx = { workspace = true, features = ["postgres", "uuid", "chrono", "runtime-tokio-rustls", "migrate", "rust_decimal"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Decimal for precise quota calculations
+rust_decimal = { version = "1.33", features = ["serde-float"] }
+rust_decimal_macros = "1.33"
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# OpenAPI
+utoipa = { version = "4.0", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "quota_benchmarks"
+harness = false

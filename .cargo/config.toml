@@ -1,0 +1,16 @@
+[env]
+# CUDA 13.0 installation path
+CUDA_PATH = "/usr/local/cuda-13.0"
+CUDA_HOME = "/usr/local/cuda-13.0"
+CUDACXX = "/usr/local/cuda-13.0/bin/nvcc"
+
+# Clang binding arguments for CUDA
+BINDGEN_EXTRA_CLANG_ARGS = "-I/usr/lib/gcc/x86_64-linux-gnu/14/include -I/usr/include/x86_64-linux-gnu -I/usr/include"
+
+# Note: rustg-specific environment variables moved to build scripts
+# When using cargo-g, set these environment variables:
+# export RUSTG_ENABLE_GPU_COMPILATION=true
+# export RUSTG_CUDA_PATH=/usr/local/cuda-13.0
+# export RUSTG_GPU_MEMORY_MODEL=distributed
+# export RUSTG_OPTIMIZATION_LEVEL=3
+# export RUSTG_TARGET_CAPABILITY=8.9

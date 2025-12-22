@@ -1,0 +1,31 @@
+[package]
+name = "exorust-memory"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+cust = { workspace = true, optional = true }
+cudarc = { workspace = true, optional = true }
+
+# UUID generation
+uuid.workspace = true
+
+[features]
+default = []
+cuda = ["cust", "cudarc"]
+cuda-alt = ["cudarc"]
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+tokio-test = "0.4"
+serde_json.workspace = true
+

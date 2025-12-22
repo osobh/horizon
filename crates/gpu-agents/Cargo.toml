@@ -1,0 +1,355 @@
+[package]
+name = "gpu-agents"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["cpu-mode"]
+cpu-mode = []
+rustg-gpu = []
+test-utils = []
+
+[dependencies]
+anyhow = "1.0"
+bincode = "1.3"
+bytes = "1.5"
+bytemuck = { version = "1.14", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+cudarc = { version = "0.12", features = ["cuda-12020"] }
+log = "0.4"
+tracing = "0.1"
+env_logger = "0.10"
+rand = "0.8"
+regex = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+toml = "0.8"
+tokio = { version = "1.0", features = ["full"] }
+ratatui = "0.24"
+crossterm = "0.27"
+clap = { version = "4.0", features = ["derive"] }
+
+# Compression dependencies
+lz4 = "1.24"
+zstd = "0.13"
+crossbeam-channel = "0.5"
+
+# Binary serialization for performance optimization
+rmp-serde = "1.1"  # MessagePack for Rust
+
+# GPU monitoring dependencies
+nvml-wrapper = "0.9"
+
+# CPU-GPU bridge dependencies
+exorust-net = { path = "../net" }
+exorust-agent-core = { path = "../agent-core" }
+
+# Storage layer dependency
+exorust-storage = { path = "../storage" }
+async-trait = "0.1"
+futures = "0.3"
+memmap2 = "0.9"
+
+# Cross-crate integration dependencies
+exorust-synthesis = { path = "../synthesis" }
+exorust-evolution-engines = { path = "../evolution-engines" }
+exorust-knowledge-graph = { path = "../knowledge-graph" }
+uuid = { version = "1.0", features = ["v4"] }
+
+[dev-dependencies]
+cargo-test = "0.1"
+tempfile = "3.8"
+pretty_assertions = "1.4"
+tokio-test = "0.4"
+rand = "0.8"
+
+[build-dependencies]
+cc = "1.0"
+
+[lib]
+name = "gpu_agents"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gpu-agent-demo"
+path = "src/bin/demo.rs"
+
+
+[[bin]]
+name = "benchmark"
+path = "src/bin/benchmark.rs"
+
+[[bin]]
+name = "monitor"
+path = "src/bin/monitor.rs"
+
+[[bin]]
+name = "storage-benchmark"
+path = "src/bin/storage_benchmark.rs"
+
+[[bin]]
+name = "test-atomic-graph"
+path = "src/bin/test_atomic_graph.rs"
+
+[[bin]]
+name = "test-atomic-graph-simple"
+path = "src/bin/test_atomic_graph_simple.rs"
+
+[[bin]]
+name = "test-memory-allocation"
+path = "src/bin/test_memory_allocation.rs"
+
+[[bin]]
+name = "simple-evolution-test"
+path = "src/bin/simple_evolution_test.rs"
+
+[[bin]]
+name = "simple-evolution-benchmark"
+path = "src/bin/simple_evolution_benchmark.rs"
+
+[[bin]]
+name = "debug-evolution"
+path = "src/bin/debug_evolution.rs"
+
+[[bin]]
+name = "test-evolution-hang"
+path = "src/bin/test_evolution_hang.rs"
+
+[[bin]]
+name = "evolution-scaling-test"
+path = "src/bin/evolution_scaling_test.rs"
+
+[[bin]]
+name = "evolution-debug-trace"
+path = "src/bin/evolution_debug_trace.rs"
+
+[[bin]]
+name = "evolution-working-benchmark"
+path = "src/bin/evolution_working_benchmark.rs"
+
+[[bin]]
+name = "evolution-minimal-test"
+path = "src/bin/evolution_minimal_test.rs"
+
+[[bin]]
+name = "evolution-performance-report"
+path = "src/bin/evolution_performance_report.rs"
+
+[[bin]]
+name = "evolution-quick-report"
+path = "src/bin/evolution_quick_report.rs"
+
+[[bin]]
+name = "consensus-benchmark"
+path = "src/bin/consensus_benchmark.rs"
+
+[[bin]]
+name = "test-consensus-scale"
+path = "src/bin/test_consensus_scale.rs"
+
+[[bin]]
+name = "test-consensus-scale-green"
+path = "src/bin/test_consensus_scale_green.rs"
+
+[[bin]]
+name = "test-consensus-scale-refactor"
+path = "src/bin/test_consensus_scale_refactor.rs"
+
+[[bin]]
+name = "test-single-node-agents"
+path = "src/bin/test_single_node_agents.rs"
+
+[[bin]]
+name = "test-single-node-agents-green"
+path = "src/bin/test_single_node_agents_green.rs"
+
+[[bin]]
+name = "test-single-node-agents-refactor"
+path = "src/bin/test_single_node_agents_refactor.rs"
+
+[[bin]]
+name = "test-multi-node-simulation"
+path = "src/bin/test_multi_node_simulation.rs"
+
+[[bin]]
+name = "test-multi-node-simulation-green"
+path = "src/bin/test_multi_node_simulation_green.rs"
+
+[[bin]]
+name = "test-multi-node-simulation-refactor"
+path = "src/bin/test_multi_node_simulation_refactor.rs"
+
+[[bin]]
+name = "test-missing-components"
+path = "src/bin/test_missing_components.rs"
+
+[[bin]]
+name = "test-missing-components-green"
+path = "src/bin/test_missing_components_green.rs"
+
+[[bin]]
+name = "test-missing-components-refactor"
+path = "src/bin/test_missing_components_refactor.rs"
+
+[[bin]]
+name = "test-nvrtc-synthesis"
+path = "src/bin/test_nvrtc_synthesis.rs"
+
+[[bin]]
+name = "test-nvrtc-synthesis-green"
+path = "src/bin/test_nvrtc_synthesis_green.rs"
+
+[[bin]]
+name = "test-nvrtc-synthesis-refactor"
+path = "src/bin/test_nvrtc_synthesis_refactor.rs"
+
+[[bin]]
+name = "test-template-operations"
+path = "src/bin/test_template_operations.rs"
+
+[[bin]]
+name = "test-template-operations-green"
+path = "src/bin/test_template_operations_green.rs"
+
+[[bin]]
+name = "test-template-operations-refactor"
+path = "src/bin/test_template_operations_refactor.rs"
+
+[[bin]]
+name = "test-consensus-synthesis-integration"
+path = "src/bin/test_consensus_synthesis_integration.rs"
+
+[[bin]]
+name = "test-consensus-synthesis-integration-green"
+path = "src/bin/test_consensus_synthesis_integration_green.rs"
+
+[[bin]]
+name = "test-consensus-synthesis-integration-refactor"
+path = "src/bin/test_consensus_synthesis_integration_refactor.rs"
+
+[[bin]]
+name = "integration-demo"
+path = "src/bin/integration_demo.rs"
+
+[[bin]]
+name = "test-tui-dashboard"
+path = "src/bin/test_tui_dashboard.rs"
+
+[[bin]]
+name = "test-tui-dashboard-green"
+path = "src/bin/test_tui_dashboard_green.rs"
+
+[[bin]]
+name = "test-cross-crate-integration"
+path = "src/bin/test_cross_crate_integration.rs"
+
+[[bin]]
+name = "synthesis-benchmark"
+path = "src/bin/synthesis_benchmark.rs"
+
+[[bin]]
+name = "synthesis-debug"
+path = "src/bin/synthesis_debug.rs"
+
+[[bin]]
+name = "cuda-kernel-test"
+path = "src/bin/cuda_kernel_test.rs"
+
+[[bin]]
+name = "synthesis-simple-test"
+path = "src/bin/synthesis_simple_test.rs"
+
+# Removed duplicate - synthesis-simple-test already points to this file
+
+[[bin]]
+name = "synthesis-throughput-test"
+path = "src/bin/synthesis_throughput_test.rs"
+
+[[bin]]
+name = "synthesis-bottleneck-analysis"
+path = "src/bin/synthesis_bottleneck_analysis.rs"
+
+[[bin]]
+name = "synthesis-bottleneck-simple"
+path = "src/bin/synthesis_bottleneck_analysis_simple.rs"
+
+[[bin]]
+name = "test-batch-processor"
+path = "src/bin/test_batch_processor.rs"
+
+[[bin]]
+name = "test-batch-comprehensive"
+path = "src/bin/test_batch_comprehensive.rs"
+
+[[bin]]
+name = "synthesis-micro-benchmarks"
+path = "src/bin/synthesis_micro_benchmarks.rs"
+
+[[bin]]
+name = "test-memory-bandwidth"
+path = "src/bin/test_memory_bandwidth.rs"
+
+[[bin]]
+name = "memory-bandwidth-benchmark"
+path = "src/bin/memory_bandwidth_benchmark.rs"
+
+[[bin]]
+name = "test-variable-buffer"
+path = "src/bin/test_variable_buffer.rs"
+
+[[bin]]
+name = "test-variable-buffer-green"
+path = "src/bin/test_variable_buffer_green.rs"
+
+[[bin]]
+name = "test-variable-buffer-refactor"
+path = "src/bin/test_variable_buffer_refactor.rs"
+
+[[bin]]
+name = "synthesis-kernel-safe-test"
+path = "src/bin/synthesis_kernel_safe_test.rs"
+
+[[bin]]
+name = "synthesis-original-test"
+path = "src/bin/synthesis_original_test.rs"
+
+[[bin]]
+name = "synthesis-encoding-test"
+path = "src/bin/synthesis_encoding_test.rs"
+
+[[bin]]
+name = "synthesis-fixed-test"
+path = "src/bin/synthesis_fixed_test.rs"
+
+[[bin]]
+name = "integration-benchmarks"
+path = "src/bin/integration_benchmarks.rs"
+
+[[bin]]
+name = "integration-performance-test"
+path = "src/bin/integration_performance_test.rs"
+
+[[bin]]
+name = "test-multi-region-consensus"
+path = "src/bin/test_multi_region_consensus.rs"
+
+[[bin]]
+name = "multi-region-performance-benchmark"
+path = "src/bin/multi_region_performance_benchmark.rs"
+
+[[bin]]
+name = "multi-region-optimized-benchmark"
+path = "src/bin/multi_region_optimized_benchmark.rs"
+
+[[bin]]
+name = "test-e2e-workflow-validation"
+path = "src/bin/test_e2e_workflow_validation.rs"
+
+[[bin]]
+name = "e2e-workflow-demo"
+path = "src/bin/e2e_workflow_demo.rs"
+
+[[bin]]
+name = "test-time-travel-evolution-integration"
+path = "src/bin/test_time_travel_evolution_integration.rs"

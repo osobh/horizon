@@ -1,0 +1,39 @@
+[package]
+name = "stratoswarm-metal-shaders"
+version = "0.1.0"
+edition = "2021"
+description = "Metal Shading Language shaders for StratoSwarm GPU operations"
+license = "MIT"
+authors = ["StratoSwarm Team"]
+
+[dependencies]
+# Re-export metal-core for shader compilation
+stratoswarm-metal-core = { path = "../metal-core" }
+
+# Error handling
+thiserror = "2.0"
+
+[build-dependencies]
+# For compile-time shader embedding (optional)
+
+[dev-dependencies]
+tokio = { version = "1.40", features = ["full", "test-util"] }
+
+[lib]
+name = "stratoswarm_metal_shaders"
+path = "src/lib.rs"
+
+[[bin]]
+name = "evolution_bench"
+path = "src/bin/evolution_bench.rs"
+
+[[bin]]
+name = "reduction_bench"
+path = "src/bin/reduction_bench.rs"
+
+[dependencies.anyhow]
+version = "1.0"
+
+[dependencies.bytemuck]
+version = "1.14"
+features = ["derive"]

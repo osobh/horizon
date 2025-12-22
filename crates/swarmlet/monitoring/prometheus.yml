@@ -1,0 +1,152 @@
+# Prometheus Configuration for StratoSwarm Monitoring
+# Optimized for GPU-native distributed systems
+
+global:
+  scrape_interval: 5s        # Frequent scraping for real-time monitoring
+  evaluation_interval: 10s   # Rule evaluation frequency
+  external_labels:
+    cluster: 'stratoswarm'
+    environment: 'development'
+
+# Rule files for alerting
+rule_files:
+  - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # StratoSwarm Swarmlet nodes
+  - job_name: 'swarmlet-nodes'
+    static_configs:
+      - targets: 
+          - 'swarmlet:9090'          # Main swarmlet container
+          - 'host.docker.internal:9090'  # Host machine
+    scrape_interval: 2s              # High frequency for GPU metrics
+    metrics_path: '/metrics'
+    params:
+      format: ['prometheus']
+
+  # Visual Editor metrics
+  - job_name: 'visual-editor'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+
+  # GPU Agents (when running)
+  - job_name: 'gpu-agents'
+    static_configs:
+      - targets: ['host.docker.internal:9091']
+    metrics_path: '/metrics'
+    scrape_interval: 1s              # Very high frequency for GPU monitoring
+    params:
+      format: ['prometheus']
+
+  # Node Exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 5s
+
+  # NVIDIA DCGM Exporter for GPU metrics
+  - job_name: 'dcgm-exporter'
+    static_configs:
+      - targets: ['dcgm-exporter:9400']
+    scrape_interval: 2s
+    honor_labels: true
+
+  # Custom StratoSwarm metrics exporters
+  - job_name: 'consensus-metrics'
+    static_configs:
+      - targets: ['host.docker.internal:9092']
+    metrics_path: '/consensus/metrics'
+    scrape_interval: 1s
+
+  - job_name: 'evolution-metrics'
+    static_configs:
+      - targets: ['host.docker.internal:9093']
+    metrics_path: '/evolution/metrics'
+    scrape_interval: 5s
+
+  - job_name: 'knowledge-graph-metrics'
+    static_configs:
+      - targets: ['host.docker.internal:9094']
+    metrics_path: '/knowledge/metrics'
+    scrape_interval: 3s
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Storage configuration
+storage:
+  tsdb:
+    retention.time: 7d
+    retention.size: 10GB
+    path: /prometheus
+    
+# Remote write (optional - for long-term storage)
+# remote_write:
+#   - url: "http://victoriametrics:8428/api/v1/write"
+
+# Recording rules for performance optimization
+recording_rules:
+  # GPU utilization aggregations
+  - name: gpu_utilization_rules
+    rules:
+      - record: stratoswarm:gpu_utilization_avg_5m
+        expr: avg_over_time(dcgm_gpu_utilization[5m])
+      
+      - record: stratoswarm:gpu_memory_utilization_avg_5m
+        expr: avg_over_time(dcgm_gpu_memory_utilization[5m])
+      
+      - record: stratoswarm:gpu_power_usage_avg_5m
+        expr: avg_over_time(dcgm_power_usage[5m])
+
+  # Consensus performance metrics
+  - name: consensus_performance_rules
+    rules:
+      - record: stratoswarm:consensus_latency_p99_5m
+        expr: histogram_quantile(0.99, rate(consensus_vote_duration_seconds_bucket[5m]))
+      
+      - record: stratoswarm:consensus_throughput_5m
+        expr: rate(consensus_votes_total[5m])
+      
+      - record: stratoswarm:consensus_success_rate_5m
+        expr: rate(consensus_votes_success_total[5m]) / rate(consensus_votes_total[5m])
+
+  # System health indicators
+  - name: system_health_rules
+    rules:
+      - record: stratoswarm:node_memory_utilization
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100
+      
+      - record: stratoswarm:node_cpu_utilization
+        expr: (1 - rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100
+      
+      - record: stratoswarm:node_disk_utilization
+        expr: (1 - node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100
+
+# Global limits
+global:
+  query_log_file: /prometheus/query.log
+  
+# Optional: Federation for multi-cluster setup
+# - job_name: 'federated-clusters'
+#   scrape_interval: 30s
+#   honor_labels: true
+#   metrics_path: '/federate'
+#   params:
+#     'match[]':
+#       - '{job=~"prometheus|swarmlet-nodes|gpu-agents"}'
+#   static_configs:
+#     - targets:
+#       - 'cluster-east.stratoswarm.local:9090'
+#       - 'cluster-west.stratoswarm.local:9090'

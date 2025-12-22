@@ -1,0 +1,23 @@
+[package]
+name = "swarm-guard"
+version = "0.1.0"
+edition = "2021"
+authors = ["StratoSwarm Team"]
+description = "Kernel module for resource enforcement and namespace management"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+# No external dependencies for kernel module
+
+[build-dependencies]
+cc = "1.0"
+
+[features]
+default = []
+# Enable additional debugging features
+debug = []
+
+# Profiles are defined at workspace level

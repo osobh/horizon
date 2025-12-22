@@ -1,0 +1,39 @@
+[package]
+name = "hpc-tsdb"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Time-series database client for HPC Platform"
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+
+# HTTP client for InfluxDB
+reqwest = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Tracing
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
+
+[lib]
+name = "hpc_tsdb"
+path = "src/lib.rs"
+
+[features]
+default = []

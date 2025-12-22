@@ -1,0 +1,216 @@
+# StratoSwarm Swarmlet Docker Compose
+# Easy deployment with environment-based configuration
+#
+# Usage:
+#   export SWARMLET_CLUSTER_TOKEN="your_token_here"
+#   export SWARMLET_CLUSTER_HOST="cluster.coordinator.com:7946"
+#   docker-compose up -d
+#
+# Or with .env file:
+#   cp .env.example .env
+#   # Edit .env with your configuration
+#   docker-compose up -d
+
+version: '3.8'
+
+services:
+  swarmlet:
+    image: ${SWARMLET_IMAGE:-stratoswarm/swarmlet:latest}
+    container_name: ${SWARMLET_CONTAINER_NAME:-stratoswarm-swarmlet}
+    restart: ${SWARMLET_RESTART_POLICY:-unless-stopped}
+    
+    environment:
+      # Required: Cluster connection
+      - SWARMLET_CLUSTER_TOKEN=${SWARMLET_CLUSTER_TOKEN}
+      - SWARMLET_CLUSTER_HOST=${SWARMLET_CLUSTER_HOST}
+      
+      # Optional: Node configuration
+      - SWARMLET_NODE_NAME=${SWARMLET_NODE_NAME:-}
+      - SWARMLET_AUTO_JOIN=${SWARMLET_AUTO_JOIN:-true}
+      - SWARMLET_COMMAND_EXEC=${SWARMLET_COMMAND_EXEC:-enabled}
+      
+      # Optional: Logging
+      - RUST_LOG=${SWARMLET_LOG_LEVEL:-info}
+      - SWARMLET_LOG_FILE=${SWARMLET_LOG_FILE:-/data/swarmlet.log}
+      
+      # Optional: Resource limits  
+      - SWARMLET_MAX_WORKLOADS=${SWARMLET_MAX_WORKLOADS:-10}
+      - SWARMLET_MEMORY_LIMIT=${SWARMLET_MEMORY_LIMIT:-}
+      - SWARMLET_CPU_LIMIT=${SWARMLET_CPU_LIMIT:-}
+      
+      # Optional: Security
+      - SWARMLET_ALLOWED_COMMANDS=${SWARMLET_ALLOWED_COMMANDS:-}
+      - SWARMLET_COMMAND_TIMEOUT=${SWARMLET_COMMAND_TIMEOUT:-300}
+    
+    ports:
+      - "${SWARMLET_API_PORT:-8080}:8080"
+      - "${SWARMLET_METRICS_PORT:-9090}:9090"
+    
+    # Bind to host IP for external access
+    networks:
+      swarmlet-net:
+        ipv4_address: ${SWARMLET_CONTAINER_IP:-172.20.0.10}
+    
+    volumes:
+      # Data persistence
+      - "${SWARMLET_DATA_DIR:-./data}:/data:rw"
+      
+      # Configuration (optional)
+      - "${SWARMLET_CONFIG_DIR:-./config}:/config:ro"
+      
+      # Docker socket for container workloads
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      
+      # Optional: SSH keys for remote operations
+      - "${SSH_KEY_DIR:-}:/root/.ssh:ro"
+    
+    healthcheck:
+      test: ["CMD", "/swarmlet", "profile-hardware"]
+      interval: ${SWARMLET_HEALTH_INTERVAL:-30s}
+      timeout: ${SWARMLET_HEALTH_TIMEOUT:-10s}
+      retries: ${SWARMLET_HEALTH_RETRIES:-3}
+      start_period: ${SWARMLET_HEALTH_START_PERIOD:-10s}
+    
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+    
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE  # For binding to ports < 1024
+      - SYS_PTRACE       # For process monitoring (optional)
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: ${SWARMLET_MEMORY_LIMIT:-1G}
+          cpus: '${SWARMLET_CPU_LIMIT:-2.0}'
+        reservations:
+          memory: ${SWARMLET_MEMORY_RESERVATION:-256M}
+          cpus: '${SWARMLET_CPU_RESERVATION:-0.5}'
+    
+    # Labels for container management
+    labels:
+      - "com.stratoswarm.service=swarmlet"
+      - "com.stratoswarm.version=${SWARMLET_VERSION:-latest}"
+      - "traefik.enable=${SWARMLET_TRAEFIK_ENABLE:-false}"
+      - "traefik.http.routers.swarmlet.rule=Host(`${SWARMLET_HOSTNAME:-swarmlet.local}`)"
+      - "traefik.http.services.swarmlet.loadbalancer.server.port=8080"
+
+  # Optional: Monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: swarmlet-prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    
+    ports:
+      - "${PROMETHEUS_PORT:-9091}:9090"
+    
+    networks:
+      swarmlet-net:
+        ipv4_address: ${PROMETHEUS_CONTAINER_IP:-172.20.0.11}
+    
+    volumes:
+      - prometheus_data:/prometheus
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    
+    depends_on:
+      - swarmlet
+
+  # Optional: Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: swarmlet-grafana
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    
+    networks:
+      swarmlet-net:
+        ipv4_address: ${GRAFANA_CONTAINER_IP:-172.20.0.12}
+    
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    
+    depends_on:
+      - prometheus
+
+  # Optional: Log aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: swarmlet-loki
+    restart: unless-stopped
+    profiles:
+      - logging
+    
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    
+    volumes:
+      - loki_data:/loki
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml:ro
+    
+    networks:
+      - swarmlet-net
+
+networks:
+  swarmlet-net:
+    driver: bridge
+    name: swarmlet-network
+    ipam:
+      config:
+        - subnet: ${SWARMLET_SUBNET:-172.20.0.0/16}
+          gateway: ${SWARMLET_GATEWAY:-172.20.0.1}
+
+volumes:
+  # Persistent data storage
+  swarmlet_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SWARMLET_DATA_DIR:-./data}
+  
+  swarmlet_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SWARMLET_CONFIG_DIR:-./config}
+  
+  # Monitoring volumes
+  prometheus_data:
+    driver: local
+  
+  grafana_data:
+    driver: local
+  
+  loki_data:
+    driver: local
+
+# Configuration for development override
+# Use: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+---
+version: '3.8'
+# Development overrides can be added in docker-compose.override.yml

@@ -1,0 +1,55 @@
+[package]
+name = "exorust-evolution-streaming"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["full"] }
+async-trait = "0.1"
+async-stream = "0.3"
+
+# Streaming foundation
+exorust-streaming = { path = "../streaming" }
+
+# Data structures
+bytes = "1.9"
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.0", features = ["v4"] }
+
+# Concurrency
+futures = "0.3"
+crossbeam = "0.8"
+arc-swap = "1.7"
+parking_lot = "0.12"
+
+# Collections
+dashmap = "6.0"
+lru = "0.12"
+ringbuf = "0.4"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Metrics
+metrics = "0.24"
+
+# Additional dependencies
+md5 = "0.7"
+fastrand = "2.2"
+serde_json = "1.0"
+
+# Testing
+tempfile = "3.15"
+criterion = { version = "0.5", optional = true, features = ["html_reports"] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tokio-test = "0.4"
+
+[features]
+default = []
+benchmarks = ["criterion"]
+cuda = []

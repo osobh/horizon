@@ -1,0 +1,36 @@
+[package]
+name = "stratoswarm-dsl"
+version = "0.1.0"
+edition = "2021"
+authors = ["StratoSwarm Team"]
+description = ".swarm DSL parser and compiler for StratoSwarm"
+license = "MIT"
+
+[dependencies]
+# Parsing
+pest = "2.7"
+pest_derive = "2.7"
+nom = "7.1"
+
+# Core dependencies
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# For AST and compilation
+uuid = { workspace = true }
+indexmap = { version = "2.0", features = ["serde"] }
+
+# For template support
+tera = "1.19"
+regex = "1.10"
+
+# Project dependencies
+# Note: We define our own types to avoid circular dependencies
+
+[dev-dependencies]
+insta = "1.34"
+pretty_assertions = "1.4"
+tempfile = "3.8"

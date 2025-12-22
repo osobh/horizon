@@ -1,0 +1,185 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO assets (\n                id, asset_type, provider, provider_id, parent_id,\n                hostname, status, location, metadata, created_by\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n            RETURNING\n                id,\n                asset_type AS \"asset_type: AssetType\",\n                provider AS \"provider: ProviderType\",\n                provider_id,\n                parent_id,\n                hostname,\n                status AS \"status: AssetStatus\",\n                location,\n                metadata AS \"metadata: serde_json::Value\",\n                created_at,\n                updated_at,\n                decommissioned_at,\n                created_by\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "asset_type: AssetType",
+        "type_info": {
+          "Custom": {
+            "name": "asset_type",
+            "kind": {
+              "Enum": [
+                "node",
+                "gpu",
+                "cpu",
+                "nic",
+                "switch",
+                "rack"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "provider: ProviderType",
+        "type_info": {
+          "Custom": {
+            "name": "provider_type",
+            "kind": {
+              "Enum": [
+                "baremetal",
+                "aws",
+                "gcp",
+                "azure",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "provider_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "parent_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "hostname",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "status: AssetStatus",
+        "type_info": {
+          "Custom": {
+            "name": "asset_status",
+            "kind": {
+              "Enum": [
+                "provisioning",
+                "available",
+                "allocated",
+                "maintenance",
+                "degraded",
+                "decommissioned"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "location",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "metadata: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "decommissioned_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_by",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "asset_type",
+            "kind": {
+              "Enum": [
+                "node",
+                "gpu",
+                "cpu",
+                "nic",
+                "switch",
+                "rack"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "provider_type",
+            "kind": {
+              "Enum": [
+                "baremetal",
+                "aws",
+                "gcp",
+                "azure",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "Varchar",
+        "Uuid",
+        "Varchar",
+        {
+          "Custom": {
+            "name": "asset_status",
+            "kind": {
+              "Enum": [
+                "provisioning",
+                "available",
+                "allocated",
+                "maintenance",
+                "degraded",
+                "decommissioned"
+              ]
+            }
+          }
+        },
+        "Varchar",
+        "Jsonb",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "1ada4301f6e5c1193a6cd11c129780681079cd81b312d887afe4a921b9584a35"
+}

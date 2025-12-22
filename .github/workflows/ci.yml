@@ -1,0 +1,190 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # Code quality checks
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      
+      - name: Clippy lints
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      
+      - name: Check for unwrap() in production code
+        run: |
+          # Count unwraps excluding tests
+          unwrap_count=$(find crates -name "*.rs" -not -path "*/tests/*" -not -path "*/benches/*" -exec grep -c "\.unwrap()" {} \; | paste -sd+ | bc)
+          echo "Found $unwrap_count unwrap() calls in production code"
+          if [ "$unwrap_count" -gt 100 ]; then
+            echo "::warning::High number of unwrap() calls detected: $unwrap_count"
+          fi
+      
+      - name: Check file sizes
+        run: |
+          # Check for files exceeding 850 lines
+          large_files=$(find crates -name "*.rs" -exec wc -l {} \; | awk '$1 > 850 {print $2}')
+          if [ -n "$large_files" ]; then
+            echo "::warning::Files exceeding 850 lines:"
+            echo "$large_files"
+          fi
+
+  # Security audit
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      
+      - name: Security audit
+        run: cargo audit
+
+  # Build and test on multiple platforms
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, nightly]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build
+        run: cargo build --workspace --verbose
+      
+      - name: Run tests
+        run: cargo test --workspace --verbose
+      
+      - name: Run doc tests
+        run: cargo test --workspace --doc
+
+  # Test coverage (Linux only)
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin
+      
+      - name: Generate coverage
+        run: cargo tarpaulin --workspace --out xml --exclude-files "*/tests/*" "*/benches/*"
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./cobertura.xml
+          fail_ci_if_error: false
+
+  # Documentation build
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Build documentation
+        run: cargo doc --workspace --no-deps --all-features
+      
+      - name: Check documentation coverage
+        run: |
+          # Check for missing docs
+          cargo doc --workspace --no-deps 2>&1 | grep -c "warning: missing documentation" || true
+
+  # Benchmarks (only on main branch)
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Run benchmarks
+        run: cargo bench --workspace --no-fail-fast
+
+  # GPU tests (requires self-hosted runner with GPU)
+  gpu-tests:
+    name: GPU Tests
+    runs-on: [self-hosted, gpu]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install CUDA
+        run: |
+          # This assumes CUDA is pre-installed on self-hosted runner
+          echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
+          echo "/usr/local/cuda/bin" >> $GITHUB_PATH
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Build with GPU features
+        run: cargo build --workspace --features gpu
+      
+      - name: Run GPU tests
+        run: cargo test --workspace --features gpu -- --nocapture

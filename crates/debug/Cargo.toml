@@ -1,0 +1,32 @@
+[package]
+name = "exorust-debug"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+
+# Debug and introspection
+backtrace = "0.3"
+futures = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { workspace = true }
+tempfile = "3.0"
+futures = "0.3"
+
+# Benchmarks will be added later
+# [[bench]]
+# name = "debug_benchmarks"
+# harness = false

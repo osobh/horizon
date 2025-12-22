@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgpu_agent_kernels.a CMakeFiles/gpu_agent_kernels.dir/src/kernels/agent_kernel.cu.o CMakeFiles/gpu_agent_kernels.dir/src/kernels/memory_kernel.cu.o CMakeFiles/gpu_agent_kernels.dir/src/kernels/swarm_kernel.cu.o CMakeFiles/gpu_agent_kernels.dir/src/kernels/evolution_kernel.cu.o
+/usr/bin/ranlib libgpu_agent_kernels.a

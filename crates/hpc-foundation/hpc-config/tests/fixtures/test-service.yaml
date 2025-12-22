@@ -1,0 +1,14 @@
+# Test Service Configuration (YAML format)
+# This is a sample configuration file for testing the configx crate
+
+listen_addr: "0.0.0.0:8080"
+log_level: "info"
+max_connections: 100
+enable_tls: true
+timeout_ms: 5000
+
+# Optional features
+features:
+  - "metrics"
+  - "tracing"
+  - "health_check"

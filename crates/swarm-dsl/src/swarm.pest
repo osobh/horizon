@@ -1,0 +1,181 @@
+// .swarm DSL Grammar
+
+// Whitespace and comments
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT = _{ ("//" ~ (!"\n" ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }
+
+// Literals
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+template_identifier = { identifier | (identifier ~ "_" ~ identifier) }
+string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+number = @{ "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+boolean = { "true" | "false" }
+
+// Root
+file = { SOI ~ (import_statement | template_definition | swarm_definition)* ~ EOI }
+
+// Swarm definition
+swarm_definition = {
+    "swarm" ~ (identifier | interpolation) ~ "{" ~
+        (agents_block | connections_block | policies_block | functions_block | evolution_block | affinity_block)* ~
+    "}"
+}
+
+// Agents block
+agents_block = {
+    "agents" ~ "{" ~
+        agent_definition* ~
+    "}"
+}
+
+agent_definition = {
+    identifier ~ ":" ~ agent_type ~ "{" ~
+        (agent_property | nested_block)* ~
+    "}"
+}
+
+nested_block = {
+    identifier ~ "{" ~
+        (object_field ~ (",")?)* ~
+    "}"
+}
+
+agent_type = { identifier ~ ("<" ~ type_params ~ ">")? }
+type_params = { identifier ~ ("," ~ identifier)* }
+
+agent_property = {
+    identifier ~ ":" ~ property_value ~ ","?
+}
+
+property_value = {
+    object |
+    array |
+    range |
+    function_call |
+    string |
+    number |
+    boolean |
+    identifier
+}
+
+// Connections block
+connections_block = {
+    "connections" ~ "{" ~
+        connection_definition* ~
+    "}"
+}
+
+connection_definition = {
+    identifier ~ "->" ~ identifier ~ ":" ~ "{" ~
+        connection_property* ~
+    "}"
+}
+
+connection_property = {
+    identifier ~ ":" ~ property_value ~ ","?
+}
+
+// Policies block
+policies_block = {
+    "policies" ~ "{" ~
+        policy_definition* ~
+    "}"
+}
+
+policy_definition = {
+    identifier ~ ":" ~ property_value ~ ","?
+}
+
+// Functions block
+functions_block = {
+    "functions" ~ "{" ~
+        function_definition* ~
+    "}"
+}
+
+function_definition = {
+    "fn" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "->" ~ identifier ~ "{" ~
+        statement* ~
+    "}"
+}
+
+parameter_list = {
+    parameter ~ ("," ~ parameter)*
+}
+
+parameter = {
+    identifier ~ ":" ~ identifier
+}
+
+statement = {
+    identifier ~ "=" ~ expression ~ ";"
+}
+
+expression = {
+    property_value
+}
+
+// Complex types
+object = {
+    "{" ~ (object_field ~ ("," ~ object_field)*)? ~ "}"
+}
+
+object_field = {
+    identifier ~ ":" ~ property_value
+}
+
+array = {
+    "[" ~ (property_value ~ ("," ~ property_value)*)? ~ "]"
+}
+
+range = {
+    number ~ ".." ~ number
+}
+
+function_call = {
+    identifier ~ "(" ~ (property_value ~ ("," ~ property_value)*)? ~ ")"
+}
+
+// Special blocks
+evolution_block = {
+    "evolution" ~ "{" ~
+        evolution_property* ~
+    "}"
+}
+
+evolution_property = {
+    identifier ~ ":" ~ property_value ~ ","?
+}
+
+affinity_block = {
+    "affinity" ~ "{" ~
+        affinity_rule* ~
+    "}"
+}
+
+affinity_rule = {
+    identifier ~ ":" ~ property_value ~ ","?
+}
+
+tier_preference = {
+    "[" ~ tier_type ~ ("," ~ tier_type)* ~ "]"
+}
+
+tier_type = { "GPU" | "CPU" | "NVMe" | "Memory" }
+
+// Import system
+import_statement = {
+    "import" ~ string ~ ("as" ~ identifier)? ~ ";"
+}
+
+// Template support
+template_definition = {
+    "template" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~
+        swarm_definition ~
+    "}"
+}
+
+// Interpolation
+interpolation = {
+    "${" ~ identifier ~ "}"
+}

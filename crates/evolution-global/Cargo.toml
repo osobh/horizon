@@ -1,0 +1,33 @@
+[package]
+name = "exorust-evolution-global"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Evolution system global deployment with AI safety compliance and secure multi-party evolution"
+
+[dependencies]
+async-trait = "0.1.83"
+tokio = { version = "1.41", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
+dashmap = "6.1"
+parking_lot = "0.12"
+sha2 = "0.10"
+ring = "0.17"
+ed25519-dalek = "2.1"
+rand = "0.8"
+
+[dev-dependencies]
+tempfile = "3.14"
+criterion = "0.5"
+proptest = "1.6"
+test-log = "0.2"
+env_logger = "0.11"
+mockall = "0.13"
+futures = "0.3"

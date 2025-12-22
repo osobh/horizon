@@ -1,0 +1,53 @@
+[package]
+name = "exorust-evolution-engines"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+rand = { workspace = true }
+rayon = { workspace = true }
+
+# Project crates
+exorust-evolution = { path = "../evolution" }
+exorust-agent-core = { path = "../agent-core" }
+exorust-synthesis = { path = "../synthesis" }
+exorust-runtime = { path = "../runtime" }
+exorust-monitoring = { path = "../monitoring" }
+
+# Evolution-specific dependencies
+ndarray = { version = "0.16", features = ["serde", "rayon"] }
+ordered-float = "4.3"
+dashmap = "6.1"
+parking_lot = "0.12"
+crossbeam = "0.8"
+futures = "0.3"
+itertools = "0.13"
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3.8"
+lazy_static = "1.4"
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { workspace = true }
+proptest = { workspace = true }
+approx = "0.5"
+
+[features]
+default = []
+mock = ["exorust-synthesis/mock-llm"]
+
+# [[bench]]
+# name = "evolution_engines"
+# harness = false

@@ -1,0 +1,62 @@
+[package]
+name = "scheduler"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Workspace crates
+hpc-error = { path = "../../hpc-foundation/hpc-error", features = ["sqlx", "axum", "reqwest"] }
+hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
+hpc-config = { path = "../../hpc-foundation/hpc-config" }
+hpc-resources = { path = "../../hpc-foundation/hpc-resources" }
+
+# Async runtime
+tokio = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
+# Web framework
+axum = { workspace = true }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database
+sqlx = { workspace = true, features = ["postgres", "uuid", "chrono", "json", "runtime-tokio-rustls"] }
+
+# UUID
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# OpenAPI
+utoipa = { version = "4.0", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tempfile = { workspace = true }
+tokio-test = { workspace = true }
+http-body-util = "0.1"
+tower = { version = "0.4", features = ["util"] }
+
+[[bench]]
+name = "scheduler_benchmarks"
+harness = false

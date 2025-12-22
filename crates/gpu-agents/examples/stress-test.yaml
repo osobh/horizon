@@ -1,0 +1,41 @@
+name: "GPU Agents Stress Test"
+description: "Long-running stress test to measure sustained performance"
+
+benchmarks:
+  - type: scalability
+    enabled: true
+    config:
+      initial_agents: 1000
+      max_agents: 50000000  # 50 million agents
+      scaling_factor: 2
+      iterations: 20        # More iterations for longer test
+      hold_duration_seconds: 10  # Hold each level for 10 seconds
+      
+  - type: llm
+    enabled: true
+    config:
+      batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+      sequence_lengths: [128, 256, 512, 1024, 2048]
+      test_duration_seconds: 300  # 5 minute test
+      warmup_iterations: 100
+      
+  - type: knowledge_graph
+    enabled: true
+    config:
+      initial_nodes: 10000
+      max_nodes: 10000000   # 10 million nodes
+      edge_density: 0.2
+      query_complexity: "complex"
+      test_duration_seconds: 180  # 3 minute test
+      concurrent_queries: 100
+      
+  - type: evolution
+    enabled: true
+    config:
+      population_size: 10000
+      generations: 1000
+      mutation_rate: 0.02
+      crossover_rate: 0.8
+      selection_method: "tournament"
+      parallel_populations: 4
+      checkpoint_interval: 100

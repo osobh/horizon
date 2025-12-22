@@ -1,0 +1,39 @@
+[package]
+name = "exorust-runtime"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+cust = { workspace = true, optional = true }
+# nvrtc = { workspace = true, optional = true }  # Temporarily disabled
+
+# UUID generation and random numbers
+uuid.workspace = true
+rand.workspace = true
+
+# Internal dependencies
+exorust-memory = { path = "../memory" }
+
+# Async utilities
+futures = "0.3"
+
+[features]
+default = []
+cuda = ["cust", "exorust-memory/cuda"]
+cuda-alt = ["exorust-memory/cuda-alt"]
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+tokio-test = "0.4"
+futures = "0.3"
+

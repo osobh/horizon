@@ -1,0 +1,27 @@
+name: "Quick Test Scenario"
+description: "Fast benchmark for testing and development"
+
+benchmarks:
+  - type: scalability
+    enabled: true
+    config:
+      initial_agents: 10
+      max_agents: 100
+      scaling_factor: 2
+      iterations: 2
+      
+  - type: llm
+    enabled: false
+    config: {}
+      
+  - type: knowledge_graph
+    enabled: true
+    config:
+      initial_nodes: 100
+      max_nodes: 1000
+      edge_density: 0.05
+      query_complexity: "simple"
+      
+  - type: evolution
+    enabled: false
+    config: {}

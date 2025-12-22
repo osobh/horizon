@@ -1,0 +1,69 @@
+[package]
+name = "ai-assistant"
+version = "0.1.0"
+edition = "2021"
+authors = ["StratoSwarm Team"]
+description = "Natural language AI assistant for StratoSwarm developer experience"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.40", features = ["full"] }
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Natural language processing
+nom = "7.1"  # For parsing
+regex = "1.10"
+lazy_static = "1.4"
+
+# StratoSwarm integration
+exorust-runtime = { path = "../runtime" }
+stratoswarm-zero-config = { path = "../zero-config" }
+# stratoswarm-cluster-mesh = { path = "../cluster-mesh" }  # Temporarily disabled due to compilation errors
+stratoswarm-cli = { path = "../stratoswarm-cli" }
+
+# Machine learning and embeddings (simplified)
+ndarray = "0.15"
+
+# Vector database for learned patterns (optional)
+# hnsw = "0.11"  # Commented out due to dependency conflicts
+
+# Command generation
+handlebars = "5.1"
+clap = { version = "4.5", features = ["derive"] }
+
+# API integration
+reqwest = { version = "0.12", features = ["json"] }
+axum = "0.7"
+tower = "0.4"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+tempfile = "3.10"
+mockall = "0.12"
+test-case = "3.3"
+pretty_assertions = "1.4"
+rstest = "0.19"
+
+[[bench]]
+name = "nl_parsing"
+harness = false
+
+[[bench]]
+name = "command_generation"
+harness = false
+
+[features]
+default = ["local-model"]
+local-model = []  # Use local ML model
+cloud-model = []  # Use cloud-based model
+gpu = []  # GPU acceleration (placeholder)

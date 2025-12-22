@@ -1,0 +1,32 @@
+[package]
+name = "exorust-integration-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+exorust-runtime = { path = "../runtime" }
+exorust-memory = { path = "../memory" }
+exorust-storage = { path = "../storage" }
+exorust-net = { path = "../net" }
+exorust-evolution = { path = "../evolution" }
+exorust-agent-core = { path = "../agent-core" }
+exorust-knowledge-graph = { path = "../knowledge-graph" }
+exorust-evolution-engines = { path = "../evolution-engines" }
+exorust-synthesis = { path = "../synthesis" }
+exorust-cuda = { path = "../cuda" }
+exorust-monitoring = { path = "../monitoring" }
+exorust-debug = { path = "../debug" }
+cpu-agents = { path = "../cpu-agents" }
+# gpu-agents = { path = "../gpu-agents" } # Temporarily disabled due to compilation issues
+swarmlet = { path = "../swarmlet" }
+stratoswarm-zero-config = { path = "../zero-config" }
+stratoswarm-cluster-mesh = { path = "../cluster-mesh" }
+tokio = { workspace = true, features = ["test-util", "macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3.8"
+futures = "0.3"
+uuid = { version = "1.5", features = ["v4", "serde"] }
+rand = "0.8"

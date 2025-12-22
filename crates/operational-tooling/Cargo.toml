@@ -1,0 +1,33 @@
+[package]
+name = "exorust-operational-tooling"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Production operational tooling for ExoRust agent deployment, monitoring, and management"
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+uuid = { workspace = true, features = ["v4", "serde"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+dashmap = { workspace = true }
+
+# ExoRust dependencies
+exorust-agent-core = { path = "../agent-core" }
+exorust-runtime = { path = "../runtime" }
+exorust-monitoring = { path = "../monitoring" }
+exorust-cuda = { path = "../cuda" }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+criterion = { workspace = true }
+
+[features]
+default = ["mock"]
+mock = []

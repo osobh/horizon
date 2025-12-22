@@ -1,0 +1,25 @@
+[package]
+name = "hpc-provider"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Multi-cloud provider abstraction for HPC Platform"
+
+[dependencies]
+async-trait = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+rust_decimal = "1.33"
+rust_decimal_macros = "1.33"
+chrono = "0.4"
+
+[dev-dependencies]
+tokio = { workspace = true }
+tokio-test = { workspace = true }
+serde_json = { workspace = true }
+
+[lib]
+name = "hpc_provider"
+path = "src/lib.rs"
+doctest = false

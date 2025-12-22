@@ -1,6 +1,123 @@
 [workspace]
 resolver = "2"
-members = ["src-tauri"]
+members = [
+    # Tauri Desktop App
+    "src-tauri",
+
+    # Core Runtime
+    "crates/runtime",
+    "crates/memory",
+    "crates/storage",
+    "crates/net",
+    "crates/evolution",
+    "crates/test-utils",
+    "crates/integration-tests",
+    # Kernel Modules
+    "crates/kernel-modules/swarm_guard",
+    "crates/kernel-modules/tier_watch",
+    "crates/kernel-modules/gpu_dma_lock",
+    # Phase 2 Extended Features
+    "crates/streaming",
+    "crates/evolution-streaming",
+    "crates/monitoring",
+    "crates/debug",
+    # Phase 3 Agent Systems
+    "crates/cuda",
+    "crates/agent-core",
+    "crates/synthesis",
+    "crates/evolution-engines",
+    "crates/knowledge-graph",
+    "crates/bootstrap",
+    "crates/gpu-agents",
+    # Phase 4 Production Hardening
+    "crates/fault-tolerance",
+    "crates/consensus",
+    "crates/operational-tooling",
+    "crates/business-interface",
+    "crates/emergency-controls",
+    "crates/compliance",
+    "crates/multi-region",
+    "crates/zero-trust",
+    "crates/cost-optimization",
+    "crates/disaster-recovery",
+    "crates/performance-regression",
+    "crates/global-knowledge-graph",
+    "crates/evolution-global",
+    "crates/governance",
+    "crates/cpu-agents",
+    "crates/shared-storage",
+    "crates/zero-config",
+    "crates/cluster-mesh",
+    "crates/swarm-dsl",
+    "crates/stratoswarm-cli",
+    "crates/visual-editor",
+    "crates/time-travel-debugger",
+    "crates/ai-assistant",
+    "crates/swarm-registry",
+    "crates/swarmlet",
+    # Documentation tooling
+    "crates/documentation-validator",
+    # Metal GPU Backend (macOS)
+    "crates/metal-core",
+    "crates/metal-shaders",
+    # GPU Runtime (backend selection)
+    "crates/gpu-runtime",
+
+    # ==========================================
+    # HPC Foundation Crates (merged from Horizon)
+    # ==========================================
+    "crates/hpc-foundation/hpc-error",
+    "crates/hpc-foundation/hpc-crypto",
+    "crates/hpc-foundation/hpc-config",
+    "crates/hpc-foundation/hpc-tracing",
+    "crates/hpc-foundation/hpc-auth",
+    "crates/hpc-foundation/hpc-rpc",
+    "crates/hpc-foundation/hpc-policy",
+    "crates/hpc-foundation/hpc-vault",
+    "crates/hpc-foundation/hpc-tsdb",
+    "crates/hpc-foundation/hpc-mcp",
+    "crates/hpc-foundation/hpc-resources",
+    "crates/hpc-foundation/hpc-types",
+    "crates/hpc-foundation/hpc-provider",
+
+    # ==========================================
+    # Horizon Services (Cost Intelligence, Enterprise Intelligence)
+    # ==========================================
+    "crates/horizon-services/cost-ingestor",
+    "crates/horizon-services/cost-attributor",
+    "crates/horizon-services/cost-reporter",
+    "crates/horizon-services/scheduler",
+    "crates/horizon-services/governor",
+    "crates/horizon-services/capacity-modeler",
+    "crates/horizon-services/quota-manager",
+    "crates/horizon-services/inventory-service",
+    # TODO: Fix arrow/chrono conflict
+    # "crates/horizon-services/telemetry-collector",
+    "crates/horizon-services/efficiency-intelligence",
+    "crates/horizon-services/margin-intelligence",
+    "crates/horizon-services/vendor-intelligence",
+    "crates/horizon-services/executive-intelligence",
+    "crates/horizon-services/initiative-tracker",
+    "crates/horizon-services/providers/aws",
+    "crates/horizon-services/providers/gcp",
+    "crates/horizon-services/providers/azure",
+    "crates/horizon-services/providers/baremetal",
+
+    # ==========================================
+    # Horizon Agents (Core traits only - individual agents replaced by universal-agent)
+    # ==========================================
+    "crates/horizon-agents/core",
+
+    # ==========================================
+    # Universal Agent (replaces 9 individual agent crates)
+    # ==========================================
+    "crates/universal-agent",
+
+    # ==========================================
+    # Stratoswarm Core (Phase 1 - Channel Infrastructure)
+    # ==========================================
+    "crates/stratoswarm-core",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,35 +127,186 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/hpc-ai/horizon"
 rust-version = "1.75"
 
+# rustg GPU-native compiler integration
+[workspace.metadata.rustg]
+# Path to rustg compiler binary (will be built from ../rust/rustg/)
+compiler_path = "../rust/rustg/target/release/rustg"
+# GPU-intensive crates that should be compiled with rustg for performance
+gpu_crates = [
+    "gpu-agents",        # Consensus + synthesis kernels (highest impact)
+    "knowledge-graph",   # Semantic search (already GPU-native)
+    "consensus",         # Byzantine consensus algorithms
+    "evolution-engines", # ADAS, DGM, SwarmAgentic algorithms
+    "synthesis",         # Goal→kernel transformation
+    "cuda",              # CUDA operations layer
+]
+# rustg compilation configuration
+[workspace.metadata.rustg.config]
+target_arch = "gpu"
+optimization_level = 3
+gpu_memory_model = "distributed"
+cuda_capability = "8.9"  # RTX 5090
+enable_debug_info = true
+enable_profiling = true
+
 [workspace.dependencies]
 # Tauri
 tauri = { version = "2.1", features = [] }
 tauri-build = "2.0"
 
-# Async
+# Async runtime
 tokio = { version = "1.42", features = ["full"] }
 async-trait = "0.1"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.9"
+bytes = "1.5"
 
 # Error handling
 thiserror = "1.0"
 anyhow = "1.0"
 
-# Logging
+# Logging & Observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+prometheus = "0.13"
+opentelemetry = "0.21"
+opentelemetry-otlp = "0.14"
+tracing-opentelemetry = "0.22"
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+sysinfo = "0.30"
+backtrace = "0.3"
+
+# GPU/CUDA dependencies
+cust = "0.3"
+cudarc = { version = "0.11", features = ["cuda-12050"] }
+
+# Additional dependencies
+uuid = { version = "1.0", features = ["v4", "serde"] }
+sled = "0.34"
+axum = "0.7"
+tower = { version = "0.4", features = ["timeout"] }
+hyper = "1.0"
+rand = "0.8"
+rayon = "1.7"
+futures = "0.3"
+tempfile = "3.0"
+
+# Testing dependencies
+criterion = "0.5"
+proptest = "1.0"
+tokio-test = "0.4"
+
+# TLS and cryptography
+rustls = { version = "0.21", features = ["dangerous_configuration"] }
+rustls-pemfile = "1.0"
+rcgen = "0.11"
+x509-parser = "0.15"
+aes-gcm = "0.10"
+argon2 = "0.5"
+zeroize = { version = "1.7", features = ["derive"] }
+base64 = "0.22"
+
+# gRPC and RPC
+tonic = { version = "0.11", features = ["tls", "transport"] }
+prost = "0.12"
+tonic-build = "0.11"
+quinn = "0.10"
+pin-project = "1.1"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json"] }
+
+# OpenAPI documentation
+utoipa = { version = "4.0", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# Decimal handling
+rust_decimal = "1.33"
+rust_decimal_macros = "1.33"
+
+# Data processing
+arrow = "52"
+parquet = "52"
+csv = "1.3"
+influxdb = "0.7"
+
+# Zero-config intelligence dependencies
+walkdir = "2.5"
+ignore = "0.4"
+tree-sitter = "0.24"
+tree-sitter-rust = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-javascript = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-go = "0.23"
+tree-sitter-java = "0.23"
+toml = "0.8"
+pest = "2.7"
+pest_derive = "2.7"
+candle-core = "0.9"
+candle-nn = "0.9"
+linfa = "0.7"
+ndarray = "0.15"
+regex = "1.10"
+unicode-segmentation = "1.12"
+petgraph = "0.6"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Additional dependencies for operational tooling
+dashmap = "5.0"
+
+# LLM integration for business interface
+async-openai = "0.29"
+
+# Metal GPU backend dependencies (macOS)
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-metal = "0.3"
+block2 = "0.6"
+dispatch2 = "0.2"
 
 # Internal crates (paths to sibling projects)
 hpc-channels = { path = "../00-hpc-channels" }
 notebook-kernel = { path = "../08-rustybooks/crates/core/notebook-kernel" }
-# stratoswarm-client = { path = "../05-stratoswarm/crates/stratoswarm-client" }
-# vortex-core = { path = "../09-vortex/crates/vortex-core" }
+
+# Workspace-wide lints for code quality enforcement
+[workspace.lints.rust]
+unsafe_code = "warn"
+missing_docs = "warn"
+unused_variables = "deny"
+unused_imports = "deny"
+dead_code = "deny"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "deny"
+unimplemented = "deny"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+missing_safety_doc = "deny"
+undocumented_unsafe_blocks = "deny"
+multiple_crate_versions = "warn"
 
 [profile.release]
+opt-level = 3
 lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[profile.bench]
+inherits = "release"

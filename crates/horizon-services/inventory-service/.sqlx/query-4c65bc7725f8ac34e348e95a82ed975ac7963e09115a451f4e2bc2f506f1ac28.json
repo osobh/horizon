@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO assets (\n                id, asset_type, provider, provider_id, hostname,\n                status, location, metadata, created_by\n            )\n            VALUES ($1, 'node', $2, $3, $4, 'available', $5, $6, $7)\n            ON CONFLICT (provider, provider_id)\n            DO UPDATE SET\n                hostname = EXCLUDED.hostname,\n                location = EXCLUDED.location,\n                metadata = EXCLUDED.metadata,\n                updated_at = NOW()\n            RETURNING id, (xmax = 0) AS created\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "created",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "provider_type",
+            "kind": {
+              "Enum": [
+                "baremetal",
+                "aws",
+                "gcp",
+                "azure",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Jsonb",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "4c65bc7725f8ac34e348e95a82ed975ac7963e09115a451f4e2bc2f506f1ac28"
+}

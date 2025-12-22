@@ -1,0 +1,26 @@
+[package]
+name = "gpu-dma-lock"
+version = "0.1.0"
+edition = "2021"
+authors = ["StratoSwarm Team"]
+description = "Kernel module for GPU memory protection and DMA access control"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["lib", "staticlib"]
+
+[dependencies]
+# No external dependencies for kernel module
+
+[build-dependencies]
+cc = "1.0"
+
+[dev-dependencies]
+# No external dependencies needed for tests
+
+[features]
+default = []
+# Enable additional debugging features
+debug = []
+
+# Profiles are defined at workspace level

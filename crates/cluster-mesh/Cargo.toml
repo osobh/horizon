@@ -1,0 +1,72 @@
+[package]
+name = "stratoswarm-cluster-mesh"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core dependencies
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+
+# Hardware detection and system info
+sysinfo = "0.30"
+num_cpus = "1.16"
+pci-ids = "0.2"
+
+# Network discovery and communication
+tokio-stream = { version = "0.1", features = ["net"] }
+futures.workspace = true
+quinn = "0.10"  # QUIC protocol for NAT traversal
+rustls = { version = "0.21", features = ["dangerous_configuration"] }
+rcgen = "0.11"  # Certificate generation
+
+# Capability detection
+nvml-wrapper = { version = "0.9", optional = true }
+procfs = "0.16"
+libc = "0.2"
+
+# Node coordination
+etcd-rs = { version = "1.0", optional = true }
+raft = "0.7"
+
+# Metrics and monitoring
+prometheus.workspace = true
+systemstat = "0.2"
+
+# UUID generation
+uuid.workspace = true
+
+# Time handling
+chrono.workspace = true
+
+# Internal dependencies
+# exorust-agent-core = { path = "../agent-core" }
+# exorust-net = { path = "../net" }
+# exorust-monitoring = { path = "../monitoring" }
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+tokio-test = "0.4"
+tempfile = "3.10"
+mockall = "0.12"
+
+[features]
+default = []
+nvidia-gpu = ["nvml-wrapper"]
+distributed-consensus = ["etcd-rs"]
+
+# [[bench]]
+# name = "mesh_formation"
+# harness = false
+
+# [[bench]]
+# name = "node_discovery"
+# harness = false

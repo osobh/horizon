@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS usage_history;
+DROP TABLE IF EXISTS allocations;
+DROP TABLE IF EXISTS quotas;

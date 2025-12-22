@@ -1,0 +1,48 @@
+[package]
+name = "exorust-evolution"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+
+# Evolution-specific dependencies
+rand.workspace = true
+rayon.workspace = true
+uuid.workspace = true
+
+# GPU/CUDA dependencies
+cudarc = { workspace = true, optional = true }
+cust = { workspace = true, optional = true }
+# nvrtc = { workspace = true, optional = true }  # Temporarily disabled
+dashmap.workspace = true
+
+# Network and distributed systems
+axum.workspace = true
+tower.workspace = true
+hyper.workspace = true
+hyper-util = "0.1.15"
+futures.workspace = true
+
+# Internal dependencies
+exorust-storage = { path = "../storage" }
+exorust-agent-core = { path = "../agent-core" }
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+tokio-test = "0.4"
+
+[features]
+default = ["cuda"]
+cuda = ["cudarc", "cust"]
+mock-cuda = []
+

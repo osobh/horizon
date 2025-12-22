@@ -1,0 +1,35 @@
+[package]
+name = "scheduler-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Internal dependencies
+horizon-error = { path = "../../../crates/error" }
+horizon-mcp = { path = "../../../crates/mcp" }
+scheduler = { path = ".." }
+
+# Async runtime
+tokio.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Logging & tracing
+tracing.workspace = true
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tokio-test.workspace = true

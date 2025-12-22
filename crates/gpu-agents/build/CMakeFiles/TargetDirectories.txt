@@ -1,0 +1,8 @@
+/home/osobh/projects/exorust/crates/gpu-agents/build/CMakeFiles/gpu_agent_kernels.dir
+/home/osobh/projects/exorust/crates/gpu-agents/build/CMakeFiles/gpu_agent_tests.dir
+/home/osobh/projects/exorust/crates/gpu-agents/build/CMakeFiles/gpu_agent_benchmarks.dir
+/home/osobh/projects/exorust/crates/gpu-agents/build/CMakeFiles/format.dir
+/home/osobh/projects/exorust/crates/gpu-agents/build/CMakeFiles/tidy.dir
+/home/osobh/projects/exorust/crates/gpu-agents/build/CMakeFiles/test.dir
+/home/osobh/projects/exorust/crates/gpu-agents/build/CMakeFiles/edit_cache.dir
+/home/osobh/projects/exorust/crates/gpu-agents/build/CMakeFiles/rebuild_cache.dir

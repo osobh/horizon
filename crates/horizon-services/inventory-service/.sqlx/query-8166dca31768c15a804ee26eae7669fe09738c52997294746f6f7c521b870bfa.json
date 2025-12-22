@@ -1,0 +1,92 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO asset_metrics (\n                asset_id, gpu_utilization_percent, gpu_memory_used_gb,\n                gpu_memory_total_gb, gpu_temperature_celsius, gpu_power_watts,\n                cpu_utilization_percent, cpu_temperature_celsius,\n                nic_rx_bandwidth_gbps, nic_tx_bandwidth_gbps, last_updated\n            )\n            VALUES ($1, $2, ($3::double precision)::numeric, ($4::double precision)::numeric, $5, ($6::double precision)::numeric, $7, $8, ($9::double precision)::numeric, ($10::double precision)::numeric, $11)\n            ON CONFLICT (asset_id)\n            DO UPDATE SET\n                gpu_utilization_percent = EXCLUDED.gpu_utilization_percent,\n                gpu_memory_used_gb = EXCLUDED.gpu_memory_used_gb,\n                gpu_memory_total_gb = EXCLUDED.gpu_memory_total_gb,\n                gpu_temperature_celsius = EXCLUDED.gpu_temperature_celsius,\n                gpu_power_watts = EXCLUDED.gpu_power_watts,\n                cpu_utilization_percent = EXCLUDED.cpu_utilization_percent,\n                cpu_temperature_celsius = EXCLUDED.cpu_temperature_celsius,\n                nic_rx_bandwidth_gbps = EXCLUDED.nic_rx_bandwidth_gbps,\n                nic_tx_bandwidth_gbps = EXCLUDED.nic_tx_bandwidth_gbps,\n                last_updated = EXCLUDED.last_updated\n            RETURNING\n                asset_id,\n                gpu_utilization_percent,\n                gpu_memory_used_gb as \"gpu_memory_used_gb: f64\",\n                gpu_memory_total_gb as \"gpu_memory_total_gb: f64\",\n                gpu_temperature_celsius,\n                gpu_power_watts as \"gpu_power_watts: f64\",\n                cpu_utilization_percent,\n                cpu_temperature_celsius,\n                nic_rx_bandwidth_gbps as \"nic_rx_bandwidth_gbps: f64\",\n                nic_tx_bandwidth_gbps as \"nic_tx_bandwidth_gbps: f64\",\n                last_updated\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "asset_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "gpu_utilization_percent",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "gpu_memory_used_gb: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 3,
+        "name": "gpu_memory_total_gb: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "gpu_temperature_celsius",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "gpu_power_watts: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 6,
+        "name": "cpu_utilization_percent",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "cpu_temperature_celsius",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "nic_rx_bandwidth_gbps: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "nic_tx_bandwidth_gbps: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 10,
+        "name": "last_updated",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int2",
+        "Float8",
+        "Float8",
+        "Int2",
+        "Float8",
+        "Int2",
+        "Int2",
+        "Float8",
+        "Float8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "8166dca31768c15a804ee26eae7669fe09738c52997294746f6f7c521b870bfa"
+}

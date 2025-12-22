@@ -1,0 +1,9 @@
+[unstable]
+build-std = ["core", "alloc"]
+build-std-features = []
+
+[profile.release]
+panic = "abort"
+lto = false
+opt-level = 2
+codegen-units = 1

@@ -1,0 +1,16 @@
+# C-only kernel module makefile for gpu_dma_lock testing
+obj-m := gpu_dma_lock.o
+gpu_dma_lock-objs := simplified_gpu_module.o
+
+KERNELDIR ?= /lib/modules/$(shell uname -r)/build
+PWD := $(shell pwd)
+
+all:
+	cp ../simplified_gpu_module.c simplified_gpu_module.c
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+
+clean:
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
+	rm -f simplified_gpu_module.c
+
+.PHONY: all clean

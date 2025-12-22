@@ -1,0 +1,32 @@
+[package]
+name = "hpc-crypto"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Cryptographic primitives for the HPC Platform"
+
+[dependencies]
+# Error handling
+thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# Cryptographic primitives
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+blake3 = "1.5"
+rand = { workspace = true }
+
+# Encoding
+base64 = "0.22"
+hex = "0.4"
+
+# Utilities
+zeroize = { version = "1.7", features = ["derive"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lib]
+name = "hpc_crypto"
+path = "src/lib.rs"
