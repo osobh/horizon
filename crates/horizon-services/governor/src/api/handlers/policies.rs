@@ -1,10 +1,12 @@
 use crate::api::dto::{CreatePolicyRequest, PolicyResponse, PolicyVersionResponse, UpdatePolicyRequest};
-use crate::db::PolicyRepository;
+use crate::api::routes::AppState;
 use crate::error::Result;
 use crate::models::Policy;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hpc_channels::GovernorMessage;
+use std::sync::Arc;
 
 #[utoipa::path(
     post,
@@ -17,10 +19,12 @@ use axum::Json;
     )
 )]
 pub async fn create_policy(
-    State(repo): State<PolicyRepository>,
+    State(state): State<Arc<AppState>>,
     Json(request): Json<CreatePolicyRequest>,
 ) -> Result<(StatusCode, Json<PolicyResponse>)> {
-    let policy = repo
+    let created_by = request.created_by.clone();
+
+    let policy = state.repo
         .create(
             &request.name,
             &request.content,
@@ -28,6 +32,13 @@ pub async fn create_policy(
             &request.created_by,
         )
         .await?;
+
+    // Publish policy created event
+    state.publish_policy_event(GovernorMessage::PolicyCreated {
+        policy_name: policy.name.clone(),
+        version: policy.version,
+        created_by,
+    });
 
     Ok((StatusCode::CREATED, Json(policy_to_response(policy))))
 }
@@ -40,9 +51,9 @@ pub async fn create_policy(
     )
 )]
 pub async fn list_policies(
-    State(repo): State<PolicyRepository>,
+    State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<PolicyResponse>>> {
-    let policies = repo.list(false).await?;
+    let policies = state.repo.list(false).await?;
     Ok(Json(policies.into_iter().map(policy_to_response).collect()))
 }
 
@@ -58,10 +69,10 @@ pub async fn list_policies(
     )
 )]
 pub async fn get_policy(
-    State(repo): State<PolicyRepository>,
+    State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<Json<PolicyResponse>> {
-    let policy = repo.get_by_name(&name).await?;
+    let policy = state.repo.get_by_name(&name).await?;
     Ok(Json(policy_to_response(policy)))
 }
 
@@ -78,11 +89,16 @@ pub async fn get_policy(
     )
 )]
 pub async fn update_policy(
-    State(repo): State<PolicyRepository>,
+    State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
     Json(request): Json<UpdatePolicyRequest>,
 ) -> Result<Json<PolicyResponse>> {
-    let policy = repo
+    // Get the current version before updating
+    let previous_policy = state.repo.get_by_name(&name).await?;
+    let previous_version = previous_policy.version;
+    let updated_by = request.created_by.clone();
+
+    let policy = state.repo
         .update(
             &name,
             &request.content,
@@ -90,6 +106,14 @@ pub async fn update_policy(
             &request.created_by,
         )
         .await?;
+
+    // Publish policy updated event
+    state.publish_policy_event(GovernorMessage::PolicyUpdated {
+        policy_name: policy.name.clone(),
+        version: policy.version,
+        previous_version,
+        updated_by,
+    });
 
     Ok(Json(policy_to_response(policy)))
 }
@@ -106,10 +130,16 @@ pub async fn update_policy(
     )
 )]
 pub async fn delete_policy(
-    State(repo): State<PolicyRepository>,
+    State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<StatusCode> {
-    repo.delete(&name).await?;
+    state.repo.delete(&name).await?;
+
+    // Publish policy deleted event
+    state.publish_policy_event(GovernorMessage::PolicyDeleted {
+        policy_name: name,
+    });
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -125,10 +155,10 @@ pub async fn delete_policy(
     )
 )]
 pub async fn get_policy_versions(
-    State(repo): State<PolicyRepository>,
+    State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<Json<Vec<PolicyVersionResponse>>> {
-    let versions = repo.get_versions(&name).await?;
+    let versions = state.repo.get_versions(&name).await?;
     Ok(Json(
         versions
             .into_iter()

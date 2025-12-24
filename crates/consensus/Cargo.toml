@@ -1,5 +1,5 @@
 [package]
-name = "exorust-consensus"
+name = "stratoswarm-consensus"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -18,9 +18,12 @@ uuid.workspace = true
 futures.workspace = true
 tracing.workspace = true
 
+# HPC Channels integration
+hpc-channels = { path = "../../../01-hpc-channels", optional = true, features = ["rkyv-codec"] }
+
 # External crates
-exorust-cuda = { path = "../cuda" }
-exorust-fault-tolerance = { path = "../fault-tolerance" }
+stratoswarm-cuda = { path = "../cuda" }
+stratoswarm-fault-tolerance = { path = "../fault-tolerance" }
 
 # Additional dependencies
 bincode = "1.3"
@@ -33,6 +36,10 @@ chrono = { version = "0.4", features = ["serde"] }
 # Dependencies for new modules
 zstd = "0.13"
 rand = "0.8"
+
+[features]
+default = []
+hpc-channels = ["dep:hpc-channels"]
 
 [dev-dependencies]
 tempfile.workspace = true

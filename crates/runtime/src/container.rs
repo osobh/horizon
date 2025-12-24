@@ -51,7 +51,7 @@ pub struct GpuContainer {
     pub config: ContainerConfig,
     pub state: Arc<Mutex<ContainerState>>,
     pub created_at: Instant,
-    pub memory_handle: Option<exorust_memory::GpuMemoryHandle>,
+    pub memory_handle: Option<stratoswarm_memory::GpuMemoryHandle>,
     pub personality: Arc<Mutex<AgentPersonality>>,
     pub evolution: Arc<Mutex<EvolutionState>>,
 }
@@ -573,7 +573,7 @@ mod tests {
         let mut container = GpuContainer::new(ContainerConfig::default());
 
         // Mock memory handle
-        let handle = exorust_memory::GpuMemoryHandle {
+        let handle = stratoswarm_memory::GpuMemoryHandle {
             #[cfg(feature = "cuda")]
             ptr: unsafe { cust::memory::DevicePointer::from_raw(0u64) },
             #[cfg(not(feature = "cuda"))]

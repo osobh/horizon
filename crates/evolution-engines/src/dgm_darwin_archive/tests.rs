@@ -5,9 +5,9 @@ use crate::traits::{AgentGenome, ArchitectureGenes, BehaviorGenes, EvolvableAgen
 
 fn create_test_agent(id: &str) -> EvolvableAgent {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             format!("test_agent_{}", id),
-            exorust_agent_core::GoalPriority::Normal,
+            stratoswarm_agent_core::GoalPriority::Normal,
         ),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
@@ -21,7 +21,7 @@ fn create_test_agent(id: &str) -> EvolvableAgent {
         },
     };
 
-    let config = exorust_agent_core::AgentConfig {
+    let config = stratoswarm_agent_core::AgentConfig {
         name: format!("test_agent_{}", id),
         agent_type: "test".to_string(),
         max_memory: 1024,
@@ -30,7 +30,7 @@ fn create_test_agent(id: &str) -> EvolvableAgent {
         metadata: serde_json::Value::Null,
     };
 
-    let agent = exorust_agent_core::Agent::new(config).unwrap();
+    let agent = stratoswarm_agent_core::Agent::new(config).unwrap();
     EvolvableAgent { agent, genome }
 }
 

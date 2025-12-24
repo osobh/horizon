@@ -113,15 +113,20 @@ impl IntentOrchestrator {
         let entities = extractor.extract(text, &tokens).await?;
         
         // Create intent
+        let mut metadata = HashMap::new();
+        metadata.insert("id".to_string(), uuid::Uuid::new_v4().to_string());
+        if let Some(ctx) = context {
+            metadata.insert("context".to_string(), serde_json::to_string(&ctx).unwrap_or_default());
+        }
+
         let intent = Intent {
-            id: uuid::Uuid::new_v4().to_string(),
-            text: text.to_string(),
-            intent_type: classification.intent_type,
-            confidence: classification.confidence,
+            intent_type: classification.intent_type.clone(),
+            confidence: classification.get_confidence(),
             entities,
-            context,
-            created_at: start_time,
-            metadata: HashMap::new(),
+            raw_text: text.to_string(),
+            tokens: tokens.clone(),
+            metadata,
+            timestamp: start_time,
         };
         
         // Update metrics
@@ -143,7 +148,8 @@ impl IntentOrchestrator {
         let action_plan = self.create_action_plan(intent).await?;
         
         // Create execution record
-        let mut record = ExecutionRecord::new(intent.id.clone(), action_plan.clone());
+        let intent_id = intent.metadata.get("id").cloned().unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let mut record = ExecutionRecord::new(intent_id, action_plan.clone());
         record.start();
         
         // Execute plan
@@ -223,7 +229,7 @@ impl IntentClassifier {
         device: Device,
         config: &OrchestratorConfig,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let transformer = TransformerModel::new(config.model_config.clone());
+        let transformer = TransformerModel::new(config.model_config.clone().into());
         
         Ok(Self {
             device,
@@ -257,10 +263,14 @@ impl IntentClassifier {
             IntentType::Query
         };
         
+        let mut scores = HashMap::new();
+        scores.insert(format!("{:?}", intent_type).to_lowercase(), confidence);
+
         Ok(ClassificationResult {
-            intent_type,
-            confidence,
-            alternatives: vec![],
+            intent_type: intent_type.clone(),
+            scores,
+            top_k: vec![(intent_type, confidence)],
+            metadata: HashMap::new(),
         })
     }
 }
@@ -294,8 +304,9 @@ impl EntityExtractor {
                 entities.push(Entity {
                     text: token.clone(),
                     entity_type: super::entities::EntityType::Number,
-                    start_pos: i,
-                    end_pos: i + 1,
+                    value: super::entities::EntityValue::String(token.clone()),
+                    start: i,
+                    end: i + 1,
                     confidence: 0.95,
                     metadata: HashMap::new(),
                 });

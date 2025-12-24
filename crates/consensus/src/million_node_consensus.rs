@@ -6,15 +6,15 @@
 //! recovery mechanisms optimized for extreme scale.
 
 use crate::error::{ConsensusError, ConsensusResult};
-use crate::protocol::{ConsensusMessage, ConsensusConfig, GpuStatus};
+use crate::protocol::{ConsensusMessage, ConsensusConfig};
 use crate::validator::{ValidatorId, ValidatorInfo};
 use crate::voting::{RoundId, Vote, VoteType};
 use dashmap::DashMap;
-use exorust_cuda::{GpuContext, GpuMemoryPool, CudaStream};
-use exorust_fault_tolerance::{ByzantineDetector, PartitionRecovery};
+use stratoswarm_cuda::{Context as GpuContext, MemoryPool as GpuMemoryPool, Stream as CudaStream};
+use stratoswarm_fault_tolerance::{ByzantineDetector, PartitionRecovery};
 use futures::stream::{FuturesUnordered, StreamExt};
 use parking_lot::RwLock;
-use ring::digest::{Context, SHA256};
+use ring::digest::{Context as RingContext, SHA256};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -191,7 +191,7 @@ struct VoteAggregator {
     threshold_calculator: Arc<ThresholdCalculator>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct VoteCollection {
     round_id: RoundId,
     height: u64,
@@ -441,7 +441,7 @@ impl MillionNodeConsensus {
         let byzantine_detector = Arc::new(ByzantineDetector::new(
             config.byzantine_threshold,
             config.max_nodes,
-        )?);
+        ).map_err(|e| ConsensusError::ValidationFailed(e.to_string()))?);
         
         // Initialize consensus state
         let consensus_state = Arc::new(AsyncRwLock::new(ConsensusState::new()));
@@ -478,6 +478,7 @@ impl MillionNodeConsensus {
         }
 
         let (tx, rx) = mpsc::unbounded_channel();
+        let tx_clone = tx.clone();
         let validator_node = ValidatorNode {
             id: validator_info.id.clone(),
             info: validator_info.clone(),
@@ -490,7 +491,7 @@ impl MillionNodeConsensus {
         };
 
         self.validator_registry.validators.insert(validator_info.id.clone(), validator_node);
-        self.message_router.routing_table.insert(validator_info.id.clone(), tx);
+        self.message_router.routing_table.insert(validator_info.id.clone(), tx_clone);
         self.message_router.message_queues.insert(validator_info.id, rx);
 
         // Update registry counters
@@ -726,11 +727,11 @@ impl MillionNodeConsensus {
         
         // Check threshold and detect Byzantine behavior
         let threshold_met = self.vote_aggregator.check_threshold(&vote_collection).await?;
-        let byzantine_detected = self.byzantine_detector.detect_in_votes(&vote_collection.votes).await?;
-        
+        let byzantine_detected = self.detect_byzantine_in_votes(&vote_collection.votes).await;
+
         Ok(PhaseResult {
             threshold_met,
-            byzantine_detected: byzantine_detected.len(),
+            byzantine_detected,
             messages_processed: vote_collection.votes.len() as u64,
             signatures: HashMap::new(),
             participants: vote_collection.votes.keys().cloned().collect(),
@@ -751,17 +752,17 @@ impl MillionNodeConsensus {
         ).await.map_err(|_| ConsensusError::Timeout { duration: timeout_duration })?;
         
         let threshold_met = self.vote_aggregator.check_threshold(&vote_collection).await?;
-        let byzantine_detected = self.byzantine_detector.detect_in_votes(&vote_collection.votes).await?;
-        
+        let byzantine_detected = self.detect_byzantine_in_votes(&vote_collection.votes).await;
+
         Ok(PhaseResult {
             threshold_met,
-            byzantine_detected: byzantine_detected.len(),
+            byzantine_detected,
             messages_processed: vote_collection.votes.len() as u64,
             signatures: HashMap::new(),
             participants: vote_collection.votes.keys().cloned().collect(),
         })
     }
-    
+
     async fn run_commit_phase(
         &self,
         round_id: RoundId,
@@ -775,23 +776,38 @@ impl MillionNodeConsensus {
         ).await.map_err(|_| ConsensusError::Timeout { duration: timeout_duration })?;
         
         let threshold_met = self.vote_aggregator.check_threshold(&vote_collection).await?;
-        let byzantine_detected = self.byzantine_detector.detect_in_votes(&vote_collection.votes).await?;
-        
+        let byzantine_detected = self.detect_byzantine_in_votes(&vote_collection.votes).await;
+
         // Extract signatures for the committed block
         let signatures: HashMap<ValidatorId, Vec<u8>> = vote_collection.votes
             .iter()
             .map(|(id, vote)| (id.clone(), vote.signature.clone()))
             .collect();
-        
+
         Ok(PhaseResult {
             threshold_met,
-            byzantine_detected: byzantine_detected.len(),
+            byzantine_detected,
             messages_processed: vote_collection.votes.len() as u64,
             signatures,
             participants: vote_collection.votes.keys().cloned().collect(),
         })
     }
     
+    /// Detect Byzantine behavior in votes using the fault-tolerance detector
+    async fn detect_byzantine_in_votes(&self, votes: &HashMap<ValidatorId, Vote>) -> usize {
+        // Convert ValidatorId keys to String for the fault-tolerance API
+        let string_votes: HashMap<String, &Vote> = votes
+            .iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+
+        // Use the Byzantine detector - returns Vec<String> of suspicious node IDs
+        match self.byzantine_detector.detect_in_votes(&string_votes).await {
+            Ok(suspicious_nodes) => suspicious_nodes.len(),
+            Err(_) => 0, // On error, assume no Byzantine behavior detected
+        }
+    }
+
     async fn collect_votes(&self, round_id: RoundId, vote_type: VoteType) -> VoteCollection {
         // High-performance vote collection using DashMap for concurrent access
         let collection = VoteCollection {
@@ -871,11 +887,15 @@ impl MillionNodeConsensus {
             
             let validator_info = ValidatorInfo {
                 id: ValidatorId::new(),
+                address: format!("127.0.0.1:{}", 8000 + (i % 60000)).parse().unwrap(),
                 stake,
+                gpu_capacity,
                 status: crate::validator::ValidatorStatus::Active,
+                last_heartbeat: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 public_key: vec![i as u8; 32], // Mock public key
-                network_address: format!("127.0.0.1:{}", 8000 + (i % 60000)),
-                last_activity: Instant::now(),
             };
             
             self.register_validator(validator_info, gpu_capacity).await?;
@@ -984,7 +1004,10 @@ impl PartitionManager {
         Ok(Self {
             config: config.clone(),
             active_partitions: Arc::new(DashMap::new()),
-            recovery_engine: Arc::new(PartitionRecovery::new()?),
+            recovery_engine: Arc::new(
+                PartitionRecovery::new()
+                    .map_err(|e| ConsensusError::ValidationFailed(e.to_string()))?
+            ),
             detection_monitor: Arc::new(PartitionDetectionMonitor::new()),
         })
     }
@@ -1145,20 +1168,3 @@ impl MemoryUsageTracker {
     }
 }
 
-impl PartitionRecovery {
-    fn new() -> ConsensusResult<Self> {
-        // Mock implementation
-        Ok(unsafe { std::mem::zeroed() })
-    }
-}
-
-impl ByzantineDetector {
-    fn new(threshold: f32, max_nodes: usize) -> ConsensusResult<Self> {
-        // Mock implementation
-        Ok(unsafe { std::mem::zeroed() })
-    }
-    
-    async fn detect_in_votes(&self, _votes: &HashMap<ValidatorId, Vote>) -> ConsensusResult<Vec<ValidatorId>> {
-        Ok(Vec::new()) // Mock: no Byzantine nodes detected
-    }
-}

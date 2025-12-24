@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use exorust_knowledge_graph::*;
+use stratoswarm_knowledge_graph::*;
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 

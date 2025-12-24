@@ -45,7 +45,7 @@ pub enum VisualEditorError {
     SerdeError(#[from] serde_json::Error),
 
     #[error(transparent)]
-    AgentError(#[from] exorust_agent_core::AgentError),
+    AgentError(#[from] stratoswarm_agent_core::AgentError),
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),

@@ -1,13 +1,13 @@
 //! Comprehensive integration tests for ExoRust Phase 1 components
 //! Tests cross-component workflows including runtime, isolation, storage, networking, and evolution
 
-use exorust_evolution::{
+use stratoswarm_evolution::{
     EvolutionEngine, GeneticEvolutionEngine, Population, SimpleFitnessFunction,
 };
-use exorust_memory::{GpuMemoryAllocator, MemoryManager};
-use exorust_net::{MemoryNetwork, Message, MessageType, Network, ZeroCopyTransport};
-use exorust_runtime::{ContainerConfig, ContainerRuntime, KernelSignature, SecureContainerRuntime};
-use exorust_storage::{MemoryStorage, NvmeConfig, NvmeStorage, Storage};
+use stratoswarm_memory::{GpuMemoryAllocator, MemoryManager};
+use stratoswarm_net::{MemoryNetwork, Message, MessageType, Network, ZeroCopyTransport};
+use stratoswarm_runtime::{ContainerConfig, ContainerRuntime, KernelSignature, SecureContainerRuntime};
+use stratoswarm_storage::{MemoryStorage, NvmeConfig, NvmeStorage, Storage};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

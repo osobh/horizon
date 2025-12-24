@@ -11,6 +11,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
+use dashmap::DashMap;
 
 /// Bottleneck detection configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,11 +149,11 @@ pub enum TrendIndicator {
 /// Bottleneck detector for performance analysis
 pub struct BottleneckDetector {
     config: BottleneckConfig,
-    metric_history: Arc<RwLock<HashMap<MetricType, VecDeque<MetricDataPoint>>>>,
+    metric_history: Arc<DashMap<MetricType, VecDeque<MetricDataPoint>>>,
     detected_bottlenecks: Arc<RwLock<Vec<DetectedBottleneck>>>,
-    resource_correlations: Arc<RwLock<HashMap<(MetricType, MetricType), OrderedFloat<f64>>>>,
+    resource_correlations: Arc<DashMap<(MetricType, MetricType), OrderedFloat<f64>>>,
     #[allow(dead_code)]
-    dependency_graph: Arc<RwLock<HashMap<String, Vec<String>>>>,
+    dependency_graph: Arc<DashMap<String, Vec<String>>>,
 }
 
 impl BottleneckDetector {
@@ -160,17 +161,16 @@ impl BottleneckDetector {
     pub fn new(config: BottleneckConfig) -> Self {
         Self {
             config,
-            metric_history: Arc::new(RwLock::new(HashMap::new())),
+            metric_history: Arc::new(DashMap::new()),
             detected_bottlenecks: Arc::new(RwLock::new(Vec::new())),
-            resource_correlations: Arc::new(RwLock::new(HashMap::new())),
-            dependency_graph: Arc::new(RwLock::new(HashMap::new())),
+            resource_correlations: Arc::new(DashMap::new()),
+            dependency_graph: Arc::new(DashMap::new()),
         }
     }
 
     /// Add metric to history for analysis
     pub fn add_metric(&self, metric: MetricDataPoint) {
-        let mut history = self.metric_history.write();
-        let deque = history
+        let mut deque = self.metric_history
             .entry(metric.metric_type.clone())
             .or_insert_with(VecDeque::new);
         deque.push_back(metric);
@@ -223,40 +223,39 @@ impl BottleneckDetector {
     pub fn analyze_resource_utilization(
         &self,
     ) -> PerformanceRegressionResult<Vec<DetectedBottleneck>> {
-        let history = self.metric_history.read();
         let mut bottlenecks = Vec::new();
 
         // Check CPU utilization
-        if let Some(cpu_metrics) = history.get(&MetricType::CpuUsage) {
-            if let Some(bottleneck) = self.check_cpu_bottleneck(cpu_metrics) {
+        if let Some(cpu_metrics) = self.metric_history.get(&MetricType::CpuUsage) {
+            if let Some(bottleneck) = self.check_cpu_bottleneck(&cpu_metrics) {
                 bottlenecks.push(bottleneck);
             }
         }
 
         // Check memory utilization
-        if let Some(memory_metrics) = history.get(&MetricType::MemoryUsage) {
-            if let Some(bottleneck) = self.check_memory_bottleneck(memory_metrics) {
+        if let Some(memory_metrics) = self.metric_history.get(&MetricType::MemoryUsage) {
+            if let Some(bottleneck) = self.check_memory_bottleneck(&memory_metrics) {
                 bottlenecks.push(bottleneck);
             }
         }
 
         // Check disk I/O
-        if let Some(disk_metrics) = history.get(&MetricType::DiskIops) {
-            if let Some(bottleneck) = self.check_disk_bottleneck(disk_metrics) {
+        if let Some(disk_metrics) = self.metric_history.get(&MetricType::DiskIops) {
+            if let Some(bottleneck) = self.check_disk_bottleneck(&disk_metrics) {
                 bottlenecks.push(bottleneck);
             }
         }
 
         // Check network bandwidth
-        if let Some(network_metrics) = history.get(&MetricType::NetworkBandwidth) {
-            if let Some(bottleneck) = self.check_network_bottleneck(network_metrics) {
+        if let Some(network_metrics) = self.metric_history.get(&MetricType::NetworkBandwidth) {
+            if let Some(bottleneck) = self.check_network_bottleneck(&network_metrics) {
                 bottlenecks.push(bottleneck);
             }
         }
 
         // Check response time
-        if let Some(response_metrics) = history.get(&MetricType::ResponseTime) {
-            if let Some(bottleneck) = self.check_response_time_bottleneck(response_metrics) {
+        if let Some(response_metrics) = self.metric_history.get(&MetricType::ResponseTime) {
+            if let Some(bottleneck) = self.check_response_time_bottleneck(&response_metrics) {
                 bottlenecks.push(bottleneck);
             }
         }
@@ -311,7 +310,9 @@ impl BottleneckDetector {
     /// Get bottleneck insights and recommendations
     pub fn get_bottleneck_insights(&self) -> BottleneckInsights {
         let bottlenecks = self.detected_bottlenecks.read().clone();
-        let correlations = self.resource_correlations.read().clone();
+        let correlations: HashMap<_, _> = self.resource_correlations.iter()
+            .map(|entry| (entry.key().clone(), *entry.value()))
+            .collect();
 
         // Find primary bottleneck (highest score)
         let primary_bottleneck = bottlenecks.iter().max_by_key(|b| b.score).cloned();
@@ -344,21 +345,23 @@ impl BottleneckDetector {
 
     /// Track correlations between resources
     pub fn track_resource_correlations(&self) {
-        let history = self.metric_history.read();
-        let mut correlations = self.resource_correlations.write();
-
         // Calculate correlations between different metric types
-        let metric_types: Vec<_> = history.keys().cloned().collect();
+        let metric_types: Vec<_> = self.metric_history.iter()
+            .map(|entry| entry.key().clone())
+            .collect();
 
         for i in 0..metric_types.len() {
             for j in (i + 1)..metric_types.len() {
                 let metric1 = &metric_types[i];
                 let metric2 = &metric_types[j];
 
-                if let (Some(data1), Some(data2)) = (history.get(metric1), history.get(metric2)) {
-                    if let Some(correlation) = self.calculate_correlation(data1, data2) {
-                        correlations.insert((metric1.clone(), metric2.clone()), correlation);
-                        correlations.insert((metric2.clone(), metric1.clone()), correlation);
+                if let (Some(data1), Some(data2)) = (
+                    self.metric_history.get(metric1),
+                    self.metric_history.get(metric2)
+                ) {
+                    if let Some(correlation) = self.calculate_correlation(&data1, &data2) {
+                        self.resource_correlations.insert((metric1.clone(), metric2.clone()), correlation);
+                        self.resource_correlations.insert((metric2.clone(), metric1.clone()), correlation);
                     }
                 }
             }
@@ -710,9 +713,8 @@ mod tests {
 
         detector.add_metric(metric.clone());
 
-        let history = detector.metric_history.read();
-        assert!(history.contains_key(&MetricType::CpuUsage));
-        assert_eq!(history.get(&MetricType::CpuUsage).unwrap().len(), 1);
+        assert!(detector.metric_history.contains_key(&MetricType::CpuUsage));
+        assert_eq!(detector.metric_history.get(&MetricType::CpuUsage).unwrap().len(), 1);
     }
 
     #[test]
@@ -729,8 +731,7 @@ mod tests {
         let recent_metric = create_test_metric(MetricType::CpuUsage, 85.0, 1800); // 30 minutes ago
         detector.add_metric(recent_metric);
 
-        let history = detector.metric_history.read();
-        let cpu_history = history.get(&MetricType::CpuUsage).unwrap();
+        let cpu_history = detector.metric_history.get(&MetricType::CpuUsage).unwrap();
         assert_eq!(cpu_history.len(), 1); // Only recent metric should remain
         assert_eq!(cpu_history.back().unwrap().value.0, 85.0);
     }
@@ -968,8 +969,7 @@ mod tests {
 
         detector.track_resource_correlations();
 
-        let correlations = detector.resource_correlations.read();
-        let correlation = correlations.get(&(MetricType::CpuUsage, MetricType::MemoryUsage));
+        let correlation = detector.resource_correlations.get(&(MetricType::CpuUsage, MetricType::MemoryUsage));
         assert!(correlation.is_some());
         assert!(correlation.unwrap().0 > 0.7); // Should be highly correlated
     }
@@ -1122,8 +1122,7 @@ mod tests {
 
         detector.track_resource_correlations();
 
-        let correlations = detector.resource_correlations.read();
-        assert!(correlations.is_empty()); // No correlation should be calculated
+        assert!(detector.resource_correlations.is_empty()); // No correlation should be calculated
     }
 
     #[test]

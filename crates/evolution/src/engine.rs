@@ -3,8 +3,9 @@
 use crate::{
     EvolutionEngine, EvolutionError, EvolutionStats, FitnessFunction, FitnessScore, Population,
     XPFitnessFunction, AgentFitnessScore,
+    channels::{EvolutionChannelBridge, SharedEvolutionChannelBridge},
 };
-use exorust_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
+use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
 use std::sync::{Arc, Mutex};
 
 /// Simple evolution engine using genetic algorithms
@@ -15,6 +16,8 @@ pub struct GeneticEvolutionEngine {
     elite_size: usize,
     tournament_size: usize,
     stats: Arc<Mutex<EvolutionStats>>,
+    /// HPC-Channels event bridge for publishing evolution events
+    event_bridge: SharedEvolutionChannelBridge,
 }
 
 impl GeneticEvolutionEngine {
@@ -40,6 +43,7 @@ impl GeneticEvolutionEngine {
                 mutations_per_second: 0.0,
                 diversity_index: 0.0,
             })),
+            event_bridge: crate::channels::shared_channel_bridge(),
         }
     }
 
@@ -52,6 +56,11 @@ impl GeneticEvolutionEngine {
             5,    // Top 5 elites
             3,    // Tournament size 3
         )
+    }
+
+    /// Get the event bridge for subscribing to evolution events
+    pub fn event_bridge(&self) -> &SharedEvolutionChannelBridge {
+        &self.event_bridge
     }
 
     /// Evaluate fitness for all individuals in population
@@ -140,6 +149,9 @@ impl EvolutionEngine for GeneticEvolutionEngine {
         // Update stats
         self.update_stats(&population);
 
+        // Publish population initialized event to hpc-channels
+        self.event_bridge.publish_population_initialized(size);
+
         Ok(population)
     }
 
@@ -155,6 +167,11 @@ impl EvolutionEngine for GeneticEvolutionEngine {
 
         // Update stats
         self.update_stats(population);
+
+        // Publish generation complete event to hpc-channels
+        if let Ok(stats) = self.stats.lock() {
+            self.event_bridge.publish_generation_complete(stats.generation, &stats);
+        }
 
         Ok(())
     }
@@ -760,6 +777,7 @@ mod tests {
             elite_size: 2,
             tournament_size: 3,
             stats: create_poisoned_mutex(),
+            event_bridge: crate::channels::shared_channel_bridge(),
         };
 
         let result = engine.stats().await;

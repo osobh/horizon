@@ -19,15 +19,15 @@ pub use algorithms::{ConsensusAlgorithm, AlgorithmRequirements, AlgorithmConfig}
 pub use monitor::{NetworkMonitor, NetworkConditions};
 pub use selector::{AlgorithmSelector, SelectionStrategy};
 pub use optimizer::OptimizationEngine;
-pub use coordinator::ConsensusCoordinator;
+pub use coordinator::{ConsensusCoordinator, RoundResult};
 pub use controller::AdaptationController;
 pub use gpu::GpuConsensusAccelerator;
 
 use crate::ConsensusError;
 
-/// Result of a consensus operation
+/// Outcome of a consensus operation
 #[derive(Debug, Clone)]
-pub struct ConsensusResult {
+pub struct ConsensusOutcome {
     /// Algorithm used
     pub algorithm: ConsensusAlgorithmType,
     /// Time taken in microseconds

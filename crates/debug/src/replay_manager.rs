@@ -6,15 +6,15 @@ use super::engine::ReplayEngine;
 use super::types::*;
 use crate::snapshot::MemorySnapshot;
 use crate::DebugError;
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Replay manager for coordinating replay operations
 pub struct ReplayManager {
     engine: Arc<dyn ReplayEngine + Send + Sync>,
-    active_sessions: Arc<RwLock<HashMap<Uuid, ReplaySession>>>,
+    active_sessions: Arc<DashMap<Uuid, ReplaySession>>,
     config: ReplayManagerConfig,
 }
 
@@ -23,7 +23,7 @@ impl ReplayManager {
     pub fn new(engine: Arc<dyn ReplayEngine + Send + Sync>, config: ReplayManagerConfig) -> Self {
         Self {
             engine,
-            active_sessions: Arc::new(RwLock::new(HashMap::new())),
+            active_sessions: Arc::new(DashMap::new()),
             config,
         }
     }
@@ -35,21 +35,24 @@ impl ReplayManager {
         config: Option<ReplayConfig>,
     ) -> Result<Uuid, DebugError> {
         // Check concurrent replay limit
-        {
-            let sessions = self.active_sessions.read().await;
-            let running_count = sessions
-                .values()
-                .filter(|s| matches!(s.status, ReplayStatus::Running | ReplayStatus::Initializing))
-                .count();
+        let running_count = self
+            .active_sessions
+            .iter()
+            .filter(|entry| {
+                matches!(
+                    entry.value().status,
+                    ReplayStatus::Running | ReplayStatus::Initializing
+                )
+            })
+            .count();
 
-            if running_count >= self.config.max_concurrent_replays {
-                return Err(DebugError::ReplayFailed {
-                    reason: format!(
-                        "Maximum concurrent replays reached: {}",
-                        self.config.max_concurrent_replays
-                    ),
-                });
-            }
+        if running_count >= self.config.max_concurrent_replays {
+            return Err(DebugError::ReplayFailed {
+                reason: format!(
+                    "Maximum concurrent replays reached: {}",
+                    self.config.max_concurrent_replays
+                ),
+            });
         }
 
         let replay_config = config.unwrap_or_default();
@@ -59,19 +62,13 @@ impl ReplayManager {
             .await?;
         let session_id = session.session_id;
 
-        {
-            let mut sessions = self.active_sessions.write().await;
-            sessions.insert(session_id, session);
-        }
+        self.active_sessions.insert(session_id, session);
 
         self.engine.start_replay(session_id).await?;
 
         // Update session status to running in manager after starting
-        {
-            let mut sessions = self.active_sessions.write().await;
-            if let Some(session) = sessions.get_mut(&session_id) {
-                session.status = ReplayStatus::Running;
-            }
+        if let Some(mut session) = self.active_sessions.get_mut(&session_id) {
+            session.status = ReplayStatus::Running;
         }
 
         Ok(session_id)
@@ -79,17 +76,14 @@ impl ReplayManager {
 
     /// Get replay session info
     pub async fn get_session(&self, session_id: Uuid) -> Result<Option<ReplaySession>, DebugError> {
-        let sessions = self.active_sessions.read().await;
-        Ok(sessions.get(&session_id).cloned())
+        Ok(self.active_sessions.get(&session_id).map(|r| r.clone()))
     }
 
     /// List all active sessions
     pub async fn list_sessions(&self) -> Vec<ReplaySession> {
         self.active_sessions
-            .read()
-            .await
-            .values()
-            .cloned()
+            .iter()
+            .map(|entry| entry.value().clone())
             .collect()
     }
 
@@ -98,11 +92,8 @@ impl ReplayManager {
         self.engine.pause_replay(session_id).await?;
 
         // Update status in manager as well
-        {
-            let mut sessions = self.active_sessions.write().await;
-            if let Some(session) = sessions.get_mut(&session_id) {
-                session.status = ReplayStatus::Paused;
-            }
+        if let Some(mut session) = self.active_sessions.get_mut(&session_id) {
+            session.status = ReplayStatus::Paused;
         }
 
         Ok(())
@@ -113,11 +104,8 @@ impl ReplayManager {
         self.engine.resume_replay(session_id).await?;
 
         // Update status in manager as well
-        {
-            let mut sessions = self.active_sessions.write().await;
-            if let Some(session) = sessions.get_mut(&session_id) {
-                session.status = ReplayStatus::Running;
-            }
+        if let Some(mut session) = self.active_sessions.get_mut(&session_id) {
+            session.status = ReplayStatus::Running;
         }
 
         Ok(())
@@ -128,35 +116,29 @@ impl ReplayManager {
         let results = self.engine.stop_replay(session_id).await?;
 
         // Remove from active sessions
-        {
-            let mut sessions = self.active_sessions.write().await;
-            sessions.remove(&session_id);
-        }
+        self.active_sessions.remove(&session_id);
 
         Ok(results)
     }
 
     /// Cleanup completed sessions
     pub async fn cleanup_completed(&self) -> Result<usize, DebugError> {
-        let mut sessions = self.active_sessions.write().await;
-        let initial_count = sessions.len();
+        let initial_count = self.active_sessions.len();
 
-        sessions.retain(|_, session| {
+        self.active_sessions.retain(|_, session| {
             !matches!(
                 session.status,
                 ReplayStatus::Completed | ReplayStatus::Failed | ReplayStatus::Cancelled
             )
         });
 
-        Ok(initial_count - sessions.len())
+        Ok(initial_count - self.active_sessions.len())
     }
 
     /// Get statistics about active replays
     pub async fn get_stats(&self) -> ReplayStats {
-        let sessions = self.active_sessions.read().await;
-
         let mut stats = ReplayStats {
-            total_sessions: sessions.len(),
+            total_sessions: self.active_sessions.len(),
             running_sessions: 0,
             paused_sessions: 0,
             completed_sessions: 0,
@@ -167,7 +149,8 @@ impl ReplayManager {
         let mut total_execution_time = 0u64;
         let mut execution_count = 0;
 
-        for session in sessions.values() {
+        for entry in self.active_sessions.iter() {
+            let session = entry.value();
             match session.status {
                 ReplayStatus::Running | ReplayStatus::Initializing => stats.running_sessions += 1,
                 ReplayStatus::Paused => stats.paused_sessions += 1,

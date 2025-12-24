@@ -117,7 +117,8 @@ impl Stream {
     ) -> CudaResult<()> {
         #[cfg(cuda_mock)]
         {
-            self.operation_count.fetch_add(1, Ordering::SeqCst);
+            // Relaxed: independent operation counter
+            self.operation_count.fetch_add(1, Ordering::Relaxed);
 
             // Validate dimensions
             if _block_dim.0 * _block_dim.1 * _block_dim.2 > 1024 {
@@ -142,7 +143,8 @@ impl Stream {
     pub async fn copy_async(&self, _dst: u64, _src: u64, size: usize) -> CudaResult<()> {
         #[cfg(cuda_mock)]
         {
-            self.operation_count.fetch_add(1, Ordering::SeqCst);
+            // Relaxed: independent operation counter
+            self.operation_count.fetch_add(1, Ordering::Relaxed);
 
             // Basic validation
             if size == 0 {
@@ -204,7 +206,8 @@ impl Stream {
         #[cfg(cuda_mock)]
         {
             // In mock mode, we just simulate the callback registration
-            self.operation_count.fetch_add(1, Ordering::SeqCst);
+            // Relaxed: independent operation counter
+            self.operation_count.fetch_add(1, Ordering::Relaxed);
             Ok(())
         }
 

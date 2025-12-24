@@ -1,5 +1,5 @@
 [package]
-name = "exorust-cost-optimization"
+name = "stratoswarm-cost-optimization"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

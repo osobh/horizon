@@ -3,8 +3,10 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use hpc_channels::CostMessage;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 use crate::api::state::AppState;
@@ -40,6 +42,8 @@ pub async fn ingest_billing_data(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<IngestRequest>,
 ) -> Result<Json<IngestResponse>> {
+    let provider_name = format!("{:?}", payload.provider).to_lowercase();
+
     let raw = RawBillingData {
         provider: payload.provider,
         data: payload.data,
@@ -49,6 +53,26 @@ pub async fn ingest_billing_data(
 
     let records = state.repository.create_batch(&normalized).await?;
     let ingested_count = records.len();
+
+    // Calculate total amount from records
+    let total_amount: f64 = records
+        .iter()
+        .map(|r| r.amount.try_into().unwrap_or(0.0))
+        .sum();
+
+    // Get current timestamp
+    let timestamp_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    // Publish ingestion event
+    state.publish_ingestion_event(CostMessage::BillingDataIngested {
+        provider: provider_name,
+        record_count: ingested_count,
+        total_amount,
+        timestamp_ms,
+    });
 
     Ok(Json(IngestResponse {
         ingested_count,
@@ -60,8 +84,19 @@ pub async fn create_billing_record(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateBillingRecord>,
 ) -> Result<(StatusCode, Json<BillingRecord>)> {
+    let provider_name = format!("{:?}", payload.provider).to_lowercase();
+    let amount: f64 = payload.amount.try_into().unwrap_or(0.0);
+
     payload.validate()?;
     let record = state.repository.create(&payload).await?;
+
+    // Publish record created event
+    state.publish_ingestion_event(CostMessage::BillingRecordCreated {
+        record_id: record.id.to_string(),
+        provider: provider_name,
+        amount,
+    });
+
     Ok((StatusCode::CREATED, Json(record)))
 }
 
@@ -121,6 +156,10 @@ pub async fn delete_billing_record(
 ) -> Result<StatusCode> {
     let deleted = state.repository.delete_by_id(id).await?;
     if deleted {
+        // Publish record deleted event
+        state.publish_ingestion_event(CostMessage::BillingRecordDeleted {
+            record_id: id.to_string(),
+        });
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(HpcError::not_found("billing_record", format!("Billing record not found: {}", id)))
@@ -173,10 +212,7 @@ mod tests {
         let repository = BillingRepository::new(pool.clone());
         let schema = NormalizedBillingSchema::new();
 
-        let state = Arc::new(AppState {
-            repository,
-            schema,
-        });
+        let state = Arc::new(AppState::new(repository, schema));
 
         let now = Utc::now();
         let later = now + chrono::Duration::hours(1);

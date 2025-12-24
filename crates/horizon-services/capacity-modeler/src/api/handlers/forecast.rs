@@ -1,9 +1,47 @@
-use axum::{extract::Query, http::StatusCode, Extension, Json};
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    Json,
+};
+use hpc_channels::{broadcast, channels, CapacityMessage};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::broadcast::Sender as BroadcastSender;
 
 use crate::error::Result;
 use crate::models::{BacktestRequest, BacktestResult, ForecastRequest, ForecastResult};
 use crate::service::ForecastService;
+
+/// Shared application state for capacity-modeler handlers.
+#[derive(Clone)]
+pub struct AppState {
+    pub service: Arc<ForecastService>,
+    /// Channel for forecast generation events.
+    pub forecast_events: BroadcastSender<CapacityMessage>,
+}
+
+impl AppState {
+    pub fn new(service: ForecastService) -> Self {
+        let forecast_events = broadcast::<CapacityMessage>(channels::CAPACITY_FORECAST, 256);
+
+        Self {
+            service: Arc::new(service),
+            forecast_events,
+        }
+    }
+
+    /// Publish a forecast event (non-blocking).
+    pub fn publish_forecast_event(&self, event: CapacityMessage) {
+        let _ = self.forecast_events.send(event);
+    }
+}
+
+fn timestamp_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
 
 /// Generate GPU demand forecast
 #[utoipa::path(
@@ -20,18 +58,25 @@ use crate::service::ForecastService;
     )
 )]
 pub async fn forecast_gpu_demand(
-    Extension(service): Extension<Arc<ForecastService>>,
+    State(state): State<Arc<AppState>>,
     Query(request): Query<ForecastRequest>,
 ) -> Result<(StatusCode, Json<ForecastResult>)> {
     // For demo purposes, generate synthetic historical data
     // In production, this would fetch from InfluxDB
     let historical_data = generate_demo_data(200);
 
-    let forecast = service.forecast_gpu_demand(
+    let forecast = state.service.forecast_gpu_demand(
         &historical_data,
         request.weeks,
         request.include_confidence_intervals,
     )?;
+
+    // Publish forecast generated event
+    state.publish_forecast_event(CapacityMessage::ForecastGenerated {
+        forecast_weeks: request.weeks,
+        include_confidence: request.include_confidence_intervals,
+        timestamp_ms: timestamp_ms(),
+    });
 
     Ok((StatusCode::OK, Json(forecast)))
 }
@@ -48,13 +93,25 @@ pub async fn forecast_gpu_demand(
     )
 )]
 pub async fn backtest_model(
-    Extension(service): Extension<Arc<ForecastService>>,
+    State(state): State<Arc<AppState>>,
     Json(request): Json<BacktestRequest>,
 ) -> Result<(StatusCode, Json<BacktestResult>)> {
     // For demo purposes, generate synthetic historical data
     let historical_data = generate_demo_data(300);
 
-    let backtest_result = service.backtest(&historical_data, request.train_days, request.test_days)?;
+    let backtest_result =
+        state
+            .service
+            .backtest(&historical_data, request.train_days, request.test_days)?;
+
+    // Publish backtest completed event
+    state.publish_forecast_event(CapacityMessage::BacktestCompleted {
+        train_days: backtest_result.train_size,
+        test_days: backtest_result.test_size,
+        mae: backtest_result.metrics.mae,
+        mape: backtest_result.metrics.mape,
+        timestamp_ms: timestamp_ms(),
+    });
 
     Ok((StatusCode::OK, Json(backtest_result)))
 }
@@ -90,13 +147,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_forecast_gpu_demand_handler() {
-        let service = Arc::new(ForecastService::new(100));
+        let service = ForecastService::new(100);
+        let state = Arc::new(AppState::new(service));
         let request = ForecastRequest {
             weeks: 4,
             include_confidence_intervals: false,
         };
 
-        let result = forecast_gpu_demand(Extension(service), Query(request)).await;
+        let result = forecast_gpu_demand(State(state), Query(request)).await;
 
         assert!(result.is_ok());
         let (status, response) = result.unwrap();
@@ -107,13 +165,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_backtest_handler() {
-        let service = Arc::new(ForecastService::new(50));
+        let service = ForecastService::new(50);
+        let state = Arc::new(AppState::new(service));
         let request = BacktestRequest {
             train_days: 200,
             test_days: 30,
         };
 
-        let result = backtest_model(Extension(service), Json(request)).await;
+        let result = backtest_model(State(state), Json(request)).await;
 
         assert!(result.is_ok());
         let (status, response) = result.unwrap();

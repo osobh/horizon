@@ -9,6 +9,7 @@ use crate::evolution_bridge::EvolutionBridge;
 use crate::gpu_compiler_bridge::GpuCompilerBridge;
 use crate::kernel_bridge::KernelBridge;
 use crate::nebula_bridge::NebulaBridge;
+use crate::slai_bridge::SlaiBridge;
 use crate::storage_bridge::StorageBridge;
 use crate::tensor_mesh_bridge::TensorMeshBridge;
 use crate::training_bridge::TrainingBridge;
@@ -42,6 +43,8 @@ pub struct AppState {
     pub data_pipeline: Arc<DataPipelineBridge>,
     /// Edge proxy bridge for Vortex + SLAI routing (Synergy 5)
     pub edge_proxy: Arc<EdgeProxyBridge>,
+    /// SLAI bridge for GPU scheduling and multi-tenant job management
+    pub slai: Arc<SlaiBridge>,
 }
 
 impl AppState {
@@ -59,6 +62,7 @@ impl AppState {
             tensor_mesh: Arc::new(TensorMeshBridge::new()),
             data_pipeline: Arc::new(DataPipelineBridge::new()),
             edge_proxy: Arc::new(EdgeProxyBridge::new()),
+            slai: Arc::new(SlaiBridge::new()),
         }
     }
 

@@ -1,15 +1,15 @@
 //! Comprehensive Integration Scenarios
 //! Additional integration tests covering complex workflows and edge cases
 
-use exorust_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
-use exorust_cuda::{CudaContext, CudaMemoryManager};
-use exorust_evolution_engines::{
+use stratoswarm_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
+use stratoswarm_cuda::{CudaContext, CudaMemoryManager};
+use stratoswarm_evolution_engines::{
     AdasEngine, DgmEngine, EvolutionEngineConfig, HybridEvolutionSystem, SwarmAgenticEngine,
 };
-use exorust_knowledge_graph::{
+use stratoswarm_knowledge_graph::{
     KnowledgeGraph, KnowledgeGraphConfig, Query, QueryEngine, QueryType,
 };
-use exorust_synthesis::{SynthesisConfig, SynthesisPipeline};
+use stratoswarm_synthesis::{SynthesisConfig, SynthesisPipeline};
 use std::sync::Arc;
 use tokio::time::{timeout, Duration, Instant};
 
@@ -1313,7 +1313,7 @@ async fn test_end_to_end_workflow_validation() {
     let mut query_engine = QueryEngine::new(false).await.unwrap();
     let validation_query = Query {
         query_type: QueryType::FindNodes {
-            node_type: Some(exorust_knowledge_graph::NodeType::Memory),
+            node_type: Some(stratoswarm_knowledge_graph::NodeType::Memory),
             properties: std::collections::HashMap::new(),
         },
         timeout_ms: Some(5000),

@@ -22,7 +22,7 @@ pub enum RuntimeError {
     // #[error("GPU context error: {0}")]
     // GpuContext(#[from] cust::error::CudaError),
     #[error("Memory allocation error: {0}")]
-    Memory(#[from] exorust_memory::MemoryError),
+    Memory(#[from] stratoswarm_memory::MemoryError),
 
     #[error("Container state transition error: from {from} to {to}")]
     InvalidStateTransition { from: String, to: String },
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_memory_error_conversion() {
-        let mem_error = exorust_memory::MemoryError::AllocationFailed {
+        let mem_error = stratoswarm_memory::MemoryError::AllocationFailed {
             reason: "out of memory".to_string(),
         };
         let error: RuntimeError = mem_error.into();
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_error_source_chain() {
-        let mem_error = exorust_memory::MemoryError::AllocationFailed {
+        let mem_error = stratoswarm_memory::MemoryError::AllocationFailed {
             reason: "insufficient memory".to_string(),
         };
         let error = RuntimeError::Memory(mem_error);

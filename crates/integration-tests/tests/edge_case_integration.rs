@@ -7,16 +7,16 @@ use cpu_agents::{
     },
     bridge::{BridgeConfig, CpuGpuBridge, CpuGpuMessage, MessageType as BridgeMessageType},
 };
-use exorust_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
-use exorust_cuda::{CudaContext, CudaMemoryManager};
-use exorust_evolution::{EvolutionEngine, GeneticEvolutionEngine, Population};
-use exorust_evolution_engines::{EvolutionEngineConfig, HybridEvolutionSystem};
-use exorust_knowledge_graph::{KnowledgeGraph, KnowledgeGraphConfig, Query, QueryType};
-use exorust_memory::{GpuMemoryAllocator, MemoryManager};
-use exorust_net::{MemoryNetwork, Message, MessageType, Network, ZeroCopyTransport};
-use exorust_runtime::{ContainerConfig, ContainerRuntime, SecureContainerRuntime};
-use exorust_storage::{MemoryStorage, NvmeConfig, NvmeStorage, Storage};
-use exorust_synthesis::{SynthesisConfig, SynthesisPipeline};
+use stratoswarm_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
+use stratoswarm_cuda::{CudaContext, CudaMemoryManager};
+use stratoswarm_evolution::{EvolutionEngine, GeneticEvolutionEngine, Population};
+use stratoswarm_evolution_engines::{EvolutionEngineConfig, HybridEvolutionSystem};
+use stratoswarm_knowledge_graph::{KnowledgeGraph, KnowledgeGraphConfig, Query, QueryType};
+use stratoswarm_memory::{GpuMemoryAllocator, MemoryManager};
+use stratoswarm_net::{MemoryNetwork, Message, MessageType, Network, ZeroCopyTransport};
+use stratoswarm_runtime::{ContainerConfig, ContainerRuntime, SecureContainerRuntime};
+use stratoswarm_storage::{MemoryStorage, NvmeConfig, NvmeStorage, Storage};
+use stratoswarm_synthesis::{SynthesisConfig, SynthesisPipeline};
 use gpu_agents::{
     consensus::{ConsensusModule, Vote, VoteType},
     memory::{MemoryTier, TierManager, UnifiedMemoryManager},

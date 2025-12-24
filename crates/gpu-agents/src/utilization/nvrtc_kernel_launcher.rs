@@ -7,6 +7,7 @@
 use crate::synthesis::nvrtc::{CompilationOptions, KernelTemplate};
 use anyhow::{anyhow, Result};
 use cudarc::driver::CudaDevice;
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -16,7 +17,7 @@ use tokio::sync::RwLock;
 pub struct NvrtcKernelLauncher {
     device: Arc<CudaDevice>,
     /// Cache of compiled kernel templates
-    template_cache: Arc<RwLock<HashMap<String, CompiledKernel>>>,
+    template_cache: Arc<DashMap<String, CompiledKernel>>,
     /// Compilation statistics
     stats: Arc<RwLock<CompilationStats>>,
 }

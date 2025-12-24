@@ -12,8 +12,8 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use exorust_agent_core::{Agent, AgentConfig, Goal, GoalPriority};
-use exorust_synthesis::interpreter::GoalInterpreter;
+use stratoswarm_agent_core::{Agent, AgentConfig, Goal, GoalPriority};
+use stratoswarm_synthesis::interpreter::GoalInterpreter;
 use parking_lot::RwLock;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -46,7 +46,7 @@ impl AdasEngine {
             metrics_collector: MetricsCollector::new(),
             rng: Arc::new(RwLock::new(rng)),
             goal_interpreter: Arc::new(GoalInterpreter::new(
-                exorust_synthesis::interpreter::InterpreterConfig::default(),
+                stratoswarm_synthesis::interpreter::InterpreterConfig::default(),
             )),
             architecture_performance: Arc::new(RwLock::new(Vec::new())),
             meta_agent: MetaAgent::new(config.base.max_generations as usize),

@@ -86,8 +86,8 @@ pub async fn execute(args: ScaleArgs) -> Result<()> {
 }
 
 async fn scale_agent(spec: &ScaleSpec, namespace: &str) -> Result<()> {
-    // TODO: Uncomment when exorust_runtime is available
-    // use exorust_runtime::Runtime;
+    // TODO: Uncomment when stratoswarm_runtime is available
+    // use stratoswarm_runtime::Runtime;
 
     // Mock implementation for testing
     output::info(&format!(

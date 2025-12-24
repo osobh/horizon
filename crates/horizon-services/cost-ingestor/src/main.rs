@@ -34,10 +34,7 @@ async fn main() -> anyhow::Result<()> {
     schema.register_normalizer(Provider::Azure, Box::new(AzureEaNormalizer::new()));
     schema.register_normalizer(Provider::OnPrem, Box::new(OnPremNormalizer::new()));
 
-    let state = Arc::new(AppState {
-        repository,
-        schema,
-    });
+    let state = Arc::new(AppState::new(repository, schema));
 
     let app = create_router(state);
 

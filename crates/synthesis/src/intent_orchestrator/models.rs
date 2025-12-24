@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use super::config::ModelConfig;
 use super::types::ActivationType;
 
 /// Transformer model for NLP tasks
@@ -215,22 +216,29 @@ pub struct AttentionMechanism {
 impl TransformerModel {
     /// Create new transformer model
     pub fn new(config: TransformerConfig) -> Self {
+        // Save values before moving config
+        let vocab_size = config.vocab_size;
+        let hidden_dim = config.hidden_dim;
+        let num_heads = config.num_heads;
+        let num_layers = config.num_layers;
+        let max_seq_length = config.max_seq_length;
+
         let embeddings = EmbeddingLayer {
-            vocab_size: config.vocab_size,
-            embedding_dim: config.hidden_dim,
-            embeddings: vec![vec![0.0; config.hidden_dim]; config.vocab_size],
-            position_embeddings: Some(vec![vec![0.0; config.hidden_dim]; config.max_seq_length]),
+            vocab_size,
+            embedding_dim: hidden_dim,
+            embeddings: vec![vec![0.0; hidden_dim]; vocab_size],
+            position_embeddings: Some(vec![vec![0.0; hidden_dim]; max_seq_length]),
         };
 
         let mut attention_layers = Vec::new();
         let mut ff_layers = Vec::new();
 
-        for _ in 0..config.num_layers {
-            attention_layers.push(AttentionLayer::new(config.hidden_dim, config.num_heads));
+        for _ in 0..num_layers {
+            attention_layers.push(AttentionLayer::new(hidden_dim, num_heads));
             ff_layers.push(FeedForwardLayer::new(
-                config.hidden_dim,
-                config.hidden_dim * 4,
-                config.hidden_dim,
+                hidden_dim,
+                hidden_dim * 4,
+                hidden_dim,
                 ActivationType::GELU,
             ));
         }
@@ -240,7 +248,7 @@ impl TransformerModel {
             embeddings,
             attention_layers,
             ff_layers,
-            layer_norm: LayerNorm::new(config.hidden_dim),
+            layer_norm: LayerNorm::new(hidden_dim),
             weights: HashMap::new(),
         }
     }
@@ -283,6 +291,85 @@ impl LayerNorm {
             epsilon: 1e-6,
             gamma: vec![1.0; normalized_dim],
             beta: vec![0.0; normalized_dim],
+        }
+    }
+}
+
+// Conversions from ModelConfig
+impl From<ModelConfig> for TransformerConfig {
+    fn from(config: ModelConfig) -> Self {
+        Self {
+            vocab_size: config.vocab_size,
+            hidden_dim: config.hidden_dim,
+            num_heads: config.num_heads,
+            num_layers: config.num_layers,
+            dropout_rate: config.dropout_rate,
+            max_seq_length: config.max_sequence_length,
+        }
+    }
+}
+
+impl From<ModelConfig> for BertConfig {
+    fn from(config: ModelConfig) -> Self {
+        Self {
+            vocab_size: config.vocab_size,
+            hidden_size: config.hidden_dim,
+            num_hidden_layers: config.num_layers,
+            num_attention_heads: config.num_heads,
+            intermediate_size: config.hidden_dim * 4,
+            hidden_act: ActivationType::GELU,
+            hidden_dropout_prob: config.dropout_rate,
+            attention_probs_dropout_prob: config.dropout_rate,
+            max_position_embeddings: config.max_sequence_length,
+            type_vocab_size: 2,
+        }
+    }
+}
+
+impl BertModel {
+    /// Create new BERT model from config
+    pub fn new(config: ModelConfig) -> Self {
+        let bert_config: BertConfig = config.into();
+
+        let embeddings = BertEmbeddings {
+            word_embeddings: vec![vec![0.0; bert_config.hidden_size]; bert_config.vocab_size],
+            position_embeddings: vec![vec![0.0; bert_config.hidden_size]; bert_config.max_position_embeddings],
+            token_type_embeddings: vec![vec![0.0; bert_config.hidden_size]; bert_config.type_vocab_size],
+            layer_norm: LayerNorm::new(bert_config.hidden_size),
+        };
+
+        let mut encoder_layers = Vec::new();
+        for _ in 0..bert_config.num_hidden_layers {
+            encoder_layers.push(BertEncoderLayer {
+                self_attention: AttentionLayer::new(bert_config.hidden_size, bert_config.num_attention_heads),
+                intermediate: FeedForwardLayer::new(
+                    bert_config.hidden_size,
+                    bert_config.intermediate_size,
+                    bert_config.hidden_size,
+                    bert_config.hidden_act.clone(),
+                ),
+                output: FeedForwardLayer::new(
+                    bert_config.intermediate_size,
+                    bert_config.hidden_size,
+                    bert_config.hidden_size,
+                    ActivationType::ReLU,
+                ),
+            });
+        }
+
+        Self {
+            config: bert_config.clone(),
+            embeddings,
+            encoder_layers,
+            pooler: Some(PoolerLayer {
+                dense: FeedForwardLayer::new(
+                    bert_config.hidden_size,
+                    bert_config.hidden_size,
+                    bert_config.hidden_size,
+                    ActivationType::Tanh,
+                ),
+                activation: ActivationType::Tanh,
+            }),
         }
     }
 }

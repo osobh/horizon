@@ -17,6 +17,20 @@ impl QuotaRepository {
         Self { pool }
     }
 
+    /// Create a test repository (for unit tests only).
+    /// This creates an unconnected pool that should not be used for actual queries.
+    #[cfg(test)]
+    pub fn new_test() -> Self {
+        use sqlx::postgres::PgPoolOptions;
+        // Create a pool that will fail on actual connection - only for tests
+        // that don't actually need database access
+        let pool = PgPoolOptions::new()
+            .max_connections(0)
+            .connect_lazy("postgres://test:test@localhost:5432/test")
+            .expect("Failed to create test pool");
+        Self { pool }
+    }
+
     // Quota CRUD operations
     pub async fn create_quota(&self, req: CreateQuotaRequest) -> Result<Quota> {
         let quota = sqlx::query_as::<_, Quota>(

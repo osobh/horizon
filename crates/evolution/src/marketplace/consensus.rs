@@ -7,6 +7,7 @@ use tokio::sync::RwLock;
 use tokio::time::sleep;
 use anyhow::{Result, anyhow};
 use uuid::Uuid;
+use dashmap::DashMap;
 
 use crate::marketplace::types::{
     EvolutionPackage, ValidationResult, ValidationMetadata, ResourceUsage,
@@ -18,9 +19,9 @@ use crate::marketplace::types::{
 pub struct DistributedConsensus {
     cluster_id: String,
     consensus_threshold: f64,
-    validation_results: Arc<RwLock<HashMap<Uuid, Vec<ValidationResult>>>>,
-    validator_registry: Arc<RwLock<HashMap<String, ValidatorInfo>>>,
-    consensus_rounds: Arc<RwLock<HashMap<Uuid, ConsensusRound>>>,
+    validation_results: Arc<DashMap<Uuid, Vec<ValidationResult>>>,
+    validator_registry: Arc<DashMap<String, ValidatorInfo>>,
+    consensus_rounds: Arc<DashMap<Uuid, ConsensusRound>>,
     byzantine_fault_tolerance: bool,
 }
 
@@ -29,9 +30,9 @@ impl DistributedConsensus {
         Self {
             cluster_id,
             consensus_threshold,
-            validation_results: Arc::new(RwLock::new(HashMap::new())),
-            validator_registry: Arc::new(RwLock::new(HashMap::new())),
-            consensus_rounds: Arc::new(RwLock::new(HashMap::new())),
+            validation_results: Arc::new(DashMap::new()),
+            validator_registry: Arc::new(DashMap::new()),
+            consensus_rounds: Arc::new(DashMap::new()),
             byzantine_fault_tolerance: true,
         }
     }
@@ -49,11 +50,8 @@ impl DistributedConsensus {
             received_validations: 0,
             status: ConsensusStatus::Pending,
         };
-        
-        {
-            let mut rounds = self.consensus_rounds.write().await;
-            rounds.insert(package.id, consensus_round);
-        }
+
+        self.consensus_rounds.insert(package.id, consensus_round);
         
         // Initiate distributed validation
         self.initiate_distributed_validation(package).await?;
@@ -66,25 +64,23 @@ impl DistributedConsensus {
 
     /// Check consensus on algorithm validation with Byzantine fault tolerance
     pub async fn check_consensus(&self, package_id: Uuid) -> Result<bool> {
-        let results = self.validation_results.read().await;
-        
-        if let Some(validations) = results.get(&package_id) {
+        if let Some(validations) = self.validation_results.get(&package_id) {
             let required_validators = self.calculate_required_validators().await?;
-            
+
             if (validations.len() as u32) < required_validators {
                 return Ok(false); // Insufficient validators
             }
-            
+
             // Apply Byzantine fault tolerance - need 2f+1 agreement where f is max faulty nodes
             let byzantine_threshold = if self.byzantine_fault_tolerance {
                 ((validations.len() as f64 * 2.0) / 3.0).ceil() as usize
             } else {
                 (validations.len() as f64 * 0.51).ceil() as usize // Simple majority
             };
-            
+
             // Filter out potentially malicious validations
-            let trusted_validations = self.filter_trusted_validations(validations).await;
-            
+            let trusted_validations = self.filter_trusted_validations(&validations).await;
+
             // Check consensus among trusted validators
             let consensus_count = trusted_validations.iter()
                 .filter(|v| {
@@ -93,7 +89,7 @@ impl DistributedConsensus {
                     v.code_quality_score > 75.0
                 })
                 .count();
-            
+
             Ok(consensus_count >= byzantine_threshold)
         } else {
             Ok(false)
@@ -110,30 +106,27 @@ impl DistributedConsensus {
             last_seen: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             capabilities,
         };
-        
-        let mut registry = self.validator_registry.write().await;
-        registry.insert(cluster_id, validator_info);
-        
+
+        self.validator_registry.insert(cluster_id, validator_info);
+
         Ok(())
     }
 
     /// Update validator reputation based on validation quality
     pub async fn update_validator_reputation(&self, cluster_id: &str, performance_delta: f64) -> Result<()> {
-        let mut registry = self.validator_registry.write().await;
-        
-        if let Some(validator) = registry.get_mut(cluster_id) {
+        if let Some(mut validator) = self.validator_registry.get_mut(cluster_id) {
             // Update reputation with exponential moving average
             let alpha = 0.1; // Learning rate
-            validator.reputation_score = validator.reputation_score * (1.0 - alpha) + 
+            validator.reputation_score = validator.reputation_score * (1.0 - alpha) +
                                        (validator.reputation_score + performance_delta).max(0.0).min(5.0) * alpha;
-            
+
             validator.total_validations += 1;
             if performance_delta > 0.0 {
                 validator.successful_validations += 1;
             }
             validator.last_seen = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         }
-        
+
         Ok(())
     }
 
@@ -159,9 +152,8 @@ impl DistributedConsensus {
     }
     
     async fn calculate_required_validators(&self) -> Result<u32> {
-        let registry = self.validator_registry.read().await;
-        let active_validators = registry.len() as u32;
-        
+        let active_validators = self.validator_registry.len() as u32;
+
         if self.byzantine_fault_tolerance {
             // Need 3f+1 validators total where f is max Byzantine faults
             // For safety, require at least 4 validators
@@ -173,25 +165,24 @@ impl DistributedConsensus {
     }
     
     async fn select_validators(&self, package: &EvolutionPackage) -> Result<Vec<String>> {
-        let registry = self.validator_registry.read().await;
-        
         // Select validators based on:
         // 1. Reputation score
         // 2. Capability to validate the specific package
         // 3. Geographic/network distribution for fault tolerance
-        
-        let mut suitable_validators: Vec<(String, f64)> = registry
+
+        let mut suitable_validators: Vec<(String, f64)> = self.validator_registry
             .iter()
-            .filter(|(_, validator)| {
-                validator.reputation_score > 0.5 && 
+            .filter(|entry| {
+                let validator = entry.value();
+                validator.reputation_score > 0.5 &&
                 self.validator_can_handle_package(validator, package)
             })
-            .map(|(id, validator)| (id.clone(), validator.reputation_score))
+            .map(|entry| (entry.key().clone(), entry.value().reputation_score))
             .collect();
-        
+
         // Sort by reputation score (descending)
         suitable_validators.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        
+
         // Select top validators up to required count
         let required_count = self.calculate_required_validators().await? as usize;
         let selected: Vec<String> = suitable_validators
@@ -199,7 +190,7 @@ impl DistributedConsensus {
             .take(required_count)
             .map(|(id, _)| id)
             .collect();
-        
+
         Ok(selected)
     }
     
@@ -213,12 +204,10 @@ impl DistributedConsensus {
     }
     
     async fn filter_trusted_validations(&self, validations: &[ValidationResult]) -> Vec<ValidationResult> {
-        let registry = self.validator_registry.read().await;
-        
         validations
             .iter()
             .filter(|validation| {
-                if let Some(validator) = registry.get(&validation.validator_cluster) {
+                if let Some(validator) = self.validator_registry.get(&validation.validator_cluster) {
                     validator.reputation_score > 0.7 && // Trust threshold
                     validation.validation_metadata.test_cases_passed > 0
                 } else {
@@ -231,37 +220,32 @@ impl DistributedConsensus {
     
     async fn wait_for_consensus(&self, round_id: Uuid, timeout_duration: Duration) -> Result<bool> {
         let start_time = Instant::now();
-        
+
         while start_time.elapsed() < timeout_duration {
             // Check if consensus round exists and get package_id
-            let package_id = {
-                let rounds = self.consensus_rounds.read().await;
-                rounds.values()
-                    .find(|round| round.round_id == round_id)
-                    .map(|round| round.package_id)
-            };
-            
+            let package_id = self.consensus_rounds
+                .iter()
+                .find(|entry| entry.value().round_id == round_id)
+                .map(|entry| entry.value().package_id);
+
             if let Some(pkg_id) = package_id {
                 if self.check_consensus(pkg_id).await? {
                     return Ok(true);
                 }
             }
-            
+
             // Wait before next check
             sleep(Duration::from_millis(100)).await;
         }
-        
+
         // Timeout - mark round as failed
-        {
-            let mut rounds = self.consensus_rounds.write().await;
-            for round in rounds.values_mut() {
-                if round.round_id == round_id {
-                    round.status = ConsensusStatus::Timeout;
-                    break;
-                }
+        for mut entry in self.consensus_rounds.iter_mut() {
+            if entry.value().round_id == round_id {
+                entry.value_mut().status = ConsensusStatus::Timeout;
+                break;
             }
         }
-        
+
         Ok(false)
     }
     
@@ -298,9 +282,9 @@ impl DistributedConsensus {
         };
         
         // Store validation result
-        {
-            let mut results = self.validation_results.write().await;
-            results.entry(package.id).or_insert_with(Vec::new).push(validation_result);
-        }
+        self.validation_results
+            .entry(package.id)
+            .or_insert_with(Vec::new)
+            .push(validation_result);
     }
 }

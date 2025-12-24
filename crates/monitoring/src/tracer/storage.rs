@@ -4,9 +4,8 @@ use super::query::TraceQuery;
 use super::span::TraceSpan;
 use crate::MonitoringError;
 use async_trait::async_trait;
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Trait for trace storage backends
 #[async_trait]
@@ -29,35 +28,34 @@ pub trait TraceStorage {
 
 /// In-memory trace storage
 pub struct MemoryTraceStorage {
-    traces: Arc<RwLock<HashMap<uuid::Uuid, TraceSpan>>>,
+    traces: Arc<DashMap<uuid::Uuid, TraceSpan>>,
 }
 
 impl MemoryTraceStorage {
     pub fn new() -> Self {
         Self {
-            traces: Arc::new(RwLock::new(HashMap::new())),
+            traces: Arc::new(DashMap::new()),
         }
     }
 
     pub async fn trace_count(&self) -> usize {
-        self.traces.read().await.len()
+        self.traces.len()
     }
 }
 
 #[async_trait]
 impl TraceStorage for MemoryTraceStorage {
     async fn store_trace(&self, span: TraceSpan) -> Result<(), MonitoringError> {
-        let mut traces = self.traces.write().await;
-        traces.insert(span.context.trace_id, span);
+        self.traces.insert(span.context.trace_id, span);
         Ok(())
     }
 
     async fn query_traces(&self, query: TraceQuery) -> Result<Vec<TraceSpan>, MonitoringError> {
-        let traces = self.traces.read().await;
-        let mut results: Vec<TraceSpan> = traces
-            .values()
-            .filter(|span| query.matches(span))
-            .cloned()
+        let mut results: Vec<TraceSpan> = self
+            .traces
+            .iter()
+            .filter(|entry| query.matches(entry.value()))
+            .map(|entry| entry.value().clone())
             .collect();
 
         // Sort by start time (newest first)
@@ -72,8 +70,7 @@ impl TraceStorage for MemoryTraceStorage {
     }
 
     async fn get_trace(&self, trace_id: uuid::Uuid) -> Result<Option<TraceSpan>, MonitoringError> {
-        let traces = self.traces.read().await;
-        Ok(traces.get(&trace_id).cloned())
+        Ok(self.traces.get(&trace_id).map(|entry| entry.clone()))
     }
 
     async fn cleanup(&self, older_than_secs: u64) -> Result<usize, MonitoringError> {
@@ -82,19 +79,18 @@ impl TraceStorage for MemoryTraceStorage {
             .unwrap_or_default()
             .as_secs();
 
-        let mut traces = self.traces.write().await;
-        let initial_count = traces.len();
+        let initial_count = self.traces.len();
 
-        traces.retain(|_, span| {
+        self.traces.retain(|_, span| {
             let age_secs = current_time.saturating_sub(span.start_time / 1_000_000);
             age_secs < older_than_secs
         });
 
-        Ok(initial_count - traces.len())
+        Ok(initial_count - self.traces.len())
     }
 
     async fn clear(&self) -> Result<(), MonitoringError> {
-        self.traces.write().await.clear();
+        self.traces.clear();
         Ok(())
     }
 }

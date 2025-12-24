@@ -120,13 +120,13 @@ impl AgentArchive {
         self.update_diversity_index(&agent).await;
 
         // Update statistics
-        self.stats.total_agents.fetch_add(1, Ordering::SeqCst);
-        self.stats.additions.fetch_add(1, Ordering::SeqCst);
+        self.stats.total_agents.fetch_add(1, Ordering::Relaxed);
+        self.stats.additions.fetch_add(1, Ordering::Relaxed);
 
         let best_fitness_bits = f64::to_bits(fitness);
         self.stats
             .best_fitness
-            .fetch_max(best_fitness_bits, Ordering::SeqCst);
+            .fetch_max(best_fitness_bits, Ordering::Relaxed);
 
         Ok(true)
     }
@@ -201,8 +201,8 @@ impl AgentArchive {
                 }
             }
 
-            self.stats.removals.fetch_add(1, Ordering::SeqCst);
-            self.stats.total_agents.fetch_sub(1, Ordering::SeqCst);
+            self.stats.removals.fetch_add(1, Ordering::Relaxed);
+            self.stats.total_agents.fetch_sub(1, Ordering::Relaxed);
         }
 
         Ok(())
@@ -229,7 +229,7 @@ impl AgentArchive {
             let best_fitness_bits = f64::to_bits(new_fitness);
             self.stats
                 .best_fitness
-                .fetch_max(best_fitness_bits, Ordering::SeqCst);
+                .fetch_max(best_fitness_bits, Ordering::Relaxed);
         }
 
         Ok(())
@@ -429,19 +429,19 @@ impl AgentArchive {
 
     /// Get diversity score
     pub fn diversity_score(&self) -> f64 {
-        let bits = self.stats.diversity_score.load(Ordering::SeqCst);
+        let bits = self.stats.diversity_score.load(Ordering::Relaxed);
         f64::from_bits(bits)
     }
 
     /// Get archive statistics
     pub fn get_stats(&self) -> ArchiveStatistics {
         ArchiveStatistics {
-            total_agents: self.stats.total_agents.load(Ordering::SeqCst),
-            additions: self.stats.additions.load(Ordering::SeqCst),
-            removals: self.stats.removals.load(Ordering::SeqCst),
+            total_agents: self.stats.total_agents.load(Ordering::Relaxed),
+            additions: self.stats.additions.load(Ordering::Relaxed),
+            removals: self.stats.removals.load(Ordering::Relaxed),
             current_size: self.agents.len() as u64,
             max_size: self.max_size as u64,
-            best_fitness: f64::from_bits(self.stats.best_fitness.load(Ordering::SeqCst)),
+            best_fitness: f64::from_bits(self.stats.best_fitness.load(Ordering::Relaxed)),
             diversity_score: self.diversity_score(),
         }
     }

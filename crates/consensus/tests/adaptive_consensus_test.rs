@@ -8,7 +8,7 @@
 //! ALL TESTS IN THIS FILE ARE DESIGNED TO FAIL INITIALLY (RED PHASE)
 //! They represent adaptive algorithm functionality that needs to be implemented.
 
-use exorust_consensus::*;
+use stratoswarm_consensus::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

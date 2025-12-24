@@ -24,10 +24,10 @@ use crate::{
 };
 
 // Re-export XP types from agent-core
-pub use exorust_agent_core::agent::{
+pub use stratoswarm_agent_core::agent::{
     AgentStats, EvolutionResult, XPGainRecord, LEVEL_THRESHOLDS,
 };
-use exorust_agent_core::{Agent, AgentConfig, AgentId};
+use stratoswarm_agent_core::{Agent, AgentConfig, AgentId};
 
 // =============================================================================
 // Request/Response Types

@@ -17,6 +17,7 @@ mod evolution_bridge;
 mod gpu_compiler_bridge;
 mod kernel_bridge;
 mod nebula_bridge;
+mod slai_bridge;
 mod state;
 mod storage_bridge;
 mod tensor_mesh_bridge;
@@ -159,6 +160,21 @@ fn main() {
             commands::edge_proxy::get_backend_health,
             commands::edge_proxy::get_routing_decisions,
             commands::edge_proxy::simulate_edge_proxy_activity,
+            // Scheduler commands (SLAI GPU scheduling)
+            commands::scheduler::scheduler_detect_gpus,
+            commands::scheduler::scheduler_list_gpus,
+            commands::scheduler::submit_scheduler_job,
+            commands::scheduler::get_scheduler_job,
+            commands::scheduler::list_scheduler_jobs,
+            commands::scheduler::list_jobs_by_tenant,
+            commands::scheduler::cancel_scheduler_job,
+            commands::scheduler::create_tenant,
+            commands::scheduler::get_tenant,
+            commands::scheduler::list_tenants,
+            commands::scheduler::suspend_tenant,
+            commands::scheduler::resume_tenant,
+            commands::scheduler::get_scheduler_summary,
+            commands::scheduler::get_fair_share,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");

@@ -243,7 +243,7 @@ impl ScaleTestOrchestrator {
         instance: NodeInstance,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // This would use our existing DistributedSwarmEngine to start a node
-        use exorust_evolution_engines::{
+        use stratoswarm_evolution_engines::{
             error::EvolutionEngineResult,
             swarm_distributed::{config::DistributedSwarmConfig, DistributedSwarmEngine},
         };

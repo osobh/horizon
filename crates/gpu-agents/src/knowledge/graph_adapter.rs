@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 // Import from knowledge-graph crate
-use exorust_knowledge_graph::{
+use stratoswarm_knowledge_graph::{
     scaling::DistributedGraphStore, Edge, EdgeType, Node, NodeType, QueryEngine, QueryResult,
     ScaledKnowledgeGraph, ScalingConfig, SemanticSearchEngine,
 };
@@ -49,7 +49,7 @@ impl KnowledgeGraphAdapter {
             .context("Failed to create scaled knowledge graph")?;
 
         // Initialize semantic search engine
-        let embedding_config = exorust_knowledge_graph::semantic::EmbeddingConfig {
+        let embedding_config = stratoswarm_knowledge_graph::semantic::EmbeddingConfig {
             model_name: "sentence-transformers/all-MiniLM-L6-v2".to_string(),
             dimension: 384,
             max_length: 512,
@@ -205,8 +205,8 @@ impl KnowledgeGraphAdapter {
         }
 
         // Create semantic query
-        let semantic_query = exorust_knowledge_graph::semantic::SemanticQuery {
-            query: exorust_knowledge_graph::semantic::QueryInput::Text(goal.to_string()),
+        let semantic_query = stratoswarm_knowledge_graph::semantic::SemanticQuery {
+            query: stratoswarm_knowledge_graph::semantic::QueryInput::Text(goal.to_string()),
             node_types: Some(vec![NodeType::Goal]),
             top_k: 10,
             threshold: similarity_threshold,
@@ -214,8 +214,8 @@ impl KnowledgeGraphAdapter {
         };
 
         // Execute semantic search (using a dummy KnowledgeGraph for now)
-        let config = exorust_knowledge_graph::graph::KnowledgeGraphConfig::default();
-        let dummy_graph = exorust_knowledge_graph::graph::KnowledgeGraph::new(config)
+        let config = stratoswarm_knowledge_graph::graph::KnowledgeGraphConfig::default();
+        let dummy_graph = stratoswarm_knowledge_graph::graph::KnowledgeGraph::new(config)
             .await
             .context("Failed to create dummy knowledge graph")?;
         let search_results = self
@@ -236,7 +236,7 @@ impl KnowledgeGraphAdapter {
 
         // For now, return empty results as query system needs more implementation
         // Note: Full query implementation exists in knowledge-graph/src/graph.rs
-        let empty_result = exorust_knowledge_graph::query::QueryResult {
+        let empty_result = stratoswarm_knowledge_graph::query::QueryResult {
             nodes: Vec::new(),
             edges: Vec::new(),
             paths: Vec::new(),
@@ -309,7 +309,7 @@ impl KnowledgeGraphAdapter {
         // For now, return empty results as the query system needs more implementation
         // Note: Consensus pattern querying is implemented in the consensus module
         let _context = decision_context; // Use the parameter to avoid warnings
-        let result = exorust_knowledge_graph::query::QueryResult {
+        let result = stratoswarm_knowledge_graph::query::QueryResult {
             nodes: Vec::new(),
             edges: Vec::new(),
             paths: Vec::new(),

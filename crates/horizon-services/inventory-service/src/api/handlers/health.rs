@@ -1,7 +1,7 @@
 use axum::{extract::State, Json};
-use sqlx::PgPool;
 
 use crate::api::models::HealthResponse;
+use crate::api::state::AppState;
 use crate::error::Result;
 
 #[utoipa::path(
@@ -12,9 +12,9 @@ use crate::error::Result;
         (status = 500, description = "Service is unhealthy")
     )
 )]
-#[tracing::instrument(skip(pool))]
-pub async fn health_check(State(pool): State<PgPool>) -> Result<Json<HealthResponse>> {
-    let db_status = match sqlx::query("SELECT 1").execute(&pool).await {
+#[tracing::instrument(skip(state))]
+pub async fn health_check(State(state): State<AppState>) -> Result<Json<HealthResponse>> {
+    let db_status = match sqlx::query("SELECT 1").execute(&state.pool).await {
         Ok(_) => "connected",
         Err(_) => "disconnected",
     };

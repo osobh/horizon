@@ -4,8 +4,10 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
+use hpc_channels::CostMessage;
 use serde::Deserialize;
 use std::sync::Arc;
+use std::time::Instant;
 
 use crate::api::AppState;
 // HpcError and ReporterErrorExt are used in error handling but only indirectly
@@ -47,6 +49,15 @@ pub async fn get_team_showback(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Publish report generated event
+    state.publish_report_event(CostMessage::ReportGenerated {
+        report_type: "showback".to_string(),
+        entity_type: "team".to_string(),
+        entity_id: team_id,
+        period_start: report.period_start.to_rfc3339(),
+        period_end: report.period_end.to_rfc3339(),
+    });
+
     Ok(Json(report))
 }
 
@@ -62,6 +73,15 @@ pub async fn get_user_showback(
         .generate_user_report(&user_id, period, query.start_date, query.end_date)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Publish report generated event
+    state.publish_report_event(CostMessage::ReportGenerated {
+        report_type: "showback".to_string(),
+        entity_type: "user".to_string(),
+        entity_id: user_id,
+        period_start: report.period_start.to_rfc3339(),
+        period_end: report.period_end.to_rfc3339(),
+    });
 
     Ok(Json(report))
 }
@@ -119,6 +139,20 @@ pub async fn get_customer_chargeback(
             .await
     }
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Publish report generated event
+    let report_type = if query.detailed.unwrap_or(false) {
+        "chargeback_detailed"
+    } else {
+        "chargeback"
+    };
+    state.publish_report_event(CostMessage::ReportGenerated {
+        report_type: report_type.to_string(),
+        entity_type: "customer".to_string(),
+        entity_id: customer_id,
+        period_start: report.period_start.to_rfc3339(),
+        period_end: report.period_end.to_rfc3339(),
+    });
 
     Ok(Json(report))
 }
@@ -240,11 +274,21 @@ pub async fn get_forecast(
 pub async fn refresh_views(
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let start = Instant::now();
+
     state
         .view_manager
         .refresh_views()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let duration_ms = start.elapsed().as_millis() as u64;
+
+    // Publish views refreshed event
+    state.publish_report_event(CostMessage::ViewsRefreshed {
+        timestamp_ms: Utc::now().timestamp_millis() as u64,
+        duration_ms,
+    });
 
     Ok(StatusCode::NO_CONTENT)
 }

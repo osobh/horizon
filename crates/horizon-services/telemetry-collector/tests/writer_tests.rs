@@ -1,6 +1,6 @@
 use telemetry_collector::writers::{InfluxDbWriter, ParquetWriter};
 use telemetry_collector::config::{InfluxDbConfig, ParquetConfig};
-use horizon_hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch, Timestamp};
+use hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch, Timestamp};
 use tempfile::TempDir;
 
 fn create_test_batch() -> MetricBatch {

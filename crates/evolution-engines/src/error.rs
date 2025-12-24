@@ -35,11 +35,11 @@ pub enum EvolutionEngineError {
 
     /// Agent synthesis error
     #[error("Agent synthesis failed: {0}")]
-    SynthesisError(#[from] exorust_synthesis::error::SynthesisError),
+    SynthesisError(#[from] stratoswarm_synthesis::error::SynthesisError),
 
     /// Agent core error
     #[error("Agent core error: {0}")]
-    AgentCoreError(#[from] exorust_agent_core::error::AgentError),
+    AgentCoreError(#[from] stratoswarm_agent_core::error::AgentError),
 
     /// Fitness evaluation failed
     #[error("Fitness evaluation failed: {message}")]

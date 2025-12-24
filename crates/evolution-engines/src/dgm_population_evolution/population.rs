@@ -458,7 +458,7 @@ impl ManagedPopulation {
         &self,
         genome: crate::traits::AgentGenome,
     ) -> EvolutionEngineResult<EvolvableAgent> {
-        use exorust_agent_core::{Agent, AgentConfig};
+        use stratoswarm_agent_core::{Agent, AgentConfig};
 
         let config = AgentConfig {
             name: format!("child_{}", uuid::Uuid::new_v4()),

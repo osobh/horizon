@@ -87,9 +87,9 @@ mod tests {
 
     fn create_test_agent() -> EvolvableAgent {
         let genome = crate::traits::AgentGenome {
-            goal: exorust_agent_core::Goal::new(
+            goal: stratoswarm_agent_core::Goal::new(
                 "test".to_string(),
-                exorust_agent_core::GoalPriority::Normal,
+                stratoswarm_agent_core::GoalPriority::Normal,
             ),
             architecture: crate::traits::ArchitectureGenes {
                 memory_capacity: 1024,
@@ -103,7 +103,7 @@ mod tests {
             },
         };
 
-        let config = exorust_agent_core::AgentConfig {
+        let config = stratoswarm_agent_core::AgentConfig {
             name: "test_agent".to_string(),
             agent_type: "test".to_string(),
             max_memory: 1024,
@@ -112,7 +112,7 @@ mod tests {
             metadata: serde_json::Value::Null,
         };
 
-        let agent = exorust_agent_core::Agent::new(config)?;
+        let agent = stratoswarm_agent_core::Agent::new(config)?;
         EvolvableAgent { agent, genome }
     }
 

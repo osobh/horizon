@@ -1,0 +1,63 @@
+# Ephemeral Quota Access Policy
+#
+# Allows ephemeral users to submit jobs and use resources when they have:
+# - An active ephemeral quota
+# - Within their allocated time window
+# - Not exceeding their quota limits
+#
+# Usage: Apply this policy to enable resource access for ephemeral users.
+
+apiVersion: policy.horizon.dev/v1
+kind: Policy
+metadata:
+  name: ephemeral-quota-access
+  version: "1"
+  description: "Policy for time-limited ephemeral quota access to compute resources"
+spec:
+  principals:
+    # Match any user with ephemeral quota attributes
+    - type: user
+      pattern: "*"
+  resources:
+    # Jobs in the ephemeral namespace
+    - type: job
+      pattern: "ephemeral/*"
+    # Training runs for ephemeral users
+    - type: training_run
+      pattern: "ephemeral/*"
+    # Notebooks for ephemeral collaboration
+    - type: notebook
+      pattern: "ephemeral/*"
+  rules:
+    # Allow job submission when quota is active and within time window
+    - effect: allow
+      actions: [submit, view, cancel]
+      conditions:
+        - field: principal.attributes.has_ephemeral_quota
+          operator: eq
+          value: true
+        - field: principal.attributes.ephemeral_status
+          operator: eq
+          value: "active"
+        - field: principal.attributes.in_time_window
+          operator: eq
+          value: true
+
+    # Allow view-only access even outside time window
+    - effect: allow
+      actions: [view]
+      conditions:
+        - field: principal.attributes.has_ephemeral_quota
+          operator: eq
+          value: true
+        - field: principal.attributes.ephemeral_status
+          operator: in
+          value: ["active", "suspended"]
+
+    # Deny if quota is exhausted, expired, or revoked
+    - effect: deny
+      actions: [submit, execute]
+      conditions:
+        - field: principal.attributes.ephemeral_status
+          operator: in
+          value: ["exhausted", "expired", "revoked"]

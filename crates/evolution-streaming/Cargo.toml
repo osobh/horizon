@@ -1,5 +1,5 @@
 [package]
-name = "exorust-evolution-streaming"
+name = "stratoswarm-evolution-streaming"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,7 +11,7 @@ async-trait = "0.1"
 async-stream = "0.3"
 
 # Streaming foundation
-exorust-streaming = { path = "../streaming" }
+stratoswarm-streaming = { path = "../streaming" }
 
 # Data structures
 bytes = "1.9"

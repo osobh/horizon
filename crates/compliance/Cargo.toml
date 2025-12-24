@@ -1,5 +1,5 @@
 [package]
-name = "exorust-compliance"
+name = "stratoswarm-compliance"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

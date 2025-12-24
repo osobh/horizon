@@ -3,7 +3,7 @@
 use crate::error::EvolutionEngineResult;
 use crate::traits::{AgentGenome, Evolvable};
 use async_trait::async_trait;
-use exorust_agent_core::{Agent, AgentConfig};
+use stratoswarm_agent_core::{Agent, AgentConfig};
 
 /// Agent-specific evolvable implementation
 pub struct EvolvableAgent {

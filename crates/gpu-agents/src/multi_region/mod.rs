@@ -10,6 +10,7 @@ use crate::consensus_synthesis::integration::ConsensusSynthesisEngine;
 use crate::synthesis::SynthesisTask;
 use anyhow::{anyhow, Result};
 use cudarc::driver::{CudaDevice, CudaSlice};
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -50,15 +51,15 @@ pub struct MultiRegionConsensusResult {
 /// Multi-region distributed consensus engine with GPU acceleration
 pub struct MultiRegionConsensusEngine {
     pub base_engine: ConsensusSynthesisEngine,
-    pub regions: Arc<RwLock<HashMap<String, Region>>>,
+    pub regions: Arc<DashMap<String, Region>>,
     pub zero_trust_validator: Option<Arc<ZeroTrustValidator>>,
     pub disaster_recovery: Option<Arc<DisasterRecoveryManager>>,
     pub cloud_integration: Option<Arc<CloudProviderManager>>,
     device: Arc<CudaDevice>,
     gpu_voting_buffer: Option<CudaSlice<u8>>,
     gpu_latency_buffer: Option<CudaSlice<f32>>,
-    failed_regions: Arc<RwLock<HashMap<String, bool>>>,
-    malicious_behaviors: Arc<RwLock<HashMap<String, MaliciousBehavior>>>,
+    failed_regions: Arc<DashMap<String, bool>>,
+    malicious_behaviors: Arc<DashMap<String, MaliciousBehavior>>,
     auto_scaling_events: Arc<RwLock<Vec<AutoScalingEvent>>>,
     performance_metrics: Arc<RwLock<MultiRegionPerformanceMetrics>>,
 }

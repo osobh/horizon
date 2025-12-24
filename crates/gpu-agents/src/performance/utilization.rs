@@ -6,6 +6,7 @@
 use super::*;
 use anyhow::{anyhow, Result};
 use cudarc::driver::{CudaDevice, CudaStream};
+use dashmap::DashMap;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -20,7 +21,7 @@ pub struct GpuUtilizationAnalyzer {
     is_monitoring: Arc<AtomicBool>,
     monitor_handle: Option<JoinHandle<()>>,
     utilization_history: Arc<Mutex<VecDeque<UtilizationSample>>>,
-    kernel_stats: Arc<RwLock<HashMap<String, KernelStats>>>,
+    kernel_stats: Arc<DashMap<String, KernelStats>>,
     optimization_stats: Arc<UtilizationStats>,
     current_strategies: Arc<RwLock<Vec<OptimizationStrategy>>>,
 }
@@ -34,7 +35,7 @@ impl GpuUtilizationAnalyzer {
             is_monitoring: Arc::new(AtomicBool::new(false)),
             monitor_handle: None,
             utilization_history: Arc::new(Mutex::new(VecDeque::with_capacity(1000))),
-            kernel_stats: Arc::new(RwLock::new(HashMap::new())),
+            kernel_stats: Arc::new(DashMap::new()),
             optimization_stats: Arc::new(UtilizationStats::default()),
             current_strategies: Arc::new(RwLock::new(Vec::new())),
         }
@@ -106,20 +107,29 @@ impl GpuUtilizationAnalyzer {
         shared_memory: usize,
         occupancy: f32,
     ) -> Result<()> {
-        let mut stats = self.kernel_stats.write().await;
-        let kernel_stats = stats
+        self.kernel_stats
             .entry(kernel_name.to_string())
-            .or_insert_with(KernelStats::default);
-
-        kernel_stats.execution_count += 1;
-        kernel_stats.total_execution_time += execution_time;
-        kernel_stats.total_threads += (grid_size.0 * grid_size.1 * grid_size.2) as u64
-            * (block_size.0 * block_size.1 * block_size.2) as u64;
-        kernel_stats.average_occupancy = (kernel_stats.average_occupancy
-            * (kernel_stats.execution_count - 1) as f32
-            + occupancy)
-            / kernel_stats.execution_count as f32;
-        kernel_stats.shared_memory_usage = shared_memory;
+            .and_modify(|kernel_stats| {
+                kernel_stats.execution_count += 1;
+                kernel_stats.total_execution_time += execution_time;
+                kernel_stats.total_threads += (grid_size.0 * grid_size.1 * grid_size.2) as u64
+                    * (block_size.0 * block_size.1 * block_size.2) as u64;
+                kernel_stats.average_occupancy = (kernel_stats.average_occupancy
+                    * (kernel_stats.execution_count - 1) as f32
+                    + occupancy)
+                    / kernel_stats.execution_count as f32;
+                kernel_stats.shared_memory_usage = shared_memory;
+            })
+            .or_insert_with(|| {
+                let mut ks = KernelStats::default();
+                ks.execution_count = 1;
+                ks.total_execution_time = execution_time;
+                ks.total_threads = (grid_size.0 * grid_size.1 * grid_size.2) as u64
+                    * (block_size.0 * block_size.1 * block_size.2) as u64;
+                ks.average_occupancy = occupancy;
+                ks.shared_memory_usage = shared_memory;
+                ks
+            });
 
         // Update optimization statistics
         self.optimization_stats
@@ -131,10 +141,11 @@ impl GpuUtilizationAnalyzer {
 
     /// Analyze kernel performance bottlenecks
     pub async fn analyze_kernel_bottlenecks(&self) -> Result<Vec<KernelBottleneck>> {
-        let stats = self.kernel_stats.read().await;
         let mut bottlenecks = vec![];
 
-        for (kernel_name, kernel_stats) in stats.iter() {
+        for entry in self.kernel_stats.iter() {
+            let kernel_name = entry.key();
+            let kernel_stats = entry.value();
             let avg_execution_time = kernel_stats.total_execution_time.as_micros() as f64
                 / kernel_stats.execution_count as f64;
 
@@ -396,7 +407,6 @@ impl GpuUtilizationAnalyzer {
     pub async fn generate_report(&self) -> Result<UtilizationReport> {
         let current_util = self.get_current_utilization();
         let history = self.utilization_history.lock().await;
-        let kernel_stats = self.kernel_stats.read().await;
 
         let average_utilization = if !history.is_empty() {
             history.iter().map(|s| s.utilization).sum::<f32>() / history.len() as f32
@@ -436,7 +446,7 @@ impl GpuUtilizationAnalyzer {
                 .optimizations_applied
                 .load(Ordering::Relaxed),
             improvement_achieved: (current_util - 0.5).max(0.0), // Assume baseline 50%
-            kernel_count: kernel_stats.len(),
+            kernel_count: self.kernel_stats.len(),
             bottlenecks_identified: self.analyze_kernel_bottlenecks().await?.len(),
         })
     }
@@ -449,7 +459,7 @@ impl GpuUtilizationAnalyzer {
         config: UtilizationConfig,
         device: Option<Arc<CudaDevice>>,
         utilization_history: Arc<Mutex<VecDeque<UtilizationSample>>>,
-        kernel_stats: Arc<RwLock<HashMap<String, KernelStats>>>,
+        kernel_stats: Arc<DashMap<String, KernelStats>>,
         optimization_stats: Arc<UtilizationStats>,
     ) {
         while is_monitoring.load(Ordering::Relaxed) {
@@ -505,8 +515,8 @@ impl GpuUtilizationAnalyzer {
         0.6 + 0.3 * random // 60-90% range
     }
 
-    async fn count_active_kernels(kernel_stats: &Arc<RwLock<HashMap<String, KernelStats>>>) -> u32 {
-        kernel_stats.read().await.len() as u32
+    async fn count_active_kernels(kernel_stats: &Arc<DashMap<String, KernelStats>>) -> u32 {
+        kernel_stats.len() as u32
     }
 
     fn query_memory_utilization(device: &Option<Arc<CudaDevice>>) -> f32 {

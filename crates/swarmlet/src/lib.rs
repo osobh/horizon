@@ -13,6 +13,10 @@ pub mod profile;
 pub mod security;
 pub mod workload;
 
+// HPC Channels integration
+#[cfg(feature = "hpc-channels")]
+pub mod hpc_bridge;
+
 // Re-export main types
 pub use agent::SwarmletAgent;
 pub use command::{CommandExecutor, CommandRequest, CommandResult, CommandStatus};
@@ -21,6 +25,13 @@ pub use discovery::{ClusterDiscovery, ClusterInfo};
 pub use error::{Result, SwarmletError};
 pub use join::{JoinProtocol, JoinResult};
 pub use profile::{HardwareProfile, HardwareProfiler, NodeCapabilities};
+
+// HPC Channels bridge exports
+#[cfg(feature = "hpc-channels")]
+pub use hpc_bridge::{
+    AgentChannelBridge, SharedAgentChannelBridge, shared_channel_bridge,
+    AgentEvent,
+};
 
 /// Swarmlet version information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

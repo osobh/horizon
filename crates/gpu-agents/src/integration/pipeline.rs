@@ -4,6 +4,7 @@
 //! and handles batching, retry logic, and result aggregation.
 
 use super::*;
+use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::collections::VecDeque;
@@ -16,7 +17,7 @@ pub struct JobSubmissionPipeline {
     storage_manager: Arc<SharedStorageManager>,
     batch_config: BatchConfig,
     retry_config: RetryConfig,
-    pending_jobs: Arc<RwLock<HashMap<Uuid, PipelineJob>>>,
+    pending_jobs: Arc<DashMap<Uuid, PipelineJob>>,
     job_queue: Arc<Mutex<VecDeque<QueuedJob>>>,
     batch_processor: Option<JoinHandle<()>>,
     result_aggregator: Option<JoinHandle<()>>,
@@ -31,7 +32,7 @@ impl JobSubmissionPipeline {
             storage_manager,
             batch_config: BatchConfig::default(),
             retry_config: RetryConfig::default(),
-            pending_jobs: Arc::new(RwLock::new(HashMap::new())),
+            pending_jobs: Arc::new(DashMap::new()),
             job_queue: Arc::new(Mutex::new(VecDeque::new())),
             batch_processor: None,
             result_aggregator: None,
@@ -160,10 +161,9 @@ impl JobSubmissionPipeline {
     /// Wait for job completion
     pub async fn wait_for_job(&self, job_id: Uuid, timeout: Duration) -> Result<JobResult> {
         let start = Instant::now();
-        
+
         while start.elapsed() < timeout {
-            let pending = self.pending_jobs.read().await;
-            if let Some(pipeline_job) = pending.get(&job_id) {
+            if let Some(pipeline_job) = self.pending_jobs.get(&job_id) {
                 if let Some(result) = &pipeline_job.result {
                     return Ok(result.clone());
                 }
@@ -186,11 +186,10 @@ impl JobSubmissionPipeline {
         let mut remaining_ids = job_ids.into_iter().collect::<std::collections::HashSet<_>>();
 
         while !remaining_ids.is_empty() && start.elapsed() < timeout {
-            let pending = self.pending_jobs.read().await;
             let mut completed = vec![];
 
             for job_id in &remaining_ids {
-                if let Some(pipeline_job) = pending.get(job_id) {
+                if let Some(pipeline_job) = self.pending_jobs.get(job_id) {
                     if let Some(result) = &pipeline_job.result {
                         results.push(result.clone());
                         completed.push(*job_id);
@@ -244,7 +243,7 @@ impl JobSubmissionPipeline {
     async fn batch_processor_loop(
         storage_manager: Arc<SharedStorageManager>,
         job_queue: Arc<Mutex<VecDeque<QueuedJob>>>,
-        pending_jobs: Arc<RwLock<HashMap<Uuid, PipelineJob>>>,
+        pending_jobs: Arc<DashMap<Uuid, PipelineJob>>,
         batch_config: BatchConfig,
         is_running: Arc<AtomicBool>,
         stats: Arc<PipelineStats>,
@@ -298,7 +297,7 @@ impl JobSubmissionPipeline {
                                 retry_count: 0,
                                 result: None,
                             };
-                            pending_jobs.write().await.insert(queued_job.id, pipeline_job);
+                            pending_jobs.insert(queued_job.id, pipeline_job);
                             stats.jobs_submitted.fetch_add(1, Ordering::Relaxed);
                         }
                         Err(e) => {
@@ -320,40 +319,37 @@ impl JobSubmissionPipeline {
 
     /// Result aggregator loop
     async fn result_aggregator_loop(
-        storage_manager: Arc<SharedStorageManager>,
-        pending_jobs: Arc<RwLock<HashMap<Uuid, PipelineJob>>>,
+        _storage_manager: Arc<SharedStorageManager>,
+        pending_jobs: Arc<DashMap<Uuid, PipelineJob>>,
         retry_config: RetryConfig,
         is_running: Arc<AtomicBool>,
     ) {
         while is_running.load(Ordering::Relaxed) {
             // Check for completed jobs and timeouts
             let mut to_retry = vec![];
-            let mut to_complete = vec![];
+            let now = Instant::now();
 
-            {
-                let mut pending = pending_jobs.write().await;
-                let now = Instant::now();
+            for mut entry in pending_jobs.iter_mut() {
+                let job_id = *entry.key();
+                let pipeline_job = entry.value_mut();
 
-                for (job_id, pipeline_job) in pending.iter_mut() {
-                    // Check for timeout
-                    if now.duration_since(pipeline_job.submitted_at) > retry_config.job_timeout {
-                        if pipeline_job.retry_count < retry_config.max_retries {
-                            pipeline_job.retry_count += 1;
-                            pipeline_job.submitted_at = now;
-                            to_retry.push(*job_id);
-                        } else {
-                            // Mark as failed
-                            pipeline_job.result = Some(JobResult {
-                                original_job_id: *job_id,
-                                data: b"Job timed out".to_vec(),
-                                source_agent: AgentId::GpuAgent(0), // Placeholder
-                                status: JobStatus::Failed,
-                                retry_count: pipeline_job.retry_count,
-                                processing_time_ms: retry_config.job_timeout.as_millis() as u64,
-                                metadata: [("error".to_string(), "timeout".to_string())].into_iter().collect(),
-                            });
-                            to_complete.push(*job_id);
-                        }
+                // Check for timeout
+                if now.duration_since(pipeline_job.submitted_at) > retry_config.job_timeout {
+                    if pipeline_job.retry_count < retry_config.max_retries {
+                        pipeline_job.retry_count += 1;
+                        pipeline_job.submitted_at = now;
+                        to_retry.push(job_id);
+                    } else {
+                        // Mark as failed
+                        pipeline_job.result = Some(JobResult {
+                            original_job_id: job_id,
+                            data: b"Job timed out".to_vec(),
+                            source_agent: AgentId::GpuAgent(0), // Placeholder
+                            status: JobStatus::Failed,
+                            retry_count: pipeline_job.retry_count,
+                            processing_time_ms: retry_config.job_timeout.as_millis() as u64,
+                            metadata: [("error".to_string(), "timeout".to_string())].into_iter().collect(),
+                        });
                     }
                 }
             }

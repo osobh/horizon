@@ -533,7 +533,7 @@ impl ConsensusSynthesisEngine {
     /// Get evolution metrics if available
     pub fn get_evolution_metrics(
         &self,
-    ) -> Option<&exorust_evolution_engines::metrics::EvolutionMetrics> {
+    ) -> Option<&stratoswarm_evolution_engines::metrics::EvolutionMetrics> {
         self.evolution_adapter
             .as_ref()
             .map(|adapter| adapter.get_metrics())

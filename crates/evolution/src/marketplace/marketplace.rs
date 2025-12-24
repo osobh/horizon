@@ -17,19 +17,20 @@ use axum::{
     Router,
 };
 use tower::ServiceBuilder;
+use dashmap::DashMap;
 
 use crate::marketplace::{
     types::*, consensus::DistributedConsensus,
     transfer::KnowledgeTransferCoordinator, security::SecurityManager,
 };
 
-/// Cross-cluster evolution marketplace with production-grade features  
+/// Cross-cluster evolution marketplace with production-grade features
 pub struct EvolutionMarketplace {
     cluster_id: String,
     node_id: String,
-    local_packages: Arc<RwLock<HashMap<Uuid, EvolutionPackage>>>,
-    remote_packages: Arc<RwLock<HashMap<String, HashMap<Uuid, EvolutionPackage>>>>,
-    cluster_registry: Arc<RwLock<HashMap<String, ClusterInfo>>>,
+    local_packages: Arc<DashMap<Uuid, EvolutionPackage>>,
+    remote_packages: Arc<DashMap<String, HashMap<Uuid, EvolutionPackage>>>,
+    cluster_registry: Arc<DashMap<String, ClusterInfo>>,
     consensus_system: Arc<DistributedConsensus>,
     replication_factor: usize,
     sync_sender: mpsc::UnboundedSender<SyncCommand>,
@@ -73,21 +74,21 @@ impl EvolutionMarketplace {
         replication_factor: usize,
     ) -> (Self, mpsc::UnboundedReceiver<SyncCommand>) {
         let (sync_sender, sync_receiver) = mpsc::unbounded_channel();
-        
+
         let consensus_system = Arc::new(DistributedConsensus::new(
             cluster_id.clone(),
             75.0, // 75% consensus threshold
         ));
-        
+
         let knowledge_transfer_coordinator = Arc::new(KnowledgeTransferCoordinator::new(10));
         let security_manager = Arc::new(SecurityManager::new());
-        
+
         (Self {
             cluster_id,
             node_id,
-            local_packages: Arc::new(RwLock::new(HashMap::new())),
-            remote_packages: Arc::new(RwLock::new(HashMap::new())),
-            cluster_registry: Arc::new(RwLock::new(HashMap::new())),
+            local_packages: Arc::new(DashMap::new()),
+            remote_packages: Arc::new(DashMap::new()),
+            cluster_registry: Arc::new(DashMap::new()),
             consensus_system,
             replication_factor,
             sync_sender,
@@ -176,10 +177,7 @@ impl EvolutionMarketplace {
         }
 
         // Store locally after successful validation
-        {
-            let mut local_packages = self.local_packages.write().await;
-            local_packages.insert(package.id, package.clone());
-        }
+        self.local_packages.insert(package.id, package.clone());
 
         // Broadcast to network
         self.sync_sender.send(SyncCommand::PublishPackage { 
@@ -202,23 +200,25 @@ impl EvolutionMarketplace {
         self.sync_remote_catalogs().await?;
 
         let mut discovered = Vec::new();
-        let remote_packages = self.remote_packages.read().await;
 
-        for (cluster_id, packages) in remote_packages.iter() {
+        for entry in self.remote_packages.iter() {
+            let cluster_id = entry.key();
+            let packages = entry.value();
+
             // Check cluster trust score
-            let cluster_trust = {
-                let registry = self.cluster_registry.read().await;
-                registry.get(cluster_id).map(|info| info.trust_score).unwrap_or(0.0)
-            };
-            
+            let cluster_trust = self.cluster_registry
+                .get(cluster_id)
+                .map(|info| info.trust_score)
+                .unwrap_or(0.0);
+
             if cluster_trust < 0.5 {
                 continue; // Skip untrusted clusters
             }
-            
+
             for package in packages.values() {
                 if self.evaluate_package_suitability(
-                    package, 
-                    performance_threshold, 
+                    package,
+                    performance_threshold,
                     &compatibility_requirements
                 ).await? {
                     discovered.push(package.clone());
@@ -232,7 +232,7 @@ impl EvolutionMarketplace {
             let score_b = self.calculate_composite_ranking_score(b);
             score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
         });
-        
+
         Ok(discovered)
     }
 
@@ -318,29 +318,27 @@ impl EvolutionMarketplace {
     
     async fn initiate_package_replication(&self, package_id: Uuid) -> Result<()> {
         // Select replication targets
-        let registry = self.cluster_registry.read().await;
-        let mut targets: Vec<String> = registry
+        let targets: Vec<String> = self.cluster_registry
             .iter()
-            .filter(|(_, info)| info.trust_score > 0.7)
+            .filter(|entry| entry.value().trust_score > 0.7)
             .take(self.replication_factor)
-            .map(|(id, _)| id.clone())
+            .map(|entry| entry.key().clone())
             .collect();
-        
+
         for target in targets {
             self.sync_sender.send(SyncCommand::ReplicateToCluster {
                 cluster_id: target,
                 package_id,
             })?;
         }
-        
+
         Ok(())
     }
     
     async fn sync_remote_catalogs(&self) -> Result<()> {
-        let registry = self.cluster_registry.read().await;
-        for (cluster_id, _) in registry.iter() {
+        for entry in self.cluster_registry.iter() {
             self.sync_sender.send(SyncCommand::SyncWithCluster {
-                cluster_id: cluster_id.clone(),
+                cluster_id: entry.key().clone(),
             })?;
         }
         Ok(())

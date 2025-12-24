@@ -8,7 +8,7 @@ use anyhow::Result;
 /// Following rust.md: Test import organization and module structure
 #[test]
 fn test_local_storage_imports() -> Result<()> {
-    // These should come from crate::storage, not exorust_storage
+    // These should come from crate::storage, not stratoswarm_storage
     use crate::storage::{
         GpuAgentData, GpuAgentStorage, GpuKnowledgeGraph as StorageGpuKnowledgeGraph,
         GpuStorageConfig, GraphEdge as StorageGraphEdge, GraphNode as StorageGraphNode,

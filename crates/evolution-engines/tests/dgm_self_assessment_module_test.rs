@@ -1,6 +1,6 @@
 //! Integration test to verify DGM self assessment module structure works correctly
 
-use exorust_evolution_engines::dgm_self_assessment::{
+use stratoswarm_evolution_engines::dgm_self_assessment::{
     AssessmentCriteria, AssessmentReport, LineageTracker, ModificationType, PerformanceMetrics,
     PerformanceTracker, SelfAssessmentConfig, SelfAssessmentEngine,
 };

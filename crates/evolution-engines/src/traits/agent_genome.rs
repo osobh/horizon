@@ -1,6 +1,6 @@
 //! Agent genome and related types
 
-use exorust_agent_core::Goal;
+use stratoswarm_agent_core::Goal;
 use serde::{Deserialize, Serialize};
 
 /// Agent genome representation

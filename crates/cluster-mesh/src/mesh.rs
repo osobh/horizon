@@ -5,10 +5,10 @@
 
 use crate::{ClusterMeshError, ClusterNode, NodeClass, Result};
 use chrono::{DateTime, Duration, Utc};
+use dashmap::{DashMap, DashSet};
 use quinn::{ClientConfig, Endpoint, ServerConfig};
 use rustls::{Certificate, PrivateKey};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -55,11 +55,11 @@ pub enum ConnectionType {
 /// Mesh manager
 pub struct MeshManager {
     topology: RwLock<MeshTopology>,
-    connections: Arc<RwLock<HashMap<Uuid, NodeConnection>>>,
+    connections: Arc<DashMap<Uuid, NodeConnection>>,
     endpoint: Arc<RwLock<Option<Endpoint>>>,
-    node_registry: Arc<RwLock<HashMap<Uuid, NodeEndpoint>>>,
+    node_registry: Arc<DashMap<Uuid, NodeEndpoint>>,
     stun_servers: Vec<String>,
-    relay_nodes: Arc<RwLock<HashSet<Uuid>>>,
+    relay_nodes: Arc<DashSet<Uuid>>,
 }
 
 /// Node endpoint information
@@ -77,14 +77,14 @@ impl MeshManager {
     pub async fn new() -> Result<Self> {
         Ok(Self {
             topology: RwLock::new(MeshTopology::Hierarchical),
-            connections: Arc::new(RwLock::new(HashMap::new())),
+            connections: Arc::new(DashMap::new()),
             endpoint: Arc::new(RwLock::new(None)),
-            node_registry: Arc::new(RwLock::new(HashMap::new())),
+            node_registry: Arc::new(DashMap::new()),
             stun_servers: vec![
                 "stun.l.google.com:19302".to_string(),
                 "stun1.l.google.com:19302".to_string(),
             ],
-            relay_nodes: Arc::new(RwLock::new(HashSet::new())),
+            relay_nodes: Arc::new(DashSet::new()),
         })
     }
 
@@ -106,11 +106,11 @@ impl MeshManager {
     fn clone(&self) -> Self {
         Self {
             topology: RwLock::new(MeshTopology::Hierarchical),
-            connections: self.connections.clone(),
-            endpoint: self.endpoint.clone(),
-            node_registry: self.node_registry.clone(),
+            connections: Arc::clone(&self.connections),
+            endpoint: Arc::clone(&self.endpoint),
+            node_registry: Arc::clone(&self.node_registry),
             stun_servers: self.stun_servers.clone(),
-            relay_nodes: self.relay_nodes.clone(),
+            relay_nodes: Arc::clone(&self.relay_nodes),
         }
     }
 
@@ -203,11 +203,11 @@ impl MeshManager {
             last_updated: Utc::now(),
         };
 
-        self.node_registry.write().await.insert(node.id, endpoint);
+        self.node_registry.insert(node.id, endpoint);
 
         // Determine if node can be a relay
         if matches!(node.class, NodeClass::DataCenter { .. }) {
-            self.relay_nodes.write().await.insert(node.id);
+            self.relay_nodes.insert(node.id);
         }
 
         // Initiate connections based on topology
@@ -219,13 +219,13 @@ impl MeshManager {
     /// Remove a node from the mesh
     pub async fn remove_node(&self, node: &ClusterNode) -> Result<()> {
         // Remove from registry
-        self.node_registry.write().await.remove(&node.id);
+        self.node_registry.remove(&node.id);
 
         // Remove from relay nodes
-        self.relay_nodes.write().await.remove(&node.id);
+        self.relay_nodes.remove(&node.id);
 
         // Close connections
-        self.connections.write().await.remove(&node.id);
+        self.connections.remove(&node.id);
 
         // Reestablish affected connections
         self.handle_node_departure(node.id).await?;
@@ -257,11 +257,10 @@ impl MeshManager {
 
     /// Establish full mesh connections
     async fn establish_full_mesh_connections(&self, node: &ClusterNode) -> Result<()> {
-        let registry = self.node_registry.read().await;
-
-        for (peer_id, endpoint) in registry.iter() {
-            if *peer_id != node.id {
-                self.connect_to_peer(node.id, *peer_id, endpoint).await?;
+        for entry in self.node_registry.iter() {
+            let peer_id = *entry.key();
+            if peer_id != node.id {
+                self.connect_to_peer(node.id, peer_id, entry.value()).await?;
             }
         }
 
@@ -277,8 +276,8 @@ impl MeshManager {
         // Connect to coordinators
         for coordinator_id in coordinators {
             if *coordinator_id != node.id {
-                if let Some(endpoint) = self.node_registry.read().await.get(coordinator_id) {
-                    self.connect_to_peer(node.id, *coordinator_id, endpoint)
+                if let Some(endpoint) = self.node_registry.get(coordinator_id) {
+                    self.connect_to_peer(node.id, *coordinator_id, endpoint.value())
                         .await?;
                 }
             }
@@ -292,10 +291,10 @@ impl MeshManager {
         match &node.class {
             NodeClass::DataCenter { .. } => {
                 // Connect to all datacenter nodes
-                let registry = self.node_registry.read().await;
-                for (peer_id, endpoint) in registry.iter() {
-                    if *peer_id != node.id {
-                        self.connect_to_peer(node.id, *peer_id, endpoint).await?;
+                for entry in self.node_registry.iter() {
+                    let peer_id = *entry.key();
+                    if peer_id != node.id {
+                        self.connect_to_peer(node.id, peer_id, entry.value()).await?;
                     }
                 }
             }
@@ -359,7 +358,7 @@ impl MeshManager {
             packet_loss: 0.0,
         };
 
-        self.connections.write().await.insert(to_id, connection);
+        self.connections.insert(to_id, connection);
 
         Ok(())
     }
@@ -378,11 +377,9 @@ impl MeshManager {
 
     /// Connect via relay node
     async fn connect_via_relay(&self, node_id: Uuid) -> Result<()> {
-        let relay_nodes = self.relay_nodes.read().await;
-
-        if let Some(relay_id) = relay_nodes.iter().next() {
+        if let Some(relay_id) = self.relay_nodes.iter().next() {
             // Would establish relayed connection
-            tracing::info!("Node {} connecting via relay {}", node_id, relay_id);
+            tracing::info!("Node {} connecting via relay {}", node_id, *relay_id);
         }
 
         Ok(())
@@ -390,20 +387,20 @@ impl MeshManager {
 
     /// Maintain existing connections
     async fn maintain_connections(&self) -> Result<()> {
-        let mut connections = self.connections.write().await;
         let now = Utc::now();
         let timeout = Duration::seconds(120);
 
         // Check for stale connections
-        let stale_connections: Vec<Uuid> = connections
+        let stale_connections: Vec<Uuid> = self
+            .connections
             .iter()
-            .filter(|(_, conn)| now - conn.last_heartbeat > timeout)
-            .map(|(id, _)| *id)
+            .filter(|entry| now - entry.value().last_heartbeat > timeout)
+            .map(|entry| *entry.key())
             .collect();
 
         for node_id in stale_connections {
             tracing::warn!("Connection to node {} timed out", node_id);
-            connections.remove(&node_id);
+            self.connections.remove(&node_id);
         }
 
         Ok(())
@@ -411,14 +408,13 @@ impl MeshManager {
 
     /// Optimize mesh topology
     async fn optimize_topology(&self) -> Result<()> {
-        let connections = self.connections.read().await;
-
         // Calculate average metrics
         let mut total_latency = 0.0;
         let mut total_bandwidth = 0.0;
         let mut count = 0;
 
-        for conn in connections.values() {
+        for entry in self.connections.iter() {
+            let conn = entry.value();
             total_latency += conn.latency_ms;
             total_bandwidth += conn.bandwidth_mbps;
             count += 1;
@@ -441,16 +437,14 @@ impl MeshManager {
     /// Handle node departure
     async fn handle_node_departure(&self, departed_id: Uuid) -> Result<()> {
         // Find connections that were relayed through departed node
-        let connections = self.connections.read().await;
-        let affected: Vec<Uuid> = connections
+        let affected: Vec<Uuid> = self
+            .connections
             .iter()
-            .filter(|(_, conn)| {
-                matches!(conn.connection_type, ConnectionType::Relay(relay_id) if relay_id == departed_id)
+            .filter(|entry| {
+                matches!(entry.value().connection_type, ConnectionType::Relay(relay_id) if relay_id == departed_id)
             })
-            .map(|(id, _)| *id)
+            .map(|entry| *entry.key())
             .collect();
-
-        drop(connections);
 
         // Reestablish affected connections
         for node_id in affected {
@@ -467,19 +461,15 @@ impl MeshManager {
 
     /// Get mesh statistics
     pub async fn get_statistics(&self) -> MeshStatistics {
-        let connections = self.connections.read().await;
-        let registry = self.node_registry.read().await;
-        let relay_nodes = self.relay_nodes.read().await;
-
         let mut stats = MeshStatistics {
-            total_nodes: registry.len(),
-            active_connections: connections.len(),
-            relay_nodes: relay_nodes.len(),
+            total_nodes: self.node_registry.len(),
+            active_connections: self.connections.len(),
+            relay_nodes: self.relay_nodes.len(),
             ..Default::default()
         };
 
-        for conn in connections.values() {
-            match conn.connection_type {
+        for entry in self.connections.iter() {
+            match entry.value().connection_type {
                 ConnectionType::Direct => stats.direct_connections += 1,
                 ConnectionType::NatTraversal => stats.nat_traversal_connections += 1,
                 ConnectionType::Relay(_) => stats.relayed_connections += 1,
@@ -562,12 +552,10 @@ mod tests {
         manager.add_node(&node).await.unwrap();
 
         // Check node is registered
-        let registry = manager.node_registry.read().await;
-        assert!(registry.contains_key(&node.id));
+        assert!(manager.node_registry.contains_key(&node.id));
 
         // Check datacenter nodes are added as relays
-        let relays = manager.relay_nodes.read().await;
-        assert!(relays.contains(&node.id));
+        assert!(manager.relay_nodes.contains(&node.id));
     }
 
     #[tokio::test]
@@ -644,9 +632,7 @@ mod tests {
         let manager = MeshManager::new().await.unwrap();
 
         // Add some mock connections
-        let mut connections = manager.connections.write().await;
-
-        connections.insert(
+        manager.connections.insert(
             Uuid::new_v4(),
             NodeConnection {
                 node_id: Uuid::new_v4(),
@@ -660,7 +646,7 @@ mod tests {
             },
         );
 
-        connections.insert(
+        manager.connections.insert(
             Uuid::new_v4(),
             NodeConnection {
                 node_id: Uuid::new_v4(),
@@ -673,8 +659,6 @@ mod tests {
                 packet_loss: 0.1,
             },
         );
-
-        drop(connections);
 
         let stats = manager.get_statistics().await;
         assert_eq!(stats.active_connections, 2);

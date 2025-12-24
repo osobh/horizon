@@ -12,16 +12,26 @@ use super::execution::{ActionStep, ActionType, RetryPolicy, ResourceRequirements
 use super::types::{AgentId, BackoffStrategy, EntityValue};
 
 /// Action planner for creating execution plans
-#[derive(Clone)]
 pub struct ActionPlanner {
     /// Planning network
-    pub planning_network: candle_nn::Sequential,
+    pub planning_network: Arc<candle_nn::Sequential>,
     /// Action embeddings
     pub action_embeddings: HashMap<String, Vec<f32>>,
     /// Constraint solver
     pub constraint_solver: ConstraintSolver,
     /// Optimization objective
     pub optimization_objective: OptimizationObjective,
+}
+
+impl Clone for ActionPlanner {
+    fn clone(&self) -> Self {
+        Self {
+            planning_network: Arc::clone(&self.planning_network),
+            action_embeddings: self.action_embeddings.clone(),
+            constraint_solver: self.constraint_solver.clone(),
+            optimization_objective: self.optimization_objective.clone(),
+        }
+    }
 }
 
 /// Resource allocator for managing resources
@@ -101,14 +111,14 @@ impl ActionPlanner {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let vs = candle_nn::VarMap::new();
         let vb = VarBuilder::from_varmap(&vs, DType::F32, &Device::Cpu);
-        
+
         let planning_network = seq()
             .add(linear(64, 128, vb.pp("layer1"))?)
             .add_fn(|x| x.relu())
             .add(linear(128, 64, vb.pp("layer2"))?);
-        
+
         Ok(Self {
-            planning_network,
+            planning_network: Arc::new(planning_network),
             action_embeddings: HashMap::new(),
             constraint_solver: ConstraintSolver,
             optimization_objective: OptimizationObjective,
@@ -119,10 +129,10 @@ impl ActionPlanner {
     pub async fn create_action_steps(
         &self,
         intent_type: &str,
-        parameters: HashMap<String, EntityValue>,
+        parameters: HashMap<String, String>,
     ) -> Result<Vec<ActionStep>, Box<dyn std::error::Error>> {
         let mut steps = Vec::new();
-        
+
         // Create action based on intent type
         let action_type = match intent_type {
             "create" => ActionType::Deploy,
@@ -132,7 +142,7 @@ impl ActionPlanner {
             "optimize" => ActionType::Optimize,
             _ => ActionType::Custom(intent_type.to_string()),
         };
-        
+
         steps.push(ActionStep {
             id: uuid::Uuid::new_v4().to_string(),
             name: format!("Action: {}", intent_type),
@@ -143,7 +153,7 @@ impl ActionPlanner {
             agent_id: None,
             status: super::execution::ExecutionStatus::Pending,
         });
-        
+
         Ok(steps)
     }
 }

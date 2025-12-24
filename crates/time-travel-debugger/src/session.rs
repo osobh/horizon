@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -89,7 +90,7 @@ pub struct DebugSession {
     navigator: Arc<TimeNavigator>,
     comparator: Arc<StateComparator>,
     auto_save_task: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
-    custom_data: Arc<RwLock<HashMap<String, serde_json::Value>>>,
+    custom_data: Arc<DashMap<String, serde_json::Value>>,
     // Note: TempDir is not Clone, so we'll handle persistence differently
 }
 
@@ -130,7 +131,7 @@ impl DebugSession {
             navigator,
             comparator,
             auto_save_task: Arc::new(RwLock::new(None)),
-            custom_data: Arc::new(RwLock::new(HashMap::new())),
+            custom_data: Arc::new(DashMap::new()),
         })
     }
 
@@ -400,7 +401,6 @@ impl DebugSession {
             .navigator
             .get_agent_breakpoints(self.metadata.agent_id)
             .await?;
-        let custom_data = self.custom_data.read().await;
 
         let session_duration = Utc::now() - self.metadata.created_at;
 
@@ -414,22 +414,20 @@ impl DebugSession {
             total_events,
             breakpoint_count: breakpoints.len(),
             navigation_steps: navigation_history.len(),
-            custom_data_count: custom_data.len(),
+            custom_data_count: self.custom_data.len(),
             state: self.metadata.state.clone(),
         })
     }
 
     /// Store custom data in the session
     pub async fn set_custom_data(&self, key: String, value: serde_json::Value) -> Result<()> {
-        let mut custom_data = self.custom_data.write().await;
-        custom_data.insert(key, value);
+        self.custom_data.insert(key, value);
         Ok(())
     }
 
     /// Retrieve custom data from the session
     pub async fn get_custom_data(&self, key: &str) -> Result<Option<serde_json::Value>> {
-        let custom_data = self.custom_data.read().await;
-        Ok(custom_data.get(key).cloned())
+        Ok(self.custom_data.get(key).map(|r| r.clone()))
     }
 
     /// Export session data
@@ -655,7 +653,7 @@ pub struct SessionStatistics {
 
 /// Manager for multiple debug sessions
 pub struct SessionManager {
-    sessions: Arc<RwLock<HashMap<Uuid, DebugSession>>>,
+    sessions: Arc<DashMap<Uuid, DebugSession>>,
     snapshot_manager: Arc<SnapshotManager>,
     event_log: Arc<EventLog>,
     navigator: Arc<TimeNavigator>,
@@ -672,7 +670,7 @@ impl SessionManager {
         default_config: DebugSessionConfig,
     ) -> Self {
         Self {
-            sessions: Arc::new(RwLock::new(HashMap::new())),
+            sessions: Arc::new(DashMap::new()),
             snapshot_manager,
             event_log,
             navigator,
@@ -701,35 +699,31 @@ impl SessionManager {
 
         let session_id = session.metadata.id;
 
-        let mut sessions = self.sessions.write().await;
-        sessions.insert(session_id, session);
+        self.sessions.insert(session_id, session);
 
         Ok(session_id)
     }
 
     /// Get a session by ID
     pub async fn get_session(&self, session_id: Uuid) -> Result<DebugSession> {
-        let sessions = self.sessions.read().await;
-        sessions
+        self.sessions
             .get(&session_id)
-            .cloned()
+            .map(|r| r.clone())
             .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })
     }
 
     /// Get all sessions for an agent
     pub async fn get_agent_sessions(&self, agent_id: Uuid) -> Vec<DebugSessionMetadata> {
-        let sessions = self.sessions.read().await;
-        sessions
-            .values()
-            .filter(|session| session.metadata.agent_id == agent_id)
-            .map(|session| session.metadata.clone())
+        self.sessions
+            .iter()
+            .filter(|r| r.value().metadata.agent_id == agent_id)
+            .map(|r| r.value().metadata.clone())
             .collect()
     }
 
     /// Remove a completed session
     pub async fn remove_session(&self, session_id: Uuid) -> Result<()> {
-        let mut sessions = self.sessions.write().await;
-        let session = sessions
+        let session = self.sessions
             .get(&session_id)
             .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
 
@@ -742,18 +736,19 @@ impl SessionManager {
             });
         }
 
-        sessions.remove(&session_id);
+        drop(session); // Release the read lock before removing
+        self.sessions.remove(&session_id);
         Ok(())
     }
 
     /// Get statistics for all sessions
     pub async fn get_all_statistics(&self) -> Vec<SessionStatistics> {
-        let sessions = self.sessions.read().await;
         let mut stats = Vec::new();
 
-        eprintln!("get_all_statistics: Found {} sessions", sessions.len());
+        eprintln!("get_all_statistics: Found {} sessions", self.sessions.len());
 
-        for session in sessions.values() {
+        for session_ref in self.sessions.iter() {
+            let session = session_ref.value();
             eprintln!(
                 "Processing session {} with state {:?}",
                 session.metadata.id, session.metadata.state
@@ -789,7 +784,7 @@ impl SessionManager {
                             total_events: agent_events.len(),
                             breakpoint_count: 0, // Can't get this for completed sessions
                             navigation_steps: 0, // Navigation state is cleaned up
-                            custom_data_count: session.custom_data.read().await.len(),
+                            custom_data_count: session.custom_data.len(),
                             state: session.metadata.state.clone(),
                         };
                         stats.push(basic_stats);

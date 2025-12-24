@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use dashmap::DashMap;
 use tokio::sync::RwLock;
 use rand::prelude::*;
 
@@ -15,7 +16,7 @@ use crate::AgentId;
 /// Neural network-based router for intelligent routing decisions
 #[derive(Clone)]
 pub struct NeuralRouter {
-    routing_table: Arc<RwLock<HashMap<AgentId, RoutingEntry>>>,
+    routing_table: Arc<DashMap<AgentId, RoutingEntry>>,
     training_data: Arc<RwLock<Vec<TrainingExample>>>,
     performance_metrics: Arc<RwLock<PerformanceMetrics>>,
     weights: Arc<RwLock<Vec<Vec<f32>>>>, // Simplified neural network weights
@@ -123,14 +124,14 @@ impl NeuralRouter {
         let weights = vec![
             // Layer 1: 5 inputs -> 10 hidden
             (0..50).map(|_| rng.gen_range(-1.0..1.0)).collect(),
-            // Layer 2: 10 hidden -> 10 hidden  
+            // Layer 2: 10 hidden -> 10 hidden
             (0..100).map(|_| rng.gen_range(-1.0..1.0)).collect(),
             // Layer 3: 10 hidden -> 3 outputs
             (0..30).map(|_| rng.gen_range(-1.0..1.0)).collect(),
         ];
-        
+
         Ok(Self {
-            routing_table: Arc::new(RwLock::new(HashMap::new())),
+            routing_table: Arc::new(DashMap::new()),
             training_data: Arc::new(RwLock::new(Vec::new())),
             performance_metrics: Arc::new(RwLock::new(PerformanceMetrics::default())),
             weights: Arc::new(RwLock::new(weights)),
@@ -155,17 +156,14 @@ impl NeuralRouter {
         let path = vec![source, destination];
 
         // Update routing table
-        {
-            let mut table = self.routing_table.write().await;
-            table.insert(destination, RoutingEntry {
-                destination,
-                latency_prediction: latency_pred,
-                bandwidth_prediction: bandwidth_pred,
-                reliability_score: reliability,
-                last_updated: Instant::now(),
-                confidence: 0.8, // Fixed confidence for simplicity
-            });
-        }
+        self.routing_table.insert(destination, RoutingEntry {
+            destination,
+            latency_prediction: latency_pred,
+            bandwidth_prediction: bandwidth_pred,
+            reliability_score: reliability,
+            last_updated: Instant::now(),
+            confidence: 0.8, // Fixed confidence for simplicity
+        });
 
         // Update performance metrics
         {
@@ -195,19 +193,16 @@ impl NeuralRouter {
         }
 
         // Update routing table entries based on real measurements
-        {
-            let mut table = self.routing_table.write().await;
-            for example in &training_examples {
-                let entry = RoutingEntry {
-                    destination: example.destination,
-                    latency_prediction: example.actual_latency,
-                    bandwidth_prediction: example.actual_bandwidth,
-                    reliability_score: if example.success { 0.95 } else { 0.1 },
-                    last_updated: Instant::now(),
-                    confidence: 0.9,
-                };
-                table.insert(example.destination, entry);
-            }
+        for example in &training_examples {
+            let entry = RoutingEntry {
+                destination: example.destination,
+                latency_prediction: example.actual_latency,
+                bandwidth_prediction: example.actual_bandwidth,
+                reliability_score: if example.success { 0.95 } else { 0.1 },
+                last_updated: Instant::now(),
+                confidence: 0.9,
+            };
+            self.routing_table.insert(example.destination, entry);
         }
 
         Ok(())
@@ -281,8 +276,7 @@ impl NeuralRouter {
 
     /// Get current routing table
     pub async fn get_routing_table(&self) -> HashMap<AgentId, RoutingEntry> {
-        let table = self.routing_table.read().await;
-        table.clone()
+        self.routing_table.iter().map(|e| (*e.key(), e.value().clone())).collect()
     }
 
     // Helper methods

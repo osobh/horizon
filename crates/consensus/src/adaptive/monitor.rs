@@ -18,7 +18,8 @@ pub struct NetworkConditions {
     pub active_nodes: usize,
     /// Network partition detected
     pub partition_detected: bool,
-    /// Timestamp of measurement
+    /// Timestamp of measurement (skipped for serialization as Instant is not serializable)
+    #[serde(skip, default = "std::time::Instant::now")]
     pub timestamp: std::time::Instant,
 }
 

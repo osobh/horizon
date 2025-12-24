@@ -60,10 +60,10 @@ pub enum ZeroConfigError {
     Memory { reason: String },
 
     #[error("Runtime error from exorust-runtime: {0}")]
-    Runtime(#[from] exorust_runtime::RuntimeError),
+    Runtime(#[from] stratoswarm_runtime::RuntimeError),
 
     #[error("Memory error from exorust-memory: {0}")]
-    MemoryError(#[from] exorust_memory::MemoryError),
+    MemoryError(#[from] stratoswarm_memory::MemoryError),
 
     #[error("Task join error: {0}")]
     JoinError(#[from] tokio::task::JoinError),

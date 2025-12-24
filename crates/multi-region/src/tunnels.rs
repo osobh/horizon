@@ -9,6 +9,7 @@
 
 use crate::error::{MultiRegionError, MultiRegionResult};
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -328,11 +329,11 @@ pub struct TunnelResponse {
 /// Secure tunnel manager
 pub struct TunnelManager {
     config: TunnelConfig,
-    connections: Arc<RwLock<HashMap<String, Arc<Mutex<TunnelConnection>>>>>,
+    connections: Arc<DashMap<String, Arc<Mutex<TunnelConnection>>>>,
     connection_pools: Arc<RwLock<HashMap<String, ConnectionPool>>>,
     request_counter: AtomicU64,
     client: reqwest::Client,
-    bandwidth_limiters: Arc<RwLock<HashMap<String, Arc<Semaphore>>>>,
+    bandwidth_limiters: Arc<DashMap<String, Arc<Semaphore>>>,
 }
 
 /// Connection pool for a specific region pair
@@ -361,11 +362,11 @@ impl TunnelManager {
 
         Ok(Self {
             config,
-            connections: Arc::new(RwLock::new(HashMap::new())),
+            connections: Arc::new(DashMap::new()),
             connection_pools: Arc::new(RwLock::new(HashMap::new())),
             request_counter: AtomicU64::new(0),
             client,
-            bandwidth_limiters: Arc::new(RwLock::new(HashMap::new())),
+            bandwidth_limiters: Arc::new(DashMap::new()),
         })
     }
 
@@ -378,13 +379,10 @@ impl TunnelManager {
         let connection_key = format!("{}:{}", source_region, target_region);
 
         // Check if connection already exists
-        {
-            let connections = self.connections.read().await;
-            if let Some(existing_conn) = connections.get(&connection_key) {
-                let conn = existing_conn.lock().await;
-                if conn.state == ConnectionState::Active {
-                    return Ok(conn.id.clone());
-                }
+        if let Some(existing_conn) = self.connections.get(&connection_key) {
+            let conn = existing_conn.lock().await;
+            if conn.state == ConnectionState::Active {
+                return Ok(conn.id.clone());
             }
         }
 
@@ -418,13 +416,10 @@ impl TunnelManager {
         active_connection.established_at = Utc::now();
 
         // Store connection
-        {
-            let mut connections = self.connections.write().await;
-            connections.insert(
-                connection_key.clone(),
-                Arc::new(Mutex::new(active_connection)),
-            );
-        }
+        self.connections.insert(
+            connection_key.clone(),
+            Arc::new(Mutex::new(active_connection)),
+        );
 
         // Add to connection pool
         self.add_to_pool(&connection_key, connection_id.clone())
@@ -432,8 +427,7 @@ impl TunnelManager {
 
         // Initialize bandwidth limiter if configured
         if let Some(bandwidth_limit) = self.config.qos_config.bandwidth_limit_bps {
-            let mut limiters = self.bandwidth_limiters.write().await;
-            limiters.insert(
+            self.bandwidth_limiters.insert(
                 connection_key,
                 Arc::new(Semaphore::new(bandwidth_limit as usize)),
             );
@@ -575,8 +569,7 @@ impl TunnelManager {
             });
 
         // Find the connection and add to pool
-        let connections = self.connections.read().await;
-        if let Some(connection) = connections.get(connection_key) {
+        if let Some(connection) = self.connections.get(connection_key) {
             pool.active_connections.push(connection.clone());
         }
 
@@ -742,8 +735,7 @@ impl TunnelManager {
         connection_key: &str,
         data_size: usize,
     ) -> MultiRegionResult<()> {
-        let limiters = self.bandwidth_limiters.read().await;
-        if let Some(limiter) = limiters.get(connection_key) {
+        if let Some(limiter) = self.bandwidth_limiters.get(connection_key) {
             let _permit = limiter.acquire_many(data_size as u32).await.map_err(|_| {
                 MultiRegionError::TunnelError {
                     reason: "Bandwidth limit exceeded".to_string(),
@@ -761,9 +753,8 @@ impl TunnelManager {
         success: bool,
         processing_time_ms: u64,
     ) {
-        let connections = self.connections.read().await;
-        for connection_arc in connections.values() {
-            let mut connection = connection_arc.lock().await;
+        for connection_arc in self.connections.iter() {
+            let mut connection = connection_arc.value().lock().await;
             if connection.id == connection_id {
                 connection.last_used = Utc::now();
                 connection.request_count += 1;
@@ -783,19 +774,18 @@ impl TunnelManager {
 
     /// Close tunnel connection
     pub async fn close_tunnel(&self, connection_id: &str) -> MultiRegionResult<()> {
-        let mut connections = self.connections.write().await;
         let mut connection_key_to_remove = None;
 
-        for (key, connection_arc) in connections.iter() {
-            let connection = connection_arc.lock().await;
+        for entry in self.connections.iter() {
+            let connection = entry.value().lock().await;
             if connection.id == connection_id {
-                connection_key_to_remove = Some(key.clone());
+                connection_key_to_remove = Some(entry.key().clone());
                 break;
             }
         }
 
         if let Some(key) = connection_key_to_remove {
-            connections.remove(&key);
+            self.connections.remove(&key);
 
             // Remove from connection pool
             let mut pools = self.connection_pools.write().await;
@@ -822,11 +812,10 @@ impl TunnelManager {
 
     /// Get tunnel statistics
     pub async fn get_tunnel_stats(&self) -> Vec<TunnelConnection> {
-        let connections = self.connections.read().await;
         let mut stats = Vec::new();
 
-        for connection_arc in connections.values() {
-            let connection = connection_arc.lock().await;
+        for connection_arc in self.connections.iter() {
+            let connection = connection_arc.value().lock().await;
             stats.push(connection.clone());
         }
 
@@ -836,10 +825,9 @@ impl TunnelManager {
     /// Validate all connections
     pub async fn validate_connections(&self) -> MultiRegionResult<u32> {
         let mut validated_count = 0;
-        let connections = self.connections.read().await;
 
-        for connection_arc in connections.values() {
-            let mut connection = connection_arc.lock().await;
+        for connection_arc in self.connections.iter() {
+            let mut connection = connection_arc.value().lock().await;
             connection.state = ConnectionState::Validating;
 
             // Perform validation (simple ping)
@@ -884,7 +872,8 @@ impl TunnelManager {
 
     /// Generate unique connection ID
     fn generate_connection_id(&self) -> String {
-        let counter = self.request_counter.fetch_add(1, Ordering::SeqCst);
+        // Relaxed: independent ID counter, uniqueness guaranteed by fetch_add
+        let counter = self.request_counter.fetch_add(1, Ordering::Relaxed);
         format!("tunnel_{}", counter)
     }
 }

@@ -1,5 +1,5 @@
 [package]
-name = "exorust-evolution-engines"
+name = "stratoswarm-evolution-engines"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -20,11 +20,11 @@ rand = { workspace = true }
 rayon = { workspace = true }
 
 # Project crates
-exorust-evolution = { path = "../evolution" }
-exorust-agent-core = { path = "../agent-core" }
-exorust-synthesis = { path = "../synthesis" }
-exorust-runtime = { path = "../runtime" }
-exorust-monitoring = { path = "../monitoring" }
+stratoswarm-evolution = { path = "../evolution" }
+stratoswarm-agent-core = { path = "../agent-core" }
+stratoswarm-synthesis = { path = "../synthesis" }
+stratoswarm-runtime = { path = "../runtime" }
+stratoswarm-monitoring = { path = "../monitoring" }
 
 # Evolution-specific dependencies
 ndarray = { version = "0.16", features = ["serde", "rayon"] }
@@ -46,7 +46,7 @@ approx = "0.5"
 
 [features]
 default = []
-mock = ["exorust-synthesis/mock-llm"]
+mock = ["stratoswarm-synthesis/mock-llm"]
 
 # [[bench]]
 # name = "evolution_engines"

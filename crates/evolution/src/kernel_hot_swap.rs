@@ -95,11 +95,11 @@ pub struct KernelHotSwap {
     _mock_context: Arc<()>,
     #[cfg(not(feature = "cuda"))]
     _mock_device: Arc<()>,
-    active_kernels: Arc<RwLock<HashMap<String, CompiledKernel<'static>>>>,
-    kernel_versions: Arc<RwLock<HashMap<String, u64>>>,
+    active_kernels: Arc<DashMap<String, CompiledKernel<'static>>>,
+    kernel_versions: Arc<DashMap<String, u64>>,
     compilation_queue: Arc<Mutex<Vec<String>>>,
     event_sender: mpsc::UnboundedSender<HotSwapEvent>,
-    performance_metrics: Arc<RwLock<HashMap<String, Vec<f64>>>>,
+    performance_metrics: Arc<DashMap<String, Vec<f64>>>,
     swap_history: Arc<RwLock<Vec<SwapRecord>>>,
     emergency_rollback: Arc<DashMap<String, CompiledKernel<'static>>>, // Last known good kernels
 }
@@ -122,30 +122,30 @@ impl KernelHotSwap {
         {
             // Initialize CUDA device (CudaDevice::new returns Arc<CudaDevice>)
             let device_arc = CudaDevice::new(0)?;
-            
+
             Ok(Self {
                 cuda_context: device_arc.clone(),
                 device: device_arc,
-                active_kernels: Arc::new(RwLock::new(HashMap::new())),
-                kernel_versions: Arc::new(RwLock::new(HashMap::new())),
+                active_kernels: Arc::new(DashMap::new()),
+                kernel_versions: Arc::new(DashMap::new()),
                 compilation_queue: Arc::new(Mutex::new(Vec::new())),
                 event_sender,
-                performance_metrics: Arc::new(RwLock::new(HashMap::new())),
+                performance_metrics: Arc::new(DashMap::new()),
                 swap_history: Arc::new(RwLock::new(Vec::new())),
                 emergency_rollback: Arc::new(DashMap::new()),
             })
         }
-        
+
         #[cfg(not(feature = "cuda"))]
         {
             Ok(Self {
                 _mock_context: Arc::new(()),
                 _mock_device: Arc::new(()),
-                active_kernels: Arc::new(RwLock::new(HashMap::new())),
-                kernel_versions: Arc::new(RwLock::new(HashMap::new())),
+                active_kernels: Arc::new(DashMap::new()),
+                kernel_versions: Arc::new(DashMap::new()),
                 compilation_queue: Arc::new(Mutex::new(Vec::new())),
                 event_sender,
-                performance_metrics: Arc::new(RwLock::new(HashMap::new())),
+                performance_metrics: Arc::new(DashMap::new()),
                 swap_history: Arc::new(RwLock::new(Vec::new())),
                 emergency_rollback: Arc::new(DashMap::new()),
             })
@@ -187,10 +187,7 @@ impl KernelHotSwap {
         metadata.version = self.get_next_version(&kernel_id).await?;
         
         // Store compiled kernel
-        {
-            let mut kernels = self.active_kernels.write().await;
-            kernels.insert(kernel_id.clone(), compiled_kernel);
-        }
+        self.active_kernels.insert(kernel_id.clone(), compiled_kernel);
 
         self.event_sender.send(HotSwapEvent::CompilationCompleted { 
             kernel_id, 
@@ -209,10 +206,7 @@ impl KernelHotSwap {
         let swap_start = Instant::now();
         
         // Get current kernel for rollback capability
-        let old_kernel = {
-            let kernels = self.active_kernels.read().await;
-            kernels.get(&kernel_id).cloned()
-        };
+        let old_kernel = self.active_kernels.get(&kernel_id).map(|r| r.clone());
 
         if let Some(ref old_kernel) = old_kernel {
             self.event_sender.send(HotSwapEvent::SwapInitiated {
@@ -241,13 +235,7 @@ impl KernelHotSwap {
                     });
                     
                     // Restore old kernel
-                    tokio::task::block_in_place(|| {
-                        let rt = tokio::runtime::Handle::current();
-                        rt.block_on(async {
-                            let mut kernels = self.active_kernels.write().await;
-                            kernels.insert(kernel_id.clone(), rollback_kernel.value().clone());
-                        });
-                    });
+                    self.active_kernels.insert(kernel_id.clone(), rollback_kernel.value().clone());
                     
                     let _ = self.event_sender.send(HotSwapEvent::RollbackCompleted {
                         kernel_id: kernel_id.clone(),
@@ -281,9 +269,9 @@ impl KernelHotSwap {
 
     /// Benchmark kernel performance with GPU profiling
     pub async fn benchmark_kernel(&self, kernel_id: &str, iterations: usize) -> Result<f64> {
-        let kernels = self.active_kernels.read().await;
-        let kernel = kernels.get(kernel_id)
+        let kernel_ref = self.active_kernels.get(kernel_id)
             .ok_or_else(|| anyhow!("Kernel {} not found", kernel_id))?;
+        let kernel = kernel_ref.value();
         
         if kernel.function.is_none() {
             return Err(anyhow!("Kernel {} not loaded", kernel_id));
@@ -342,27 +330,23 @@ impl KernelHotSwap {
         let throughput_ops_per_sec = (test_data_size as f64 * 1000.0) / avg_time_ms as f64;
         
         // Update performance metrics
-        {
-            let mut metrics = self.performance_metrics.write().await;
-            metrics.entry(kernel_id.to_string())
-                .or_insert_with(Vec::new)
-                .push(throughput_ops_per_sec);
-        }
+        self.performance_metrics
+            .entry(kernel_id.to_string())
+            .or_insert_with(Vec::new)
+            .push(throughput_ops_per_sec);
         
         Ok(throughput_ops_per_sec)
     }
 
     /// Get performance metrics for a kernel
     pub async fn get_performance_metrics(&self, kernel_id: &str) -> Result<Vec<f64>> {
-        let metrics = self.performance_metrics.read().await;
-        Ok(metrics.get(kernel_id).cloned().unwrap_or_default())
+        Ok(self.performance_metrics.get(kernel_id).map(|r| r.clone()).unwrap_or_default())
     }
 
     /// Get next version number for a kernel
     async fn get_next_version(&self, kernel_id: &str) -> Result<u64> {
-        let mut versions = self.kernel_versions.write().await;
-        let next_version = versions.get(kernel_id).copied().unwrap_or(0) + 1;
-        versions.insert(kernel_id.to_string(), next_version);
+        let next_version = self.kernel_versions.get(kernel_id).map(|r| *r).unwrap_or(0) + 1;
+        self.kernel_versions.insert(kernel_id.to_string(), next_version);
         Ok(next_version)
     }
 
@@ -419,26 +403,19 @@ impl KernelHotSwap {
         let swap_start = Instant::now();
         
         // Get the compiled kernel
-        let new_kernel = {
-            let kernels = self.active_kernels.read().await;
-            kernels.get(kernel_id)
-                .ok_or_else(|| anyhow!("New kernel {} not found in compiled kernels", kernel_id))?
-                .clone()
-        };
+        let new_kernel = self.active_kernels.get(kernel_id)
+            .ok_or_else(|| anyhow!("New kernel {} not found in compiled kernels", kernel_id))?
+            .clone();
         
         // Validate kernel before swap
         self.validate_kernel_integrity(&new_kernel).await?;
         
         // Perform atomic update of active kernels
-        {
-            let mut kernels = self.active_kernels.write().await;
-            
-            // Create updated kernel with new metadata
-            let mut updated_kernel = new_kernel;
-            updated_kernel.metadata = new_metadata.clone();
-            
-            kernels.insert(kernel_id.to_string(), updated_kernel);
-        }
+        // Create updated kernel with new metadata
+        let mut updated_kernel = new_kernel;
+        updated_kernel.metadata = new_metadata.clone();
+
+        self.active_kernels.insert(kernel_id.to_string(), updated_kernel);
         
         // Synchronize all GPU streams to ensure completion
         Stream::new(StreamFlags::NON_BLOCKING, None)?.synchronize()?;

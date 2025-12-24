@@ -1,23 +1,23 @@
 //! Comprehensive end-to-end tests covering all major ExoRust features
 //! Validates complete data flow through the system
 
-use exorust_agent_core::{Agent, AgentConfig};
-use exorust_bootstrap::{BootstrapConfig, BootstrapManager};
-use exorust_compliance::{ComplianceFramework, ComplianceManager};
-use exorust_cost_optimization::{CostOptimizer, WorkloadScheduler};
-use exorust_disaster_recovery::{BackupType, DisasterRecoveryManager};
-use exorust_emergency_controls::{
+use stratoswarm_agent_core::{Agent, AgentConfig};
+use stratoswarm_bootstrap::{BootstrapConfig, BootstrapManager};
+use stratoswarm_compliance::{ComplianceFramework, ComplianceManager};
+use stratoswarm_cost_optimization::{CostOptimizer, WorkloadScheduler};
+use stratoswarm_disaster_recovery::{BackupType, DisasterRecoveryManager};
+use stratoswarm_emergency_controls::{
     EmergencyController, KillSwitch, ResourceLimits, SafetyViolationType,
 };
-use exorust_evolution::{EvolutionEngine, GeneticEvolutionEngine};
-use exorust_global_knowledge_graph::{GlobalKnowledgeGraph, QueryRequest};
-use exorust_governance::{
+use stratoswarm_evolution::{EvolutionEngine, GeneticEvolutionEngine};
+use stratoswarm_global_knowledge_graph::{GlobalKnowledgeGraph, QueryRequest};
+use stratoswarm_governance::{
     AgentPermissions, CoordinationStrategy, GovernanceEngine, LifecyclePhase, PermissionLevel,
     PolicyManager,
 };
-use exorust_monitoring::{MetricType, PerformanceMonitor};
-use exorust_multi_region::{DataSovereigntyPolicy, MultiRegionController, Region};
-use exorust_zero_trust::{DeviceTrust, ZeroTrustController};
+use stratoswarm_monitoring::{MetricType, PerformanceMonitor};
+use stratoswarm_multi_region::{DataSovereigntyPolicy, MultiRegionController, Region};
+use stratoswarm_zero_trust::{DeviceTrust, ZeroTrustController};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -690,8 +690,8 @@ mod test_helpers {
 
     pub struct SimpleFitnessFunction;
 
-    impl exorust_evolution::FitnessFunction for SimpleFitnessFunction {
-        fn evaluate(&self, _individual: &exorust_evolution::Individual) -> f64 {
+    impl stratoswarm_evolution::FitnessFunction for SimpleFitnessFunction {
+        fn evaluate(&self, _individual: &stratoswarm_evolution::Individual) -> f64 {
             rand::random::<f64>()
         }
     }

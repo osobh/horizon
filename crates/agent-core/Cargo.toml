@@ -1,5 +1,5 @@
 [package]
-name = "exorust-agent-core"
+name = "stratoswarm-agent-core"
 version = "0.1.0"
 edition = "2021"
 
@@ -17,12 +17,12 @@ uuid = { workspace = true }
 rand = { workspace = true }
 
 # Project crates (removed dependencies with CUDA for testing)
-# exorust-cuda = { path = "../cuda" }
-# exorust-runtime = { path = "../runtime" }
-# exorust-memory = { path = "../memory" }
-# exorust-storage = { path = "../storage" }
-# exorust-net = { path = "../net" }
-# exorust-evolution = { path = "../evolution" }
+# stratoswarm-cuda = { path = "../cuda" }
+# stratoswarm-runtime = { path = "../runtime" }
+# stratoswarm-memory = { path = "../memory" }
+# stratoswarm-storage = { path = "../storage" }
+# stratoswarm-net = { path = "../net" }
+# stratoswarm-evolution = { path = "../evolution" }
 
 # Agent-specific dependencies
 async-openai = "0.29"

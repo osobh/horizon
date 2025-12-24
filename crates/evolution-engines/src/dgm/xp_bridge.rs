@@ -4,8 +4,8 @@ use super::engine::DgmEngine;
 use super::improvement::{GrowthPattern, GrowthHistory};
 use crate::traits::EvolvableAgent;
 use crate::error::{EvolutionEngineError, EvolutionEngineResult};
-use exorust_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
-use exorust_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
+use stratoswarm_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
+use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use async_trait::async_trait;
@@ -232,7 +232,7 @@ impl DgmXPEngine {
         // Add DGM-specific reward categories
         reward_calculator.set_reward_category(
             "self_modification".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 150,
                 level_multiplier: 1.4,
                 performance_multiplier: 1.7,
@@ -242,7 +242,7 @@ impl DgmXPEngine {
         
         reward_calculator.set_reward_category(
             "pattern_discovery".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 200,
                 level_multiplier: 1.5,
                 performance_multiplier: 2.2,
@@ -252,7 +252,7 @@ impl DgmXPEngine {
         
         reward_calculator.set_reward_category(
             "growth_momentum".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 125,
                 level_multiplier: 1.3,
                 performance_multiplier: 1.8,
@@ -262,7 +262,7 @@ impl DgmXPEngine {
         
         reward_calculator.set_reward_category(
             "meta_improvement".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 300,
                 level_multiplier: 1.6,
                 performance_multiplier: 2.5,
@@ -524,7 +524,7 @@ impl DgmXPStats {
 mod tests {
     use super::*;
     use crate::dgm::config::DgmConfig;
-    use exorust_agent_core::agent::AgentConfig;
+    use stratoswarm_agent_core::agent::AgentConfig;
 
     #[tokio::test]
     async fn test_dgm_xp_fitness_function() {

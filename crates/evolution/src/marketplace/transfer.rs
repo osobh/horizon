@@ -1,15 +1,16 @@
 //! Knowledge transfer coordination with bandwidth management
 
 use std::sync::Arc;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use tokio::sync::{RwLock, Semaphore};
 use uuid::Uuid;
+use dashmap::DashMap;
 
 /// Knowledge transfer coordinator with bandwidth management
 pub struct KnowledgeTransferCoordinator {
     transfer_queue: Arc<RwLock<VecDeque<TransferRequest>>>,
     bandwidth_limiter: Arc<Semaphore>,
-    transfer_stats: Arc<RwLock<HashMap<String, TransferStats>>>,
+    transfer_stats: Arc<DashMap<String, TransferStats>>,
     compression_enabled: bool,
     encryption_enabled: bool,
 }
@@ -48,7 +49,7 @@ impl KnowledgeTransferCoordinator {
         Self {
             transfer_queue: Arc::new(RwLock::new(VecDeque::new())),
             bandwidth_limiter: Arc::new(Semaphore::new(max_concurrent_transfers)),
-            transfer_stats: Arc::new(RwLock::new(HashMap::new())),
+            transfer_stats: Arc::new(DashMap::new()),
             compression_enabled: true,
             encryption_enabled: true,
         }
@@ -72,9 +73,10 @@ impl KnowledgeTransferCoordinator {
     }
     
     pub async fn update_stats(&self, cluster_id: &str, success: bool, bytes: u64, speed_mbps: f64) {
-        let mut stats = self.transfer_stats.write().await;
-        let entry = stats.entry(cluster_id.to_string()).or_insert_with(TransferStats::default);
-        
+        let mut entry = self.transfer_stats
+            .entry(cluster_id.to_string())
+            .or_insert_with(TransferStats::default);
+
         entry.total_transfers += 1;
         if success {
             entry.successful_transfers += 1;
@@ -82,14 +84,13 @@ impl KnowledgeTransferCoordinator {
             entry.failed_transfers += 1;
         }
         entry.total_bytes_transferred += bytes;
-        
+
         // Update average speed with exponential moving average
         let alpha = 0.1;
         entry.average_speed_mbps = entry.average_speed_mbps * (1.0 - alpha) + speed_mbps * alpha;
     }
-    
+
     pub async fn get_stats(&self, cluster_id: &str) -> Option<TransferStats> {
-        let stats = self.transfer_stats.read().await;
-        stats.get(cluster_id).cloned()
+        self.transfer_stats.get(cluster_id).map(|r| r.clone())
     }
 }

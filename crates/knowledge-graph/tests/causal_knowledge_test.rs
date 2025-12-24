@@ -12,7 +12,7 @@
 //! All tests MUST initially fail (RED phase) to drive proper TDD implementation.
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use exorust_knowledge_graph::{
+use stratoswarm_knowledge_graph::{
     Edge, EdgeType, KnowledgeGraph, KnowledgeGraphConfig, KnowledgeGraphResult, Node, NodeType,
 };
 use serde::{Deserialize, Serialize};
@@ -1069,31 +1069,31 @@ fn parse_timestamp(timestamp_str: &str) -> DateTime<Utc> {
 impl CausalInferenceEngine {
     async fn new(_config: CausalInferenceConfig) -> KnowledgeGraphResult<Self> {
         // This will fail - not implemented yet
-        Err(exorust_knowledge_graph::KnowledgeGraphError::Other(
+        Err(stratoswarm_knowledge_graph::KnowledgeGraphError::Other(
             "CausalInferenceEngine not implemented".to_string()
         ))
     }
     
     async fn load_knowledge_graph(&mut self, _graph: KnowledgeGraph) -> KnowledgeGraphResult<()> {
-        Err(exorust_knowledge_graph::KnowledgeGraphError::Other(
+        Err(stratoswarm_knowledge_graph::KnowledgeGraphError::Other(
             "load_knowledge_graph not implemented".to_string()
         ))
     }
     
     async fn add_temporal_event(&mut self, _event: TemporalEvent) -> KnowledgeGraphResult<()> {
-        Err(exorust_knowledge_graph::KnowledgeGraphError::Other(
+        Err(stratoswarm_knowledge_graph::KnowledgeGraphError::Other(
             "add_temporal_event not implemented".to_string()
         ))
     }
     
     async fn discover_causal_relationships(&self) -> KnowledgeGraphResult<Vec<CausalRelationship>> {
-        Err(exorust_knowledge_graph::KnowledgeGraphError::Other(
+        Err(stratoswarm_knowledge_graph::KnowledgeGraphError::Other(
             "discover_causal_relationships not implemented".to_string()
         ))
     }
     
     async fn infer_causal_chains(&self, _start_node: &str) -> KnowledgeGraphResult<Vec<CausalChain>> {
-        Err(exorust_knowledge_graph::KnowledgeGraphError::Other(
+        Err(stratoswarm_knowledge_graph::KnowledgeGraphError::Other(
             "infer_causal_chains not implemented".to_string()
         ))
     }

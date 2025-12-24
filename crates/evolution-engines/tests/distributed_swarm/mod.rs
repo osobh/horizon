@@ -1,6 +1,6 @@
 //! Shared utilities and test modules for distributed swarm integration tests
 
-use exorust_evolution_engines::{
+use stratoswarm_evolution_engines::{
     config::{EvolutionEngineConfig, LoggingConfig, ResourceLimits},
     swarm::{SwarmConfig},
     swarm_distributed::{

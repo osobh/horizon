@@ -2,9 +2,9 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::api::state::AppState;
 use crate::error::Result;
 use crate::models::AssetMetrics;
 use crate::repository::MetricsRepository;
@@ -21,12 +21,12 @@ use crate::repository::MetricsRepository;
         (status = 500, description = "Internal server error")
     )
 )]
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn get_asset_metrics(
     Path(asset_id): Path<Uuid>,
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Result<Json<AssetMetrics>> {
-    let repo = MetricsRepository::new(pool);
+    let repo = MetricsRepository::new(state.pool.clone());
     let metrics = repo.get_by_asset(asset_id).await?;
 
     Ok(Json(metrics))

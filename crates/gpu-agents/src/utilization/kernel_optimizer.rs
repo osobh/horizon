@@ -4,6 +4,7 @@
 
 use anyhow::{Context, Result};
 use cudarc::driver::{CudaDevice, LaunchConfig};
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -62,8 +63,8 @@ impl Default for KernelMetrics {
 /// Kernel optimizer
 pub struct KernelOptimizer {
     device: Arc<CudaDevice>,
-    kernel_configs: Arc<RwLock<HashMap<String, KernelConfig>>>,
-    kernel_metrics: Arc<RwLock<HashMap<String, Vec<KernelMetrics>>>>,
+    kernel_configs: Arc<DashMap<String, KernelConfig>>,
+    kernel_metrics: Arc<DashMap<String, Vec<KernelMetrics>>>,
     optimization_history: Arc<RwLock<Vec<OptimizationResult>>>,
 }
 

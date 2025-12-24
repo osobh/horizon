@@ -67,9 +67,11 @@ impl GpuSemaphore {
         loop {
             let current = self.value.load(std::sync::atomic::Ordering::Acquire);
             if current > 0 {
+                // Use compare_exchange_weak in loop - more efficient on ARM (LL/SC)
+                // Spurious failures are acceptable since we retry anyway
                 if self
                     .value
-                    .compare_exchange(
+                    .compare_exchange_weak(
                         current,
                         current - 1,
                         std::sync::atomic::Ordering::AcqRel,

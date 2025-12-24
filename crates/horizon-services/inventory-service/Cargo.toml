@@ -56,6 +56,7 @@ hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
 hpc-config = { path = "../../hpc-foundation/hpc-config" }
 hpc-auth = { path = "../../hpc-foundation/hpc-auth" }
 hpc-tsdb = { path = "../../hpc-foundation/hpc-tsdb" }
+hpc-channels = { path = "../../../../01-hpc-channels" }
 
 [dev-dependencies]
 http-body-util = "0.1"

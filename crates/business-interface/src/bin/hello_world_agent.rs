@@ -7,7 +7,7 @@
 //! 4. Execute "Hello World" on GPU
 //! 5. Return results through the system
 
-use exorust_business_interface::{
+use stratoswarm_business_interface::{
     ollama_client::{OllamaClient, OllamaConfig},
     BusinessInterface, GoalCategory, GoalPriority, GoalSubmissionRequest,
 };

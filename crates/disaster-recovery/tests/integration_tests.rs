@@ -1,5 +1,5 @@
 use chrono::{Duration, Utc};
-use exorust_disaster_recovery::{
+use stratoswarm_disaster_recovery::{
     backup_manager::*, data_integrity::*, failover_coordinator::*, health_monitor::*,
     recovery_planner::*, replication_manager::*, runbook_executor::*, snapshot_manager::*,
     DisasterRecoveryError,

@@ -21,9 +21,9 @@ use candle_core::{Device, Tensor, DType};
 use candle_nn::{Linear, Module, VarBuilder, linear, sequential, Seq, activation};
 use ndarray::{Array2, Array1};
 
-use exorust_agent_core::{Agent, AgentId};
-use exorust_cuda::context::CudaContext;
-use exorust_memory::pool::MemoryPool;
+use stratoswarm_agent_core::{Agent, AgentId};
+use stratoswarm_cuda::context::CudaContext;
+use stratoswarm_memory::pool::MemoryPool;
 
 /// Neural network for routing decisions
 #[derive(Clone)]

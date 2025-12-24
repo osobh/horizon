@@ -1,7 +1,7 @@
 // GPU Memory Tier TDD Tests - RED Phase
 // These tests MUST fail initially as we implement TDD correctly
 
-use exorust_memory::gpu_memory_tier::{GpuMemoryTier, MemoryConfig, AllocationStrategy};
+use stratoswarm_memory::gpu_memory_tier::{GpuMemoryTier, MemoryConfig, AllocationStrategy};
 use std::sync::Arc;
 
 #[cfg(test)]

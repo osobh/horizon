@@ -1,5 +1,5 @@
 [package]
-name = "exorust-knowledge-graph"
+name = "stratoswarm-knowledge-graph"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,10 +10,10 @@ bincode = "1.3"
 bytes = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 cudarc = { workspace = true }
-exorust-agent-core = { path = "../agent-core" }
-exorust-cuda = { path = "../cuda" }
-exorust-memory = { path = "../memory" }
-exorust-storage = { path = "../storage" }
+stratoswarm-agent-core = { path = "../agent-core" }
+stratoswarm-cuda = { path = "../cuda" }
+stratoswarm-memory = { path = "../memory" }
+stratoswarm-storage = { path = "../storage" }
 futures = "0.3"
 half = "2.3"
 ndarray = "0.15"

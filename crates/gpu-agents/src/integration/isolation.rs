@@ -4,6 +4,7 @@
 //! CPU agents don't use GPU resources and vice versa.
 
 use super::*;
+use dashmap::DashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -15,8 +16,8 @@ use anyhow::{Result, anyhow};
 /// Resource isolation verifier
 pub struct ResourceIsolationVerifier {
     monitoring_config: MonitoringConfig,
-    cpu_metrics: Arc<RwLock<HashMap<usize, CpuAgentMetrics>>>,
-    gpu_metrics: Arc<RwLock<HashMap<usize, GpuAgentMetrics>>>,
+    cpu_metrics: Arc<DashMap<usize, CpuAgentMetrics>>,
+    gpu_metrics: Arc<DashMap<usize, GpuAgentMetrics>>,
     violations: Arc<RwLock<Vec<ViolationRecord>>>,
     is_monitoring: Arc<AtomicBool>,
     monitor_handle: Option<JoinHandle<()>>,
@@ -28,8 +29,8 @@ impl ResourceIsolationVerifier {
     pub fn new() -> Self {
         Self {
             monitoring_config: MonitoringConfig::default(),
-            cpu_metrics: Arc::new(RwLock::new(HashMap::new())),
-            gpu_metrics: Arc::new(RwLock::new(HashMap::new())),
+            cpu_metrics: Arc::new(DashMap::new()),
+            gpu_metrics: Arc::new(DashMap::new()),
             violations: Arc::new(RwLock::new(Vec::new())),
             is_monitoring: Arc::new(AtomicBool::new(false)),
             monitor_handle: None,
@@ -86,21 +87,15 @@ impl ResourceIsolationVerifier {
 
     /// Get CPU agent metrics
     pub fn get_cpu_agent_metrics(&self, agent_id: usize) -> Result<CpuAgentMetrics> {
-        let metrics = self.cpu_metrics.try_read()
-            .map_err(|_| anyhow!("Failed to acquire metrics lock"))?;
-        
-        metrics.get(&agent_id)
-            .copied()
+        self.cpu_metrics.get(&agent_id)
+            .map(|r| *r)
             .ok_or_else(|| anyhow!("CPU agent {} not found", agent_id))
     }
 
     /// Get GPU agent metrics
     pub fn get_gpu_agent_metrics(&self, agent_id: usize) -> Result<GpuAgentMetrics> {
-        let metrics = self.gpu_metrics.try_read()
-            .map_err(|_| anyhow!("Failed to acquire metrics lock"))?;
-        
-        metrics.get(&agent_id)
-            .copied()
+        self.gpu_metrics.get(&agent_id)
+            .map(|r| *r)
             .ok_or_else(|| anyhow!("GPU agent {} not found", agent_id))
     }
 
@@ -108,12 +103,6 @@ impl ResourceIsolationVerifier {
     pub fn generate_report(&self) -> Result<IsolationReport> {
         let violations = self.violations.try_read()
             .map_err(|_| anyhow!("Failed to acquire violations lock"))?;
-
-        let cpu_metrics = self.cpu_metrics.try_read()
-            .map_err(|_| anyhow!("Failed to acquire CPU metrics lock"))?;
-
-        let gpu_metrics = self.gpu_metrics.try_read()
-            .map_err(|_| anyhow!("Failed to acquire GPU metrics lock"))?;
 
         // Calculate violation statistics
         let cpu_gpu_violations = violations.iter()
@@ -128,18 +117,18 @@ impl ResourceIsolationVerifier {
             .filter(|v| matches!(v.violation_type, ViolationType::MemoryLeakage))
             .count();
 
-        // Calculate maximum resource usage
-        let max_cpu_gpu_usage = cpu_metrics.values()
-            .map(|m| m.gpu_compute_used)
+        // Calculate maximum resource usage from DashMap
+        let max_cpu_gpu_usage = self.cpu_metrics.iter()
+            .map(|entry| entry.value().gpu_compute_used)
             .fold(0.0, f32::max);
 
-        let max_gpu_io_ops = gpu_metrics.values()
-            .map(|m| m.io_operations)
+        let max_gpu_io_ops = self.gpu_metrics.iter()
+            .map(|entry| entry.value().io_operations)
             .max()
             .unwrap_or(0);
 
-        let total_gpu_io_ops: u64 = gpu_metrics.values()
-            .map(|m| m.io_operations)
+        let total_gpu_io_ops: u64 = self.gpu_metrics.iter()
+            .map(|entry| entry.value().io_operations)
             .sum();
 
         let gpu_io_percentage = if total_gpu_io_ops > 0 {
@@ -160,8 +149,8 @@ impl ResourceIsolationVerifier {
             total_violations: violations.len(),
             monitoring_duration: self.get_monitoring_duration(),
             agent_counts: AgentCounts {
-                cpu_agents: cpu_metrics.len(),
-                gpu_agents: gpu_metrics.len(),
+                cpu_agents: self.cpu_metrics.len(),
+                gpu_agents: self.gpu_metrics.len(),
             },
         })
     }
@@ -202,32 +191,26 @@ impl ResourceIsolationVerifier {
 
     /// Main monitoring loop
     async fn monitoring_loop(
-        cpu_metrics: Arc<RwLock<HashMap<usize, CpuAgentMetrics>>>,
-        gpu_metrics: Arc<RwLock<HashMap<usize, GpuAgentMetrics>>>,
+        cpu_metrics: Arc<DashMap<usize, CpuAgentMetrics>>,
+        gpu_metrics: Arc<DashMap<usize, GpuAgentMetrics>>,
         violations: Arc<RwLock<Vec<ViolationRecord>>>,
         is_monitoring: Arc<AtomicBool>,
         config: MonitoringConfig,
         stats: Arc<IsolationStats>,
     ) {
         let mut iteration = 0u64;
-        
+
         while is_monitoring.load(Ordering::Relaxed) {
             // Collect CPU agent metrics
             let cpu_sample = Self::sample_cpu_agents().await;
-            {
-                let mut metrics = cpu_metrics.write().await;
-                for (agent_id, sample) in cpu_sample {
-                    metrics.insert(agent_id, sample);
-                }
+            for (agent_id, sample) in cpu_sample {
+                cpu_metrics.insert(agent_id, sample);
             }
 
             // Collect GPU agent metrics
             let gpu_sample = Self::sample_gpu_agents().await;
-            {
-                let mut metrics = gpu_metrics.write().await;
-                for (agent_id, sample) in gpu_sample {
-                    metrics.insert(agent_id, sample);
-                }
+            for (agent_id, sample) in gpu_sample {
+                gpu_metrics.insert(agent_id, sample);
             }
 
             // Check for violations
@@ -295,8 +278,8 @@ impl ResourceIsolationVerifier {
 
     /// Check for isolation violations
     async fn check_violations(
-        cpu_metrics: &Arc<RwLock<HashMap<usize, CpuAgentMetrics>>>,
-        gpu_metrics: &Arc<RwLock<HashMap<usize, GpuAgentMetrics>>>,
+        cpu_metrics: &Arc<DashMap<usize, CpuAgentMetrics>>,
+        gpu_metrics: &Arc<DashMap<usize, GpuAgentMetrics>>,
         violations: &Arc<RwLock<Vec<ViolationRecord>>>,
         config: &MonitoringConfig,
         stats: &Arc<IsolationStats>,
@@ -304,50 +287,50 @@ impl ResourceIsolationVerifier {
         let mut new_violations = vec![];
 
         // Check CPU agents for GPU usage
-        {
-            let cpu_metrics = cpu_metrics.read().await;
-            for (agent_id, metrics) in cpu_metrics.iter() {
-                if metrics.gpu_memory_used > 0 {
-                    new_violations.push(ViolationRecord {
-                        timestamp: Instant::now(),
-                        agent_id: AgentId::CpuAgent(*agent_id),
-                        violation_type: ViolationType::CpuUsingGpu,
-                        severity: ViolationSeverity::Critical,
-                        description: format!("CPU agent {} using {} bytes of GPU memory", 
-                                           agent_id, metrics.gpu_memory_used),
-                        value: metrics.gpu_memory_used as f64,
-                    });
-                }
+        for entry in cpu_metrics.iter() {
+            let agent_id = *entry.key();
+            let metrics = entry.value();
 
-                if metrics.gpu_compute_used > config.max_cpu_gpu_usage {
-                    new_violations.push(ViolationRecord {
-                        timestamp: Instant::now(),
-                        agent_id: AgentId::CpuAgent(*agent_id),
-                        violation_type: ViolationType::CpuUsingGpu,
-                        severity: ViolationSeverity::Major,
-                        description: format!("CPU agent {} using {:.1}% GPU compute", 
-                                           agent_id, metrics.gpu_compute_used * 100.0),
-                        value: metrics.gpu_compute_used as f64,
-                    });
-                }
+            if metrics.gpu_memory_used > 0 {
+                new_violations.push(ViolationRecord {
+                    timestamp: Instant::now(),
+                    agent_id: AgentId::CpuAgent(agent_id),
+                    violation_type: ViolationType::CpuUsingGpu,
+                    severity: ViolationSeverity::Critical,
+                    description: format!("CPU agent {} using {} bytes of GPU memory",
+                                       agent_id, metrics.gpu_memory_used),
+                    value: metrics.gpu_memory_used as f64,
+                });
+            }
+
+            if metrics.gpu_compute_used > config.max_cpu_gpu_usage {
+                new_violations.push(ViolationRecord {
+                    timestamp: Instant::now(),
+                    agent_id: AgentId::CpuAgent(agent_id),
+                    violation_type: ViolationType::CpuUsingGpu,
+                    severity: ViolationSeverity::Major,
+                    description: format!("CPU agent {} using {:.1}% GPU compute",
+                                       agent_id, metrics.gpu_compute_used * 100.0),
+                    value: metrics.gpu_compute_used as f64,
+                });
             }
         }
 
         // Check GPU agents for excessive I/O
-        {
-            let gpu_metrics = gpu_metrics.read().await;
-            for (agent_id, metrics) in gpu_metrics.iter() {
-                if metrics.io_operations > config.max_gpu_io_ops {
-                    new_violations.push(ViolationRecord {
-                        timestamp: Instant::now(),
-                        agent_id: AgentId::GpuAgent(*agent_id),
-                        violation_type: ViolationType::GpuDoingIo,
-                        severity: ViolationSeverity::Minor,
-                        description: format!("GPU agent {} performed {} I/O operations", 
-                                           agent_id, metrics.io_operations),
-                        value: metrics.io_operations as f64,
-                    });
-                }
+        for entry in gpu_metrics.iter() {
+            let agent_id = *entry.key();
+            let metrics = entry.value();
+
+            if metrics.io_operations > config.max_gpu_io_ops {
+                new_violations.push(ViolationRecord {
+                    timestamp: Instant::now(),
+                    agent_id: AgentId::GpuAgent(agent_id),
+                    violation_type: ViolationType::GpuDoingIo,
+                    severity: ViolationSeverity::Minor,
+                    description: format!("GPU agent {} performed {} I/O operations",
+                                       agent_id, metrics.io_operations),
+                    value: metrics.io_operations as f64,
+                });
             }
         }
 
@@ -355,7 +338,7 @@ impl ResourceIsolationVerifier {
         if !new_violations.is_empty() {
             let mut violations_list = violations.write().await;
             stats.total_violations.fetch_add(new_violations.len() as u64, Ordering::Relaxed);
-            
+
             for violation in &new_violations {
                 match violation.violation_type {
                     ViolationType::CpuUsingGpu => {
@@ -369,9 +352,9 @@ impl ResourceIsolationVerifier {
                     }
                 }
             }
-            
+
             violations_list.extend(new_violations);
-            
+
             // Keep only recent violations (last 1000)
             if violations_list.len() > 1000 {
                 violations_list.drain(..violations_list.len() - 1000);

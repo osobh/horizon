@@ -1,6 +1,6 @@
-//! ExoRust GPU Memory Management
+//! Stratoswarm GPU Memory Management
 //!
-//! This crate provides GPU memory allocation and management for the ExoRust
+//! This crate provides GPU memory allocation and management for the Stratoswarm
 //! agent-first operating system.
 
 use anyhow::Result;

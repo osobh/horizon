@@ -9,6 +9,7 @@
 use super::{KnowledgeEdge, KnowledgeNode};
 use anyhow::{anyhow, Result};
 use cudarc::driver::{CudaDevice, CudaSlice, DeviceSlice};
+use dashmap::DashMap;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
@@ -127,7 +128,7 @@ pub struct TemporalKnowledgeGraph {
     device: Arc<CudaDevice>,
     nodes: Arc<Mutex<BTreeMap<i64, Vec<TemporalNode>>>>, // Indexed by timestamp
     edges: Arc<Mutex<Vec<TemporalEdge>>>,
-    node_versions: Arc<Mutex<HashMap<u32, Vec<TemporalNode>>>>, // Track node evolution
+    node_versions: Arc<DashMap<u32, Vec<TemporalNode>>>, // Track node evolution
     gpu_data: Option<GpuTemporalData>,
     max_nodes: usize,
 }
@@ -139,7 +140,7 @@ impl TemporalKnowledgeGraph {
             device,
             nodes: Arc::new(Mutex::new(BTreeMap::new())),
             edges: Arc::new(Mutex::new(Vec::new())),
-            node_versions: Arc::new(Mutex::new(HashMap::new())),
+            node_versions: Arc::new(DashMap::new()),
             gpu_data: None,
             max_nodes,
         })
@@ -154,8 +155,7 @@ impl TemporalKnowledgeGraph {
             .push(node.clone());
 
         // Track node evolution
-        let mut versions = self.node_versions.lock()?;
-        versions
+        self.node_versions
             .entry(node.base_node.id)
             .or_insert_with(Vec::new)
             .push(node);
@@ -355,10 +355,10 @@ impl TemporalKnowledgeGraph {
 
     /// Get evolution of a specific node
     pub fn get_node_evolution(&self, node_id: u32) -> Result<NodeEvolution> {
-        let versions = self.node_versions.lock()?;
-        let node_versions = versions
+        let node_versions = self.node_versions
             .get(&node_id)
             .ok_or_else(|| anyhow!("Node {} not found", node_id))?
+            .value()
             .clone();
 
         Ok(NodeEvolution {
@@ -369,9 +369,8 @@ impl TemporalKnowledgeGraph {
 
     /// Check if node is valid at specific time
     pub fn is_node_valid_at(&self, node_id: u32, timestamp: i64) -> Result<bool> {
-        let versions = self.node_versions.lock()?;
-        if let Some(node_versions) = versions.get(&node_id) {
-            for version in node_versions {
+        if let Some(node_versions) = self.node_versions.get(&node_id) {
+            for version in node_versions.value() {
                 if timestamp >= version.valid_from {
                     if let Some(valid_to) = version.valid_to {
                         if timestamp <= valid_to {
@@ -391,9 +390,8 @@ impl TemporalKnowledgeGraph {
         let snapshot = TemporalKnowledgeGraph::new(self.device.clone(), self.max_nodes)?;
 
         // Copy nodes valid at timestamp
-        let versions = self.node_versions.lock()?;
-        for (node_id, node_versions) in versions.iter() {
-            for version in node_versions {
+        for entry in self.node_versions.iter() {
+            for version in entry.value() {
                 if timestamp >= version.valid_from {
                     if let Some(valid_to) = version.valid_to {
                         if timestamp <= valid_to {

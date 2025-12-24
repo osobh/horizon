@@ -110,12 +110,12 @@ pub struct GpuPerformanceProfiler {
     #[cfg(not(feature = "cuda"))]
     _mock_context: Arc<()>,
     metrics_buffer: Arc<RwLock<VecDeque<GpuPerformanceMetrics>>>,
-    active_kernels: Arc<RwLock<HashMap<String, String>>>,
-    performance_trends: Arc<RwLock<HashMap<String, PerformanceTrend>>>,
+    active_kernels: Arc<DashMap<String, String>>,
+    performance_trends: Arc<DashMap<String, PerformanceTrend>>,
     optimization_sender: mpsc::UnboundedSender<OptimizationCommand>,
     profiling_active: Arc<Mutex<bool>>,
-    gpu_events: Arc<RwLock<HashMap<String, (Event, Event)>>>, // start, stop events per kernel
-    performance_baselines: Arc<RwLock<HashMap<String, f64>>>,
+    gpu_events: Arc<DashMap<String, (Event, Event)>>, // start, stop events per kernel
+    performance_baselines: Arc<DashMap<String, f64>>,
     profiler_overhead_ns: Arc<Mutex<u64>>,
 }
 
@@ -141,12 +141,12 @@ impl GpuPerformanceProfiler {
             #[cfg(not(feature = "cuda"))]
             _mock_context: Arc::new(()),
             metrics_buffer: Arc::new(RwLock::new(VecDeque::with_capacity(10000))),
-            active_kernels: Arc::new(RwLock::new(HashMap::new())),
-            performance_trends: Arc::new(RwLock::new(HashMap::new())),
+            active_kernels: Arc::new(DashMap::new()),
+            performance_trends: Arc::new(DashMap::new()),
             optimization_sender,
             profiling_active: Arc::new(Mutex::new(false)),
-            gpu_events: Arc::new(RwLock::new(HashMap::new())),
-            performance_baselines: Arc::new(RwLock::new(HashMap::new())),
+            gpu_events: Arc::new(DashMap::new()),
+            performance_baselines: Arc::new(DashMap::new()),
             profiler_overhead_ns: Arc::new(Mutex::new(0)),
         })
     }
@@ -247,12 +247,9 @@ impl GpuPerformanceProfiler {
         }
 
         // Update performance baseline if this is the first measurement
-        {
-            let mut baselines = self.performance_baselines.write().await;
-            if !baselines.contains_key(&kernel_id) {
-                baselines.insert(kernel_id, metrics.throughput_ops_per_sec);
-            }
-        }
+        self.performance_baselines
+            .entry(kernel_id)
+            .or_insert(metrics.throughput_ops_per_sec);
 
         Ok(metrics)
     }
@@ -273,10 +270,7 @@ impl GpuPerformanceProfiler {
         let trend = self.compute_performance_trend_ml(&recent_metrics).await?;
 
         // Store trend for future reference
-        {
-            let mut trends = self.performance_trends.write().await;
-            trends.insert(kernel_id.to_string(), trend.clone());
-        }
+        self.performance_trends.insert(kernel_id.to_string(), trend.clone());
 
         // Trigger optimization if needed
         if self.config.enable_real_time_optimization {
@@ -374,25 +368,23 @@ impl GpuPerformanceProfiler {
     /// Initialize GPU profiler with NVML and CUDA events
     async fn initialize_gpu_profiler(&self) -> Result<()> {
         // CudaDevice automatically manages the context in cudarc
-        
+
         // Initialize CUDA profiler if available
         // Note: In production, this would initialize NVML for system-level metrics
-        
+
         // Pre-create CUDA events for low-latency profiling
-        let mut events = self.gpu_events.write().await;
         for i in 0..16 { // Pre-allocate 16 event pairs
             let start_event = Event::new(EventFlags::DEFAULT)?;
             let stop_event = Event::new(EventFlags::DEFAULT)?;
-            events.insert(format!("pool_{}", i), (start_event, stop_event));
+            self.gpu_events.insert(format!("pool_{}", i), (start_event, stop_event));
         }
-        
+
         Ok(())
     }
 
     /// Cleanup GPU profiler resources
     async fn cleanup_gpu_profiler(&self) -> Result<()> {
-        let mut events = self.gpu_events.write().await;
-        events.clear();
+        self.gpu_events.clear();
         Ok(())
     }
 
@@ -561,19 +553,19 @@ impl GpuPerformanceProfiler {
     /// Background trend analysis loop
     async fn trend_analysis_loop(&self) {
         let mut interval = interval(Duration::from_secs(5));
-        
+
         while {
             let active = self.profiling_active.lock()?;
             *active
         } {
             interval.tick().await;
-            
+
             // Analyze trends for all active kernels
-            let kernel_ids: Vec<String> = {
-                let kernels = self.active_kernels.read().await;
-                kernels.keys().cloned().collect()
-            };
-            
+            let kernel_ids: Vec<String> = self.active_kernels
+                .iter()
+                .map(|entry| entry.key().clone())
+                .collect();
+
             for kernel_id in kernel_ids {
                 if let Err(e) = self.analyze_performance_trends(&kernel_id).await {
                     tracing::debug!("Trend analysis failed for {}: {}", kernel_id, e);
@@ -744,20 +736,19 @@ impl GpuPerformanceProfiler {
     
     async fn perform_predictive_scaling(&self) -> Result<()> {
         // Perform predictive scaling analysis and decisions
-        let trends = self.performance_trends.read().await;
-        
-        for trend in trends.values() {
-            if trend.confidence > 0.8 && 
+        for entry in self.performance_trends.iter() {
+            let trend = entry.value();
+            if trend.confidence > 0.8 &&
                matches!(trend.trend_direction, TrendDirection::Improving) &&
                trend.predicted_performance_in_5min > trend.predicted_performance_in_5min * 1.2 {
-                
+
                 self.optimization_sender.send(OptimizationCommand::PredictiveScale {
                     kernel_id: trend.kernel_id.clone(),
                     predicted_load: trend.predicted_performance_in_5min,
                 })?;
             }
         }
-        
+
         Ok(())
     }
 }
@@ -821,7 +812,7 @@ pub struct PerformanceStats {
 /// Autonomous optimization engine with learning capabilities
 pub struct AutonomousOptimizer {
     profiler: Arc<GpuPerformanceProfiler>,
-    optimization_history: Arc<RwLock<HashMap<String, Vec<OptimizationAttempt>>>>,
+    optimization_history: Arc<DashMap<String, Vec<OptimizationAttempt>>>,
     learning_enabled: bool,
     success_rate_threshold: f64,
 }
@@ -841,7 +832,7 @@ impl AutonomousOptimizer {
     pub fn new(profiler: Arc<GpuPerformanceProfiler>) -> Self {
         Self {
             profiler,
-            optimization_history: Arc::new(RwLock::new(HashMap::new())),
+            optimization_history: Arc::new(DashMap::new()),
             learning_enabled: true,
             success_rate_threshold: 0.7,
         }
@@ -881,27 +872,29 @@ impl AutonomousOptimizer {
             success: optimization_success,
             improvement_ratio,
         };
-        
-        {
-            let mut history = self.optimization_history.write().await;
-            history.entry(kernel_id.to_string()).or_insert_with(Vec::new).push(attempt);
-        }
-        
+
+        self.optimization_history
+            .entry(kernel_id.to_string())
+            .or_insert_with(Vec::new)
+            .push(attempt);
+
         Ok(optimization_success)
     }
 
     /// Learn from optimization history using success patterns
     pub async fn learn_from_history(&self, kernel_id: &str) -> Result<Vec<OptimizationAction>> {
-        let history = self.optimization_history.read().await;
-        let attempts = history.get(kernel_id).cloned().unwrap_or_default();
-        
+        let attempts = self.optimization_history
+            .get(kernel_id)
+            .map(|r| r.clone())
+            .unwrap_or_default();
+
         if attempts.len() < 5 {
             return Err(anyhow!("Insufficient optimization history for learning"));
         }
-        
+
         // Analyze which optimization actions have been most successful
         let recommended_actions = self.analyze_optimization_success_patterns(&attempts).await?;
-        
+
         Ok(recommended_actions)
     }
 
@@ -1022,19 +1015,19 @@ impl PerformanceFeedbackLoop {
     /// Run the main feedback loop
     async fn run_feedback_loop(&self) {
         let mut interval = interval(self.optimization_interval);
-        
+
         while {
             let active = self.feedback_active.lock()?;
             *active
         } {
             interval.tick().await;
-            
+
             // Get all active kernels
-            let kernel_ids: Vec<String> = {
-                let kernels = self.profiler.active_kernels.read().await;
-                kernels.keys().cloned().collect()
-            };
-            
+            let kernel_ids: Vec<String> = self.profiler.active_kernels
+                .iter()
+                .map(|entry| entry.key().clone())
+                .collect();
+
             // Analyze and optimize each kernel
             for kernel_id in kernel_ids {
                 if let Err(e) = self.analyze_and_optimize_kernel(&kernel_id).await {

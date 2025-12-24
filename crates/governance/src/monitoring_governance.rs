@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::governance_engine::{AgentGovernanceState, AuditEntry, ViolationSeverity};
 use crate::{GovernanceError, Result};
-use exorust_agent_core::agent::AgentId;
+use stratoswarm_agent_core::agent::AgentId;
 
 /// Governance monitor for system health and metrics
 pub struct GovernanceMonitor {

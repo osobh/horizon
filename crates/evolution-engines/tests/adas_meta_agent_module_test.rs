@@ -1,6 +1,6 @@
 //! Integration test to verify ADAS meta agent module structure works correctly
 
-use exorust_evolution_engines::adas_meta_agent::{
+use stratoswarm_evolution_engines::adas_meta_agent::{
     AgentRole, ArchiveEntry, ComparisonOperator, CoordinationStrategy, CoordinationStructure,
     DiscoveredWorkflow, InformationFlow, MetaAgent, MutationType, PerformanceMetrics,
     RewriteCondition, RewriteStrategy, RewriteTarget, RewritingPolicy, SeedAgentTemplate,

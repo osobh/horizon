@@ -5,7 +5,7 @@ use crate::traits::{
     AgentGenome, ArchitectureGenes, BehaviorGenes, EngineConfig, EvolutionEngine, Evolvable,
     EvolvableAgent,
 };
-use exorust_agent_core::GoalPriority;
+use stratoswarm_agent_core::GoalPriority;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
@@ -78,7 +78,7 @@ async fn test_evolvable_trait() {
 #[test]
 fn test_agent_genome_serialization() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Test goal".to_string(), GoalPriority::High),
+        goal: stratoswarm_agent_core::Goal::new("Test goal".to_string(), GoalPriority::High),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,
@@ -101,7 +101,7 @@ fn test_agent_genome_serialization() {
 #[tokio::test]
 async fn test_evolving_agent_fitness() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Optimization goal".to_string(), GoalPriority::High),
+        goal: stratoswarm_agent_core::Goal::new("Optimization goal".to_string(), GoalPriority::High),
         architecture: ArchitectureGenes {
             memory_capacity: 2048,
             processing_units: 8,
@@ -125,7 +125,7 @@ async fn test_evolving_agent_fitness() {
 #[tokio::test]
 async fn test_evolving_agent_mutation() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Mutation test".to_string(), GoalPriority::Normal),
+        goal: stratoswarm_agent_core::Goal::new("Mutation test".to_string(), GoalPriority::Normal),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,
@@ -161,7 +161,7 @@ async fn test_evolving_agent_mutation() {
 #[tokio::test]
 async fn test_evolving_agent_mutation_low_rate() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Low mutation test".to_string(), GoalPriority::Low),
+        goal: stratoswarm_agent_core::Goal::new("Low mutation test".to_string(), GoalPriority::Low),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,
@@ -188,7 +188,7 @@ async fn test_evolving_agent_mutation_low_rate() {
 #[tokio::test]
 async fn test_evolving_agent_crossover() {
     let genome1 = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Parent 1".to_string(), GoalPriority::High),
+        goal: stratoswarm_agent_core::Goal::new("Parent 1".to_string(), GoalPriority::High),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,
@@ -202,7 +202,7 @@ async fn test_evolving_agent_crossover() {
     };
 
     let genome2 = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Parent 2".to_string(), GoalPriority::High),
+        goal: stratoswarm_agent_core::Goal::new("Parent 2".to_string(), GoalPriority::High),
         architecture: ArchitectureGenes {
             memory_capacity: 2048,
             processing_units: 8,
@@ -285,7 +285,7 @@ fn test_behavior_genes_validation() {
 #[test]
 fn test_agent_genome_clone() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Clone test".to_string(), GoalPriority::Normal),
+        goal: stratoswarm_agent_core::Goal::new("Clone test".to_string(), GoalPriority::Normal),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,
@@ -313,7 +313,7 @@ fn test_agent_genome_clone() {
 async fn test_agent_genome_consistency() {
     // Create agent from genome and verify consistency
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Consistency test".to_string(), GoalPriority::High),
+        goal: stratoswarm_agent_core::Goal::new("Consistency test".to_string(), GoalPriority::High),
         architecture: ArchitectureGenes {
             memory_capacity: 2048,
             processing_units: 8,
@@ -370,7 +370,7 @@ fn test_network_topology_variations() {
 #[tokio::test]
 async fn test_multiple_mutations() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "Multi-mutation test".to_string(),
             GoalPriority::Normal,
         ),
@@ -410,7 +410,7 @@ async fn test_multiple_mutations() {
 #[tokio::test]
 async fn test_crossover_multiple_times() {
     let genome1 = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "Multi-crossover parent 1".to_string(),
             GoalPriority::High,
         ),
@@ -427,7 +427,7 @@ async fn test_crossover_multiple_times() {
     };
 
     let genome2 = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "Multi-crossover parent 2".to_string(),
             GoalPriority::High,
         ),
@@ -465,7 +465,7 @@ async fn test_crossover_multiple_times() {
 #[test]
 fn test_genome_equality_and_differences() {
     let genome1 = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Equality test".to_string(), GoalPriority::Normal),
+        goal: stratoswarm_agent_core::Goal::new("Equality test".to_string(), GoalPriority::Normal),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,
@@ -479,7 +479,7 @@ fn test_genome_equality_and_differences() {
     };
 
     let genome2 = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Equality test".to_string(), GoalPriority::Normal),
+        goal: stratoswarm_agent_core::Goal::new("Equality test".to_string(), GoalPriority::Normal),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,
@@ -493,7 +493,7 @@ fn test_genome_equality_and_differences() {
     };
 
     let genome3 = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Different test".to_string(), GoalPriority::High),
+        goal: stratoswarm_agent_core::Goal::new("Different test".to_string(), GoalPriority::High),
         architecture: ArchitectureGenes {
             memory_capacity: 2048,
             processing_units: 8,
@@ -530,7 +530,7 @@ fn test_genome_equality_and_differences() {
 #[tokio::test]
 async fn test_fitness_calculation_consistency() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "Fitness consistency test".to_string(),
             GoalPriority::High,
         ),
@@ -562,7 +562,7 @@ async fn test_agent_creation_from_diverse_genomes() {
     let genomes = vec![
         // Minimal genome
         AgentGenome {
-            goal: exorust_agent_core::Goal::new("Minimal".to_string(), GoalPriority::Low),
+            goal: stratoswarm_agent_core::Goal::new("Minimal".to_string(), GoalPriority::Low),
             architecture: ArchitectureGenes {
                 memory_capacity: 128,
                 processing_units: 1,
@@ -576,7 +576,7 @@ async fn test_agent_creation_from_diverse_genomes() {
         },
         // Maximal genome
         AgentGenome {
-            goal: exorust_agent_core::Goal::new("Maximal".to_string(), GoalPriority::Critical),
+            goal: stratoswarm_agent_core::Goal::new("Maximal".to_string(), GoalPriority::Critical),
             architecture: ArchitectureGenes {
                 memory_capacity: 65536,
                 processing_units: 32,
@@ -590,7 +590,7 @@ async fn test_agent_creation_from_diverse_genomes() {
         },
         // Balanced genome
         AgentGenome {
-            goal: exorust_agent_core::Goal::new("Balanced".to_string(), GoalPriority::Normal),
+            goal: stratoswarm_agent_core::Goal::new("Balanced".to_string(), GoalPriority::Normal),
             architecture: ArchitectureGenes {
                 memory_capacity: 2048,
                 processing_units: 8,
@@ -617,7 +617,7 @@ async fn test_agent_creation_from_diverse_genomes() {
 #[test]
 fn test_debug_trait_implementations() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Debug test".to_string(), GoalPriority::Normal),
+        goal: stratoswarm_agent_core::Goal::new("Debug test".to_string(), GoalPriority::Normal),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,
@@ -647,7 +647,7 @@ fn test_debug_trait_implementations() {
 async fn test_edge_case_mutations() {
     // Test mutation with edge case values
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Edge case test".to_string(), GoalPriority::Normal),
+        goal: stratoswarm_agent_core::Goal::new("Edge case test".to_string(), GoalPriority::Normal),
         architecture: ArchitectureGenes {
             memory_capacity: 1,
             processing_units: 1,
@@ -677,7 +677,7 @@ async fn test_edge_case_mutations() {
 #[tokio::test]
 async fn test_zero_mutation_rate() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new("Zero mutation test".to_string(), GoalPriority::Normal),
+        goal: stratoswarm_agent_core::Goal::new("Zero mutation test".to_string(), GoalPriority::Normal),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,

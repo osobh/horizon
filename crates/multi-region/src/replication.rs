@@ -9,11 +9,12 @@
 
 use crate::error::{MultiRegionError, MultiRegionResult};
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
 /// Replication configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,7 +202,7 @@ pub struct ReplicationStatus {
 pub struct ReplicationManager {
     config: ReplicationConfig,
     replication_log: Arc<Mutex<VecDeque<ReplicationLogEntry>>>,
-    region_status: Arc<RwLock<HashMap<String, ReplicationStatus>>>,
+    region_status: Arc<DashMap<String, ReplicationStatus>>,
     conflict_resolver: Arc<ConflictResolver>,
     vector_clock_manager: Arc<VectorClockManager>,
     sequence_counter: AtomicU64,
@@ -218,7 +219,7 @@ pub struct ConflictResolver {
 /// Vector clock management
 pub struct VectorClockManager {
     config: VectorClockConfig,
-    region_clocks: Arc<RwLock<HashMap<String, VectorClock>>>,
+    region_clocks: Arc<DashMap<String, VectorClock>>,
 }
 
 impl ReplicationManager {
@@ -231,7 +232,7 @@ impl ReplicationManager {
                 reason: format!("Failed to create HTTP client: {}", e),
             })?;
 
-        let mut region_status = HashMap::new();
+        let region_status = DashMap::new();
         for region in regions {
             region_status.insert(
                 region.clone(),
@@ -254,7 +255,7 @@ impl ReplicationManager {
             )),
             config,
             replication_log: Arc::new(Mutex::new(VecDeque::new())),
-            region_status: Arc::new(RwLock::new(region_status)),
+            region_status: Arc::new(region_status),
             sequence_counter: AtomicU64::new(0),
             client,
         })
@@ -681,9 +682,7 @@ impl ReplicationManager {
     /// Perform anti-entropy to repair inconsistencies
     pub async fn perform_anti_entropy(&self) -> MultiRegionResult<u64> {
         let mut repairs_made = 0;
-        let status_map = self.region_status.read().await;
-        let regions: Vec<_> = status_map.keys().cloned().collect();
-        drop(status_map);
+        let regions: Vec<_> = self.region_status.iter().map(|e| e.key().clone()).collect();
 
         // Compare data between regions and identify inconsistencies
         for region_a in &regions {
@@ -722,14 +721,12 @@ impl ReplicationManager {
 
     /// Get replication status for all regions
     pub async fn get_replication_status(&self) -> Vec<ReplicationStatus> {
-        let status_map = self.region_status.read().await;
-        status_map.values().cloned().collect()
+        self.region_status.iter().map(|e| e.value().clone()).collect()
     }
 
     /// Update replication status for a region
     pub async fn update_region_status(&self, region_id: &str, lag_ms: u64, success: bool) {
-        let mut status_map = self.region_status.write().await;
-        if let Some(status) = status_map.get_mut(region_id) {
+        if let Some(mut status) = self.region_status.get_mut(region_id) {
             status.last_replication = Utc::now();
             status.replication_lag_ms = lag_ms;
 
@@ -744,7 +741,8 @@ impl ReplicationManager {
 
     /// Generate unique entry ID
     fn generate_entry_id(&self) -> String {
-        let sequence = self.sequence_counter.fetch_add(1, Ordering::SeqCst);
+        // Relaxed: independent ID counter, uniqueness guaranteed by fetch_add
+        let sequence = self.sequence_counter.fetch_add(1, Ordering::Relaxed);
         format!("repl_{}", sequence)
     }
 
@@ -831,14 +829,13 @@ impl VectorClockManager {
     pub fn new(config: VectorClockConfig) -> Self {
         Self {
             config,
-            region_clocks: Arc::new(RwLock::new(HashMap::new())),
+            region_clocks: Arc::new(DashMap::new()),
         }
     }
 
     /// Increment clock for a region
     pub async fn increment_clock(&self, region: &str) -> VectorClock {
-        let mut clocks = self.region_clocks.write().await;
-        let clock = clocks
+        let mut clock = self.region_clocks
             .entry(region.to_string())
             .or_insert_with(VectorClock::new);
         clock.increment(region);
@@ -847,8 +844,7 @@ impl VectorClockManager {
 
     /// Get current clock for a region
     pub async fn get_clock(&self, region: &str) -> VectorClock {
-        let clocks = self.region_clocks.read().await;
-        clocks.get(region).cloned().unwrap_or_else(VectorClock::new)
+        self.region_clocks.get(region).map(|r| r.clone()).unwrap_or_else(VectorClock::new)
     }
 }
 

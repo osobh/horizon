@@ -13,9 +13,9 @@ use ndarray::{Array2, Array1, Array3};
 use serde::{Deserialize, Serialize};
 use regex::Regex;
 
-use exorust_synthesis::{Synthesizer, Pipeline, Executor};
-use exorust_agent_core::{Agent, AgentId};
-use exorust_memory::pool::MemoryPool;
+use stratoswarm_synthesis::{Synthesizer, Pipeline, Executor};
+use stratoswarm_agent_core::{Agent, AgentId};
+use stratoswarm_memory::pool::MemoryPool;
 
 #[derive(Clone)]
 pub struct IntentOrchestrator {

@@ -63,8 +63,8 @@ The crate is organized into several key modules:
 
 ### Internal Dependencies
 - `exorust-cuda`: GPU acceleration support
-- `exorust-runtime`: Container runtime integration
-- `exorust-memory`: Memory management
+- `stratoswarm-runtime`: Container runtime integration
+- `stratoswarm-memory`: Memory management
 - `exorust-storage`: Persistent storage
 - `exorust-net`: Network communication
 - `exorust-evolution`: Agent evolution capabilities

@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::traits::{AgentGenome, ArchitectureGenes, BehaviorGenes, EvolvableAgent};
-use exorust_agent_core::{Agent, AgentConfig, Goal};
+use stratoswarm_agent_core::{Agent, AgentConfig, Goal};
 use std::time::Duration;
 
 // Helper function to create test agents
@@ -21,7 +21,7 @@ fn create_test_agents(count: usize) -> Vec<EvolvableAgent> {
             let genome = AgentGenome {
                 goal: Goal::new(
                     format!("goal_{}", i),
-                    exorust_agent_core::GoalPriority::Normal,
+                    stratoswarm_agent_core::GoalPriority::Normal,
                 ),
                 architecture: ArchitectureGenes {
                     memory_capacity: 1024,
@@ -210,7 +210,7 @@ fn test_diversity_calculation() {
             let genome = AgentGenome {
                 goal: Goal::new(
                     "identical_goal".to_string(),
-                    exorust_agent_core::GoalPriority::Normal,
+                    stratoswarm_agent_core::GoalPriority::Normal,
                 ),
                 architecture: ArchitectureGenes {
                     memory_capacity: 1024,

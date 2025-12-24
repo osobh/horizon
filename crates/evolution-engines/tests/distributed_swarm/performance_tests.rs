@@ -1,7 +1,7 @@
 //! Performance and load testing for distributed swarm systems
 
 use super::{create_distributed_config, create_mock_agent};
-use exorust_evolution_engines::{
+use stratoswarm_evolution_engines::{
     error::EvolutionEngineResult,
     swarm_distributed::DistributedSwarmEngine,
 };

@@ -9,6 +9,7 @@
 use super::{KnowledgeEdge, KnowledgeNode};
 use anyhow::{anyhow, Result};
 use cudarc::driver::{CudaDevice, CudaSlice, DeviceSlice};
+use dashmap::DashMap;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
@@ -136,7 +137,7 @@ pub struct ReasoningEngine {
     device: Arc<CudaDevice>,
     facts: Arc<Mutex<Vec<LogicalFact>>>,
     rules: Arc<Mutex<Vec<InferenceRule>>>,
-    fact_index: Arc<Mutex<HashMap<u32, Vec<usize>>>>, // Subject -> fact indices
+    fact_index: Arc<DashMap<u32, Vec<usize>>>, // Subject -> fact indices
     gpu_data: Option<GpuReasoningData>,
     max_facts: usize,
 }
@@ -148,7 +149,7 @@ impl ReasoningEngine {
             device,
             facts: Arc::new(Mutex::new(Vec::new())),
             rules: Arc::new(Mutex::new(Vec::new())),
-            fact_index: Arc::new(Mutex::new(HashMap::new())),
+            fact_index: Arc::new(DashMap::new()),
             gpu_data: None,
             max_facts,
         })
@@ -167,8 +168,7 @@ impl ReasoningEngine {
         let mut facts = self.facts.lock()?;
         let fact_idx = facts.len();
 
-        let mut index = self.fact_index.lock()?;
-        index
+        self.fact_index
             .entry(fact.subject)
             .or_insert_with(Vec::new)
             .push(fact_idx);
@@ -226,15 +226,13 @@ impl ReasoningEngine {
         include_inferred: bool,
     ) -> Result<ReasoningResult> {
         let mut conclusions = Vec::new();
-        let mut explanation_chains = Vec::new();
-        let mut visited: HashSet<u32> = HashSet::new();
+        let explanation_chains = Vec::new();
 
         // Get direct facts
         let facts = self.facts.lock()?;
-        let index = self.fact_index.lock()?;
 
-        if let Some(indices) = index.get(&entity_id) {
-            for &idx in indices {
+        if let Some(indices) = self.fact_index.get(&entity_id) {
+            for &idx in indices.value() {
                 let fact = &facts[idx];
                 if fact.predicate == "has_property" && fact.confidence >= min_confidence {
                     conclusions.push(fact.clone());
@@ -247,19 +245,19 @@ impl ReasoningEngine {
             let rules = self.rules.lock()?;
 
             // Find parent classes
-            let mut parent_chain = self.find_parent_chain(entity_id, max_hops)?;
+            let parent_chain = self.find_parent_chain(entity_id, max_hops)?;
 
             for rule in rules.iter() {
                 match &rule.pattern {
                     RulePattern::PropertyInheritance {
-                        relation_type,
+                        relation_type: _,
                         property_type,
                     } => {
                         if property_type == "has_property" {
                             // Check each parent
                             for (parent_id, path_confidence) in &parent_chain {
-                                if let Some(parent_indices) = index.get(parent_id) {
-                                    for &idx in parent_indices {
+                                if let Some(parent_indices) = self.fact_index.get(parent_id) {
+                                    for &idx in parent_indices.value() {
                                         let parent_fact = &facts[idx];
                                         if parent_fact.predicate == *property_type {
                                             let inferred_confidence = parent_fact.confidence
@@ -298,16 +296,15 @@ impl ReasoningEngine {
     fn reason_capabilities(
         &self,
         entity_id: u32,
-        max_hops: u32,
+        _max_hops: u32,
         min_confidence: f32,
         include_inferred: bool,
     ) -> Result<ReasoningResult> {
         let mut conclusions = Vec::new();
         let facts = self.facts.lock()?;
-        let index = self.fact_index.lock()?;
 
-        if let Some(indices) = index.get(&entity_id) {
-            for &idx in indices {
+        if let Some(indices) = self.fact_index.get(&entity_id) {
+            for &idx in indices.value() {
                 let fact = &facts[idx];
                 if fact.predicate == "can_do" && fact.confidence >= min_confidence {
                     conclusions.push(fact.clone());
@@ -320,19 +317,23 @@ impl ReasoningEngine {
             let rules = self.rules.lock()?;
             for rule in rules.iter() {
                 if let RulePattern::Analogy {
-                    source_domain,
+                    source_domain: _,
                     target_domain,
                     relation_mapping,
                 } = &rule.pattern
                 {
                     // Check if entity is in target domain
-                    for &idx in index.get(&entity_id).unwrap_or(&vec![]) {
+                    let empty_vec = vec![];
+                    let indices = self.fact_index.get(&entity_id)
+                        .map(|r| r.value().clone())
+                        .unwrap_or(empty_vec);
+                    for idx in indices {
                         let fact = &facts[idx];
                         if fact.predicate == "lives_in" {
                             if let FactObject::Value(domain) = &fact.object {
                                 if domain == target_domain {
                                     // Find analogous capabilities
-                                    for (source_action, target_action) in relation_mapping {
+                                    for (_source_action, target_action) in relation_mapping {
                                         let inferred = LogicalFact {
                                             subject: entity_id,
                                             predicate: "can_do".to_string(),
@@ -371,11 +372,10 @@ impl ReasoningEngine {
     ) -> Result<ReasoningResult> {
         let mut conclusions = Vec::new();
         let facts = self.facts.lock()?;
-        let index = self.fact_index.lock()?;
 
         // Check direct relation
-        if let Some(indices) = index.get(&subject_id) {
-            for &idx in indices {
+        if let Some(indices) = self.fact_index.get(&subject_id) {
+            for &idx in indices.value() {
                 let fact = &facts[idx];
                 if fact.predicate == predicate && fact.object == FactObject::Node(object_id) {
                     conclusions.push(fact.clone());
@@ -447,15 +447,14 @@ impl ReasoningEngine {
         visited.insert(entity_id);
 
         let facts = self.facts.lock()?;
-        let index = self.fact_index.lock()?;
 
         while let Some((current, confidence, depth)) = queue.pop_front() {
             if depth >= max_hops {
                 continue;
             }
 
-            if let Some(indices) = index.get(&current) {
-                for &idx in indices {
+            if let Some(indices) = self.fact_index.get(&current) {
+                for &idx in indices.value() {
                     let fact = &facts[idx];
                     if fact.predicate == "is_a" {
                         if let FactObject::Node(parent_id) = fact.object {
@@ -489,7 +488,6 @@ impl ReasoningEngine {
         visited.insert(start);
 
         let facts = self.facts.lock()?;
-        let index = self.fact_index.lock()?;
 
         while let Some((current, path, depth)) = queue.pop_front() {
             if current == end {
@@ -500,8 +498,8 @@ impl ReasoningEngine {
                 continue;
             }
 
-            if let Some(indices) = index.get(&current) {
-                for &idx in indices {
+            if let Some(indices) = self.fact_index.get(&current) {
+                for &idx in indices.value() {
                     let fact = &facts[idx];
                     if fact.predicate == predicate {
                         if let FactObject::Node(next) = fact.object {

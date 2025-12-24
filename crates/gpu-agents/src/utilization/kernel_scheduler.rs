@@ -5,6 +5,7 @@
 use crate::utilization::kernel_optimizer::KernelConfig;
 use anyhow::{Context, Result};
 use cudarc::driver::{CudaDevice, LaunchAsync, LaunchConfig};
+use dashmap::DashMap;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::sync::Arc;
@@ -19,7 +20,7 @@ pub struct AdvancedKernelScheduler {
     /// Kernel queue organized by priority
     kernel_queue: Arc<Mutex<BinaryHeap<ScheduledKernel>>>,
     /// Active kernels per stream
-    active_kernels: Arc<RwLock<HashMap<usize, ActiveKernel>>>,
+    active_kernels: Arc<DashMap<usize, ActiveKernel>>,
     /// Scheduling statistics
     stats: Arc<SchedulingStats>,
     /// Scheduler configuration
@@ -128,7 +129,7 @@ impl AdvancedKernelScheduler {
             device,
             streams,
             kernel_queue: Arc::new(Mutex::new(BinaryHeap::new())),
-            active_kernels: Arc::new(RwLock::new(HashMap::new())),
+            active_kernels: Arc::new(DashMap::new()),
             stats: Arc::new(SchedulingStats::default()),
             config,
         })
@@ -156,12 +157,11 @@ impl AdvancedKernelScheduler {
     /// Schedule kernels from queue to streams
     async fn schedule_kernels(&self) -> Result<()> {
         let mut queue = self.kernel_queue.lock().await;
-        let active_kernels = self.active_kernels.read().await;
 
         // Find available streams
         let mut available_streams = Vec::new();
         for stream_id in 0..self.config.num_streams {
-            if !active_kernels.contains_key(&stream_id) {
+            if !self.active_kernels.contains_key(&stream_id) {
                 available_streams.push(stream_id);
             }
         }
@@ -193,7 +193,7 @@ impl AdvancedKernelScheduler {
     async fn select_optimal_stream(
         &self,
         available_streams: &[usize],
-        kernel: &ScheduledKernel,
+        _kernel: &ScheduledKernel,
     ) -> Result<usize> {
         if !self.config.enable_load_balancing {
             // Simple round-robin
@@ -201,13 +201,12 @@ impl AdvancedKernelScheduler {
         }
 
         // Load balancing based on estimated completion times
-        let active_kernels = self.active_kernels.read().await;
         let mut best_stream = available_streams[0];
         let mut earliest_available = Instant::now() + Duration::from_secs(3600);
 
         for &stream_id in available_streams {
             // Check when this stream will be available
-            let availability = if let Some(active) = active_kernels.get(&stream_id) {
+            let availability = if let Some(active) = self.active_kernels.get(&stream_id) {
                 active.estimated_completion
             } else {
                 Instant::now()
@@ -233,18 +232,15 @@ impl AdvancedKernelScheduler {
         let estimated_completion = start_time + kernel.estimated_time;
 
         // Record active kernel
-        {
-            let mut active = self.active_kernels.write().await;
-            active.insert(
+        self.active_kernels.insert(
+            stream_id,
+            ActiveKernel {
+                kernel: kernel.clone(),
                 stream_id,
-                ActiveKernel {
-                    kernel: kernel.clone(),
-                    stream_id,
-                    start_time,
-                    estimated_completion,
-                },
-            );
-        }
+                start_time,
+                estimated_completion,
+            },
+        );
 
         // Update statistics
         let wait_time = start_time.duration_since(kernel.submitted_at);
@@ -259,15 +255,14 @@ impl AdvancedKernelScheduler {
         // Launch kernel asynchronously
         let active_kernels = self.active_kernels.clone();
         let stats = self.stats.clone();
-        let kernel_id = kernel.id;
+        let _kernel_id = kernel.id;
 
         tokio::spawn(async move {
             // Simulate kernel execution
             tokio::time::sleep(kernel.estimated_time).await;
 
             // Remove from active kernels
-            let mut active = active_kernels.write().await;
-            active.remove(&stream_id);
+            active_kernels.remove(&stream_id);
 
             // Update completion stats
             stats

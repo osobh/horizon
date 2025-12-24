@@ -8,6 +8,7 @@
 
 use crate::error::{MultiRegionError, MultiRegionResult};
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -163,7 +164,7 @@ pub struct LoadBalancer {
     endpoints: Vec<RegionEndpoint>,
     round_robin_index: AtomicUsize,
     client: reqwest::Client,
-    session_affinity: Arc<RwLock<HashMap<String, String>>>,
+    session_affinity: Arc<DashMap<String, String>>,
 }
 
 impl LoadBalancer {
@@ -186,7 +187,7 @@ impl LoadBalancer {
             endpoints,
             round_robin_index: AtomicUsize::new(0),
             client,
-            session_affinity: Arc::new(RwLock::new(HashMap::new())),
+            session_affinity: Arc::new(DashMap::new()),
         })
     }
 
@@ -195,9 +196,8 @@ impl LoadBalancer {
         // Check for sticky session routing
         if self.config.sticky_sessions {
             if let Some(session_id) = &request.session_id {
-                let affinity = self.session_affinity.read().await;
-                if let Some(region_id) = affinity.get(session_id) {
-                    if let Some(endpoint) = self.find_healthy_endpoint(region_id).await {
+                if let Some(region_id) = self.session_affinity.get(session_id).map(|r| r.clone()) {
+                    if let Some(endpoint) = self.find_healthy_endpoint(&region_id).await {
                         return Ok(endpoint);
                     }
                 }
@@ -233,8 +233,7 @@ impl LoadBalancer {
         // Update session affinity if enabled
         if self.config.sticky_sessions {
             if let Some(session_id) = &request.session_id {
-                let mut affinity = self.session_affinity.write().await;
-                affinity.insert(session_id.clone(), selected.region_id.clone());
+                self.session_affinity.insert(session_id.clone(), selected.region_id.clone());
             }
         }
 
@@ -271,7 +270,8 @@ impl LoadBalancer {
         &self,
         endpoints: &[&'a RegionEndpoint],
     ) -> MultiRegionResult<&'a RegionEndpoint> {
-        let index = self.round_robin_index.fetch_add(1, Ordering::SeqCst) % endpoints.len();
+        // Relaxed: approximate round-robin, exact fairness not required
+        let index = self.round_robin_index.fetch_add(1, Ordering::Relaxed) % endpoints.len();
         Ok(endpoints[index])
     }
 
@@ -280,9 +280,10 @@ impl LoadBalancer {
         &self,
         endpoints: &[&'a RegionEndpoint],
     ) -> MultiRegionResult<&'a RegionEndpoint> {
+        // Relaxed: approximate connection counts sufficient for load balancing
         let min_conn_endpoint = endpoints
             .iter()
-            .min_by_key(|e| e.current_connections.load(Ordering::SeqCst))
+            .min_by_key(|e| e.current_connections.load(Ordering::Relaxed))
             .ok_or_else(|| MultiRegionError::LoadBalancerError {
                 reason: "No endpoints available for least connections selection".to_string(),
             })?;
@@ -299,8 +300,9 @@ impl LoadBalancer {
             return self.round_robin_select(endpoints);
         }
 
+        // Relaxed: approximate weight distribution sufficient for load balancing
         let mut weight_index =
-            (self.round_robin_index.load(Ordering::SeqCst) % total_weight as usize) as u32;
+            (self.round_robin_index.load(Ordering::Relaxed) % total_weight as usize) as u32;
 
         for endpoint in endpoints {
             if weight_index < endpoint.weight {
@@ -486,7 +488,8 @@ impl LoadBalancer {
                 response_time_ms: health.response_time_ms,
                 success_count: health.success_count,
                 failure_count: health.failure_count,
-                current_connections: endpoint.current_connections.load(Ordering::SeqCst),
+                // Relaxed: approximate connection count for statistics
+                current_connections: endpoint.current_connections.load(Ordering::Relaxed),
                 circuit_state: health.circuit_state,
                 weight: endpoint.weight,
                 priority: endpoint.priority,
@@ -499,7 +502,8 @@ impl LoadBalancer {
     pub fn increment_connections(&self, region_id: &str) {
         for endpoint in &self.endpoints {
             if endpoint.region_id == region_id {
-                endpoint.current_connections.fetch_add(1, Ordering::SeqCst);
+                // Relaxed: approximate count sufficient for load balancing
+                endpoint.current_connections.fetch_add(1, Ordering::Relaxed);
                 break;
             }
         }
@@ -509,7 +513,8 @@ impl LoadBalancer {
     pub fn decrement_connections(&self, region_id: &str) {
         for endpoint in &self.endpoints {
             if endpoint.region_id == region_id {
-                endpoint.current_connections.fetch_sub(1, Ordering::SeqCst);
+                // Relaxed: approximate count sufficient for load balancing
+                endpoint.current_connections.fetch_sub(1, Ordering::Relaxed);
                 break;
             }
         }
@@ -726,10 +731,10 @@ mod tests {
             health.healthy = true;
         }
 
-        // Set different connection counts
-        endpoints[0].current_connections.store(10, Ordering::SeqCst);
-        endpoints[1].current_connections.store(5, Ordering::SeqCst);
-        endpoints[2].current_connections.store(15, Ordering::SeqCst);
+        // Set different connection counts (Relaxed: test setup)
+        endpoints[0].current_connections.store(10, Ordering::Relaxed);
+        endpoints[1].current_connections.store(5, Ordering::Relaxed);
+        endpoints[2].current_connections.store(15, Ordering::Relaxed);
 
         let lb = LoadBalancer::new(config, endpoints).unwrap();
         let request = RoutingRequest {

@@ -44,6 +44,25 @@ pub struct ClusterNode {
     pub status: NodeStatus,
     pub capabilities: NodeCapabilities,
     pub last_heartbeat: chrono::DateTime<chrono::Utc>,
+    /// WireGuard public key for secure mesh communication
+    pub wg_public_key: Option<String>,
+    /// Subnet assignment info (populated by subnet-manager integration)
+    pub subnet_info: Option<NodeSubnetAssignment>,
+}
+
+/// Subnet assignment information for a node
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeSubnetAssignment {
+    /// The subnet ID this node is assigned to
+    pub subnet_id: Uuid,
+    /// Human-readable subnet name
+    pub subnet_name: String,
+    /// IP address assigned within the subnet
+    pub assigned_ip: std::net::Ipv4Addr,
+    /// WireGuard interface name (e.g., "wg-tenant-acme")
+    pub wg_interface: String,
+    /// When the assignment was made
+    pub assigned_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// Node status in the cluster

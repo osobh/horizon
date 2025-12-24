@@ -1,8 +1,8 @@
 //! Simple integration tests for ExoRust components
 
-use exorust_memory::{GpuMemoryAllocator, MemoryManager, MemoryPool};
-use exorust_net::{MemoryNetwork, Message, MessageType, Network};
-use exorust_storage::{MemoryStorage, Storage};
+use stratoswarm_memory::{GpuMemoryAllocator, MemoryManager, MemoryPool};
+use stratoswarm_net::{MemoryNetwork, Message, MessageType, Network};
+use stratoswarm_storage::{MemoryStorage, Storage};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 

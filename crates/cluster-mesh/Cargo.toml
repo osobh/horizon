@@ -29,7 +29,6 @@ rcgen = "0.11"  # Certificate generation
 
 # Capability detection
 nvml-wrapper = { version = "0.9", optional = true }
-procfs = "0.16"
 libc = "0.2"
 
 # Node coordination
@@ -43,13 +42,16 @@ systemstat = "0.2"
 # UUID generation
 uuid.workspace = true
 
+# Concurrent data structures
+dashmap = "6.1"
+
 # Time handling
 chrono.workspace = true
 
 # Internal dependencies
-# exorust-agent-core = { path = "../agent-core" }
-# exorust-net = { path = "../net" }
-# exorust-monitoring = { path = "../monitoring" }
+# stratoswarm-agent-core = { path = "../agent-core" }
+# stratoswarm-net = { path = "../net" }
+# stratoswarm-monitoring = { path = "../monitoring" }
 
 [dev-dependencies]
 criterion.workspace = true
@@ -62,6 +64,10 @@ mockall = "0.12"
 default = []
 nvidia-gpu = ["nvml-wrapper"]
 distributed-consensus = ["etcd-rs"]
+
+# Linux-only process info (use sysinfo for cross-platform)
+[target.'cfg(target_os = "linux")'.dependencies]
+procfs = "0.16"
 
 # [[bench]]
 # name = "mesh_formation"

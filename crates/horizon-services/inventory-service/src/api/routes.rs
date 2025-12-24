@@ -8,6 +8,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use super::handlers;
+use super::state::AppState;
 use crate::api::models::{
     CreateAssetRequest, DiscoverAssetsRequest, HealthResponse, ListAssetsQuery,
     ListAssetsResponse, ListHistoryResponse, Pagination, UpdateAssetRequest,
@@ -58,6 +59,8 @@ use crate::models::{Asset, AssetHistory, AssetMetrics, AssetStatus, AssetType, P
 struct ApiDoc;
 
 pub fn create_routes(pool: PgPool) -> Router {
+    let state = AppState::new(pool);
+
     let api_routes = Router::new()
         .route("/api/v1/assets", get(handlers::assets::list_assets).post(handlers::assets::create_asset))
         .route(
@@ -76,7 +79,7 @@ pub fn create_routes(pool: PgPool) -> Router {
         .route("/health", get(handlers::health::health_check))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
-        .with_state(pool)
+        .with_state(state)
 }
 
 #[cfg(test)]

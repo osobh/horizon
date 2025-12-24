@@ -3,8 +3,8 @@
 use super::engine::AdasEngine;
 use crate::traits::EvolvableAgent;
 use crate::error::{EvolutionEngineError, EvolutionEngineResult};
-use exorust_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
-use exorust_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
+use stratoswarm_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
+use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use async_trait::async_trait;
@@ -148,7 +148,7 @@ impl AdasXPEngine {
         // Add ADAS-specific reward categories
         reward_calculator.set_reward_category(
             "architecture_evolution".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 200,
                 level_multiplier: 1.3,
                 performance_multiplier: 1.8,
@@ -158,7 +158,7 @@ impl AdasXPEngine {
         
         reward_calculator.set_reward_category(
             "behavior_optimization".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 175,
                 level_multiplier: 1.2,
                 performance_multiplier: 1.6,
@@ -168,7 +168,7 @@ impl AdasXPEngine {
         
         reward_calculator.set_reward_category(
             "meta_learning_improvement".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 250,
                 level_multiplier: 1.4,
                 performance_multiplier: 2.0,
@@ -379,7 +379,7 @@ impl AdasXPStats {
 mod tests {
     use super::*;
     use crate::adas::config::AdasConfig;
-    use exorust_agent_core::agent::AgentConfig;
+    use stratoswarm_agent_core::agent::AgentConfig;
 
     #[tokio::test]
     async fn test_adas_xp_fitness_function() {

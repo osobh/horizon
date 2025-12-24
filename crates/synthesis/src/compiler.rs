@@ -2,7 +2,7 @@
 
 use crate::error::SynthesisResult;
 use std::error::Error;
-// use exorust_cuda::kernel::CompileOptions;
+// use stratoswarm_cuda::kernel::CompileOptions;
 // Mock for testing
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct CompileOptions {

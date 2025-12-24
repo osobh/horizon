@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
+use hpc_channels::CostMessage;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -53,6 +54,11 @@ pub async fn create_attribution(
     State(state): State<AppState>,
     Json(req): Json<CreateAttributionRequest>,
 ) -> Result<(StatusCode, Json<CostAttribution>), (StatusCode, String)> {
+    let user_id = req.user_id.clone();
+    let job_id = req.job_id.map(|j| j.to_string());
+    let team_id = req.team_id.clone();
+    let total_cost: f64 = req.total_cost.try_into().unwrap_or(0.0);
+
     let attribution = CreateCostAttribution {
         job_id: req.job_id,
         user_id: req.user_id,
@@ -72,6 +78,15 @@ pub async fn create_attribution(
         .create_attribution(&attribution)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Publish attribution created event
+    state.publish_attribution_event(CostMessage::AttributionCreated {
+        attribution_id: result.id.to_string(),
+        job_id,
+        user_id,
+        team_id,
+        total_cost,
+    });
 
     Ok((StatusCode::CREATED, Json(result)))
 }
@@ -106,6 +121,9 @@ pub async fn calculate_attribution(
     State(state): State<AppState>,
     Json(req): Json<CalculateAttributionRequest>,
 ) -> Result<(StatusCode, Json<CostAttribution>), (StatusCode, String)> {
+    let job_id_str = req.job_id.to_string();
+    let user_id = req.user_id.clone();
+
     // Get pricing for GPU type
     let pricing = state
         .repository
@@ -167,6 +185,21 @@ pub async fn calculate_attribution(
         .create_attribution(&attribution)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Publish attribution calculated event
+    let gpu_cost: f64 = result.gpu_cost.try_into().unwrap_or(0.0);
+    let network_cost: f64 = result.network_cost.try_into().unwrap_or(0.0);
+    let storage_cost: f64 = result.storage_cost.try_into().unwrap_or(0.0);
+    let total_cost: f64 = result.total_cost.try_into().unwrap_or(0.0);
+
+    state.publish_attribution_event(CostMessage::AttributionCalculated {
+        job_id: job_id_str,
+        user_id,
+        gpu_cost,
+        network_cost,
+        storage_cost,
+        total_cost,
+    });
 
     Ok((StatusCode::CREATED, Json(result)))
 }

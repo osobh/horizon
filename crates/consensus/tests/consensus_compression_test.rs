@@ -8,7 +8,7 @@
 //! ALL TESTS IN THIS FILE ARE DESIGNED TO FAIL INITIALLY (RED PHASE)
 //! They represent compression functionality that needs to be implemented.
 
-use exorust_consensus::*;
+use stratoswarm_consensus::*;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;

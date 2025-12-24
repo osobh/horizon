@@ -51,19 +51,19 @@ pub enum OperationalError {
 
     /// Runtime error
     #[error("Runtime error: {0}")]
-    RuntimeError(#[from] exorust_runtime::RuntimeError),
+    RuntimeError(#[from] stratoswarm_runtime::RuntimeError),
 
     /// Agent core error
     #[error("Agent core error: {0}")]
-    AgentCoreError(#[from] exorust_agent_core::AgentError),
+    AgentCoreError(#[from] stratoswarm_agent_core::AgentError),
 
     /// Monitoring error
     #[error("Monitoring error: {0}")]
-    MonitoringError(#[from] exorust_monitoring::MonitoringError),
+    MonitoringError(#[from] stratoswarm_monitoring::MonitoringError),
 
     /// CUDA error
     #[error("CUDA error: {0}")]
-    CudaError(#[from] exorust_cuda::CudaError),
+    CudaError(#[from] stratoswarm_cuda::CudaError),
 
     /// IO error
     #[error("IO error: {0}")]

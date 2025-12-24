@@ -22,7 +22,7 @@ use crate::{
     GovernanceError, Result,
 };
 
-use exorust_agent_core::agent::AgentId;
+use stratoswarm_agent_core::agent::AgentId;
 
 /// Comprehensive test of agent onboarding and operational workflow
 #[tokio::test]

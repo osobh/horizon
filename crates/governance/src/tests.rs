@@ -24,7 +24,7 @@ use crate::{
     GovernanceError, Result,
 };
 
-use exorust_agent_core::agent::AgentId;
+use stratoswarm_agent_core::agent::AgentId;
 
 /// Test module for governance engine core functionality
 mod governance_engine_tests {

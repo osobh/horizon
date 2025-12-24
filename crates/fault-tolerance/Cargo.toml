@@ -1,5 +1,5 @@
 [package]
-name = "exorust-fault-tolerance"
+name = "stratoswarm-fault-tolerance"
 version = "0.1.0"
 edition = "2021"
 description = "Phase 4 fault tolerance system with checkpointing and recovery"
@@ -11,12 +11,15 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
+tracing = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = "0.12"
 bincode = "1.3"
 lz4 = "1.24"
-# exorust-memory = { path = "../memory" }
-# exorust-runtime = { path = "../runtime" }
-# exorust-storage = { path = "../storage" }
-# exorust-agent-core = { path = "../agent-core" }
+# stratoswarm-memory = { path = "../memory" }
+# stratoswarm-runtime = { path = "../runtime" }
+# stratoswarm-storage = { path = "../storage" }
+# stratoswarm-agent-core = { path = "../agent-core" }
 
 # ML dependencies for predictive scaling
 candle-core = { workspace = true }
@@ -31,4 +34,4 @@ criterion = { workspace = true }
 
 [features]
 default = []
-# cuda = ["exorust-memory/cuda", "exorust-runtime/cuda"]
+# cuda = ["stratoswarm-memory/cuda", "stratoswarm-runtime/cuda"]

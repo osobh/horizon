@@ -6,6 +6,7 @@
 use super::*;
 use crate::GpuAgent;
 use cudarc::driver::{CudaDevice, CudaStream};
+use dashmap::DashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -22,7 +23,7 @@ pub struct GpuAgentConnector {
     stats: Arc<GpuConnectorStats>,
     gpu_agent: Arc<Mutex<Option<Arc<GpuAgent>>>>,
     polling_handle: Option<JoinHandle<()>>,
-    stream_handlers: Arc<RwLock<HashMap<Uuid, StreamHandler>>>,
+    stream_handlers: Arc<DashMap<Uuid, StreamHandler>>,
 }
 
 impl GpuAgentConnector {
@@ -40,7 +41,7 @@ impl GpuAgentConnector {
             stats: Arc::new(GpuConnectorStats::default()),
             gpu_agent: Arc::new(Mutex::new(None)),
             polling_handle: None,
-            stream_handlers: Arc::new(RwLock::new(HashMap::new())),
+            stream_handlers: Arc::new(DashMap::new()),
         }
     }
 
@@ -158,15 +159,14 @@ impl GpuAgentConnector {
     /// Shutdown the connector
     pub async fn shutdown(&mut self) -> Result<()> {
         self.is_running.store(false, Ordering::Relaxed);
-        
+
         if let Some(handle) = self.polling_handle.take() {
             handle.abort();
         }
 
         // Close all streams
-        let stream_handlers = self.stream_handlers.write().await;
-        for (_, handler) in stream_handlers.iter() {
-            handler.close().await?;
+        for entry in self.stream_handlers.iter() {
+            entry.value().close().await?;
         }
 
         Ok(())
@@ -176,7 +176,7 @@ impl GpuAgentConnector {
     async fn process_job(
         gpu_agent: &Arc<Mutex<Option<Arc<GpuAgent>>>>,
         job: &AgentJob,
-        stream_handlers: &Arc<RwLock<HashMap<Uuid, StreamHandler>>>,
+        stream_handlers: &Arc<DashMap<Uuid, StreamHandler>>,
     ) -> Result<Vec<u8>> {
         let agent = gpu_agent.lock().await;
         let agent = agent.as_ref().ok_or_else(|| anyhow!("GPU agent not initialized"))?;
@@ -190,9 +190,8 @@ impl GpuAgentConnector {
                 // Streaming data processing
                 if let Some(stream_id_str) = job.metadata.get("stream_id") {
                     let stream_id = Uuid::parse_str(stream_id_str)?;
-                    let handlers = stream_handlers.read().await;
-                    
-                    if let Some(handler) = handlers.get(&stream_id) {
+
+                    if let Some(handler) = stream_handlers.get(&stream_id) {
                         handler.process_chunk(&job.data).await
                     } else {
                         Err(anyhow!("Stream {} not found", stream_id))
@@ -304,13 +303,13 @@ impl GpuAgentConnector {
         config: StreamConfig,
     ) -> Result<()> {
         let handler = StreamHandler::new(stream_id, config, self.gpu_id);
-        self.stream_handlers.write().await.insert(stream_id, handler);
+        self.stream_handlers.insert(stream_id, handler);
         Ok(())
     }
 
     /// Close a stream
     pub async fn close_stream(&self, stream_id: Uuid) -> Result<()> {
-        if let Some(handler) = self.stream_handlers.write().await.remove(&stream_id) {
+        if let Some((_, handler)) = self.stream_handlers.remove(&stream_id) {
             handler.close().await?;
         }
         Ok(())

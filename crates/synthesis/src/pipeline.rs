@@ -7,7 +7,7 @@ use crate::improvement::ImprovementEngine;
 use crate::interpreter::{GoalInterpreter, InterpreterConfig};
 use crate::synthesizer::{KernelSynthesizer, SynthesizerConfig};
 use std::error::Error;
-// use exorust_agent_core::Goal;
+// use stratoswarm_agent_core::Goal;
 use crate::interpreter::Goal;
 
 /// Pipeline configuration
@@ -92,7 +92,7 @@ impl SynthesisPipeline {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use exorust_agent_core::GoalPriority;
+    use stratoswarm_agent_core::GoalPriority;
 
     #[tokio::test]
     async fn test_pipeline_creation() -> Result<(), Box<dyn std::error::Error>> {

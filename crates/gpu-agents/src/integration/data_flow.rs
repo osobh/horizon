@@ -4,6 +4,7 @@
 //! including streaming, batch processing, and zero-copy transfers.
 
 use super::*;
+use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, mpsc};
@@ -50,7 +51,7 @@ impl DataFlowPattern {
 pub struct DataFlowHandler {
     pattern: DataFlowPattern,
     state: Arc<Mutex<HandlerState>>,
-    buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
+    buffers: Arc<DashMap<String, Vec<u8>>>,
     staging_area: Arc<Mutex<Vec<StagedData>>>,
 }
 

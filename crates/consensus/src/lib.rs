@@ -18,6 +18,10 @@ pub mod million_node_consensus;
 pub mod consensus_compression;
 pub mod adaptive;
 
+// HPC Channels integration
+#[cfg(feature = "hpc-channels")]
+pub mod hpc_bridge;
+
 #[cfg(test)]
 mod protocol_edge_tests;
 
@@ -34,7 +38,9 @@ pub use voting::{Vote, VoteType, VotingRound};
 // Adaptive consensus exports
 pub use adaptive::{
     AdaptiveConsensusEngine, AdaptiveConsensusConfig,
-    ConsensusAlgorithmType, NetworkConditions,
+    ConsensusAlgorithmType, NetworkConditions, AlgorithmPerformance,
+    ConsensusAlgorithm as AdaptiveAlgorithm, ConsensusOutcome,
+    AdaptiveGpuConfig, NetworkMonitoringConfig, OptimizationConfig, SelectionStrategy,
 };
 
 // Million-node consensus exports
@@ -51,17 +57,16 @@ pub use consensus_compression::{
     CompressionGpuConfig, CompressionMemoryConfig, PatternAnalysisConfig,
 };
 
-// Adaptive consensus exports
-pub use adaptive_consensus::{
-    AdaptiveConsensusEngine, AdaptiveConsensusConfig, ConsensusAlgorithmType,
-    NetworkConditions, AlgorithmPerformance, ConsensusAlgorithm as AdaptiveAlgorithm,
-    ConsensusResult as AdaptiveConsensusResult, AdaptiveGpuConfig, NetworkMonitoringConfig,
-    OptimizationConfig, SelectionStrategy,
-};
-
 pub use std::time::Duration;
 /// Re-export commonly used types
 pub use uuid::Uuid;
+
+// HPC Channels bridge exports
+#[cfg(feature = "hpc-channels")]
+pub use hpc_bridge::{
+    ConsensusChannelBridge, SharedConsensusChannelBridge, shared_channel_bridge,
+    ConsensusEvent,
+};
 
 #[cfg(test)]
 mod tests {

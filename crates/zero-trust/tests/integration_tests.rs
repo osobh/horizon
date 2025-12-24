@@ -1,4 +1,4 @@
-use exorust_zero_trust::{
+use stratoswarm_zero_trust::{
     attestation::*, behavior_analysis::*, device_trust::*, identity::*, network_policy::*,
     risk_engine::*, session_manager::*, ZeroTrustError,
 };

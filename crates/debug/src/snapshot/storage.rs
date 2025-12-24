@@ -3,16 +3,15 @@
 use super::types::{MemorySnapshot, SnapshotStorage, StorageStats};
 use crate::DebugError;
 use async_trait::async_trait;
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Ring buffer storage for snapshots with fixed capacity
 pub struct RingBufferStorage {
     capacity: usize,
-    snapshots: Arc<RwLock<HashMap<Uuid, MemorySnapshot>>>,
-    container_snapshots: Arc<RwLock<HashMap<Uuid, Vec<Uuid>>>>,
+    snapshots: Arc<DashMap<Uuid, MemorySnapshot>>,
+    container_snapshots: Arc<DashMap<Uuid, Vec<Uuid>>>,
 }
 
 impl RingBufferStorage {
@@ -20,30 +19,27 @@ impl RingBufferStorage {
     pub fn new(capacity_bytes: usize) -> Self {
         Self {
             capacity: capacity_bytes,
-            snapshots: Arc::new(RwLock::new(HashMap::new())),
-            container_snapshots: Arc::new(RwLock::new(HashMap::new())),
+            snapshots: Arc::new(DashMap::new()),
+            container_snapshots: Arc::new(DashMap::new()),
         }
     }
 
     /// Get current storage utilization
     pub async fn get_utilization(&self) -> f64 {
-        let snapshots = self.snapshots.read().await;
-        let current_size: usize = snapshots.values().map(|s| s.total_size()).sum();
+        let current_size: usize = self.snapshots.iter().map(|entry| entry.value().total_size()).sum();
         current_size as f64 / self.capacity as f64
     }
 
     /// Evict oldest snapshots if capacity is exceeded
     async fn evict_if_needed(&self, new_snapshot_size: usize) -> Result<(), DebugError> {
-        let mut snapshots = self.snapshots.write().await;
-        let mut container_snapshots = self.container_snapshots.write().await;
-
-        let current_size: usize = snapshots.values().map(|s| s.total_size()).sum();
+        let current_size: usize = self.snapshots.iter().map(|entry| entry.value().total_size()).sum();
 
         if current_size + new_snapshot_size > self.capacity {
             // Find oldest snapshots and remove them
-            let mut snapshot_ages: Vec<(Uuid, u64)> = snapshots
+            let mut snapshot_ages: Vec<(Uuid, u64)> = self
+                .snapshots
                 .iter()
-                .map(|(id, snapshot)| (*id, snapshot.timestamp))
+                .map(|entry| (*entry.key(), entry.value().timestamp))
                 .collect();
 
             snapshot_ages.sort_by_key(|&(_, timestamp)| timestamp);
@@ -54,16 +50,17 @@ impl RingBufferStorage {
                     break;
                 }
 
-                if let Some(snapshot) = snapshots.remove(&snapshot_id) {
+                if let Some((_, snapshot)) = self.snapshots.remove(&snapshot_id) {
                     freed_size += snapshot.total_size();
 
                     // Remove from container tracking
-                    if let Some(container_list) =
-                        container_snapshots.get_mut(&snapshot.container_id)
+                    if let Some(mut container_list) =
+                        self.container_snapshots.get_mut(&snapshot.container_id)
                     {
                         container_list.retain(|&id| id != snapshot_id);
                         if container_list.is_empty() {
-                            container_snapshots.remove(&snapshot.container_id);
+                            drop(container_list);
+                            self.container_snapshots.remove(&snapshot.container_id);
                         }
                     }
                 }
@@ -85,56 +82,45 @@ impl SnapshotStorage for RingBufferStorage {
         self.evict_if_needed(snapshot_size).await?;
 
         // Store the snapshot
-        {
-            let mut snapshots = self.snapshots.write().await;
-            snapshots.insert(snapshot_id, snapshot);
-        }
+        self.snapshots.insert(snapshot_id, snapshot);
 
         // Update container tracking
-        {
-            let mut container_snapshots = self.container_snapshots.write().await;
-            container_snapshots
-                .entry(container_id)
-                .or_insert_with(Vec::new)
-                .push(snapshot_id);
-        }
+        self.container_snapshots
+            .entry(container_id)
+            .or_insert_with(Vec::new)
+            .push(snapshot_id);
 
         Ok(())
     }
 
     async fn get_snapshot(&self, snapshot_id: Uuid) -> Result<MemorySnapshot, DebugError> {
-        let snapshots = self.snapshots.read().await;
-
-        snapshots
+        self.snapshots
             .get(&snapshot_id)
-            .cloned()
+            .map(|entry| entry.clone())
             .ok_or_else(|| DebugError::SnapshotNotFound { snapshot_id })
     }
 
     async fn list_snapshots(&self, container_id: Uuid) -> Result<Vec<Uuid>, DebugError> {
-        let container_snapshots = self.container_snapshots.read().await;
-
-        Ok(container_snapshots
+        Ok(self
+            .container_snapshots
             .get(&container_id)
-            .cloned()
+            .map(|entry| entry.clone())
             .unwrap_or_default())
     }
 
     async fn delete_snapshot(&self, snapshot_id: Uuid) -> Result<(), DebugError> {
-        let container_id = {
-            let mut snapshots = self.snapshots.write().await;
-            let snapshot = snapshots
-                .remove(&snapshot_id)
-                .ok_or_else(|| DebugError::SnapshotNotFound { snapshot_id })?;
-            snapshot.container_id
-        };
+        let (_, snapshot) = self
+            .snapshots
+            .remove(&snapshot_id)
+            .ok_or_else(|| DebugError::SnapshotNotFound { snapshot_id })?;
+        let container_id = snapshot.container_id;
 
         // Remove from container tracking
-        let mut container_snapshots = self.container_snapshots.write().await;
-        if let Some(container_list) = container_snapshots.get_mut(&container_id) {
+        if let Some(mut container_list) = self.container_snapshots.get_mut(&container_id) {
             container_list.retain(|&id| id != snapshot_id);
             if container_list.is_empty() {
-                container_snapshots.remove(&container_id);
+                drop(container_list);
+                self.container_snapshots.remove(&container_id);
             }
         }
 
@@ -142,20 +128,21 @@ impl SnapshotStorage for RingBufferStorage {
     }
 
     async fn get_stats(&self) -> Result<StorageStats, DebugError> {
-        let snapshots = self.snapshots.read().await;
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 
-        let expired_count = snapshots
-            .values()
-            .filter(|snapshot| snapshot.is_expired())
+        let expired_count = self
+            .snapshots
+            .iter()
+            .filter(|entry| entry.value().is_expired())
             .count() as u64;
 
-        let oldest_age = snapshots
-            .values()
-            .map(|snapshot| current_time.saturating_sub(snapshot.timestamp))
+        let oldest_age = self
+            .snapshots
+            .iter()
+            .map(|entry| current_time.saturating_sub(entry.value().timestamp))
             .max()
             .unwrap_or(0);
 
@@ -173,14 +160,12 @@ impl SnapshotStorage for RingBufferStorage {
 
         let cutoff_time = current_time.saturating_sub(max_age_seconds);
 
-        let expired_snapshots: Vec<Uuid> = {
-            let snapshots = self.snapshots.read().await;
-            snapshots
-                .iter()
-                .filter(|(_, snapshot)| snapshot.timestamp < cutoff_time)
-                .map(|(id, _)| *id)
-                .collect()
-        };
+        let expired_snapshots: Vec<Uuid> = self
+            .snapshots
+            .iter()
+            .filter(|entry| entry.value().timestamp < cutoff_time)
+            .map(|entry| *entry.key())
+            .collect();
 
         let count = expired_snapshots.len() as u64;
 
@@ -195,8 +180,8 @@ impl SnapshotStorage for RingBufferStorage {
 /// File-based storage backend (placeholder implementation)
 pub struct FileStorage {
     base_path: std::path::PathBuf,
-    snapshots: Arc<RwLock<HashMap<Uuid, MemorySnapshot>>>,
-    container_snapshots: Arc<RwLock<HashMap<Uuid, Vec<Uuid>>>>,
+    snapshots: Arc<DashMap<Uuid, MemorySnapshot>>,
+    container_snapshots: Arc<DashMap<Uuid, Vec<Uuid>>>,
 }
 
 impl FileStorage {
@@ -204,8 +189,8 @@ impl FileStorage {
     pub fn new(base_path: std::path::PathBuf) -> Self {
         Self {
             base_path,
-            snapshots: Arc::new(RwLock::new(HashMap::new())),
-            container_snapshots: Arc::new(RwLock::new(HashMap::new())),
+            snapshots: Arc::new(DashMap::new()),
+            container_snapshots: Arc::new(DashMap::new()),
         }
     }
 
@@ -235,29 +220,20 @@ impl SnapshotStorage for FileStorage {
             })?;
 
         // Update in-memory tracking
-        {
-            let mut snapshots = self.snapshots.write().await;
-            snapshots.insert(snapshot_id, snapshot);
-        }
+        self.snapshots.insert(snapshot_id, snapshot);
 
-        {
-            let mut container_snapshots = self.container_snapshots.write().await;
-            container_snapshots
-                .entry(container_id)
-                .or_insert_with(Vec::new)
-                .push(snapshot_id);
-        }
+        self.container_snapshots
+            .entry(container_id)
+            .or_insert_with(Vec::new)
+            .push(snapshot_id);
 
         Ok(())
     }
 
     async fn get_snapshot(&self, snapshot_id: Uuid) -> Result<MemorySnapshot, DebugError> {
         // Try in-memory first
-        {
-            let snapshots = self.snapshots.read().await;
-            if let Some(snapshot) = snapshots.get(&snapshot_id) {
-                return Ok(snapshot.clone());
-            }
+        if let Some(entry) = self.snapshots.get(&snapshot_id) {
+            return Ok(entry.clone());
         }
 
         // Load from file
@@ -272,31 +248,25 @@ impl SnapshotStorage for FileStorage {
             })?;
 
         // Cache in memory
-        {
-            let mut snapshots = self.snapshots.write().await;
-            snapshots.insert(snapshot_id, snapshot.clone());
-        }
+        self.snapshots.insert(snapshot_id, snapshot.clone());
 
         Ok(snapshot)
     }
 
     async fn list_snapshots(&self, container_id: Uuid) -> Result<Vec<Uuid>, DebugError> {
-        let container_snapshots = self.container_snapshots.read().await;
-
-        Ok(container_snapshots
+        Ok(self
+            .container_snapshots
             .get(&container_id)
-            .cloned()
+            .map(|entry| entry.clone())
             .unwrap_or_default())
     }
 
     async fn delete_snapshot(&self, snapshot_id: Uuid) -> Result<(), DebugError> {
-        let container_id = {
-            let mut snapshots = self.snapshots.write().await;
-            let snapshot = snapshots
-                .remove(&snapshot_id)
-                .ok_or_else(|| DebugError::SnapshotNotFound { snapshot_id })?;
-            snapshot.container_id
-        };
+        let (_, snapshot) = self
+            .snapshots
+            .remove(&snapshot_id)
+            .ok_or_else(|| DebugError::SnapshotNotFound { snapshot_id })?;
+        let container_id = snapshot.container_id;
 
         // Remove file
         let file_path = self.get_snapshot_path(snapshot_id);
@@ -309,11 +279,11 @@ impl SnapshotStorage for FileStorage {
         }
 
         // Remove from container tracking
-        let mut container_snapshots = self.container_snapshots.write().await;
-        if let Some(container_list) = container_snapshots.get_mut(&container_id) {
+        if let Some(mut container_list) = self.container_snapshots.get_mut(&container_id) {
             container_list.retain(|&id| id != snapshot_id);
             if container_list.is_empty() {
-                container_snapshots.remove(&container_id);
+                drop(container_list);
+                self.container_snapshots.remove(&container_id);
             }
         }
 
@@ -321,20 +291,21 @@ impl SnapshotStorage for FileStorage {
     }
 
     async fn get_stats(&self) -> Result<StorageStats, DebugError> {
-        let snapshots = self.snapshots.read().await;
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 
-        let expired_count = snapshots
-            .values()
-            .filter(|snapshot| snapshot.is_expired())
+        let expired_count = self
+            .snapshots
+            .iter()
+            .filter(|entry| entry.value().is_expired())
             .count() as u64;
 
-        let oldest_age = snapshots
-            .values()
-            .map(|snapshot| current_time.saturating_sub(snapshot.timestamp))
+        let oldest_age = self
+            .snapshots
+            .iter()
+            .map(|entry| current_time.saturating_sub(entry.value().timestamp))
             .max()
             .unwrap_or(0);
 
@@ -352,14 +323,12 @@ impl SnapshotStorage for FileStorage {
 
         let cutoff_time = current_time.saturating_sub(max_age_seconds);
 
-        let expired_snapshots: Vec<Uuid> = {
-            let snapshots = self.snapshots.read().await;
-            snapshots
-                .iter()
-                .filter(|(_, snapshot)| snapshot.timestamp < cutoff_time)
-                .map(|(id, _)| *id)
-                .collect()
-        };
+        let expired_snapshots: Vec<Uuid> = self
+            .snapshots
+            .iter()
+            .filter(|entry| entry.value().timestamp < cutoff_time)
+            .map(|entry| *entry.key())
+            .collect();
 
         let count = expired_snapshots.len() as u64;
 

@@ -4,7 +4,7 @@ use crate::{
     AgentGenome, BenchmarkResult, EvaluationMetrics, EvaluationResult, EvolutionStreamingError,
 };
 use async_trait::async_trait;
-use exorust_streaming::{StreamChunk, StreamProcessor, StreamStats};
+use stratoswarm_streaming::{StreamChunk, StreamProcessor, StreamStats};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -97,12 +97,12 @@ impl GpuBatchEvaluator {
 
     /// Get current statistics snapshot
     pub fn get_stats_snapshot(&self) -> StreamStats {
-        let agents = self.stats.agents_evaluated.load(Ordering::SeqCst);
-        let batches = self.stats.batches_processed.load(Ordering::SeqCst);
-        let eval_time_ns = self.stats.evaluation_time_ns.load(Ordering::SeqCst);
-        let _gpu_time_ns = self.stats.gpu_time_ns.load(Ordering::SeqCst);
-        let failures = self.stats.compilation_failures.load(Ordering::SeqCst)
-            + self.stats.execution_failures.load(Ordering::SeqCst);
+        let agents = self.stats.agents_evaluated.load(Ordering::Relaxed);
+        let batches = self.stats.batches_processed.load(Ordering::Relaxed);
+        let eval_time_ns = self.stats.evaluation_time_ns.load(Ordering::Relaxed);
+        let _gpu_time_ns = self.stats.gpu_time_ns.load(Ordering::Relaxed);
+        let failures = self.stats.compilation_failures.load(Ordering::Relaxed)
+            + self.stats.execution_failures.load(Ordering::Relaxed);
 
         let throughput_agents_per_sec = if eval_time_ns > 0 {
             (agents as f64) / ((eval_time_ns as f64) / 1_000_000_000.0)
@@ -162,7 +162,7 @@ impl GpuBatchEvaluator {
             let benchmark_time = benchmark_start.elapsed();
             self.stats
                 .gpu_time_ns
-                .fetch_add(benchmark_time.as_nanos() as u64, Ordering::SeqCst);
+                .fetch_add(benchmark_time.as_nanos() as u64, Ordering::Relaxed);
 
             // Process results
             for (idx, execution_result) in execution_results.into_iter().enumerate() {
@@ -205,11 +205,11 @@ impl GpuBatchEvaluator {
         let total_time = start_time.elapsed().as_nanos() as u64;
         self.stats
             .evaluation_time_ns
-            .fetch_add(total_time, Ordering::SeqCst);
+            .fetch_add(total_time, Ordering::Relaxed);
         self.stats
             .agents_evaluated
-            .fetch_add(batch_size as u64, Ordering::SeqCst);
-        self.stats.batches_processed.fetch_add(1, Ordering::SeqCst);
+            .fetch_add(batch_size as u64, Ordering::Relaxed);
+        self.stats.batches_processed.fetch_add(1, Ordering::Relaxed);
 
         Ok(all_results)
     }
@@ -227,7 +227,7 @@ impl GpuBatchEvaluator {
                 Err(e) => {
                     self.stats
                         .compilation_failures
-                        .fetch_add(1, Ordering::SeqCst);
+                        .fetch_add(1, Ordering::Relaxed);
                     eprintln!("Failed to compile agent {}: {}", agent.id, e);
                     // Continue with other agents
                 }
@@ -296,25 +296,25 @@ impl StreamProcessor for GpuBatchEvaluator {
     async fn process(
         &mut self,
         chunk: StreamChunk,
-    ) -> Result<StreamChunk, exorust_streaming::StreamingError> {
+    ) -> Result<StreamChunk, stratoswarm_streaming::StreamingError> {
         // Deserialize agent from chunk
         let agent_data = String::from_utf8_lossy(&chunk.data);
         let agent: AgentGenome = serde_json::from_str(&agent_data).map_err(|e| {
-            exorust_streaming::StreamingError::ProcessingFailed {
+            stratoswarm_streaming::StreamingError::ProcessingFailed {
                 reason: format!("Failed to deserialize agent: {e}"),
             }
         })?;
 
         // Evaluate single agent
         let results = self.evaluate_batch(vec![agent]).await.map_err(|e| {
-            exorust_streaming::StreamingError::ProcessingFailed {
+            stratoswarm_streaming::StreamingError::ProcessingFailed {
                 reason: e.to_string(),
             }
         })?;
 
         // Serialize result
         let result_data = serde_json::to_string(&results).map_err(|e| {
-            exorust_streaming::StreamingError::ProcessingFailed {
+            stratoswarm_streaming::StreamingError::ProcessingFailed {
                 reason: format!("Failed to serialize evaluation results: {e}"),
             }
         })?;
@@ -329,14 +329,14 @@ impl StreamProcessor for GpuBatchEvaluator {
     async fn process_batch(
         &mut self,
         chunks: Vec<StreamChunk>,
-    ) -> Result<Vec<StreamChunk>, exorust_streaming::StreamingError> {
+    ) -> Result<Vec<StreamChunk>, stratoswarm_streaming::StreamingError> {
         let mut agents = Vec::new();
 
         // Deserialize all agents
         for chunk in &chunks {
             let agent_data = String::from_utf8_lossy(&chunk.data);
             let agent: AgentGenome = serde_json::from_str(&agent_data).map_err(|e| {
-                exorust_streaming::StreamingError::ProcessingFailed {
+                stratoswarm_streaming::StreamingError::ProcessingFailed {
                     reason: format!("Failed to deserialize agent: {e}"),
                 }
             })?;
@@ -345,7 +345,7 @@ impl StreamProcessor for GpuBatchEvaluator {
 
         // Evaluate batch
         let results = self.evaluate_batch(agents).await.map_err(|e| {
-            exorust_streaming::StreamingError::ProcessingFailed {
+            stratoswarm_streaming::StreamingError::ProcessingFailed {
                 reason: e.to_string(),
             }
         })?;
@@ -355,7 +355,7 @@ impl StreamProcessor for GpuBatchEvaluator {
         for (i, chunk) in chunks.iter().enumerate() {
             if i < results.len() {
                 let result_data = serde_json::to_string(&results[i]).map_err(|e| {
-                    exorust_streaming::StreamingError::ProcessingFailed {
+                    stratoswarm_streaming::StreamingError::ProcessingFailed {
                         reason: format!("Failed to serialize evaluation result: {e}"),
                     }
                 })?;
@@ -371,7 +371,7 @@ impl StreamProcessor for GpuBatchEvaluator {
         Ok(result_chunks)
     }
 
-    async fn stats(&self) -> Result<StreamStats, exorust_streaming::StreamingError> {
+    async fn stats(&self) -> Result<StreamStats, stratoswarm_streaming::StreamingError> {
         Ok(self.get_stats_snapshot())
     }
 
@@ -901,12 +901,12 @@ mod tests {
     #[test]
     fn test_evaluation_stats_default() {
         let stats = EvaluationStats::default();
-        assert_eq!(stats.agents_evaluated.load(Ordering::SeqCst), 0);
-        assert_eq!(stats.batches_processed.load(Ordering::SeqCst), 0);
-        assert_eq!(stats.evaluation_time_ns.load(Ordering::SeqCst), 0);
-        assert_eq!(stats.gpu_time_ns.load(Ordering::SeqCst), 0);
-        assert_eq!(stats.compilation_failures.load(Ordering::SeqCst), 0);
-        assert_eq!(stats.execution_failures.load(Ordering::SeqCst), 0);
+        assert_eq!(stats.agents_evaluated.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.batches_processed.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.evaluation_time_ns.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.gpu_time_ns.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.compilation_failures.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.execution_failures.load(Ordering::Relaxed), 0);
     }
 
     #[tokio::test]

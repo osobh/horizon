@@ -9,7 +9,7 @@
 
 use anyhow::{Context, Result};
 use colored::*;
-use exorust_business_interface::BusinessInterface;
+use stratoswarm_business_interface::BusinessInterface;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use sysinfo::{CpuExt, System, SystemExt};

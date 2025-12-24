@@ -134,17 +134,33 @@ impl From<serde_json::Error> for KnowledgeGraphError {
     }
 }
 
-impl From<exorust_cuda::error::CudaError> for KnowledgeGraphError {
-    fn from(err: exorust_cuda::error::CudaError) -> Self {
+impl From<stratoswarm_cuda::error::CudaError> for KnowledgeGraphError {
+    fn from(err: stratoswarm_cuda::error::CudaError) -> Self {
         Self::GpuError {
             message: err.to_string(),
         }
     }
 }
 
-impl From<exorust_storage::error::StorageError> for KnowledgeGraphError {
-    fn from(err: exorust_storage::error::StorageError) -> Self {
+impl From<stratoswarm_storage::error::StorageError> for KnowledgeGraphError {
+    fn from(err: stratoswarm_storage::error::StorageError) -> Self {
         Self::StorageError {
+            message: err.to_string(),
+        }
+    }
+}
+
+impl From<bincode::Error> for KnowledgeGraphError {
+    fn from(err: bincode::Error) -> Self {
+        Self::SerializationError {
+            message: err.to_string(),
+        }
+    }
+}
+
+impl From<cudarc::driver::DriverError> for KnowledgeGraphError {
+    fn from(err: cudarc::driver::DriverError) -> Self {
+        Self::GpuError {
             message: err.to_string(),
         }
     }
@@ -259,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_cuda_error_conversion() {
-        use exorust_cuda::error::CudaError;
+        use stratoswarm_cuda::error::CudaError;
 
         let cuda_error = CudaError::InitializationError {
             message: "CUDA not available".to_string(),
@@ -276,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_storage_error_conversion() {
-        use exorust_storage::error::StorageError;
+        use stratoswarm_storage::error::StorageError;
 
         let storage_error = StorageError::IoError {
             source: std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"),

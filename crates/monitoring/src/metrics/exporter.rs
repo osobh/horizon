@@ -2,19 +2,19 @@
 
 use super::types::{Metric, MetricType};
 use crate::MonitoringError;
+use dashmap::DashMap;
 use prometheus::{Encoder, Registry, TextEncoder};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Prometheus metrics exporter
 pub struct PrometheusExporter {
     registry: Registry,
     port: u16,
     metrics_cache:
-        Arc<RwLock<HashMap<String, prometheus::core::GenericGauge<prometheus::core::AtomicF64>>>>,
+        Arc<DashMap<String, prometheus::core::GenericGauge<prometheus::core::AtomicF64>>>,
     counters_cache:
-        Arc<RwLock<HashMap<String, prometheus::core::GenericCounter<prometheus::core::AtomicF64>>>>,
+        Arc<DashMap<String, prometheus::core::GenericCounter<prometheus::core::AtomicF64>>>,
 }
 
 impl PrometheusExporter {
@@ -23,8 +23,8 @@ impl PrometheusExporter {
         Self {
             registry: Registry::new(),
             port,
-            metrics_cache: Arc::new(RwLock::new(HashMap::new())),
-            counters_cache: Arc::new(RwLock::new(HashMap::new())),
+            metrics_cache: Arc::new(DashMap::new()),
+            counters_cache: Arc::new(DashMap::new()),
         }
     }
 
@@ -100,30 +100,32 @@ impl PrometheusExporter {
     // Private helper methods
 
     async fn update_gauge(&self, metric: &Metric) -> Result<(), MonitoringError> {
-        let mut cache = self.metrics_cache.write().await;
-
-        let gauge = cache.entry(metric.name.clone()).or_insert_with(|| {
-            let gauge =
-                prometheus::Gauge::new(metric.name.clone(), self.get_help_text(&metric.name))
-                    .expect("Failed to create gauge");
-            self.registry.register(Box::new(gauge.clone())).ok();
-            gauge
-        });
+        let gauge = self
+            .metrics_cache
+            .entry(metric.name.clone())
+            .or_insert_with(|| {
+                let gauge =
+                    prometheus::Gauge::new(metric.name.clone(), self.get_help_text(&metric.name))
+                        .expect("Failed to create gauge");
+                self.registry.register(Box::new(gauge.clone())).ok();
+                gauge
+            });
 
         gauge.set(metric.value);
         Ok(())
     }
 
     async fn update_counter(&self, metric: &Metric) -> Result<(), MonitoringError> {
-        let mut cache = self.counters_cache.write().await;
-
-        let counter = cache.entry(metric.name.clone()).or_insert_with(|| {
-            let counter =
-                prometheus::Counter::new(metric.name.clone(), self.get_help_text(&metric.name))
-                    .expect("Failed to create counter");
-            self.registry.register(Box::new(counter.clone())).ok();
-            counter
-        });
+        let counter = self
+            .counters_cache
+            .entry(metric.name.clone())
+            .or_insert_with(|| {
+                let counter =
+                    prometheus::Counter::new(metric.name.clone(), self.get_help_text(&metric.name))
+                        .expect("Failed to create counter");
+                self.registry.register(Box::new(counter.clone())).ok();
+                counter
+            });
 
         counter.inc_by(metric.value);
         Ok(())

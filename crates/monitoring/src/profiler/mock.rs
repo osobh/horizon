@@ -4,21 +4,21 @@ use super::kernel::KernelProfile;
 use super::traits::Profiler;
 use crate::MonitoringError;
 use async_trait::async_trait;
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
 /// Mock profiler for testing
 pub struct MockProfiler {
     profiles: Arc<RwLock<Vec<KernelProfile>>>,
-    active_profiles: Arc<RwLock<HashMap<(Uuid, String), u64>>>,
+    active_profiles: Arc<DashMap<(Uuid, String), u64>>,
 }
 
 impl MockProfiler {
     pub fn new() -> Self {
         Self {
             profiles: Arc::new(RwLock::new(Vec::new())),
-            active_profiles: Arc::new(RwLock::new(HashMap::new())),
+            active_profiles: Arc::new(DashMap::new()),
         }
     }
 
@@ -28,7 +28,7 @@ impl MockProfiler {
 
     pub fn clear_profiles(&self) {
         self.profiles.write().unwrap().clear();
-        self.active_profiles.write().unwrap().clear();
+        self.active_profiles.clear();
     }
 }
 
@@ -45,10 +45,9 @@ impl Profiler for MockProfiler {
         container_id: Uuid,
         kernel_id: &str,
     ) -> Result<(), MonitoringError> {
-        let mut active = self.active_profiles.write().unwrap();
         let key = (container_id, kernel_id.to_string());
 
-        if active.contains_key(&key) {
+        if self.active_profiles.contains_key(&key) {
             return Err(MonitoringError::ProfilerFailed {
                 reason: "Profile already active".to_string(),
             });
@@ -59,7 +58,7 @@ impl Profiler for MockProfiler {
             .unwrap()
             .as_nanos() as u64;
 
-        active.insert(key, start_time);
+        self.active_profiles.insert(key, start_time);
         Ok(())
     }
 
@@ -68,11 +67,12 @@ impl Profiler for MockProfiler {
         container_id: Uuid,
         kernel_id: &str,
     ) -> Result<KernelProfile, MonitoringError> {
-        let mut active = self.active_profiles.write().unwrap();
         let key = (container_id, kernel_id.to_string());
 
-        let start_time = active
+        let start_time = self
+            .active_profiles
             .remove(&key)
+            .map(|(_, v)| v)
             .ok_or_else(|| MonitoringError::ProfilerFailed {
                 reason: "No active profile found".to_string(),
             })?;

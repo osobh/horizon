@@ -1,6 +1,6 @@
 //! Fitness evaluation for evolution
 
-use exorust_agent_core::agent::{Agent, AgentStats, EvolutionMetrics};
+use stratoswarm_agent_core::agent::{Agent, AgentStats, EvolutionMetrics};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -32,7 +32,7 @@ pub struct FitnessScore {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentFitnessScore {
     pub fitness: f64,
-    pub agent_id: exorust_agent_core::agent::AgentId,
+    pub agent_id: stratoswarm_agent_core::agent::AgentId,
     pub xp_contribution: u64,
     pub level: u32,
     pub performance_metrics: EvolutionMetrics,
@@ -191,7 +191,7 @@ impl XPFitnessFunction for LevelBasedFitnessFunction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use exorust_agent_core::agent::{Agent, AgentConfig};
+    use stratoswarm_agent_core::agent::{Agent, AgentConfig};
     use std::time::Duration;
     use tokio;
 
@@ -374,7 +374,7 @@ mod tests {
         
         let score = AgentFitnessScore {
             fitness: 0.85,
-            agent_id: exorust_agent_core::agent::AgentId::new(),
+            agent_id: stratoswarm_agent_core::agent::AgentId::new(),
             xp_contribution: 150,
             level: 3,
             performance_metrics: metrics,

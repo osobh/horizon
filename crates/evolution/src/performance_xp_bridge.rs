@@ -4,7 +4,7 @@
 //! to XP rewards, enabling fine-grained tracking and rewarding of agent improvements.
 
 use crate::EvolutionError;
-use exorust_agent_core::agent::{Agent, AgentStats, EvolutionMetrics, EvolutionResult};
+use stratoswarm_agent_core::agent::{Agent, AgentStats, EvolutionMetrics, EvolutionResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -96,7 +96,7 @@ pub struct PerformanceXPConverter {
     /// Configuration for different metric types
     metric_configs: HashMap<PerformanceMetricType, MetricXPConfig>,
     /// Historical performance tracking
-    performance_history: HashMap<exorust_agent_core::agent::AgentId, Vec<PerformanceMeasurement>>,
+    performance_history: HashMap<stratoswarm_agent_core::agent::AgentId, Vec<PerformanceMeasurement>>,
     /// Global performance multipliers
     global_multiplier: f64,
     /// Evaluation window for trend analysis
@@ -189,7 +189,7 @@ impl PerformanceXPConverter {
     /// Record a performance measurement for an agent
     pub fn record_performance(
         &mut self,
-        agent_id: exorust_agent_core::agent::AgentId,
+        agent_id: stratoswarm_agent_core::agent::AgentId,
         measurement: PerformanceMeasurement,
     ) {
         self.performance_history
@@ -226,12 +226,13 @@ impl PerformanceXPConverter {
         if let Some(history) = self.performance_history.get(&agent_id) {
             for measurement in history.iter().rev().take(self.evaluation_window_size) {
                 let xp_reward = self.calculate_metric_xp_reward(measurement);
-                
+                let total_xp = xp_reward.total_xp;
+
                 breakdown.metric_rewards.insert(
                     measurement.metric_type.clone(),
                     xp_reward,
                 );
-                breakdown.total_xp += xp_reward.total_xp;
+                breakdown.total_xp += total_xp;
             }
         }
         
@@ -334,9 +335,10 @@ impl PerformanceXPConverter {
 
     /// Calculate XP reward for a specific performance measurement
     fn calculate_metric_xp_reward(&self, measurement: &PerformanceMeasurement) -> MetricXPReward {
+        let default_config = MetricXPConfig::default();
         let config = self.metric_configs.get(&measurement.metric_type)
-            .unwrap_or(&MetricXPConfig::default());
-        
+            .unwrap_or(&default_config);
+
         let improvement = measurement.current_value - measurement.baseline_value;
         
         if improvement < config.improvement_threshold {
@@ -389,7 +391,7 @@ impl PerformanceXPConverter {
     }
 
     /// Calculate consistency bonus for maintaining good performance
-    fn calculate_consistency_bonus(&self, agent_id: exorust_agent_core::agent::AgentId) -> u64 {
+    fn calculate_consistency_bonus(&self, agent_id: stratoswarm_agent_core::agent::AgentId) -> u64 {
         if let Some(history) = self.performance_history.get(&agent_id) {
             if history.len() >= 5 {
                 // Check for consistent performance across different metrics
@@ -418,7 +420,7 @@ impl PerformanceXPConverter {
     /// Get current performance trends for an agent
     pub fn get_performance_trends(
         &self,
-        agent_id: &exorust_agent_core::agent::AgentId,
+        agent_id: &stratoswarm_agent_core::agent::AgentId,
     ) -> Option<&Vec<PerformanceMeasurement>> {
         self.performance_history.get(agent_id)
     }
@@ -536,7 +538,7 @@ impl PerformanceXPBreakdown {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use exorust_agent_core::agent::{Agent, AgentConfig};
+    use stratoswarm_agent_core::agent::{Agent, AgentConfig};
 
     async fn create_test_agent_with_performance(
         goals_completed: u64,

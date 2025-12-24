@@ -4,8 +4,8 @@ use crate::swarm::{SwarmEngine, SwarmConfig};
 use crate::swarm_particle::Particle;
 use crate::traits::EvolvableAgent;
 use crate::error::{EvolutionEngineError, EvolutionEngineResult};
-use exorust_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
-use exorust_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
+use stratoswarm_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
+use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use async_trait::async_trait;
@@ -267,7 +267,7 @@ impl SwarmXPEngine {
         // Add Swarm-specific reward categories
         reward_calculator.set_reward_category(
             "social_learning".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 130,
                 level_multiplier: 1.3,
                 performance_multiplier: 1.9,
@@ -277,7 +277,7 @@ impl SwarmXPEngine {
         
         reward_calculator.set_reward_category(
             "swarm_convergence".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 110,
                 level_multiplier: 1.2,
                 performance_multiplier: 1.6,
@@ -287,7 +287,7 @@ impl SwarmXPEngine {
         
         reward_calculator.set_reward_category(
             "collective_intelligence".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 180,
                 level_multiplier: 1.4,
                 performance_multiplier: 2.1,
@@ -297,7 +297,7 @@ impl SwarmXPEngine {
         
         reward_calculator.set_reward_category(
             "particle_optimization".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 140,
                 level_multiplier: 1.25,
                 performance_multiplier: 1.8,
@@ -565,7 +565,7 @@ impl SwarmXPStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use exorust_agent_core::agent::AgentConfig;
+    use stratoswarm_agent_core::agent::AgentConfig;
 
     #[tokio::test]
     async fn test_swarm_xp_fitness_function() {

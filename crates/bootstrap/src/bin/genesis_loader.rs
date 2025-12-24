@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 use clap::Parser;
-use exorust_bootstrap::{initialize_bootstrap, BootstrapConfig, BootstrapPhase, GenesisLoader};
+use stratoswarm_bootstrap::{initialize_bootstrap, BootstrapConfig, BootstrapPhase, GenesisLoader};
 use std::path::PathBuf;
 use tracing::{error, info};
 

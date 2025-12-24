@@ -8,14 +8,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 // Import from the independent synthesis crate
-use exorust_synthesis::{
+use stratoswarm_synthesis::{
     CompiledKernel, ExecutionEngine, ExecutionResult, GoalInterpreter, ImprovedKernel,
     ImprovementEngine, KernelSpecification, KernelSynthesizer, PipelineConfig, RuntimeCompiler,
     SynthesisPipeline, SynthesizedKernel,
 };
 
 // Import Goal from synthesis interpreter
-use exorust_synthesis::interpreter::{Goal, GoalConstraints};
+use stratoswarm_synthesis::interpreter::{Goal, GoalConstraints};
 
 // Import local types
 use crate::synthesis::{
@@ -36,12 +36,12 @@ impl SynthesisCrateAdapter {
     /// Create a new synthesis crate adapter
     pub fn new(device: Arc<cudarc::driver::CudaDevice>) -> Result<Self> {
         // Configure the synthesis pipeline with mock mode disabled
-        let mut interpreter_config = exorust_synthesis::interpreter::InterpreterConfig::default();
+        let mut interpreter_config = stratoswarm_synthesis::interpreter::InterpreterConfig::default();
         interpreter_config.use_mock = true; // Keep mock for now since LLM not configured
 
         let config = PipelineConfig {
             interpreter_config,
-            synthesizer_config: exorust_synthesis::synthesizer::SynthesizerConfig::default(),
+            synthesizer_config: stratoswarm_synthesis::synthesizer::SynthesizerConfig::default(),
             target_arch: "sm_80".to_string(),
         };
 
@@ -185,18 +185,18 @@ pub struct SynthesisMetrics {
 /// Convert between gpu-agents Pattern and synthesis KernelSpecification
 pub fn pattern_to_kernel_spec(pattern: &Pattern, goal: &str) -> KernelSpecification {
     KernelSpecification {
-        operation_type: exorust_synthesis::interpreter::OperationType::MatrixMultiply,
-        data_layout: exorust_synthesis::interpreter::DataLayout {
+        operation_type: stratoswarm_synthesis::interpreter::OperationType::MatrixMultiply,
+        data_layout: stratoswarm_synthesis::interpreter::DataLayout {
             input_shape: vec![1024, 1024],
             output_shape: vec![1024, 1024],
-            memory_layout: exorust_synthesis::interpreter::MemoryLayout::RowMajor,
+            memory_layout: stratoswarm_synthesis::interpreter::MemoryLayout::RowMajor,
         },
-        precision: exorust_synthesis::interpreter::Precision::FP32,
+        precision: stratoswarm_synthesis::interpreter::Precision::FP32,
         optimization_hints: vec![
-            exorust_synthesis::interpreter::OptimizationHint::SharedMemory,
-            exorust_synthesis::interpreter::OptimizationHint::TensorCore,
+            stratoswarm_synthesis::interpreter::OptimizationHint::SharedMemory,
+            stratoswarm_synthesis::interpreter::OptimizationHint::TensorCore,
         ],
-        performance_model: exorust_synthesis::interpreter::PerformanceModel {
+        performance_model: stratoswarm_synthesis::interpreter::PerformanceModel {
             compute_intensity: 4.0,
             memory_bandwidth: 500.0,
             expected_occupancy: 0.8,

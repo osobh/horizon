@@ -7,6 +7,7 @@
 use shared_storage::*;
 use crate::GpuAgent;
 use cpu_agents::{CpuAgent, IoManager, Orchestrator};
+use dashmap::DashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -108,8 +109,8 @@ pub struct JobResult {
 /// Integration manager coordinating CPU and GPU agents
 pub struct IntegrationManager {
     config: IntegrationConfig,
-    gpu_connectors: Arc<RwLock<HashMap<usize, Arc<GpuAgentConnector>>>>,
-    cpu_connectors: Arc<RwLock<HashMap<usize, Arc<CpuAgentConnector>>>>,
+    gpu_connectors: Arc<DashMap<usize, Arc<GpuAgentConnector>>>,
+    cpu_connectors: Arc<DashMap<usize, Arc<CpuAgentConnector>>>,
     is_running: Arc<AtomicBool>,
     stats: Arc<IntegrationStats>,
     monitor_handle: Option<JoinHandle<()>>,

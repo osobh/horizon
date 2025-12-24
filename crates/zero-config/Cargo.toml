@@ -52,8 +52,8 @@ chrono.workspace = true
 uuid.workspace = true
 
 # Internal dependencies
-exorust-runtime = { path = "../runtime" }
-exorust-memory = { path = "../memory" }
+stratoswarm-runtime = { path = "../runtime" }
+stratoswarm-memory = { path = "../memory" }
 
 [dev-dependencies]
 criterion.workspace = true

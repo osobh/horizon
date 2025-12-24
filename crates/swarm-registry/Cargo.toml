@@ -17,6 +17,9 @@ tracing = "0.1"
 bytes = "1.8"
 futures = "0.3"
 
+# Concurrent data structures
+dashmap = { workspace = true }
+
 # Storage and hashing
 sha2 = "0.10"
 digest = "0.10"

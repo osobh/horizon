@@ -1,7 +1,7 @@
 //! Performance benchmarks for multi-region modules
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use exorust_multi_region::*;
+use stratoswarm_multi_region::*;
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 

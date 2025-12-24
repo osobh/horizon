@@ -1,6 +1,6 @@
 //! Test to verify swarm_fault_tolerance module structure works correctly
 
-use exorust_evolution_engines::swarm_fault_tolerance::{
+use stratoswarm_evolution_engines::swarm_fault_tolerance::{
     AlertThresholds, CheckpointManager, CheckpointMetadata, CheckpointRecovery, CheckpointSnapshot,
     CheckpointStorage, CompressionAlgorithm, FailureDetectionAlgorithm, FaultDetector,
     HealthStatus, HybridRecovery, NodeHealth, NodeState, RecoveryEvent, RecoveryExecutor,

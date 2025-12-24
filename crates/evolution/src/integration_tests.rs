@@ -10,7 +10,7 @@ mod tests {
         EvolutionXPRewardCalculator, PerformanceXPConverter, PerformanceMetricType,
         AgentXPSharingCoordinator, KnowledgeType, XPSharingConfig,
     };
-    use exorust_agent_core::agent::{Agent, AgentConfig};
+    use stratoswarm_agent_core::agent::{Agent, AgentConfig};
     use std::collections::HashSet;
     use std::time::Duration;
 
@@ -323,19 +323,19 @@ mod tests {
         let performance_converter = PerformanceXPConverter::default();
         
         // Simulate evolution result
-        let evolution_result = exorust_agent_core::agent::EvolutionResult {
+        let evolution_result = stratoswarm_agent_core::agent::EvolutionResult {
             previous_level: 3,
             new_level: 4,
             xp_at_evolution: 500,
             evolution_timestamp: chrono::Utc::now(),
             capabilities_gained: vec!["advanced_optimization".to_string()],
-            previous_metrics: exorust_agent_core::agent::EvolutionMetrics {
+            previous_metrics: stratoswarm_agent_core::agent::EvolutionMetrics {
                 avg_completion_time: Duration::from_secs(45),
                 success_rate: 0.7,
                 memory_efficiency: 0.75,
                 processing_speed: 1.0,
             },
-            new_metrics: exorust_agent_core::agent::EvolutionMetrics {
+            new_metrics: stratoswarm_agent_core::agent::EvolutionMetrics {
                 avg_completion_time: Duration::from_secs(35),
                 success_rate: 0.85,
                 memory_efficiency: 0.85,
@@ -369,8 +369,8 @@ mod tests {
         assert!(!evolution_breakdown.performance_rewards.is_empty());
         
         // Test consistency: similar improvements should yield similar rewards
-        let similar_evolution = exorust_agent_core::agent::EvolutionResult {
-            new_metrics: exorust_agent_core::agent::EvolutionMetrics {
+        let similar_evolution = stratoswarm_agent_core::agent::EvolutionResult {
+            new_metrics: stratoswarm_agent_core::agent::EvolutionMetrics {
                 success_rate: 0.86, // Very similar improvement
                 processing_speed: 1.31,
                 ..evolution_result.new_metrics

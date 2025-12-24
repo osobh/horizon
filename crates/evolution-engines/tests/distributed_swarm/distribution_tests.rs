@@ -1,7 +1,7 @@
 //! Tests for particle distribution, load balancing, and global best synchronization
 
 use super::{create_distributed_config, create_mock_agent};
-use exorust_evolution_engines::{
+use stratoswarm_evolution_engines::{
     error::EvolutionEngineResult,
     swarm_distributed::DistributedSwarmEngine,
 };

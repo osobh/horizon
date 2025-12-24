@@ -5,6 +5,7 @@
 use crate::utilization::kernel_optimizer::KernelConfig;
 use anyhow::{Context, Result};
 use cudarc::driver::{CudaDevice, CudaStream, DevicePtr, LaunchAsync, LaunchConfig};
+use dashmap::DashMap;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::sync::Arc;
@@ -19,7 +20,7 @@ pub struct RealKernelScheduler {
     /// Kernel queue organized by priority
     kernel_queue: Arc<Mutex<BinaryHeap<ScheduledKernel>>>,
     /// Active kernels per stream
-    active_kernels: Arc<RwLock<HashMap<usize, ActiveKernel>>>,
+    active_kernels: Arc<DashMap<usize, ActiveKernel>>,
     /// Stream availability tracker
     stream_available: Arc<RwLock<Vec<bool>>>,
     /// Scheduling statistics

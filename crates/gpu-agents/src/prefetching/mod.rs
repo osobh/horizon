@@ -5,6 +5,7 @@
 
 use anyhow::{anyhow, Result};
 use cudarc::driver::{CudaDevice, CudaStream};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{
@@ -189,7 +190,7 @@ pub struct AdvancedPrefetcher {
     cost_analyzer: Arc<CostBenefitAnalyzer>,
     tier_predictor: Arc<TierPredictor>,
     prefetch_queue: Arc<Mutex<PrefetchQueue>>,
-    access_history: Arc<RwLock<HashMap<u64, AccessHistory>>>,
+    access_history: Arc<DashMap<u64, AccessHistory>>,
     statistics: Arc<Mutex<PrefetchStatistics>>,
     active: Arc<AtomicBool>,
 }
@@ -577,7 +578,7 @@ impl AdvancedPrefetcher {
     /// ML model updater task
     async fn ml_updater_task(
         ml_predictor: Arc<Mutex<MLPredictor>>,
-        access_history: Arc<RwLock<HashMap<u64, AccessHistory>>>,
+        access_history: Arc<DashMap<u64, AccessHistory>>,
     ) {
         let mut interval = tokio::time::interval(Duration::from_secs(60));
 

@@ -5,9 +5,56 @@ use crate::api::handlers::{
 use crate::db::PolicyRepository;
 use axum::routing::{delete, get, post, put};
 use axum::Router;
+use hpc_channels::{broadcast, channels, GovernorMessage};
+use std::sync::Arc;
+use tokio::sync::broadcast::Sender as BroadcastSender;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
+/// Application state for the governor service.
+#[derive(Clone)]
+pub struct AppState {
+    /// Policy repository for database operations.
+    pub repo: PolicyRepository,
+    /// Channel for policy lifecycle events (create, update, delete).
+    pub policy_events: BroadcastSender<GovernorMessage>,
+    /// Channel for evaluation events.
+    pub evaluation_events: BroadcastSender<GovernorMessage>,
+    /// Channel for access denied alerts.
+    pub alert_events: BroadcastSender<GovernorMessage>,
+}
+
+impl AppState {
+    /// Create a new AppState with broadcast channels.
+    pub fn new(repo: PolicyRepository) -> Self {
+        let policy_events = broadcast::<GovernorMessage>(channels::GOVERNOR_POLICIES, 256);
+        let evaluation_events = broadcast::<GovernorMessage>(channels::GOVERNOR_EVALUATIONS, 1024);
+        let alert_events = broadcast::<GovernorMessage>(channels::GOVERNOR_ALERTS, 256);
+
+        Self {
+            repo,
+            policy_events,
+            evaluation_events,
+            alert_events,
+        }
+    }
+
+    /// Publish a policy lifecycle event (non-blocking).
+    pub fn publish_policy_event(&self, event: GovernorMessage) {
+        let _ = self.policy_events.send(event);
+    }
+
+    /// Publish an evaluation event (non-blocking).
+    pub fn publish_evaluation_event(&self, event: GovernorMessage) {
+        let _ = self.evaluation_events.send(event);
+    }
+
+    /// Publish an alert event (non-blocking).
+    pub fn publish_alert_event(&self, event: GovernorMessage) {
+        let _ = self.alert_events.send(event);
+    }
+}
 
 #[derive(OpenApi)]
 #[openapi(
@@ -41,6 +88,8 @@ use utoipa_swagger_ui::SwaggerUi;
 pub struct ApiDoc;
 
 pub fn create_router(repo: PolicyRepository) -> Router {
+    let state = Arc::new(AppState::new(repo));
+
     let api_routes = Router::new()
         .route("/policies", post(create_policy))
         .route("/policies", get(list_policies))
@@ -49,7 +98,7 @@ pub fn create_router(repo: PolicyRepository) -> Router {
         .route("/policies/:name", delete(delete_policy))
         .route("/policies/:name/versions", get(get_policy_versions))
         .route("/evaluate", post(evaluate))
-        .with_state(repo);
+        .with_state(state);
 
     Router::new()
         .route("/health", get(health_check))

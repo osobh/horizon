@@ -269,9 +269,9 @@ impl EvolutionEngine for SwarmEngine {
             let genome = {
                 let mut rng = self.rng.write();
                 crate::traits::AgentGenome {
-                    goal: exorust_agent_core::Goal::new(
+                    goal: stratoswarm_agent_core::Goal::new(
                         "Swarm optimization".to_string(),
-                        exorust_agent_core::GoalPriority::Normal,
+                        stratoswarm_agent_core::GoalPriority::Normal,
                     ),
                     architecture: crate::traits::ArchitectureGenes {
                         memory_capacity: rng.gen_range(1024..1024 * 1024),
@@ -290,7 +290,7 @@ impl EvolutionEngine for SwarmEngine {
                 }
             };
 
-            let config = exorust_agent_core::AgentConfig {
+            let config = stratoswarm_agent_core::AgentConfig {
                 name: format!("swarm_particle_{i}"),
                 agent_type: "swarm".to_string(),
                 max_memory: genome.architecture.memory_capacity,
@@ -299,7 +299,7 @@ impl EvolutionEngine for SwarmEngine {
                 metadata: serde_json::Value::Null,
             };
 
-            let agent = exorust_agent_core::Agent::new(config).map_err(|e| {
+            let agent = stratoswarm_agent_core::Agent::new(config).map_err(|e| {
                 EvolutionEngineError::InitializationError {
                     message: format!("Failed to create agent: {e}"),
                 }

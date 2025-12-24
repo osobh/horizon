@@ -36,7 +36,7 @@ Horizon is the unified interface for the HPC-AI ecosystem, bringing together:
 Horizon integrates unique capabilities from across the HPC-AI stack that no other platform offers:
 
 ### Synergy 1: GPU-Compiled Notebooks
-**Projects**: 01-rust + 08-rustybooks + 07-rustytorch
+**Projects**: 00-rust + 10-horizon + 07-rustytorch
 ```
 User types Rust code → GPU compiler (10x faster) → RTX tensor ops → Output
                          ↓
@@ -59,7 +59,7 @@ ADAS explores design space → DGM evolves agent code → SwarmAgentic optimizes
 - **Unique**: Three evolution engines working in concert with real-time visualization.
 
 ### Synergy 3: RDMA + ZK Visualization
-**Projects**: 10-nebula (RDMA + ZK Proofs + Mesh)
+**Projects**: 09-nebula (RDMA + ZK Proofs + Mesh)
 ```
 GPU A (Machine 1) ←→ 400Gbps RDMA ←→ GPU B (Machine 2)
                           ↓
@@ -71,7 +71,7 @@ GPU A (Machine 1) ←→ 400Gbps RDMA ←→ GPU B (Machine 2)
 - **Unique**: GPU-direct transfers with cryptographic verification.
 
 ### Synergy 4: GPU Data Pipeline
-**Projects**: 04-warp + 08-rustybooks + 10-nebula
+**Projects**: 04-warp + 10-horizon + 09-nebula
 ```
 Data arrives → WARP GPU encryption (20GB/s) → GPUDirect to GPU memory
                         ↓                              ↓
@@ -82,7 +82,7 @@ Data arrives → WARP GPU encryption (20GB/s) → GPUDirect to GPU memory
 - **Unique**: End-to-end GPU data path from network to training with 20+ GB/s encryption.
 
 ### Synergy 5: Intelligent Edge Proxy
-**Projects**: 09-vortex + 03-SLAI + 05-stratoswarm
+**Projects**: 08-vortex + 03-SLAI + 05-stratoswarm
 ```
 HTTP request → Vortex proxy → SLAI Brain routes → Knowledge graph decides
                     ↓                 ↓                    ↓
@@ -93,7 +93,7 @@ HTTP request → Vortex proxy → SLAI Brain routes → Knowledge graph decides
 - **Unique**: AI-driven request routing with GPU failure prediction and preemptive migration.
 
 ### Synergy 6: Tensor Mesh
-**Projects**: 10-nebula RDMA + 02-RMPI + 07-rustytorch
+**Projects**: 09-nebula RDMA + 02-RMPI + 07-rustytorch
 ```
 Distributed GPUs ←→ Type-safe RMPI collectives ←→ RDMA transport
                           ↓
@@ -183,6 +183,7 @@ The backend supports optional feature flags for embedding additional functionali
 | `embedded-cluster` | Real cluster management via stratoswarm | Linux only |
 | `embedded-training` | Distributed training via rtx-distributed | CUDA required |
 | `embedded-storage` | File transfers via warp-core | All |
+| `embedded-slai` | GPU scheduling via SLAI FairShareScheduler | All |
 | `gpu-compiler` | GPU-accelerated Rust compilation (Synergy 1) | Metal/CUDA |
 | `embedded-nebula` | RDMA + ZK proofs + mesh (Synergies 3 & 6) | Linux + InfiniBand |
 
@@ -197,7 +198,7 @@ cargo tauri build --features minimal
 ## Project Structure
 
 ```
-11-horizon/
+10-horizon/
 ├── Cargo.toml                    # Workspace root
 ├── README.md                     # This file
 ├── src-tauri/                    # Rust backend
@@ -211,6 +212,7 @@ cargo tauri build --features minimal
 │       ├── kernel_bridge.rs      # Notebook execution (mock/real)
 │       ├── training_bridge.rs    # ML training jobs (mock/real)
 │       ├── storage_bridge.rs     # File transfers (mock/real)
+│       ├── slai_bridge.rs        # SLAI GPU scheduling (mock/real)
 │       ├── gpu_compiler_bridge.rs # GPU compilation (Synergy 1)
 │       ├── evolution_bridge.rs   # Evolution engines (Synergy 2)
 │       ├── nebula_bridge.rs      # RDMA + ZK + mesh (Synergy 3)
@@ -266,11 +268,12 @@ cargo tauri build --features minimal
 
 | Feature | Source Project | Integration Method |
 |---------|---------------|-------------------|
-| Notebook execution | 08-rustybooks | `notebook-kernel` crate (embedded) |
+| Notebook execution | 10-horizon | Built-in notebook environment |
 | Cluster management | 05-stratoswarm | `cluster-mesh` crate (Linux only) |
 | ML training | 07-rustytorch | `rtx-distributed` crate (CUDA) |
 | Data transfer | 04-warp | `warp-core` crate |
-| IPC channels | 00-hpc-channels | Unified message types |
+| GPU scheduling | 03-SLAI | `slai` crate + `SlaiBridge` (791 lines) |
+| IPC channels | 01-hpc-channels | Unified message types + MeshSwitchboard |
 
 ## Implementation Status
 

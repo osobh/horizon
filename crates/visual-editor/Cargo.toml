@@ -47,7 +47,7 @@ validator = { version = "0.16", features = ["derive"] }
 clap = { version = "4.0", features = ["derive"] }
 
 # Agent Core for XP system
-exorust-agent-core = { path = "../agent-core" }
+stratoswarm-agent-core = { path = "../agent-core" }
 
 [dev-dependencies]
 tokio-test = "0.4"

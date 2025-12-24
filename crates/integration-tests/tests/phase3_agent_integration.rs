@@ -1,15 +1,15 @@
 //! Phase 3 Agent Systems Integration Tests
 //! Tests integration between CUDA, agent-core, synthesis, evolution-engines, and knowledge-graph
 
-use exorust_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
-use exorust_cuda::{CudaContext, CudaMemoryManager, CudaStream};
-use exorust_evolution_engines::{
+use stratoswarm_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
+use stratoswarm_cuda::{CudaContext, CudaMemoryManager, CudaStream};
+use stratoswarm_evolution_engines::{
     AdasEngine, DgmEngine, EvolutionEngineConfig, HybridEvolutionSystem, SwarmAgenticEngine,
 };
-use exorust_knowledge_graph::{
+use stratoswarm_knowledge_graph::{
     KnowledgeGraph, KnowledgeGraphConfig, NodeType, Query, QueryEngine, QueryType,
 };
-use exorust_synthesis::{GoalInterpreter, SynthesisConfig, SynthesisPipeline};
+use stratoswarm_synthesis::{GoalInterpreter, SynthesisConfig, SynthesisPipeline};
 use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 

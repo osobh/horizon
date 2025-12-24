@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use exorust_evolution_global::{
+use stratoswarm_evolution_global::{
     ai_safety_compliance::{
         BiasDetectionResult, BiasDetector, BiasType, ComplianceStatus, EthicalAssessment,
         EthicalAssessor, EthicalPrinciple, SafetyComplianceConfig, SafetyComplianceManager,

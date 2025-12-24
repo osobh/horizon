@@ -1,5 +1,5 @@
 [package]
-name = "exorust-streaming"
+name = "stratoswarm-streaming"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -20,8 +20,8 @@ use crate::permission_system::{Permission, PermissionSystem};
 use crate::policy_manager::{Policy, PolicyManager, PolicyType};
 use crate::{GovernanceError, Result};
 
-use exorust_agent_core::agent::AgentId;
-use exorust_emergency_controls::kill_switch::KillSwitchSystem;
+use stratoswarm_agent_core::agent::AgentId;
+use stratoswarm_emergency_controls::kill_switch::KillSwitchSystem;
 
 /// Configuration for the governance engine
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

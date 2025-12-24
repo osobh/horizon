@@ -4,7 +4,7 @@ use crate::{
     AgentGenome, CodeLocation, EvolutionStreamingError, MutatedAgent, MutationInfo, MutationType,
 };
 use async_trait::async_trait;
-use exorust_streaming::{StreamChunk, StreamProcessor, StreamStats};
+use stratoswarm_streaming::{StreamChunk, StreamProcessor, StreamStats};
 use futures::future::join_all;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -78,10 +78,10 @@ impl MutationProcessor {
 
     /// Get current statistics snapshot
     pub fn get_stats_snapshot(&self) -> StreamStats {
-        let agents = self.stats.agents_processed.load(Ordering::SeqCst);
-        let mutations = self.stats.mutations_generated.load(Ordering::SeqCst);
-        let time_ns = self.stats.processing_time_ns.load(Ordering::SeqCst);
-        let failures = self.stats.validation_failures.load(Ordering::SeqCst);
+        let agents = self.stats.agents_processed.load(Ordering::Relaxed);
+        let mutations = self.stats.mutations_generated.load(Ordering::Relaxed);
+        let time_ns = self.stats.processing_time_ns.load(Ordering::Relaxed);
+        let failures = self.stats.validation_failures.load(Ordering::Relaxed);
 
         let throughput_agents_per_sec = if time_ns > 0 {
             (agents as f64) / ((time_ns as f64) / 1_000_000_000.0)
@@ -149,7 +149,7 @@ impl MutationProcessor {
                 Err(e) => {
                     self.stats
                         .validation_failures
-                        .fetch_add(1, Ordering::SeqCst);
+                        .fetch_add(1, Ordering::Relaxed);
                     eprintln!("Mutation failed: {e}");
                 }
             }
@@ -158,13 +158,13 @@ impl MutationProcessor {
         let processing_time = start_time.elapsed().as_nanos() as u64;
         self.stats
             .processing_time_ns
-            .fetch_add(processing_time, Ordering::SeqCst);
+            .fetch_add(processing_time, Ordering::Relaxed);
         self.stats
             .agents_processed
-            .fetch_add(agents.len() as u64, Ordering::SeqCst);
+            .fetch_add(agents.len() as u64, Ordering::Relaxed);
         self.stats
             .mutations_generated
-            .fetch_add(results.len() as u64, Ordering::SeqCst);
+            .fetch_add(results.len() as u64, Ordering::Relaxed);
 
         Ok(results)
     }
@@ -189,7 +189,7 @@ impl MutationProcessor {
             }
         })?;
 
-        stats.mutations_validated.fetch_add(1, Ordering::SeqCst);
+        stats.mutations_validated.fetch_add(1, Ordering::Relaxed);
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -218,25 +218,25 @@ impl StreamProcessor for MutationProcessor {
     async fn process(
         &mut self,
         chunk: StreamChunk,
-    ) -> Result<StreamChunk, exorust_streaming::StreamingError> {
+    ) -> Result<StreamChunk, stratoswarm_streaming::StreamingError> {
         // Deserialize agent from chunk
         let agent_data = String::from_utf8_lossy(&chunk.data);
         let agent: AgentGenome = serde_json::from_str(&agent_data).map_err(|e| {
-            exorust_streaming::StreamingError::ProcessingFailed {
+            stratoswarm_streaming::StreamingError::ProcessingFailed {
                 reason: format!("Failed to deserialize agent: {e}"),
             }
         })?;
 
         // Process single agent
         let mutated_agents = self.process_agent_batch(vec![agent]).await.map_err(|e| {
-            exorust_streaming::StreamingError::ProcessingFailed {
+            stratoswarm_streaming::StreamingError::ProcessingFailed {
                 reason: e.to_string(),
             }
         })?;
 
         // Serialize result
         let result_data = serde_json::to_string(&mutated_agents).map_err(|e| {
-            exorust_streaming::StreamingError::ProcessingFailed {
+            stratoswarm_streaming::StreamingError::ProcessingFailed {
                 reason: format!("Failed to serialize mutation results: {e}"),
             }
         })?;
@@ -251,14 +251,14 @@ impl StreamProcessor for MutationProcessor {
     async fn process_batch(
         &mut self,
         chunks: Vec<StreamChunk>,
-    ) -> Result<Vec<StreamChunk>, exorust_streaming::StreamingError> {
+    ) -> Result<Vec<StreamChunk>, stratoswarm_streaming::StreamingError> {
         let mut agents = Vec::new();
 
         // Deserialize all agents
         for chunk in &chunks {
             let agent_data = String::from_utf8_lossy(&chunk.data);
             let agent: AgentGenome = serde_json::from_str(&agent_data).map_err(|e| {
-                exorust_streaming::StreamingError::ProcessingFailed {
+                stratoswarm_streaming::StreamingError::ProcessingFailed {
                     reason: format!("Failed to deserialize agent: {e}"),
                 }
             })?;
@@ -267,14 +267,14 @@ impl StreamProcessor for MutationProcessor {
 
         // Process batch
         let mutated_agents = self.process_agent_batch(agents).await.map_err(|e| {
-            exorust_streaming::StreamingError::ProcessingFailed {
+            stratoswarm_streaming::StreamingError::ProcessingFailed {
                 reason: e.to_string(),
             }
         })?;
 
         // Create result chunks
         let result_data = serde_json::to_string(&mutated_agents).map_err(|e| {
-            exorust_streaming::StreamingError::ProcessingFailed {
+            stratoswarm_streaming::StreamingError::ProcessingFailed {
                 reason: format!("Failed to serialize mutation results: {e}"),
             }
         })?;
@@ -307,7 +307,7 @@ impl StreamProcessor for MutationProcessor {
         Ok(result_chunks)
     }
 
-    async fn stats(&self) -> Result<StreamStats, exorust_streaming::StreamingError> {
+    async fn stats(&self) -> Result<StreamStats, stratoswarm_streaming::StreamingError> {
         Ok(self.get_stats_snapshot())
     }
 
@@ -480,11 +480,11 @@ mod tests {
     #[test]
     fn test_stats_throughput_calculation() {
         let stats = MutationStats::default();
-        stats.agents_processed.store(1000, Ordering::SeqCst);
-        stats.mutations_generated.store(4000, Ordering::SeqCst);
+        stats.agents_processed.store(1000, Ordering::Relaxed);
+        stats.mutations_generated.store(4000, Ordering::Relaxed);
         stats
             .processing_time_ns
-            .store(1_000_000_000, Ordering::SeqCst); // 1 second
+            .store(1_000_000_000, Ordering::Relaxed); // 1 second
 
         let processor = MutationProcessor::new("throughput-test".to_string());
         let snapshot = processor.get_stats_snapshot();
@@ -500,7 +500,7 @@ mod tests {
         let processor = MutationProcessor::new("validation-test".to_string());
 
         assert_eq!(
-            processor.stats.validation_failures.load(Ordering::SeqCst),
+            processor.stats.validation_failures.load(Ordering::Relaxed),
             0
         );
     }
@@ -650,7 +650,7 @@ mod tests {
                 let stats_clone = stats.clone();
                 std::thread::spawn(move || {
                     for _ in 0..100 {
-                        stats_clone.agents_processed.fetch_add(1, Ordering::SeqCst);
+                        stats_clone.agents_processed.fetch_add(1, Ordering::Relaxed);
                     }
                 })
             })
@@ -660,7 +660,7 @@ mod tests {
             t.join().unwrap();
         }
 
-        assert_eq!(stats.agents_processed.load(Ordering::SeqCst), 1000);
+        assert_eq!(stats.agents_processed.load(Ordering::Relaxed), 1000);
     }
 
     #[tokio::test]

@@ -106,9 +106,9 @@ impl MigrationParticle {
     ) -> Self {
         // Create a mock genome for testing
         let genome = crate::traits::AgentGenome {
-            goal: exorust_agent_core::Goal::new(
+            goal: stratoswarm_agent_core::Goal::new(
                 "mock".to_string(),
-                exorust_agent_core::GoalPriority::Normal,
+                stratoswarm_agent_core::GoalPriority::Normal,
             ),
             architecture: crate::traits::ArchitectureGenes {
                 memory_capacity: 1024,

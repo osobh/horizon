@@ -202,9 +202,9 @@ impl DgmEngine {
         let mut rng = self.rng.write();
 
         AgentGenome {
-            goal: exorust_agent_core::Goal::new(
+            goal: stratoswarm_agent_core::Goal::new(
                 "Self-improvement".to_string(),
-                exorust_agent_core::GoalPriority::High,
+                stratoswarm_agent_core::GoalPriority::High,
             ),
             architecture: ArchitectureGenes {
                 memory_capacity: rng.gen_range(1024..100_000),
@@ -451,7 +451,7 @@ impl EvolutionEngine for DgmEngine {
         for i in 0..size {
             let genome = self.generate_base_genome();
 
-            let config = exorust_agent_core::AgentConfig {
+            let config = stratoswarm_agent_core::AgentConfig {
                 name: format!("dgm_agent_{i}"),
                 agent_type: "dgm".to_string(),
                 max_memory: genome.architecture.memory_capacity,
@@ -460,7 +460,7 @@ impl EvolutionEngine for DgmEngine {
                 metadata: serde_json::Value::Null,
             };
 
-            let agent = exorust_agent_core::Agent::new(config).map_err(|e| {
+            let agent = stratoswarm_agent_core::Agent::new(config).map_err(|e| {
                 EvolutionEngineError::InitializationError {
                     message: format!("Failed to create agent: {e}"),
                 }

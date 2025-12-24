@@ -1,5 +1,5 @@
 use anyhow::Result;
-use horizon_hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch};
+use hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch};
 use crate::config::InfluxDbConfig;
 
 pub struct InfluxDbWriter {

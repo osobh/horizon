@@ -62,11 +62,12 @@ impl CompressionProcessor {
 
     /// Get current statistics snapshot
     pub fn get_stats_snapshot(&self) -> StreamStats {
-        let chunks = self.stats.chunks_processed.load(Ordering::SeqCst);
-        let input_bytes = self.stats.bytes_input.load(Ordering::SeqCst);
-        let output_bytes = self.stats.bytes_output.load(Ordering::SeqCst);
-        let time_ns = self.stats.compression_time_ns.load(Ordering::SeqCst);
-        let errors = self.stats.errors.load(Ordering::SeqCst);
+        // Relaxed: independent statistics counters with no ordering dependencies
+        let chunks = self.stats.chunks_processed.load(Ordering::Relaxed);
+        let input_bytes = self.stats.bytes_input.load(Ordering::Relaxed);
+        let output_bytes = self.stats.bytes_output.load(Ordering::Relaxed);
+        let time_ns = self.stats.compression_time_ns.load(Ordering::Relaxed);
+        let errors = self.stats.errors.load(Ordering::Relaxed);
 
         let throughput_mbps = if time_ns > 0 {
             (input_bytes as f64) / ((time_ns as f64) / 1_000_000_000.0) / (1024.0 * 1024.0)
@@ -85,8 +86,9 @@ impl CompressionProcessor {
 
     /// Get compression ratio
     pub fn compression_ratio(&self) -> f64 {
-        let input = self.stats.bytes_input.load(Ordering::SeqCst);
-        let output = self.stats.bytes_output.load(Ordering::SeqCst);
+        // Relaxed: approximate ratio sufficient for statistics
+        let input = self.stats.bytes_input.load(Ordering::Relaxed);
+        let output = self.stats.bytes_output.load(Ordering::Relaxed);
 
         if input > 0 {
             output as f64 / input as f64
@@ -238,16 +240,17 @@ impl StreamProcessor for CompressionProcessor {
         let output_size = compressed_data.len();
 
         let processing_time = start_time.elapsed().as_nanos() as u64;
+        // Relaxed: independent statistics counters
         self.stats
             .compression_time_ns
-            .fetch_add(processing_time, Ordering::SeqCst);
-        self.stats.chunks_processed.fetch_add(1, Ordering::SeqCst);
+            .fetch_add(processing_time, Ordering::Relaxed);
+        self.stats.chunks_processed.fetch_add(1, Ordering::Relaxed);
         self.stats
             .bytes_input
-            .fetch_add(input_size as u64, Ordering::SeqCst);
+            .fetch_add(input_size as u64, Ordering::Relaxed);
         self.stats
             .bytes_output
-            .fetch_add(output_size as u64, Ordering::SeqCst);
+            .fetch_add(output_size as u64, Ordering::Relaxed);
 
         Ok(StreamChunk::new(
             Bytes::from(compressed_data),
@@ -365,7 +368,7 @@ mod tests {
         let stats = processor.stats().await.unwrap();
         assert_eq!(stats.chunks_processed, 1);
         assert_eq!(
-            processor.stats.bytes_input.load(Ordering::SeqCst),
+            processor.stats.bytes_input.load(Ordering::Relaxed),
             input_data.len() as u64
         );
     }
@@ -428,7 +431,7 @@ mod tests {
 
         // Input bytes should be tracked separately
         assert_eq!(
-            processor.stats.bytes_input.load(Ordering::SeqCst),
+            processor.stats.bytes_input.load(Ordering::Relaxed),
             input_data.len() as u64
         );
     }

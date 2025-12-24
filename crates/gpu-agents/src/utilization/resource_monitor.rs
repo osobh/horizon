@@ -4,6 +4,7 @@
 
 use anyhow::{Context, Result};
 use cudarc::driver::CudaDevice;
+use dashmap::DashMap;
 use std::collections::VecDeque;
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -87,18 +88,16 @@ pub enum AlertSeverity {
 pub struct ResourceMonitor {
     device: Arc<CudaDevice>,
     limits: ResourceLimits,
-    measurements: Arc<RwLock<HashMap<ResourceType, VecDeque<ResourceMeasurement>>>>,
+    measurements: Arc<DashMap<ResourceType, VecDeque<ResourceMeasurement>>>,
     alerts: Arc<RwLock<VecDeque<ResourceAlert>>>,
     is_monitoring: Arc<AtomicBool>,
     measurement_interval: Duration,
 }
 
-use std::collections::HashMap;
-
 impl ResourceMonitor {
     /// Create new resource monitor
     pub fn new(device: Arc<CudaDevice>, limits: ResourceLimits) -> Self {
-        let mut measurements = HashMap::new();
+        let measurements = DashMap::new();
         for resource_type in &[
             ResourceType::Compute,
             ResourceType::Memory,
@@ -113,7 +112,7 @@ impl ResourceMonitor {
         Self {
             device,
             limits,
-            measurements: Arc::new(RwLock::new(measurements)),
+            measurements: Arc::new(measurements),
             alerts: Arc::new(RwLock::new(VecDeque::with_capacity(100))),
             is_monitoring: Arc::new(AtomicBool::new(false)),
             measurement_interval: Duration::from_millis(100),
@@ -139,9 +138,8 @@ impl ResourceMonitor {
                 let current_measurements = Self::measure_resources(&device).await;
 
                 // Store measurements
-                let mut all_measurements = measurements.write().await;
                 for measurement in current_measurements {
-                    if let Some(queue) = all_measurements.get_mut(&measurement.resource_type) {
+                    if let Some(mut queue) = measurements.get_mut(&measurement.resource_type) {
                         if queue.len() >= 1000 {
                             queue.pop_front();
                         }
@@ -303,8 +301,7 @@ impl ResourceMonitor {
         &self,
         resource_type: ResourceType,
     ) -> Option<ResourceMeasurement> {
-        let measurements = self.measurements.read().await;
-        measurements
+        self.measurements
             .get(&resource_type)
             .and_then(|queue| queue.back().cloned())
     }
@@ -315,10 +312,9 @@ impl ResourceMonitor {
         resource_type: ResourceType,
         duration: Duration,
     ) -> Vec<ResourceMeasurement> {
-        let measurements = self.measurements.read().await;
         let cutoff = Instant::now() - duration;
 
-        measurements
+        self.measurements
             .get(&resource_type)
             .map(|queue| {
                 queue

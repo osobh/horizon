@@ -1,5 +1,5 @@
 [package]
-name = "exorust-governance"
+name = "stratoswarm-governance"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -27,11 +27,11 @@ dashmap.workspace = true
 parking_lot = "0.12"
 
 # Internal crates
-exorust-bootstrap = { path = "../bootstrap" }
-exorust-emergency-controls = { path = "../emergency-controls" }
-exorust-compliance = { path = "../compliance" }
-exorust-agent-core = { path = "../agent-core" }
-exorust-evolution-engines = { path = "../evolution-engines" }
+stratoswarm-bootstrap = { path = "../bootstrap" }
+stratoswarm-emergency-controls = { path = "../emergency-controls" }
+stratoswarm-compliance = { path = "../compliance" }
+stratoswarm-agent-core = { path = "../agent-core" }
+stratoswarm-evolution-engines = { path = "../evolution-engines" }
 
 # Testing
 [dev-dependencies]

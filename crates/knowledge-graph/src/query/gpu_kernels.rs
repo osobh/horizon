@@ -4,7 +4,7 @@
 //! for accelerated graph operations.
 
 use crate::error::KnowledgeGraphResult;
-use exorust_cuda::{
+use stratoswarm_cuda::{
     kernel::{CompileOptions, KernelMetadata, SourceType},
     Kernel,
 };

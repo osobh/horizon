@@ -5,16 +5,16 @@ use super::types::*;
 use crate::replay::{KernelMetrics, ReplayResults};
 use crate::snapshot::MemorySnapshot;
 use crate::DebugError;
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Default analysis engine implementation
 pub struct DefaultAnalysisEngine {
     config: AnalysisConfig,
-    baselines: Arc<RwLock<HashMap<String, BaselineData>>>,
+    baselines: Arc<DashMap<String, BaselineData>>,
 }
 
 /// Configuration for analysis engine
@@ -49,14 +49,13 @@ impl DefaultAnalysisEngine {
     pub fn new(config: AnalysisConfig) -> Self {
         Self {
             config,
-            baselines: Arc::new(RwLock::new(HashMap::new())),
+            baselines: Arc::new(DashMap::new()),
         }
     }
 
     /// Add baseline data
     pub async fn add_baseline(&self, baseline: BaselineData) {
-        let mut baselines = self.baselines.write().await;
-        baselines.insert(baseline.name.clone(), baseline);
+        self.baselines.insert(baseline.name.clone(), baseline);
     }
 
     /// Calculate anomaly score
@@ -154,14 +153,13 @@ impl AnalysisEngine for DefaultAnalysisEngine {
         target: AnalysisTarget,
         baseline: Option<BaselineData>,
     ) -> Result<Vec<AnomalyResult>, DebugError> {
-        let mut anomalies = Vec::new();
-        let baselines = self.baselines.read().await;
+        let anomalies = Vec::new();
 
         // Use provided baseline or fetch from storage
-        let baseline_data = if let Some(b) = baseline {
+        let _baseline_data = if let Some(b) = baseline {
             b
-        } else if let Some(b) = baselines.values().next() {
-            b.clone()
+        } else if let Some(entry) = self.baselines.iter().next() {
+            entry.value().clone()
         } else {
             return Ok(anomalies); // No baseline available
         };

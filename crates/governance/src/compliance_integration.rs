@@ -13,10 +13,10 @@ use uuid::Uuid;
 
 use crate::governance_engine::EvolutionRequest;
 use crate::{GovernanceError, Result};
-use exorust_agent_core::agent::AgentId;
+use stratoswarm_agent_core::agent::AgentId;
 
 // Import from compliance crate
-use exorust_compliance::{
+use stratoswarm_compliance::{
     ai_safety::{AISafetyEngine, ComplianceStatus as SafetyComplianceStatus, SafetyRiskLevel},
     audit_framework::{AuditEntry, ComplianceEngine},
     data_classification::{DataClassification, DataClassifier},

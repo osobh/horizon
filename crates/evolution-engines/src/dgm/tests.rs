@@ -113,9 +113,9 @@ fn test_dgm_config_serialization() {
 #[test]
 fn test_growth_pattern_methods() {
     let source = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "Test".to_string(),
-            exorust_agent_core::GoalPriority::Normal,
+            stratoswarm_agent_core::GoalPriority::Normal,
         ),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
@@ -204,9 +204,9 @@ fn test_pattern_discovery_similarity() {
     let discovery = PatternDiscovery::new(0.8, 100, 10);
 
     let genome1 = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "Test".to_string(),
-            exorust_agent_core::GoalPriority::Normal,
+            stratoswarm_agent_core::GoalPriority::Normal,
         ),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
@@ -221,9 +221,9 @@ fn test_pattern_discovery_similarity() {
     };
 
     let genome2 = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "Test".to_string(),
-            exorust_agent_core::GoalPriority::Normal,
+            stratoswarm_agent_core::GoalPriority::Normal,
         ),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
@@ -242,9 +242,9 @@ fn test_pattern_discovery_similarity() {
 
     // Very different genomes should not be similar
     let genome3 = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "Different".to_string(),
-            exorust_agent_core::GoalPriority::High,
+            stratoswarm_agent_core::GoalPriority::High,
         ),
         architecture: ArchitectureGenes {
             memory_capacity: 8192,
@@ -266,9 +266,9 @@ fn test_pattern_consolidation() {
     let discovery = PatternDiscovery::new(0.8, 5, 10);
 
     let genome1 = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "Test".to_string(),
-            exorust_agent_core::GoalPriority::Normal,
+            stratoswarm_agent_core::GoalPriority::Normal,
         ),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
@@ -305,7 +305,7 @@ async fn test_pattern_application() {
     let engine = DgmEngine::new(config).unwrap();
 
     let genome = engine.generate_base_genome();
-    let agent_config = exorust_agent_core::AgentConfig {
+    let agent_config = stratoswarm_agent_core::AgentConfig {
         name: "test_agent".to_string(),
         agent_type: "test".to_string(),
         max_memory: genome.architecture.memory_capacity,
@@ -313,7 +313,7 @@ async fn test_pattern_application() {
         priority: 1,
         metadata: serde_json::Value::Null,
     };
-    let agent = exorust_agent_core::Agent::new(agent_config).unwrap();
+    let agent = stratoswarm_agent_core::Agent::new(agent_config).unwrap();
     let evolvable = EvolvableAgent {
         agent,
         genome: genome.clone(),

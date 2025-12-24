@@ -5,10 +5,10 @@ use super::kernel::KernelProfile;
 use super::traits::Profiler;
 use crate::MonitoringError;
 use async_trait::async_trait;
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use uuid::Uuid;
 
 // Internal types for managing profile sessions
@@ -25,14 +25,14 @@ struct ProfileSession {
 /// NVIDIA Nsight Compute profiler integration
 pub struct NsightComputeProfiler {
     config: ProfileConfig,
-    active_sessions: Arc<RwLock<HashMap<(Uuid, String), ProfileSession>>>,
+    active_sessions: Arc<DashMap<(Uuid, String), ProfileSession>>,
 }
 
 impl NsightComputeProfiler {
     pub fn new(config: ProfileConfig) -> Self {
         Self {
             config,
-            active_sessions: Arc::new(RwLock::new(HashMap::new())),
+            active_sessions: Arc::new(DashMap::new()),
         }
     }
 
@@ -90,10 +90,9 @@ impl Profiler for NsightComputeProfiler {
             });
         }
 
-        let mut sessions = self.active_sessions.write().unwrap();
         let key = (container_id, kernel_id.to_string());
 
-        if sessions.contains_key(&key) {
+        if self.active_sessions.contains_key(&key) {
             return Err(MonitoringError::ProfilerFailed {
                 reason: "Profile session already active".to_string(),
             });
@@ -110,7 +109,7 @@ impl Profiler for NsightComputeProfiler {
             process_id: None,
         };
 
-        sessions.insert(key, session);
+        self.active_sessions.insert(key, session);
 
         Ok(())
     }
@@ -120,10 +119,10 @@ impl Profiler for NsightComputeProfiler {
         container_id: Uuid,
         kernel_id: &str,
     ) -> Result<KernelProfile, MonitoringError> {
-        let mut sessions = self.active_sessions.write().unwrap();
         let key = (container_id, kernel_id.to_string());
 
-        let session = sessions
+        let (_, session) = self
+            .active_sessions
             .remove(&key)
             .ok_or_else(|| MonitoringError::ProfilerFailed {
                 reason: "No active profile session found".to_string(),

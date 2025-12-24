@@ -1,5 +1,5 @@
 [package]
-name = "exorust-multi-region"
+name = "stratoswarm-multi-region"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

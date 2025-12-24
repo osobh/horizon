@@ -16,6 +16,7 @@
 //!
 //! Both implementations expose the same API to the Tauri commands.
 
+use dashmap::DashMap;
 use hpc_channels::{channels, StorageMessage};
 
 // Import real warp-core types when feature is enabled
@@ -32,10 +33,10 @@ use tokio::sync::RwLock;
 
 /// Bridge to the WARP storage/transfer system.
 pub struct StorageBridge {
-    /// Active transfers
-    transfers: Arc<RwLock<HashMap<String, Transfer>>>,
+    /// Active transfers (lock-free concurrent access)
+    transfers: Arc<DashMap<String, Transfer>>,
     /// Transfer counter for generating IDs
-    transfer_counter: Arc<RwLock<u64>>,
+    transfer_counter: AtomicU64,
     /// Request ID counter for channel messages
     request_counter: AtomicU64,
     /// Storage root directory (reserved for local cache)
@@ -173,8 +174,8 @@ impl StorageBridge {
         tracing::info!("StorageBridge initialized with mock data (embedded-storage feature disabled)");
 
         let bridge = Self {
-            transfers: Arc::new(RwLock::new(HashMap::new())),
-            transfer_counter: Arc::new(RwLock::new(0)),
+            transfers: Arc::new(DashMap::new()),
+            transfer_counter: AtomicU64::new(0),
             request_counter: AtomicU64::new(0),
             storage_root,
             #[cfg(feature = "embedded-storage")]
@@ -184,10 +185,8 @@ impl StorageBridge {
         // Add some mock transfers for demo
         let transfers = bridge.transfers.clone();
         tokio::spawn(async move {
-            let mut transfers_guard = transfers.write().await;
-
             // Add a completed upload
-            transfers_guard.insert("transfer-001".to_string(), Transfer {
+            transfers.insert("transfer-001".to_string(), Transfer {
                 id: "transfer-001".to_string(),
                 name: "training-data.tar.gz".to_string(),
                 operation: TransferOperation::Upload,
@@ -212,7 +211,7 @@ impl StorageBridge {
             });
 
             // Add an in-progress download
-            transfers_guard.insert("transfer-002".to_string(), Transfer {
+            transfers.insert("transfer-002".to_string(), Transfer {
                 id: "transfer-002".to_string(),
                 name: "model-checkpoint.pt".to_string(),
                 operation: TransferOperation::Download,
@@ -237,7 +236,7 @@ impl StorageBridge {
             });
 
             // Add a queued sync
-            transfers_guard.insert("transfer-003".to_string(), Transfer {
+            transfers.insert("transfer-003".to_string(), Transfer {
                 id: "transfer-003".to_string(),
                 name: "experiments/".to_string(),
                 operation: TransferOperation::Sync,
@@ -265,9 +264,9 @@ impl StorageBridge {
     /// Start an upload transfer.
     #[cfg(feature = "embedded-storage")]
     pub async fn upload(&self, source: String, destination: String, _config: Option<TransferConfig>) -> Result<Transfer, String> {
-        let mut counter = self.transfer_counter.write().await;
-        *counter += 1;
-        let transfer_id = format!("transfer-{:03}", *counter);
+        // Relaxed: independent transfer ID counter
+        let counter = self.transfer_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        let transfer_id = format!("transfer-{:03}", counter);
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -296,7 +295,7 @@ impl StorageBridge {
             error: None,
         };
 
-        self.transfers.write().await.insert(transfer_id.clone(), transfer.clone());
+        self.transfers.insert(transfer_id.clone(), transfer.clone());
         tracing::info!("Started upload transfer: {} (using warp-core)", transfer_id);
 
         // Use real warp-core TransferEngine
@@ -309,8 +308,7 @@ impl StorageBridge {
         tokio::spawn(async move {
             match engine.send(source_path, &destination).await {
                 Ok(session) => {
-                    let mut transfers_guard = transfers.write().await;
-                    if let Some(t) = transfers_guard.get_mut(&tid) {
+                    if let Some(mut t) = transfers.get_mut(&tid) {
                         t.status = TransferStatus::Completed;
                         t.completed_at = Some(
                             std::time::SystemTime::now()
@@ -326,8 +324,7 @@ impl StorageBridge {
                     }
                 }
                 Err(e) => {
-                    let mut transfers_guard = transfers.write().await;
-                    if let Some(t) = transfers_guard.get_mut(&tid) {
+                    if let Some(mut t) = transfers.get_mut(&tid) {
                         t.status = TransferStatus::Failed;
                         t.error = Some(e.to_string());
                         tracing::error!("Upload transfer {} failed: {}", tid, e);
@@ -344,9 +341,9 @@ impl StorageBridge {
     /// Start an upload transfer (mock implementation).
     #[cfg(not(feature = "embedded-storage"))]
     pub async fn upload(&self, source: String, destination: String, _config: Option<TransferConfig>) -> Result<Transfer, String> {
-        let mut counter = self.transfer_counter.write().await;
-        *counter += 1;
-        let transfer_id = format!("transfer-{:03}", *counter);
+        // Relaxed: independent transfer ID counter
+        let counter = self.transfer_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        let transfer_id = format!("transfer-{:03}", counter);
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -375,10 +372,11 @@ impl StorageBridge {
             error: None,
         };
 
-        self.transfers.write().await.insert(transfer_id.clone(), transfer.clone());
+        self.transfers.insert(transfer_id.clone(), transfer.clone());
 
         // Broadcast upload start via channel
-        let request_id = self.request_counter.fetch_add(1, Ordering::SeqCst);
+        // Relaxed: independent request ID counter
+        let request_id = self.request_counter.fetch_add(1, Ordering::Relaxed);
         if let Some(tx) = hpc_channels::sender::<StorageMessage>(channels::STORAGE_UPLOAD) {
             let _ = tx.send(StorageMessage::Upload {
                 path: source,
@@ -393,9 +391,9 @@ impl StorageBridge {
     /// Start a download transfer.
     #[cfg(feature = "embedded-storage")]
     pub async fn download(&self, source: String, destination: String, _config: Option<TransferConfig>) -> Result<Transfer, String> {
-        let mut counter = self.transfer_counter.write().await;
-        *counter += 1;
-        let transfer_id = format!("transfer-{:03}", *counter);
+        // Relaxed: independent transfer ID counter
+        let counter = self.transfer_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        let transfer_id = format!("transfer-{:03}", counter);
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -424,7 +422,7 @@ impl StorageBridge {
             error: None,
         };
 
-        self.transfers.write().await.insert(transfer_id.clone(), transfer.clone());
+        self.transfers.insert(transfer_id.clone(), transfer.clone());
         tracing::info!("Started download transfer: {} (using warp-core)", transfer_id);
 
         // Use real warp-core TransferEngine
@@ -437,8 +435,7 @@ impl StorageBridge {
         tokio::spawn(async move {
             match engine.fetch(&source, &dest_path).await {
                 Ok(session) => {
-                    let mut transfers_guard = transfers.write().await;
-                    if let Some(t) = transfers_guard.get_mut(&tid) {
+                    if let Some(mut t) = transfers.get_mut(&tid) {
                         t.status = TransferStatus::Completed;
                         t.completed_at = Some(
                             std::time::SystemTime::now()
@@ -454,8 +451,7 @@ impl StorageBridge {
                     }
                 }
                 Err(e) => {
-                    let mut transfers_guard = transfers.write().await;
-                    if let Some(t) = transfers_guard.get_mut(&tid) {
+                    if let Some(mut t) = transfers.get_mut(&tid) {
                         t.status = TransferStatus::Failed;
                         t.error = Some(e.to_string());
                         tracing::error!("Download transfer {} failed: {}", tid, e);
@@ -472,9 +468,9 @@ impl StorageBridge {
     /// Start a download transfer (mock implementation).
     #[cfg(not(feature = "embedded-storage"))]
     pub async fn download(&self, source: String, destination: String, _config: Option<TransferConfig>) -> Result<Transfer, String> {
-        let mut counter = self.transfer_counter.write().await;
-        *counter += 1;
-        let transfer_id = format!("transfer-{:03}", *counter);
+        // Relaxed: independent transfer ID counter
+        let counter = self.transfer_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        let transfer_id = format!("transfer-{:03}", counter);
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -503,10 +499,11 @@ impl StorageBridge {
             error: None,
         };
 
-        self.transfers.write().await.insert(transfer_id.clone(), transfer.clone());
+        self.transfers.insert(transfer_id.clone(), transfer.clone());
 
         // Broadcast download start via channel
-        let request_id = self.request_counter.fetch_add(1, Ordering::SeqCst);
+        // Relaxed: independent request ID counter
+        let request_id = self.request_counter.fetch_add(1, Ordering::Relaxed);
         if let Some(tx) = hpc_channels::sender::<StorageMessage>(channels::STORAGE_DOWNLOAD) {
             let _ = tx.send(StorageMessage::Download {
                 merkle_root: source, // Using source as merkle_root for now
@@ -521,33 +518,30 @@ impl StorageBridge {
 
     /// Get a transfer by ID.
     pub async fn get_transfer(&self, transfer_id: &str) -> Option<Transfer> {
-        self.transfers.read().await.get(transfer_id).cloned()
+        self.transfers.get(transfer_id).map(|r| r.clone())
     }
 
     /// Get all transfers.
     pub async fn get_all_transfers(&self) -> Vec<Transfer> {
-        self.transfers.read().await.values().cloned().collect()
+        self.transfers.iter().map(|r| r.value().clone()).collect()
     }
 
     /// Get active transfers.
     pub async fn get_active_transfers(&self) -> Vec<Transfer> {
         self.transfers
-            .read()
-            .await
-            .values()
-            .filter(|t| {
+            .iter()
+            .filter(|r| {
+                let t = r.value();
                 t.status == TransferStatus::Analyzing
                     || t.status == TransferStatus::Transferring
                     || t.status == TransferStatus::Verifying
             })
-            .cloned()
+            .map(|r| r.value().clone())
             .collect()
     }
 
     /// Get storage statistics.
     pub async fn get_stats(&self) -> StorageStats {
-        let transfers = self.transfers.read().await;
-
         let mut stats = StorageStats {
             total_uploads: 0,
             total_downloads: 0,
@@ -558,7 +552,8 @@ impl StorageBridge {
             failed_transfers: 0,
         };
 
-        for transfer in transfers.values() {
+        for transfer_ref in self.transfers.iter() {
+            let transfer = transfer_ref.value();
             match transfer.operation {
                 TransferOperation::Upload | TransferOperation::Sync => {
                     stats.total_uploads += 1;
@@ -589,42 +584,39 @@ impl StorageBridge {
 
     /// Pause a transfer.
     pub async fn pause_transfer(&self, transfer_id: &str) -> Result<(), String> {
-        let mut transfers = self.transfers.write().await;
-        let transfer = transfers.get_mut(transfer_id).ok_or("Transfer not found")?;
+        let mut transfer_ref = self.transfers.get_mut(transfer_id).ok_or("Transfer not found")?;
 
-        if transfer.status != TransferStatus::Transferring && transfer.status != TransferStatus::Analyzing {
+        if transfer_ref.status != TransferStatus::Transferring && transfer_ref.status != TransferStatus::Analyzing {
             return Err("Transfer is not active".to_string());
         }
 
-        transfer.status = TransferStatus::Paused;
+        transfer_ref.status = TransferStatus::Paused;
         tracing::info!("Paused transfer: {}", transfer_id);
         Ok(())
     }
 
     /// Resume a paused transfer.
     pub async fn resume_transfer(&self, transfer_id: &str) -> Result<(), String> {
-        let mut transfers = self.transfers.write().await;
-        let transfer = transfers.get_mut(transfer_id).ok_or("Transfer not found")?;
+        let mut transfer_ref = self.transfers.get_mut(transfer_id).ok_or("Transfer not found")?;
 
-        if transfer.status != TransferStatus::Paused {
+        if transfer_ref.status != TransferStatus::Paused {
             return Err("Transfer is not paused".to_string());
         }
 
-        transfer.status = TransferStatus::Transferring;
+        transfer_ref.status = TransferStatus::Transferring;
         tracing::info!("Resumed transfer: {}", transfer_id);
         Ok(())
     }
 
     /// Cancel a transfer.
     pub async fn cancel_transfer(&self, transfer_id: &str) -> Result<(), String> {
-        let mut transfers = self.transfers.write().await;
-        let transfer = transfers.get_mut(transfer_id).ok_or("Transfer not found")?;
+        let mut transfer_ref = self.transfers.get_mut(transfer_id).ok_or("Transfer not found")?;
 
-        if transfer.status == TransferStatus::Completed || transfer.status == TransferStatus::Failed {
+        if transfer_ref.status == TransferStatus::Completed || transfer_ref.status == TransferStatus::Failed {
             return Err("Transfer is already finished".to_string());
         }
 
-        transfer.status = TransferStatus::Cancelled;
+        transfer_ref.status = TransferStatus::Cancelled;
         tracing::info!("Cancelled transfer: {}", transfer_id);
         Ok(())
     }
@@ -714,9 +706,8 @@ impl StorageBridge {
     /// Simulate progress update (for demo purposes).
     #[allow(dead_code)]
     pub async fn simulate_progress(&self) {
-        let mut transfers = self.transfers.write().await;
-
-        for transfer in transfers.values_mut() {
+        for mut transfer_ref in self.transfers.iter_mut() {
+            let transfer = transfer_ref.value_mut();
             if transfer.status == TransferStatus::Transferring {
                 // Simulate 500 MB/s transfer
                 let bytes_per_tick = 50_000_000u64; // 50 MB per tick (100ms)
