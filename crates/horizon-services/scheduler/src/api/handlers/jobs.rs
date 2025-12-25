@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use hpc_channels::SchedulerMessage;
 use serde::Deserialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -42,6 +43,12 @@ pub async fn submit_job(
 
     // Submit job to scheduler
     let submitted_job = state.scheduler.submit_job(job).await?;
+
+    // Publish job submitted event via hpc-channels
+    state.publish_job_event(SchedulerMessage::JobSubmitted {
+        job_id: submitted_job.id.to_string(),
+        tenant_id: submitted_job.user_id.clone(),
+    });
 
     // Return response
     Ok((StatusCode::CREATED, Json(submitted_job.into())))
@@ -137,6 +144,12 @@ pub async fn cancel_job(
     Path(id): Path<Uuid>,
 ) -> Result<Json<JobResponse>, crate::HpcError> {
     let cancelled_job = state.scheduler.cancel_job(id).await?;
+
+    // Publish job cancelled event via hpc-channels
+    state.publish_job_event(SchedulerMessage::JobCancelled {
+        job_id: cancelled_job.id.to_string(),
+    });
+
     Ok(Json(cancelled_job.into()))
 }
 
@@ -195,6 +208,12 @@ pub async fn submit_user_job(
     // Use existing submit_job logic
     let job = request.into_job()?;
     let submitted_job = state.scheduler.submit_job(job).await?;
+
+    // Publish job submitted event via hpc-channels
+    state.publish_job_event(SchedulerMessage::JobSubmitted {
+        job_id: submitted_job.id.to_string(),
+        tenant_id: submitted_job.user_id.clone(),
+    });
 
     Ok((StatusCode::CREATED, Json(submitted_job.into())))
 }

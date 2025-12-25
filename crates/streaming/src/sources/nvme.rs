@@ -72,10 +72,11 @@ impl NvmeStreamSource {
 
     /// Get current statistics snapshot
     pub fn get_stats_snapshot(&self) -> StreamStats {
-        let chunks = self.stats.chunks_read.load(Ordering::SeqCst);
-        let bytes = self.stats.bytes_read.load(Ordering::SeqCst);
-        let time_ns = self.stats.read_time_ns.load(Ordering::SeqCst);
-        let errors = self.stats.errors.load(Ordering::SeqCst);
+        // Relaxed: independent statistics counters with no ordering dependencies
+        let chunks = self.stats.chunks_read.load(Ordering::Relaxed);
+        let bytes = self.stats.bytes_read.load(Ordering::Relaxed);
+        let time_ns = self.stats.read_time_ns.load(Ordering::Relaxed);
+        let errors = self.stats.errors.load(Ordering::Relaxed);
 
         let throughput_mbps = if time_ns > 0 {
             (bytes as f64) / ((time_ns as f64) / 1_000_000_000.0) / (1024.0 * 1024.0)
@@ -135,7 +136,8 @@ impl StreamSource for NvmeStreamSource {
 
                 // Seek to current position
                 if let Err(e) = file.seek(SeekFrom::Start(position)).await {
-                    stats.errors.fetch_add(1, Ordering::SeqCst);
+                    // Relaxed: independent error counter
+                    stats.errors.fetch_add(1, Ordering::Relaxed);
                     yield Err(StreamingError::IoError(format!("Seek failed: {e}")));
                     break;
                 }
@@ -153,9 +155,10 @@ impl StreamSource for NvmeStreamSource {
 
                         buffer.truncate(bytes_read);
                         let read_time = start_time.elapsed().as_nanos() as u64;
-                        stats.read_time_ns.fetch_add(read_time, Ordering::SeqCst);
-                        stats.chunks_read.fetch_add(1, Ordering::SeqCst);
-                        stats.bytes_read.fetch_add(bytes_read as u64, Ordering::SeqCst);
+                        // Relaxed: independent statistics counters
+                        stats.read_time_ns.fetch_add(read_time, Ordering::Relaxed);
+                        stats.chunks_read.fetch_add(1, Ordering::Relaxed);
+                        stats.bytes_read.fetch_add(bytes_read as u64, Ordering::Relaxed);
 
                         let chunk = StreamChunk::new(
                             Bytes::copy_from_slice(&buffer),
@@ -169,7 +172,8 @@ impl StreamSource for NvmeStreamSource {
                         sequence += 1;
                     }
                     Err(e) => {
-                        stats.errors.fetch_add(1, Ordering::SeqCst);
+                        // Relaxed: independent error counter
+                        stats.errors.fetch_add(1, Ordering::Relaxed);
                         yield Err(StreamingError::IoError(format!("Read failed: {e}")));
                         break;
                     }

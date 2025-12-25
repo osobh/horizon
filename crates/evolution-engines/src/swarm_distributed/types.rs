@@ -106,7 +106,7 @@ impl SwarmNode {
             current_load: 0.0,
             last_heartbeat: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                ?
+                .unwrap_or_default()
                 .as_millis() as u64,
         }
     }
@@ -116,7 +116,7 @@ impl SwarmNode {
         self.current_load = load.clamp(0.0, 1.0);
         self.last_heartbeat = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            ?
+            .unwrap_or_default()
             .as_millis() as u64;
     }
 
@@ -124,7 +124,7 @@ impl SwarmNode {
     pub fn is_healthy(&self, timeout_ms: u64) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            ?
+            .unwrap_or_default()
             .as_millis() as u64;
 
         now - self.last_heartbeat < timeout_ms && self.status == NodeStatus::Active

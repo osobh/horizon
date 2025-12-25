@@ -12,7 +12,7 @@
 //! All tests MUST initially fail (RED phase) to drive proper TDD implementation.
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use exorust_knowledge_graph::{
+use stratoswarm_knowledge_graph::{
     Edge, EdgeType, KnowledgeGraph, KnowledgeGraphConfig, KnowledgeGraphResult, Node, NodeType,
 };
 use serde::{Deserialize, Serialize};
@@ -1531,13 +1531,13 @@ struct SearchResult {
 
 impl KnowledgeCompressionEngine {
     async fn new(_config: CompressionConfig) -> KnowledgeGraphResult<Self> {
-        Err(exorust_knowledge_graph::KnowledgeGraphError::Other(
+        Err(stratoswarm_knowledge_graph::KnowledgeGraphError::Other(
             "KnowledgeCompressionEngine not implemented".to_string()
         ))
     }
     
     async fn compress_lossless(&mut self, _graph: &KnowledgeGraph) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
-        Err(exorust_knowledge_graph::KnowledgeGraphError::Other(
+        Err(stratoswarm_knowledge_graph::KnowledgeGraphError::Other(
             "compress_lossless not implemented".to_string()
         ))
     }
@@ -1547,7 +1547,7 @@ impl KnowledgeCompressionEngine {
 
 impl StreamingCompressionEngine {
     async fn new(_compression_config: CompressionConfig, _streaming_config: StreamingCompressionConfig) -> KnowledgeGraphResult<Self> {
-        Err(exorust_knowledge_graph::KnowledgeGraphError::Other(
+        Err(stratoswarm_knowledge_graph::KnowledgeGraphError::Other(
             "StreamingCompressionEngine not implemented".to_string()
         ))
     }

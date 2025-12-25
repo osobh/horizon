@@ -1,7 +1,10 @@
-pub mod config;
-pub mod cardinality;
 pub mod backpressure;
-pub mod writers;
+pub mod cardinality;
+pub mod channels;
+pub mod collector;
+pub mod config;
 pub mod handler;
 pub mod listener;
-pub mod collector;
+pub mod writers;
+
+pub use channels::TelemetryChannels;

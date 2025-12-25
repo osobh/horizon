@@ -12,11 +12,13 @@ mod cluster_bridge;
 mod commands;
 mod data_pipeline_bridge;
 mod edge_proxy_bridge;
+mod ephemeral_bridge;
 mod events;
 mod evolution_bridge;
 mod gpu_compiler_bridge;
 mod kernel_bridge;
 mod nebula_bridge;
+mod slai_bridge;
 mod state;
 mod storage_bridge;
 mod tensor_mesh_bridge;
@@ -159,6 +161,33 @@ fn main() {
             commands::edge_proxy::get_backend_health,
             commands::edge_proxy::get_routing_decisions,
             commands::edge_proxy::simulate_edge_proxy_activity,
+            // Scheduler commands (SLAI GPU scheduling)
+            commands::scheduler::scheduler_detect_gpus,
+            commands::scheduler::scheduler_list_gpus,
+            commands::scheduler::submit_scheduler_job,
+            commands::scheduler::get_scheduler_job,
+            commands::scheduler::list_scheduler_jobs,
+            commands::scheduler::list_jobs_by_tenant,
+            commands::scheduler::cancel_scheduler_job,
+            commands::scheduler::create_tenant,
+            commands::scheduler::get_tenant,
+            commands::scheduler::list_tenants,
+            commands::scheduler::suspend_tenant,
+            commands::scheduler::resume_tenant,
+            commands::scheduler::get_scheduler_summary,
+            commands::scheduler::get_fair_share,
+            // Ephemeral session commands
+            commands::ephemeral::create_ephemeral_session,
+            commands::ephemeral::get_invite_url,
+            commands::ephemeral::join_ephemeral_session,
+            commands::ephemeral::get_ephemeral_presence,
+            commands::ephemeral::get_ephemeral_session,
+            commands::ephemeral::list_ephemeral_sessions,
+            commands::ephemeral::end_ephemeral_session,
+            commands::ephemeral::leave_ephemeral_session,
+            commands::ephemeral::update_ephemeral_activity,
+            commands::ephemeral::get_ephemeral_stats,
+            commands::ephemeral::cleanup_expired_sessions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");

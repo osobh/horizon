@@ -5,6 +5,7 @@
 
 use super::*;
 use cpu_agents::{CpuAgent, IoManager, Orchestrator};
+use dashmap::DashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -21,9 +22,9 @@ pub struct CpuAgentConnector {
     stats: Arc<CpuConnectorStats>,
     cpu_agent: Arc<Mutex<Option<Arc<CpuAgent>>>>,
     polling_handle: Option<JoinHandle<()>>,
-    pending_jobs: Arc<RwLock<HashMap<Uuid, PendingJob>>>,
-    stream_producers: Arc<RwLock<HashMap<Uuid, StreamProducer>>>,
-    stream_consumers: Arc<RwLock<HashMap<Uuid, StreamConsumer>>>,
+    pending_jobs: Arc<DashMap<Uuid, PendingJob>>,
+    stream_producers: Arc<DashMap<Uuid, StreamProducer>>,
+    stream_consumers: Arc<DashMap<Uuid, StreamConsumer>>,
 }
 
 impl CpuAgentConnector {

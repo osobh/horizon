@@ -5,11 +5,10 @@ use crate::interpreter::KernelSpecification;
 use crate::templates::TemplateEngine;
 use chrono::{DateTime, Utc};
 use std::error::Error;
-// use exorust_cuda::kernel::CompileOptions;
+// use stratoswarm_cuda::kernel::CompileOptions;
 use crate::compiler::CompileOptions;
-use parking_lot::RwLock;
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -68,7 +67,7 @@ impl Default for SynthesizerConfig {
 pub struct KernelSynthesizer {
     config: SynthesizerConfig,
     template_engine: Arc<TemplateEngine>,
-    cache: Arc<RwLock<HashMap<String, CacheEntry>>>,
+    cache: Arc<DashMap<String, CacheEntry>>,
     #[cfg(not(feature = "mock-llm"))]
     llm_client: async_openai::Client<async_openai::config::OpenAIConfig>,
 }
@@ -79,7 +78,7 @@ impl KernelSynthesizer {
         Ok(Self {
             config,
             template_engine: Arc::new(TemplateEngine::new()?),
-            cache: Arc::new(RwLock::new(HashMap::new())),
+            cache: Arc::new(DashMap::new()),
             #[cfg(not(feature = "mock-llm"))]
             llm_client: async_openai::Client::new(),
         })
@@ -150,8 +149,7 @@ impl KernelSynthesizer {
 
     /// Get kernel from cache
     fn get_from_cache(&self, key: &str) -> Option<SynthesizedKernel> {
-        let mut cache = self.cache.write();
-        if let Some(entry) = cache.get_mut(key) {
+        if let Some(mut entry) = self.cache.get_mut(key) {
             entry.hit_count += 1;
             entry.last_accessed = Utc::now();
             Some(entry.kernel.clone())
@@ -162,21 +160,19 @@ impl KernelSynthesizer {
 
     /// Cache synthesized kernel
     fn cache_kernel(&self, key: &str, kernel: SynthesizedKernel) {
-        let mut cache = self.cache.write();
-
         // Evict if cache is full
-        if cache.len() >= self.config.cache_size {
+        if self.cache.len() >= self.config.cache_size {
             // Find least recently used
-            if let Some(lru_key) = cache
+            if let Some(lru_key) = self.cache
                 .iter()
-                .min_by_key(|(_, entry)| entry.last_accessed)
-                .map(|(k, _)| k.clone())
+                .min_by_key(|entry| entry.value().last_accessed)
+                .map(|entry| entry.key().clone())
             {
-                cache.remove(&lru_key);
+                self.cache.remove(&lru_key);
             }
         }
 
-        cache.insert(
+        self.cache.insert(
             key.to_string(),
             CacheEntry {
                 kernel,

@@ -1,5 +1,5 @@
 [package]
-name = "exorust-cost-optimization"
+name = "stratoswarm-cost-optimization"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -22,6 +22,7 @@ ordered-float = "4.3"
 statistical = "1.0"
 prometheus = "0.13"
 rand = "0.8"
+stratoswarm-core = { path = "../stratoswarm-core" }
 
 [dev-dependencies]
 tempfile = "3.14"

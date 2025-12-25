@@ -1,7 +1,7 @@
 //! Consensus algorithm trait and implementations
 
-use super::ConsensusAlgorithmType;
-use crate::{ConsensusError, ConsensusResult as BaseResult};
+use super::{ConsensusAlgorithmType, RoundResult};
+use crate::ConsensusError;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,7 @@ pub trait ConsensusAlgorithm: Send + Sync {
     fn algorithm_type(&self) -> ConsensusAlgorithmType;
     
     /// Execute consensus round
-    async fn execute_round(&self, proposal: &[u8], nodes: usize) -> Result<BaseResult, ConsensusError>;
+    async fn execute_round(&self, proposal: &[u8], nodes: usize) -> Result<RoundResult, ConsensusError>;
     
     /// Check if GPU acceleration is supported
     fn supports_gpu(&self) -> bool;
@@ -105,10 +105,10 @@ macro_rules! impl_consensus_algorithm {
                 $algo
             }
             
-            async fn execute_round(&self, _proposal: &[u8], _nodes: usize) -> Result<BaseResult, ConsensusError> {
+            async fn execute_round(&self, _proposal: &[u8], _nodes: usize) -> Result<RoundResult, ConsensusError> {
                 // Simplified implementation
-                Ok(BaseResult {
-                    committed: true,
+                Ok(RoundResult {
+                    consensus_reached: true,
                     round: 1,
                     term: 1,
                 })
@@ -157,7 +157,7 @@ impl ConsensusAlgorithm for HybridConsensusAlgorithm {
         ConsensusAlgorithmType::Hybrid
     }
     
-    async fn execute_round(&self, proposal: &[u8], nodes: usize) -> Result<BaseResult, ConsensusError> {
+    async fn execute_round(&self, proposal: &[u8], nodes: usize) -> Result<RoundResult, ConsensusError> {
         // Try primary first, fallback if needed
         match self.primary_algorithm.execute_round(proposal, nodes).await {
             Ok(result) => Ok(result),

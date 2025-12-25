@@ -1,5 +1,5 @@
 [package]
-name = "exorust-monitoring"
+name = "stratoswarm-monitoring"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -15,6 +15,7 @@ tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
 uuid = { workspace = true }
+dashmap = { workspace = true }
 
 # Metrics and observability
 prometheus = "0.13"

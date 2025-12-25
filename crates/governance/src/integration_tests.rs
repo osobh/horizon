@@ -23,7 +23,7 @@ use crate::{
     GovernanceError, Result,
 };
 
-use exorust_agent_core::agent::AgentId;
+use stratoswarm_agent_core::agent::AgentId;
 
 /// Test multi-agent collaborative workflows
 #[tokio::test]

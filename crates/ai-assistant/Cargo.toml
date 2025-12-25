@@ -22,7 +22,7 @@ regex = "1.10"
 lazy_static = "1.4"
 
 # StratoSwarm integration
-exorust-runtime = { path = "../runtime" }
+stratoswarm-runtime = { path = "../runtime" }
 stratoswarm-zero-config = { path = "../zero-config" }
 # stratoswarm-cluster-mesh = { path = "../cluster-mesh" }  # Temporarily disabled due to compilation errors
 stratoswarm-cli = { path = "../stratoswarm-cli" }

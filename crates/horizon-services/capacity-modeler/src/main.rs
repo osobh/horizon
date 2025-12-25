@@ -1,5 +1,5 @@
 use anyhow::Result;
-use capacity_modeler::{api::create_routes, Config, ForecastService};
+use capacity_modeler::{api::create_routes, api::handlers::AppState, Config, ForecastService};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -23,11 +23,12 @@ async fn main() -> Result<()> {
         "Starting capacity-modeler service"
     );
 
-    // Create forecast service
-    let service = Arc::new(ForecastService::new(config.min_historical_days));
+    // Create forecast service and application state
+    let service = ForecastService::new(config.min_historical_days);
+    let state = Arc::new(AppState::new(service));
 
-    // Create router with service extension
-    let app = create_routes().layer(axum::Extension(service));
+    // Create router with application state
+    let app = create_routes().with_state(state);
 
     let addr: SocketAddr = config.listen_addr.parse()?;
     tracing::info!(?addr, "Capacity modeler listening");

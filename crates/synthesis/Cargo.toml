@@ -1,5 +1,5 @@
 [package]
-name = "exorust-synthesis"
+name = "stratoswarm-synthesis"
 version = "0.1.0"
 edition = "2021"
 
@@ -17,12 +17,12 @@ uuid = { workspace = true }
 rand = { workspace = true }
 
 # Project crates (removed for testing)
-# exorust-cuda = { path = "../cuda", features = ["mock"] }
-# exorust-runtime = { path = "../runtime" }
-# exorust-memory = { path = "../memory" }
-# exorust-storage = { path = "../storage" }
-# exorust-agent-core = { path = "../agent-core" }
-# exorust-monitoring = { path = "../monitoring" }
+# stratoswarm-cuda = { path = "../cuda", features = ["mock"] }
+# stratoswarm-runtime = { path = "../runtime" }
+# stratoswarm-memory = { path = "../memory" }
+# stratoswarm-storage = { path = "../storage" }
+# stratoswarm-agent-core = { path = "../agent-core" }
+# stratoswarm-monitoring = { path = "../monitoring" }
 
 # Synthesis-specific dependencies
 async-openai = "0.29"

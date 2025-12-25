@@ -36,12 +36,12 @@ async fn main() -> anyhow::Result<()> {
     let profiler = CustomerProfiler::new(repository.clone(), config.margin.ltv_months);
     let simulator = PricingSimulator::new(repository.clone());
 
-    let state = Arc::new(AppState {
+    let state = Arc::new(AppState::new(
         repository,
         profiler,
         simulator,
-        at_risk_threshold: config.margin.at_risk_threshold,
-    });
+        config.margin.at_risk_threshold,
+    ));
 
     let router = create_router(state);
 

@@ -4,6 +4,7 @@
 
 use super::core::*;
 use anyhow::{Result, anyhow};
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -11,8 +12,8 @@ use std::time::{Duration, Instant};
 
 /// Cloud provisioner for multi-cloud orchestration
 pub struct CloudProvisioner {
-    providers: Arc<RwLock<HashMap<String, Box<dyn CloudProvider>>>>,
-    deployments: Arc<RwLock<HashMap<String, Deployment>>>,
+    providers: Arc<DashMap<String, Box<dyn CloudProvider + Send + Sync>>>,
+    deployments: Arc<DashMap<String, Deployment>>,
 }
 
 /// Deployment tracking

@@ -1,9 +1,11 @@
 use crate::api::dto::{EvaluateRequest, EvaluateResponse};
-use crate::db::PolicyRepository;
+use crate::api::routes::AppState;
 use crate::error::{GovernorErrorExt, HpcError, Result};
 use axum::extract::State;
 use axum::Json;
+use hpc_channels::GovernorMessage;
 use hpc_policy::{parse_policy, evaluate as evaluate_policy, Decision, EvaluationContext, PrincipalContext, ResourceContext};
+use std::sync::Arc;
 use std::time::Instant;
 
 #[utoipa::path(
@@ -16,12 +18,12 @@ use std::time::Instant;
     )
 )]
 pub async fn evaluate(
-    State(repo): State<PolicyRepository>,
+    State(state): State<Arc<AppState>>,
     Json(request): Json<EvaluateRequest>,
 ) -> Result<Json<EvaluateResponse>> {
     let start = Instant::now();
 
-    let policies = repo.get_all_enabled_policies().await?;
+    let policies = state.repo.get_all_enabled_policies().await?;
 
     let mut matched_policy_name: Option<String> = None;
     let mut final_decision = Decision::Deny;
@@ -64,11 +66,33 @@ pub async fn evaluate(
     let evaluation_time = start.elapsed();
     let evaluation_time_ms = evaluation_time.as_secs_f64() * 1000.0;
 
+    let decision_str = match final_decision {
+        Decision::Allow => "allow".to_string(),
+        Decision::Deny => "deny".to_string(),
+    };
+
+    // Publish evaluation event
+    state.publish_evaluation_event(GovernorMessage::AccessEvaluated {
+        decision: decision_str.clone(),
+        principal_id: request.principal.user_id.clone(),
+        resource_type: request.resource.resource_type.clone(),
+        action: request.action.clone(),
+        matched_policy: matched_policy_name.clone(),
+        evaluation_time_ms,
+    });
+
+    // If denied, also publish an alert
+    if final_decision == Decision::Deny {
+        state.publish_alert_event(GovernorMessage::AccessDenied {
+            principal_id: request.principal.user_id.clone(),
+            resource_type: request.resource.resource_type.clone(),
+            action: request.action.clone(),
+            reason: "No matching allow policy found".to_string(),
+        });
+    }
+
     let response = EvaluateResponse {
-        decision: match final_decision {
-            Decision::Allow => "allow".to_string(),
-            Decision::Deny => "deny".to_string(),
-        },
+        decision: decision_str,
         matched_policy: matched_policy_name,
         evaluation_time_ms,
     };

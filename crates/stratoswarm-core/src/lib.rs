@@ -106,6 +106,7 @@ pub mod channels;
 pub mod error;
 pub mod evolution;
 pub mod gpu;
+pub mod priority_queue;
 
 #[cfg(test)]
 mod tests;
@@ -115,3 +116,4 @@ pub use channels::ChannelRegistry;
 pub use error::{ChannelError, Result};
 pub use evolution::{EvolutionConfig, EvolutionService};
 pub use gpu::{GpuConfig, GpuMetrics, GpuRuntime};
+pub use priority_queue::{PrioritySchedulerQueue, SchedulerPriority};

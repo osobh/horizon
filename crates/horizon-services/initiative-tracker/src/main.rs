@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
         .context("Failed to run migrations")?;
 
     let repository = InitiativeRepository::new(pool);
-    let state = Arc::new(AppState { repository });
+    let state = Arc::new(AppState::new(repository));
     let router = create_router(state);
 
     info!("Starting HTTP server on {}", config.http_addr);

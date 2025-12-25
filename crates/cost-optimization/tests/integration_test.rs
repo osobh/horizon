@@ -1,5 +1,5 @@
 use chrono::{Duration, Utc};
-use exorust_cost_optimization::{
+use stratoswarm_cost_optimization::{
     budget_manager::*, cloud_pricing::*, cost_predictor::*, gpu_optimizer::*, resource_tracker::*,
     spot_manager::*, usage_analyzer::*, workload_scheduler::*, CostOptimizationError,
 };

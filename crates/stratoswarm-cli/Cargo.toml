@@ -57,7 +57,7 @@ rand = { workspace = true }
 stratoswarm-dsl = { path = "../swarm-dsl" }
 swarm-registry = { path = "../swarm-registry" }
 # Temporarily commented to test CLI independently
-# exorust-runtime = { path = "../runtime" }
+# stratoswarm-runtime = { path = "../runtime" }
 # stratoswarm-cluster-mesh = { path = "../cluster-mesh" }
 # stratoswarm-zero-config = { path = "../zero-config" }
 

@@ -10,7 +10,7 @@ use crate::error::{KnowledgeGraphError, KnowledgeGraphResult};
 use crate::graph::{KnowledgeGraph, Node, NodeType};
 use crate::semantic::SemanticSearchEngine;
 use chrono::{DateTime, Utc};
-use exorust_agent_core::{memory::*, Agent, AgentId};
+use stratoswarm_agent_core::{memory::*, Agent, AgentId};
 use std::collections::HashMap;
 
 /// Agent memory integration system

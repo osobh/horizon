@@ -79,6 +79,7 @@ members = [
     "crates/hpc-foundation/hpc-resources",
     "crates/hpc-foundation/hpc-types",
     "crates/hpc-foundation/hpc-provider",
+    "crates/hpc-foundation/hpc-ephemeral-identity",
 
     # ==========================================
     # Horizon Services (Cost Intelligence, Enterprise Intelligence)
@@ -91,8 +92,7 @@ members = [
     "crates/horizon-services/capacity-modeler",
     "crates/horizon-services/quota-manager",
     "crates/horizon-services/inventory-service",
-    # TODO: Fix arrow/chrono conflict
-    # "crates/horizon-services/telemetry-collector",
+    "crates/horizon-services/telemetry-collector",
     "crates/horizon-services/efficiency-intelligence",
     "crates/horizon-services/margin-intelligence",
     "crates/horizon-services/vendor-intelligence",
@@ -117,6 +117,11 @@ members = [
     # Stratoswarm Core (Phase 1 - Channel Infrastructure)
     # ==========================================
     "crates/stratoswarm-core",
+
+    # ==========================================
+    # Subnet Manager (WireGuard subnet management)
+    # ==========================================
+    "crates/subnet-manager",
 ]
 
 [workspace.package]
@@ -233,8 +238,9 @@ rust_decimal = "1.33"
 rust_decimal_macros = "1.33"
 
 # Data processing
-arrow = "52"
-parquet = "52"
+# Note: v53+ required for chrono 0.4.35+ compatibility (quarter() method conflict fix)
+arrow = "53"
+parquet = "53"
 csv = "1.3"
 influxdb = "0.7"
 
@@ -262,6 +268,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Additional dependencies for operational tooling
 dashmap = "5.0"
+parking_lot = "0.12"
 
 # LLM integration for business interface
 async-openai = "0.29"
@@ -274,8 +281,11 @@ block2 = "0.6"
 dispatch2 = "0.2"
 
 # Internal crates (paths to sibling projects)
-hpc-channels = { path = "../00-hpc-channels" }
-notebook-kernel = { path = "../08-rustybooks/crates/core/notebook-kernel" }
+# Enable transport features for production:
+# - shared-memory: Tier 1 same-machine IPC via memmap2
+# - rkyv-codec: Zero-copy serialization
+# - wireguard: Tier 3 cross-site encrypted tunnels (optional, requires base64)
+hpc-channels = { path = "../01-hpc-channels", features = ["shared-memory", "rkyv-codec"] }
 
 # Workspace-wide lints for code quality enforcement
 [workspace.lints.rust]
@@ -303,10 +313,11 @@ multiple_crate_versions = "warn"
 
 [profile.release]
 opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
+lto = "fat"            # Full cross-crate optimization (lecture recommendation)
+codegen-units = 1      # Single codegen unit for best optimization
+panic = "abort"        # No unwinding overhead
+strip = true           # Remove debug symbols
 
 [profile.bench]
 inherits = "release"
+debug = true           # Enable flamegraph profiling for benchmarks

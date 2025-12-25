@@ -3,7 +3,7 @@
 //! These tests validate the complete integration between the DGM evolution engine
 //! and its self-assessment system, following TDD methodology.
 
-use exorust_evolution_engines::{
+use stratoswarm_evolution_engines::{
     dgm::{config::DgmConfig, engine::DgmEngine},
     dgm_self_assessment::{
         config::SelfAssessmentConfig,
@@ -26,9 +26,9 @@ fn create_test_population(size: usize) -> Vec<EvolvableAgent> {
 
     for i in 0..size {
         let genome = AgentGenome {
-            goal: exorust_agent_core::Goal::new(
+            goal: stratoswarm_agent_core::Goal::new(
                 format!("Test goal {}", i),
-                exorust_agent_core::GoalPriority::Medium,
+                stratoswarm_agent_core::GoalPriority::Medium,
             ),
             architecture: ArchitectureGenes {
                 memory_capacity: 1024 * (i + 1),
@@ -42,7 +42,7 @@ fn create_test_population(size: usize) -> Vec<EvolvableAgent> {
             },
         };
 
-        let config = exorust_agent_core::AgentConfig {
+        let config = stratoswarm_agent_core::AgentConfig {
             name: format!("test_agent_{}", i),
             agent_type: "test".to_string(),
             max_memory: genome.architecture.memory_capacity,
@@ -51,7 +51,7 @@ fn create_test_population(size: usize) -> Vec<EvolvableAgent> {
             metadata: serde_json::Value::Null,
         };
 
-        let agent = exorust_agent_core::Agent::new(config).expect("Failed to create test agent");
+        let agent = stratoswarm_agent_core::Agent::new(config).expect("Failed to create test agent");
 
         agents.push(EvolvableAgent { agent, genome });
     }

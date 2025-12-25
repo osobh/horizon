@@ -4,14 +4,16 @@
 //! with NVMe optimization and GPU memory mapping capabilities.
 
 use anyhow::{Context, Result};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use tokio::sync::RwLock;
 
 // Import from the storage crate
-use exorust_storage::{NvmeConfig, NvmeStorage, Storage as StorageTrait};
+use stratoswarm_storage::{NvmeConfig, NvmeStorage, Storage as StorageTrait};
 
 /// GPU storage configuration
 #[derive(Debug, Clone)]
@@ -176,21 +178,42 @@ impl GpuMemoryHandle {
     }
 }
 
-/// Cache statistics
-#[derive(Debug, Default, Clone)]
+/// Cache statistics (lock-free with atomics)
+#[derive(Debug, Default)]
 pub struct CacheStats {
+    pub cached_agents: AtomicUsize,
+    pub cache_hits: AtomicU64,
+    pub cache_misses: AtomicU64,
+    pub cache_size_bytes: AtomicUsize,
+}
+
+impl CacheStats {
+    /// Create a snapshot of current stats (for reporting)
+    pub fn snapshot(&self) -> CacheStatsSnapshot {
+        CacheStatsSnapshot {
+            cached_agents: self.cached_agents.load(Ordering::Relaxed),
+            cache_hits: self.cache_hits.load(Ordering::Relaxed),
+            cache_misses: self.cache_misses.load(Ordering::Relaxed),
+            cache_size_bytes: self.cache_size_bytes.load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// Snapshot of cache statistics for reporting
+#[derive(Debug, Clone)]
+pub struct CacheStatsSnapshot {
     pub cached_agents: usize,
     pub cache_hits: u64,
     pub cache_misses: u64,
     pub cache_size_bytes: usize,
 }
 
-/// GPU agent storage implementation
+/// GPU agent storage implementation (lock-free cache)
 pub struct GpuAgentStorage {
     pub(crate) config: GpuStorageConfig,
     nvme_storage: Arc<NvmeStorage>,
-    agent_cache: Arc<RwLock<HashMap<String, GpuAgentData>>>,
-    cache_stats: Arc<RwLock<CacheStats>>,
+    agent_cache: DashMap<String, GpuAgentData>,
+    cache_stats: Arc<CacheStats>,
     pub(crate) gds_manager: Option<crate::gpudirect::GpuDirectManager>,
     initialized: bool,
 }
@@ -235,8 +258,8 @@ impl GpuAgentStorage {
         Ok(Self {
             config,
             nvme_storage: Arc::new(nvme_storage),
-            agent_cache: Arc::new(RwLock::new(HashMap::new())),
-            cache_stats: Arc::new(RwLock::new(CacheStats::default())),
+            agent_cache: DashMap::new(),
+            cache_stats: Arc::new(CacheStats::default()),
             gds_manager,
             initialized: true,
         })
@@ -247,7 +270,7 @@ impl GpuAgentStorage {
         self.initialized
     }
 
-    /// Store agent data
+    /// Store agent data (lock-free cache update)
     pub async fn store_agent(&self, agent_id: &str, data: &GpuAgentData) -> Result<()> {
         // Serialize agent data
         let serialized = bincode::serialize(data).context("Failed to serialize agent data")?;
@@ -259,34 +282,27 @@ impl GpuAgentStorage {
             .await
             .context("Failed to store agent data")?;
 
-        // Update cache if enabled
+        // Update cache if enabled (lock-free)
         if self.config.enable_gpu_cache {
-            let mut cache = self.agent_cache.write().await;
-            cache.insert(agent_id.to_string(), data.clone());
-
-            let mut stats = self.cache_stats.write().await;
-            stats.cached_agents = cache.len();
+            self.agent_cache.insert(agent_id.to_string(), data.clone());
+            self.cache_stats.cached_agents.store(self.agent_cache.len(), Ordering::Relaxed);
         }
 
         Ok(())
     }
 
-    /// Retrieve agent data
+    /// Retrieve agent data (lock-free cache lookup)
     pub async fn retrieve_agent(&self, agent_id: &str) -> Result<GpuAgentData> {
-        // Check cache first
+        // Check cache first (lock-free)
         if self.config.enable_gpu_cache {
-            let cache = self.agent_cache.read().await;
-            if let Some(data) = cache.get(agent_id) {
-                let mut stats = self.cache_stats.write().await;
-                stats.cache_hits += 1;
+            if let Some(data) = self.agent_cache.get(agent_id) {
+                self.cache_stats.cache_hits.fetch_add(1, Ordering::Relaxed);
                 return Ok(data.clone());
             }
         }
 
         // Cache miss - retrieve from storage
-        let mut stats = self.cache_stats.write().await;
-        stats.cache_misses += 1;
-        drop(stats);
+        self.cache_stats.cache_misses.fetch_add(1, Ordering::Relaxed);
 
         let key = format!("agent/{}", agent_id);
         let data = self
@@ -301,32 +317,27 @@ impl GpuAgentStorage {
         Ok(agent_data)
     }
 
-    /// Cache an agent for fast access
+    /// Cache an agent for fast access (lock-free)
     pub async fn cache_agent(&self, agent_id: &str) -> Result<()> {
         let agent_data = self.retrieve_agent(agent_id).await?;
 
-        let mut cache = self.agent_cache.write().await;
-        cache.insert(agent_id.to_string(), agent_data);
-
-        let mut stats = self.cache_stats.write().await;
-        stats.cached_agents = cache.len();
+        self.agent_cache.insert(agent_id.to_string(), agent_data);
+        self.cache_stats.cached_agents.store(self.agent_cache.len(), Ordering::Relaxed);
 
         Ok(())
     }
 
-    /// Retrieve agent from cache only
-    pub async fn retrieve_agent_cached(&self, agent_id: &str) -> Result<GpuAgentData> {
-        let cache = self.agent_cache.read().await;
-        cache
+    /// Retrieve agent from cache only (lock-free)
+    pub fn retrieve_agent_cached(&self, agent_id: &str) -> Result<GpuAgentData> {
+        self.agent_cache
             .get(agent_id)
-            .cloned()
+            .map(|r| r.clone())
             .ok_or_else(|| anyhow::anyhow!("Agent not in cache"))
     }
 
-    /// Get cache statistics
-    pub async fn cache_stats(&self) -> Result<CacheStats> {
-        let stats = self.cache_stats.read().await;
-        Ok((*stats).clone())
+    /// Get cache statistics (lock-free snapshot)
+    pub fn cache_stats(&self) -> CacheStatsSnapshot {
+        self.cache_stats.snapshot()
     }
 
     /// Store knowledge graph

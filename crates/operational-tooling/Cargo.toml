@@ -1,5 +1,5 @@
 [package]
-name = "exorust-operational-tooling"
+name = "stratoswarm-operational-tooling"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -19,10 +19,10 @@ chrono = { workspace = true, features = ["serde"] }
 dashmap = { workspace = true }
 
 # ExoRust dependencies
-exorust-agent-core = { path = "../agent-core" }
-exorust-runtime = { path = "../runtime" }
-exorust-monitoring = { path = "../monitoring" }
-exorust-cuda = { path = "../cuda" }
+stratoswarm-agent-core = { path = "../agent-core" }
+stratoswarm-runtime = { path = "../runtime" }
+stratoswarm-monitoring = { path = "../monitoring" }
+stratoswarm-cuda = { path = "../cuda" }
 
 [dev-dependencies]
 tempfile = { workspace = true }

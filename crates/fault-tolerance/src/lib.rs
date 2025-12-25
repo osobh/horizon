@@ -2,22 +2,28 @@
 //!
 //! Phase 4 production hardening component that provides:
 //! - GPU memory checkpointing
-//! - Agent state serialization  
+//! - Agent state serialization
 //! - Distributed checkpoint coordination
 //! - Fast recovery protocols
 //! - Zero-downtime upgrades
+//! - Byzantine fault detection
+//! - Network partition recovery
 
 pub mod checkpoint;
 pub mod coordinator;
 pub mod error;
 pub mod recovery;
 pub mod predictive_scaler;
+pub mod byzantine;
+pub mod partition;
 
 pub use checkpoint::*;
 pub use coordinator::*;
 pub use error::*;
 pub use recovery::*;
 pub use predictive_scaler::*;
+pub use byzantine::*;
+pub use partition::*;
 
 /// Main fault tolerance manager
 pub struct FaultToleranceManager {

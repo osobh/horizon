@@ -1,5 +1,5 @@
 [package]
-name = "exorust-performance-regression"
+name = "stratoswarm-performance-regression"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

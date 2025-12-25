@@ -9,6 +9,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
+use dashmap::DashMap;
 
 /// Alert severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -139,11 +140,11 @@ impl Default for AlertManagerConfig {
 /// Alert manager for handling performance alerts
 pub struct AlertManager {
     config: AlertManagerConfig,
-    conditions: Arc<RwLock<HashMap<String, AlertCondition>>>,
-    active_alerts: Arc<RwLock<HashMap<String, Alert>>>,
+    conditions: Arc<DashMap<String, AlertCondition>>,
+    active_alerts: Arc<DashMap<String, Alert>>,
     alert_history: Arc<RwLock<VecDeque<Alert>>>,
-    breach_counters: Arc<RwLock<HashMap<String, usize>>>,
-    rate_limiter: Arc<RwLock<HashMap<String, VecDeque<DateTime<Utc>>>>>,
+    breach_counters: Arc<DashMap<String, usize>>,
+    rate_limiter: Arc<DashMap<String, VecDeque<DateTime<Utc>>>>,
     notification_sender: mpsc::UnboundedSender<(Alert, Vec<NotificationChannel>)>,
 }
 
@@ -161,32 +162,30 @@ impl AlertManager {
 
         Ok(Self {
             config,
-            conditions: Arc::new(RwLock::new(HashMap::new())),
-            active_alerts: Arc::new(RwLock::new(HashMap::new())),
+            conditions: Arc::new(DashMap::new()),
+            active_alerts: Arc::new(DashMap::new()),
             alert_history: Arc::new(RwLock::new(VecDeque::new())),
-            breach_counters: Arc::new(RwLock::new(HashMap::new())),
-            rate_limiter: Arc::new(RwLock::new(HashMap::new())),
+            breach_counters: Arc::new(DashMap::new()),
+            rate_limiter: Arc::new(DashMap::new()),
             notification_sender: tx,
         })
     }
 
     /// Add an alert condition
     pub fn add_condition(&self, condition: AlertCondition) -> PerformanceRegressionResult<()> {
-        let mut conditions = self.conditions.write();
-        conditions.insert(condition.id.clone(), condition);
+        self.conditions.insert(condition.id.clone(), condition);
         Ok(())
     }
 
     /// Remove an alert condition
     pub fn remove_condition(&self, condition_id: &str) -> PerformanceRegressionResult<()> {
-        let mut conditions = self.conditions.write();
-        conditions.remove(condition_id);
+        self.conditions.remove(condition_id);
         Ok(())
     }
 
     /// Get all alert conditions
     pub fn get_conditions(&self) -> Vec<AlertCondition> {
-        self.conditions.read().values().cloned().collect()
+        self.conditions.iter().map(|entry| entry.value().clone()).collect()
     }
 
     /// Evaluate alert conditions against metric statistics
@@ -194,14 +193,11 @@ impl AlertManager {
         &self,
         stats: &MetricStatistics,
     ) -> PerformanceRegressionResult<()> {
-        let conditions: Vec<AlertCondition> = {
-            let conditions_guard = self.conditions.read();
-            conditions_guard
-                .values()
-                .filter(|c| c.metric_type == stats.metric_type)
-                .cloned()
-                .collect()
-        };
+        let conditions: Vec<AlertCondition> = self.conditions
+            .iter()
+            .filter(|entry| entry.value().metric_type == stats.metric_type)
+            .map(|entry| entry.value().clone())
+            .collect();
 
         for condition in conditions {
             self.evaluate_single_condition(&condition, stats).await?;
@@ -252,8 +248,9 @@ impl AlertManager {
         stats: &MetricStatistics,
     ) -> PerformanceRegressionResult<()> {
         let should_alert = {
-            let mut counters = self.breach_counters.write();
-            let count = counters.entry(condition.id.clone()).or_insert(0);
+            let mut count = self.breach_counters
+                .entry(condition.id.clone())
+                .or_insert(0);
             *count += 1;
             *count >= condition.consecutive_breaches
         };
@@ -267,8 +264,7 @@ impl AlertManager {
 
     /// Reset breach counter for a condition
     fn reset_breach_counter(&self, condition_id: &str) {
-        let mut counters = self.breach_counters.write();
-        counters.remove(condition_id);
+        self.breach_counters.remove(condition_id);
     }
 
     /// Create and send an alert
@@ -319,11 +315,11 @@ impl AlertManager {
         condition: &AlertCondition,
         _stats: &MetricStatistics,
     ) -> PerformanceRegressionResult<bool> {
-        let active_alerts = self.active_alerts.read();
         let dedup_window = Duration::seconds(self.config.deduplication_window as i64);
         let now = Utc::now();
 
-        for alert in active_alerts.values() {
+        for entry in self.active_alerts.iter() {
+            let alert = entry.value();
             if alert.condition_id == condition.id
                 && alert.resolved_at.is_none()
                 && now - alert.triggered_at < dedup_window
@@ -337,11 +333,10 @@ impl AlertManager {
 
     /// Check rate limit for alerts
     fn check_rate_limit(&self, condition_id: &str) -> PerformanceRegressionResult<bool> {
-        let mut rate_limiter = self.rate_limiter.write();
         let now = Utc::now();
         let one_minute_ago = now - Duration::seconds(60);
 
-        let timestamps = rate_limiter
+        let mut timestamps = self.rate_limiter
             .entry(condition_id.to_string())
             .or_insert_with(VecDeque::new);
 
@@ -358,10 +353,9 @@ impl AlertManager {
 
     /// Store active alert
     fn store_active_alert(&self, alert: Alert) -> PerformanceRegressionResult<()> {
-        let mut active_alerts = self.active_alerts.write();
-        let mut alert_history = self.alert_history.write();
+        self.active_alerts.insert(alert.id.clone(), alert.clone());
 
-        active_alerts.insert(alert.id.clone(), alert.clone());
+        let mut alert_history = self.alert_history.write();
         alert_history.push_back(alert);
 
         // Maintain history size
@@ -511,15 +505,20 @@ impl AlertManager {
             return Ok(());
         }
 
-        let active_alerts = self.active_alerts.read();
         let escalation_timeout = Duration::minutes(self.config.escalation_timeout_minutes as i64);
         let now = Utc::now();
 
-        for alert in active_alerts.values() {
-            if alert.resolved_at.is_none() && now - alert.triggered_at > escalation_timeout {
-                // Escalate alert
-                self.escalate_alert(alert).await?;
-            }
+        // Collect alerts to escalate (to avoid holding lock during async operations)
+        let alerts_to_escalate: Vec<_> = self.active_alerts.iter()
+            .filter(|entry| {
+                let alert = entry.value();
+                alert.resolved_at.is_none() && now - alert.triggered_at > escalation_timeout
+            })
+            .map(|entry| entry.value().clone())
+            .collect();
+
+        for alert in alerts_to_escalate {
+            self.escalate_alert(&alert).await?;
         }
 
         Ok(())
@@ -530,8 +529,7 @@ impl AlertManager {
         info!("Escalating alert: {}", alert.id);
 
         // Find the original condition to get escalation channels
-        let conditions = self.conditions.read();
-        if let Some(condition) = conditions.get(&alert.condition_id) {
+        if let Some(condition) = self.conditions.get(&alert.condition_id) {
             // For now, re-send to all channels (in production, would have separate escalation channels)
             self.send_alert(alert.clone(), condition.channels.clone())
                 .await?;
@@ -542,10 +540,10 @@ impl AlertManager {
 
     /// Deduplicate alerts to prevent spam
     pub fn deduplicate_alerts(&self) -> PerformanceRegressionResult<Vec<Alert>> {
-        let active_alerts = self.active_alerts.read();
         let mut unique_alerts = HashMap::new();
 
-        for alert in active_alerts.values() {
+        for entry in self.active_alerts.iter() {
+            let alert = entry.value();
             let key = format!("{}-{}", alert.condition_id, alert.severity as u8);
             unique_alerts.insert(key, alert.clone());
         }
@@ -564,8 +562,7 @@ impl AlertManager {
         condition_id: &str,
         channels: Vec<NotificationChannel>,
     ) -> PerformanceRegressionResult<()> {
-        let mut conditions = self.conditions.write();
-        if let Some(condition) = conditions.get_mut(condition_id) {
+        if let Some(mut condition) = self.conditions.get_mut(condition_id) {
             condition.channels = channels;
             Ok(())
         } else {
@@ -577,8 +574,7 @@ impl AlertManager {
 
     /// Resolve an active alert
     pub fn resolve_alert(&self, alert_id: &str) -> PerformanceRegressionResult<()> {
-        let mut active_alerts = self.active_alerts.write();
-        if let Some(alert) = active_alerts.get_mut(alert_id) {
+        if let Some(mut alert) = self.active_alerts.get_mut(alert_id) {
             alert.resolved_at = Some(Utc::now());
             Ok(())
         } else {
@@ -590,18 +586,17 @@ impl AlertManager {
 
     /// Get active alerts
     pub fn get_active_alerts(&self) -> Vec<Alert> {
-        self.active_alerts.read().values().cloned().collect()
+        self.active_alerts.iter().map(|entry| entry.value().clone()).collect()
     }
 
     /// Get alert by ID
     pub fn get_alert(&self, alert_id: &str) -> Option<Alert> {
-        self.active_alerts.read().get(alert_id).cloned()
+        self.active_alerts.get(alert_id).map(|r| r.clone())
     }
 
     /// Clear resolved alerts
     pub fn clear_resolved_alerts(&self) -> PerformanceRegressionResult<()> {
-        let mut active_alerts = self.active_alerts.write();
-        active_alerts.retain(|_, alert| alert.resolved_at.is_none());
+        self.active_alerts.retain(|_, alert| alert.resolved_at.is_none());
         Ok(())
     }
 }

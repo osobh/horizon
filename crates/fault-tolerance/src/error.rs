@@ -37,6 +37,9 @@ pub enum FaultToleranceError {
 
     #[error("Serialization error: {0}")]
     BincodeError(#[from] bincode::Error),
+
+    #[error("System time error: {0}")]
+    SystemTimeError(#[from] std::time::SystemTimeError),
 }
 
 /// System health status

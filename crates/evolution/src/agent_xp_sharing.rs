@@ -4,12 +4,13 @@
 //! creating emergent collective intelligence through XP distribution and knowledge transfer.
 
 use crate::EvolutionError;
-use exorust_agent_core::agent::{Agent, AgentId, AgentStats, XPGainRecord};
+use stratoswarm_agent_core::agent::{Agent, AgentId, AgentStats, XPGainRecord};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 
 /// Type of knowledge that can be shared between agents
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,13 +111,13 @@ pub struct AgentXPSharingCoordinator {
     /// Collective XP pool for community contributions
     collective_xp_pool: Arc<RwLock<u64>>,
     /// Knowledge packages available for sharing
-    knowledge_repository: Arc<RwLock<HashMap<String, KnowledgePackage>>>,
+    knowledge_repository: Arc<DashMap<String, KnowledgePackage>>,
     /// Learning relationships and mentorship networks
-    learning_network: Arc<RwLock<HashMap<AgentId, LearningProfile>>>,
+    learning_network: Arc<DashMap<AgentId, LearningProfile>>,
     /// Track XP sharing transactions
     sharing_history: Arc<RwLock<Vec<XPSharingTransaction>>>,
     /// Performance tracking for shared knowledge
-    knowledge_performance: Arc<RwLock<HashMap<String, Vec<LearningResult>>>>,
+    knowledge_performance: Arc<DashMap<String, Vec<LearningResult>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,10 +165,10 @@ impl AgentXPSharingCoordinator {
         Self {
             config,
             collective_xp_pool: Arc::new(RwLock::new(0)),
-            knowledge_repository: Arc::new(RwLock::new(HashMap::new())),
-            learning_network: Arc::new(RwLock::new(HashMap::new())),
+            knowledge_repository: Arc::new(DashMap::new()),
+            learning_network: Arc::new(DashMap::new()),
             sharing_history: Arc::new(RwLock::new(Vec::new())),
-            knowledge_performance: Arc::new(RwLock::new(HashMap::new())),
+            knowledge_performance: Arc::new(DashMap::new()),
         }
     }
 
@@ -175,7 +176,7 @@ impl AgentXPSharingCoordinator {
     pub async fn register_agent(&self, agent: &Agent) -> Result<(), EvolutionError> {
         let agent_id = agent.id();
         let stats = agent.stats().await;
-        
+
         let profile = LearningProfile {
             agent_id,
             mentor_agents: HashSet::new(),
@@ -188,7 +189,7 @@ impl AgentXPSharingCoordinator {
             reputation_score: stats.level as f64,
         };
 
-        self.learning_network.write().await.insert(agent_id, profile);
+        self.learning_network.insert(agent_id, profile);
         Ok(())
     }
 
@@ -236,44 +237,40 @@ impl AgentXPSharingCoordinator {
         }
 
         // Share with mentors if agent has them
-        {
-            let network = self.learning_network.read().await;
-            if let Some(profile) = network.get(&agent_id) {
-                let mentor_share_each = if !profile.mentor_agents.is_empty() {
-                    let total_mentor_share = ((xp_gained as f64) * self.config.mentor_share_percentage) as u64;
-                    let total_mentor_share = total_mentor_share.min(self.config.max_share_amount);
-                    total_mentor_share / profile.mentor_agents.len() as u64
-                } else {
-                    0
-                };
+        if let Some(profile) = self.learning_network.get(&agent_id) {
+            let mentor_share_each = if !profile.mentor_agents.is_empty() {
+                let total_mentor_share = ((xp_gained as f64) * self.config.mentor_share_percentage) as u64;
+                let total_mentor_share = total_mentor_share.min(self.config.max_share_amount);
+                total_mentor_share / profile.mentor_agents.len() as u64
+            } else {
+                0
+            };
 
-                if mentor_share_each > 0 {
-                    for &mentor_id in &profile.mentor_agents {
-                        result.shared_to_mentors += mentor_share_each;
-                        result.net_xp_retained -= mentor_share_each;
+            if mentor_share_each > 0 {
+                for &mentor_id in &profile.mentor_agents {
+                    result.shared_to_mentors += mentor_share_each;
+                    result.net_xp_retained -= mentor_share_each;
 
-                        let transaction = XPSharingTransaction {
-                            transaction_id: uuid::Uuid::new_v4().to_string(),
-                            timestamp: Utc::now(),
-                            source_agent: agent_id,
-                            recipient_agent: Some(mentor_id),
-                            xp_amount: mentor_share_each,
-                            transaction_type: XPTransactionType::MentorReward,
-                            knowledge_package_id: None,
-                        };
-                        self.sharing_history.write().await.push(transaction.clone());
-                        result.transactions.push(transaction);
-                    }
+                    let transaction = XPSharingTransaction {
+                        transaction_id: uuid::Uuid::new_v4().to_string(),
+                        timestamp: Utc::now(),
+                        source_agent: agent_id,
+                        recipient_agent: Some(mentor_id),
+                        xp_amount: mentor_share_each,
+                        transaction_type: XPTransactionType::MentorReward,
+                        knowledge_package_id: None,
+                    };
+                    self.sharing_history.write().await.push(transaction.clone());
+                    result.transactions.push(transaction);
                 }
             }
         }
 
         // Award teaching bonus if agent is teaching others
         if stats.level >= self.config.mentor_threshold_level {
-            let network = self.learning_network.read().await;
-            if let Some(profile) = network.get(&agent_id) {
+            if let Some(profile) = self.learning_network.get(&agent_id) {
                 if !profile.mentee_agents.is_empty() {
-                    let teaching_bonus = ((xp_gained as f64) * 
+                    let teaching_bonus = ((xp_gained as f64) *
                         (self.config.teaching_bonus_multiplier - 1.0)) as u64;
                     if teaching_bonus > 0 {
                         result.teaching_bonus = teaching_bonus;
@@ -320,16 +317,13 @@ impl AgentXPSharingCoordinator {
         };
 
         // Store the package
-        self.knowledge_repository.write().await.insert(package_id.clone(), package);
+        self.knowledge_repository.insert(package_id.clone(), package);
 
         // Update agent's learning profile
-        {
-            let mut network = self.learning_network.write().await;
-            if let Some(profile) = network.get_mut(&agent_id) {
-                profile.knowledge_contributed.push(package_id.clone());
-                profile.specialization_areas.insert(knowledge_type);
-                profile.reputation_score += 0.1; // Small reputation boost
-            }
+        if let Some(mut profile) = self.learning_network.get_mut(&agent_id) {
+            profile.knowledge_contributed.push(package_id.clone());
+            profile.specialization_areas.insert(knowledge_type);
+            profile.reputation_score += 0.1; // Small reputation boost
         }
 
         // Award XP for knowledge contribution
@@ -351,10 +345,10 @@ impl AgentXPSharingCoordinator {
         interests: &[KnowledgeType],
         context: &HashSet<String>,
     ) -> Vec<KnowledgePackage> {
-        let repository = self.knowledge_repository.read().await;
         let mut relevant_packages = Vec::new();
 
-        for package in repository.values() {
+        for entry in self.knowledge_repository.iter() {
+            let package = entry.value();
             // Skip own packages
             if package.source_agent == agent.id() {
                 continue;
@@ -393,13 +387,12 @@ impl AgentXPSharingCoordinator {
         let learning_start = std::time::Instant::now();
 
         // Get the knowledge package
-        let package = {
-            let repository = self.knowledge_repository.read().await;
-            repository.get(package_id).cloned()
-                .ok_or_else(|| EvolutionError::FitnessEvaluationFailed {
-                    reason: "Knowledge package not found".to_string(),
-                })?
-        };
+        let package = self.knowledge_repository
+            .get(package_id)
+            .map(|r| r.clone())
+            .ok_or_else(|| EvolutionError::FitnessEvaluationFailed {
+                reason: "Knowledge package not found".to_string(),
+            })?;
 
         // Simulate learning process (in real implementation, this would involve
         // applying the knowledge to the agent's behavior or capabilities)
@@ -428,25 +421,19 @@ impl AgentXPSharingCoordinator {
         })?;
 
         // Update package usage
-        {
-            let mut repository = self.knowledge_repository.write().await;
-            if let Some(pkg) = repository.get_mut(package_id) {
-                pkg.usage_count += 1;
-                // Update effectiveness based on success
-                let weight = 1.0 / (pkg.usage_count as f64).max(1.0);
-                pkg.effectiveness_rating = pkg.effectiveness_rating * (1.0 - weight) + 
-                                          (if learning_success { 1.0 } else { 0.0 }) * weight;
-            }
+        if let Some(mut pkg) = self.knowledge_repository.get_mut(package_id) {
+            pkg.usage_count += 1;
+            // Update effectiveness based on success
+            let weight = 1.0 / (pkg.usage_count as f64).max(1.0);
+            pkg.effectiveness_rating = pkg.effectiveness_rating * (1.0 - weight) +
+                                      (if learning_success { 1.0 } else { 0.0 }) * weight;
         }
 
         // Update learning profile
-        {
-            let mut network = self.learning_network.write().await;
-            if let Some(profile) = network.get_mut(&agent_id) {
-                profile.knowledge_learned.push(package_id.to_string());
-                if learning_success {
-                    profile.learning_receptivity *= 1.01; // Small boost for successful learning
-                }
+        if let Some(mut profile) = self.learning_network.get_mut(&agent_id) {
+            profile.knowledge_learned.push(package_id.to_string());
+            if learning_success {
+                profile.learning_receptivity *= 1.01; // Small boost for successful learning
             }
         }
 
@@ -475,7 +462,7 @@ impl AgentXPSharingCoordinator {
         };
 
         // Record learning result
-        self.knowledge_performance.write().await
+        self.knowledge_performance
             .entry(package_id.to_string())
             .or_insert_with(Vec::new)
             .push(result.clone());
@@ -501,16 +488,12 @@ impl AgentXPSharingCoordinator {
         }
 
         // Update learning network
-        {
-            let mut network = self.learning_network.write().await;
-            
-            if let Some(mentor_profile) = network.get_mut(&mentor_id) {
-                mentor_profile.mentee_agents.insert(mentee_id);
-            }
-            
-            if let Some(mentee_profile) = network.get_mut(&mentee_id) {
-                mentee_profile.mentor_agents.insert(mentor_id);
-            }
+        if let Some(mut mentor_profile) = self.learning_network.get_mut(&mentor_id) {
+            mentor_profile.mentee_agents.insert(mentee_id);
+        }
+
+        if let Some(mut mentee_profile) = self.learning_network.get_mut(&mentee_id) {
+            mentee_profile.mentor_agents.insert(mentor_id);
         }
 
         // Award XP for establishing mentorship
@@ -542,10 +525,9 @@ impl AgentXPSharingCoordinator {
         }
 
         // Find agents eligible for collective distribution
-        let network = self.learning_network.read().await;
-        let mut eligible_agents: Vec<(AgentId, f64)> = network
-            .values()
-            .map(|profile| (profile.agent_id, profile.reputation_score))
+        let mut eligible_agents: Vec<(AgentId, f64)> = self.learning_network
+            .iter()
+            .map(|entry| (entry.value().agent_id, entry.value().reputation_score))
             .collect();
 
         // Sort by reputation score
@@ -579,16 +561,14 @@ impl AgentXPSharingCoordinator {
 
     /// Get learning statistics for an agent
     pub async fn get_learning_stats(&self, agent_id: &AgentId) -> Option<LearningStats> {
-        let network = self.learning_network.read().await;
-        let profile = network.get(agent_id)?;
-        
-        let knowledge_performance = self.knowledge_performance.read().await;
+        let profile = self.learning_network.get(agent_id)?;
+
         let mut total_learning_attempts = 0;
         let mut successful_learning_attempts = 0;
-        
+
         for package_id in &profile.knowledge_learned {
-            if let Some(results) = knowledge_performance.get(package_id) {
-                for result in results {
+            if let Some(results) = self.knowledge_performance.get(package_id) {
+                for result in results.iter() {
                     if result.learner_agent == *agent_id {
                         total_learning_attempts += 1;
                         if result.learning_success {
@@ -688,7 +668,7 @@ impl LearningStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use exorust_agent_core::agent::{Agent, AgentConfig};
+    use stratoswarm_agent_core::agent::{Agent, AgentConfig};
 
     async fn create_test_agent(name: &str, level: u32) -> Agent {
         let config = AgentConfig {
@@ -771,8 +751,7 @@ mod tests {
         assert!(!package_id.is_empty());
         
         // Verify package was stored
-        let repository = coordinator.knowledge_repository.read().await;
-        assert!(repository.contains_key(&package_id));
+        assert!(coordinator.knowledge_repository.contains_key(&package_id));
     }
 
     #[tokio::test]

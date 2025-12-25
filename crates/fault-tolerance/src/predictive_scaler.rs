@@ -7,12 +7,11 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
+use dashmap::DashMap;
 use tokio::sync::RwLock;
-use candle_core::{Device, Tensor, DType, Shape, Result as CandleResult};
-use candle_nn::{Linear, Module, VarBuilder, linear, sequential, Seq, activation, rnn::lstm, Dropout};
-use ndarray::{Array2, Array1, Array3};
+use candle_core::{Device, Tensor, DType, Result as CandleResult};
+use candle_nn::{Linear, Module, VarBuilder, linear};
 use serde::{Deserialize, Serialize};
-use rand::prelude::*;
 
 // Removed dependencies that may cause build issues
 
@@ -24,9 +23,27 @@ pub struct PredictiveScaler {
     decision_tree: ScalingDecisionTree,
     feature_extractor: FeatureExtractor,
     scaling_history: Arc<RwLock<VecDeque<ScalingEvent>>>,
-    resource_predictions: Arc<RwLock<HashMap<String, ResourcePrediction>>>,
+    resource_predictions: Arc<DashMap<String, ResourcePrediction>>,
     training_data: Arc<RwLock<Vec<TrainingDataPoint>>>,
     model_performance: Arc<RwLock<ModelPerformance>>,
+}
+
+/// Simple sequential neural network for predictions
+#[derive(Clone)]
+pub struct SimpleSeq {
+    input_layer: Linear,
+    hidden_layer: Linear,
+    output_layer: Linear,
+}
+
+impl SimpleSeq {
+    fn forward(&self, x: &Tensor) -> CandleResult<Tensor> {
+        let x = self.input_layer.forward(x)?;
+        let x = x.tanh()?;
+        let x = self.hidden_layer.forward(&x)?;
+        let x = x.tanh()?;
+        self.output_layer.forward(&x)
+    }
 }
 
 #[derive(Clone)]
@@ -35,7 +52,7 @@ pub struct LSTMPredictor {
     hidden_size: usize,
     num_layers: usize,
     dropout: f32,
-    lstm_network: Seq, // Contains LSTM layers and output projection
+    lstm_network: SimpleSeq, // Contains layers and output projection
     sequence_length: usize,
 }
 
@@ -78,7 +95,7 @@ pub struct ScalingEvent {
     pub cost_impact: f32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ResourceType {
     CPU,
     Memory,
@@ -279,7 +296,7 @@ impl PredictiveScaler {
 
         // Create feature extractor
         let feature_extractor = FeatureExtractor {
-            time_window: Duration::from_hours(1),
+            time_window: Duration::from_secs(3600), // 1 hour
             feature_history: Arc::new(RwLock::new(VecDeque::new())),
             normalization_params: HashMap::new(),
         };
@@ -290,7 +307,7 @@ impl PredictiveScaler {
             decision_tree,
             feature_extractor,
             scaling_history: Arc::new(RwLock::new(VecDeque::new())),
-            resource_predictions: Arc::new(RwLock::new(HashMap::new())),
+            resource_predictions: Arc::new(DashMap::new()),
             training_data: Arc::new(RwLock::new(Vec::new())),
             model_performance: Arc::new(RwLock::new(ModelPerformance::default())),
         })
@@ -318,15 +335,16 @@ impl PredictiveScaler {
             let predicted_utilization = lstm_prediction.get(i).cloned().unwrap_or(0.5);
             let urgency = self.calculate_urgency_score(predicted_utilization, current_metrics);
             let action = self.determine_scaling_action(resource_type, predicted_utilization, urgency);
-            
+            let cost_estimate = self.estimate_cost(&action);
+
             let prediction = ResourcePrediction {
                 resource_type: resource_type.clone(),
                 predicted_utilization,
                 confidence: 0.8, // Could be computed from model uncertainty
-                time_horizon: Duration::from_minutes(15),
+                time_horizon: Duration::from_secs(15 * 60), // 15 minutes
                 recommended_action: action,
                 urgency_score: urgency,
-                cost_estimate: self.estimate_cost(&action),
+                cost_estimate,
                 created_at: Instant::now(),
             };
             
@@ -353,7 +371,8 @@ impl PredictiveScaler {
             
             // Keep only recent data
             if data.len() > 50000 {
-                data.drain(0..data.len()-50000);
+                let excess = data.len() - 50000;
+                let _: Vec<_> = data.drain(0..excess).collect();
             }
         }
         
@@ -556,17 +575,20 @@ impl PredictiveScaler {
 
 impl LSTMPredictor {
     async fn new(device: Device, hidden_size: usize, num_layers: usize, sequence_length: usize, input_size: usize) -> Result<Self, Box<dyn std::error::Error>> {
-        // Create simplified LSTM network
+        // Create simplified neural network
         let vs = candle_nn::VarMap::new();
         let vb = VarBuilder::from_varmap(&vs, DType::F32, &device);
-        
-        let lstm_network = sequential()
-            .add(linear(input_size, hidden_size, vb.pp("input_projection"))?)
-            .add(activation::tanh()) // Simplified activation
-            .add(linear(hidden_size, hidden_size, vb.pp("hidden"))?)
-            .add(activation::tanh())
-            .add(linear(hidden_size, 5, vb.pp("output")))? // Predict 5 resource utilizations
-            .build()?;
+
+        // Create individual layers for the SimpleSeq network
+        let input_layer = linear(input_size, hidden_size, vb.pp("input_projection"))?;
+        let hidden_layer = linear(hidden_size, hidden_size, vb.pp("hidden"))?;
+        let output_layer = linear(hidden_size, 5, vb.pp("output"))?; // Predict 5 resource utilizations
+
+        let lstm_network = SimpleSeq {
+            input_layer,
+            hidden_layer,
+            output_layer,
+        };
 
         Ok(Self {
             device,
@@ -765,7 +787,7 @@ impl MultiGpuScalingEngine {
                         resource_type,
                         predicted_utilization: avg_utilization,
                         confidence: avg_confidence,
-                        time_horizon: Duration::from_minutes(15),
+                        time_horizon: Duration::from_secs(15 * 60), // 15 minutes
                         recommended_action: predictions[0].recommended_action.clone(),
                         urgency_score: predictions.iter()
                             .map(|p| p.urgency_score)
@@ -819,7 +841,7 @@ mod tests {
             lstm_hidden_size: 32,
             lstm_layers: 1,
             sequence_length: 10,
-            prediction_horizon: Duration::from_minutes(15),
+            prediction_horizon: Duration::from_secs(15 * 60),
             training_batch_size: 8,
             learning_rate: 0.01,
         };
@@ -835,7 +857,7 @@ mod tests {
             lstm_hidden_size: 16,
             lstm_layers: 1,
             sequence_length: 5,
-            prediction_horizon: Duration::from_minutes(10),
+            prediction_horizon: Duration::from_secs(10 * 60),
             training_batch_size: 4,
             learning_rate: 0.05,
         };

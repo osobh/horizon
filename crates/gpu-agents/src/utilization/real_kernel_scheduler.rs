@@ -5,10 +5,11 @@
 use crate::utilization::kernel_optimizer::KernelConfig;
 use anyhow::{Context, Result};
 use cudarc::driver::{CudaDevice, CudaStream, DevicePtr, LaunchAsync, LaunchConfig};
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, VecDeque};
+use dashmap::DashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use stratoswarm_core::priority_queue::{PrioritySchedulerQueue, SchedulerPriority};
 use tokio::sync::{Mutex, RwLock};
 
 /// Real kernel scheduler using actual CUDA streams
@@ -16,10 +17,10 @@ pub struct RealKernelScheduler {
     device: Arc<CudaDevice>,
     /// Real CUDA streams for concurrent execution
     streams: Vec<Arc<CudaStream>>,
-    /// Kernel queue organized by priority
-    kernel_queue: Arc<Mutex<BinaryHeap<ScheduledKernel>>>,
+    /// Kernel queue organized by priority (branch-prediction-friendly)
+    kernel_queue: Arc<Mutex<PrioritySchedulerQueue<ScheduledKernel>>>,
     /// Active kernels per stream
-    active_kernels: Arc<RwLock<HashMap<usize, ActiveKernel>>>,
+    active_kernels: Arc<DashMap<usize, ActiveKernel>>,
     /// Stream availability tracker
     stream_available: Arc<RwLock<Vec<bool>>>,
     /// Scheduling statistics
@@ -72,20 +73,6 @@ pub struct ScheduledKernel {
     pub function_name: Option<String>,
 }
 
-impl Ord for ScheduledKernel {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.priority
-            .cmp(&other.priority)
-            .then_with(|| other.submitted_at.cmp(&self.submitted_at))
-    }
-}
-
-impl PartialOrd for ScheduledKernel {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 impl PartialEq for ScheduledKernel {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
@@ -94,6 +81,9 @@ impl PartialEq for ScheduledKernel {
 
 impl Eq for ScheduledKernel {}
 
+// Note: Ord/PartialOrd removed - PrioritySchedulerQueue handles ordering
+// via the priority parameter at enqueue time (branch-prediction-friendly)
+
 /// Kernel priority levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum KernelPriority {
@@ -101,6 +91,18 @@ pub enum KernelPriority {
     Normal = 1,
     High = 2,
     Critical = 3,
+}
+
+impl From<KernelPriority> for SchedulerPriority {
+    #[inline]
+    fn from(priority: KernelPriority) -> Self {
+        match priority {
+            KernelPriority::Low => SchedulerPriority::Low,
+            KernelPriority::Normal => SchedulerPriority::Normal,
+            KernelPriority::High => SchedulerPriority::High,
+            KernelPriority::Critical => SchedulerPriority::Critical,
+        }
+    }
 }
 
 /// Active kernel information
@@ -138,8 +140,8 @@ impl RealKernelScheduler {
         Ok(Self {
             device,
             streams,
-            kernel_queue: Arc::new(Mutex::new(BinaryHeap::new())),
-            active_kernels: Arc::new(RwLock::new(HashMap::new())),
+            kernel_queue: Arc::new(Mutex::new(PrioritySchedulerQueue::new())),
+            active_kernels: Arc::new(DashMap::new()),
             stream_available: Arc::new(RwLock::new(stream_available)),
             stats: Arc::new(SchedulingStats::default()),
             config,
@@ -149,17 +151,19 @@ impl RealKernelScheduler {
     /// Submit kernel for scheduling
     pub async fn submit_kernel(&self, kernel: ScheduledKernel) -> Result<u64> {
         let kernel_id = kernel.id;
+        let priority: SchedulerPriority = kernel.priority.into();
 
         // Check dependencies
         if !kernel.dependencies.is_empty() {
             self.wait_for_dependencies(&kernel.dependencies).await?;
         }
 
-        // Add to queue
+        // Add to queue (O(1) enqueue with branch-prediction-friendly structure)
         let mut queue = self.kernel_queue.lock().await;
-        queue.push(kernel);
+        queue.enqueue(kernel, priority);
 
         // Trigger scheduling
+        drop(queue); // Release lock before scheduling
         self.schedule_kernels().await?;
 
         Ok(kernel_id)
@@ -169,19 +173,18 @@ impl RealKernelScheduler {
     async fn schedule_kernels(&self) -> Result<()> {
         let mut queue = self.kernel_queue.lock().await;
         let mut stream_available = self.stream_available.write().await;
-        let active_kernels = self.active_kernels.read().await;
 
         // Find available streams
         let mut available_streams = Vec::new();
         for (stream_id, is_available) in stream_available.iter().enumerate() {
-            if *is_available && !active_kernels.contains_key(&stream_id) {
+            if *is_available && !self.active_kernels.contains_key(&stream_id) {
                 available_streams.push(stream_id);
             }
         }
 
-        // Schedule kernels to available streams
+        // Schedule kernels to available streams (O(1) dequeue - branch-prediction-friendly)
         while !queue.is_empty() && !available_streams.is_empty() {
-            if let Some(kernel) = queue.pop() {
+            if let Some(kernel) = queue.dequeue() {
                 let stream_id = self
                     .select_optimal_stream(&available_streams, &kernel)
                     .await?;
@@ -209,21 +212,20 @@ impl RealKernelScheduler {
     async fn select_optimal_stream(
         &self,
         available_streams: &[usize],
-        kernel: &ScheduledKernel,
+        _kernel: &ScheduledKernel,
     ) -> Result<usize> {
         if !self.config.enable_load_balancing || available_streams.len() == 1 {
             // Simple round-robin
             return Ok(available_streams[0]);
         }
 
-        // Load balancing based on estimated completion times
-        let active_kernels = self.active_kernels.read().await;
+        // Load balancing based on estimated completion times (lock-free with DashMap)
         let mut best_stream = available_streams[0];
         let mut earliest_available = Instant::now() + Duration::from_secs(3600);
 
         for &stream_id in available_streams {
             // Check when this stream will be available
-            let availability = if let Some(active) = active_kernels.get(&stream_id) {
+            let availability = if let Some(active) = self.active_kernels.get(&stream_id) {
                 active.estimated_completion
             } else {
                 Instant::now()
@@ -248,19 +250,16 @@ impl RealKernelScheduler {
         let start_time = Instant::now();
         let estimated_completion = start_time + kernel.estimated_time;
 
-        // Record active kernel
-        {
-            let mut active = self.active_kernels.write().await;
-            active.insert(
+        // Record active kernel (DashMap - lock-free insert)
+        self.active_kernels.insert(
+            stream_id,
+            ActiveKernel {
+                kernel: kernel.clone(),
                 stream_id,
-                ActiveKernel {
-                    kernel: kernel.clone(),
-                    stream_id,
-                    start_time,
-                    estimated_completion,
-                },
-            );
-        }
+                start_time,
+                estimated_completion,
+            },
+        );
 
         // Update statistics
         let wait_time = start_time.duration_since(kernel.submitted_at);
@@ -330,9 +329,8 @@ impl RealKernelScheduler {
 
             let execution_time = kernel_start.elapsed();
 
-            // Remove from active kernels
-            let mut active = active_kernels.write().await;
-            active.remove(&stream_id);
+            // Remove from active kernels (DashMap - lock-free remove)
+            active_kernels.remove(&stream_id);
 
             // Mark stream as available
             let mut available = stream_available.write().await;
@@ -355,12 +353,15 @@ impl RealKernelScheduler {
     }
 
     /// Try to fuse compatible kernels
-    async fn try_kernel_fusion(&self, queue: &mut BinaryHeap<ScheduledKernel>) -> Result<()> {
+    async fn try_kernel_fusion(
+        &self,
+        queue: &mut PrioritySchedulerQueue<ScheduledKernel>,
+    ) -> Result<()> {
         if queue.len() < 2 {
             return Ok(());
         }
 
-        // Look for fusable kernel pairs
+        // Look for fusable kernel pairs - drain all items
         let kernels: Vec<_> = queue.drain().collect();
         let mut fused = Vec::new();
         let mut remaining = Vec::new();
@@ -380,7 +381,8 @@ impl RealKernelScheduler {
 
         // Re-add kernels to queue
         for kernel in fused.into_iter().chain(remaining.into_iter()) {
-            queue.push(kernel);
+            let priority: SchedulerPriority = kernel.priority.into();
+            queue.enqueue(kernel, priority);
         }
 
         Ok(())
@@ -426,11 +428,11 @@ impl RealKernelScheduler {
         let start = Instant::now();
 
         loop {
-            let active = self.active_kernels.read().await;
             let mut all_complete = true;
 
             for dep_id in dependencies {
-                if active.values().any(|k| k.kernel.id == *dep_id) {
+                // DashMap iteration is lock-free for readers
+                if self.active_kernels.iter().any(|entry| entry.value().kernel.id == *dep_id) {
                     all_complete = false;
                     break;
                 }
@@ -444,7 +446,6 @@ impl RealKernelScheduler {
                 return Err(anyhow::anyhow!("Timeout waiting for dependencies"));
             }
 
-            drop(active);
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
 

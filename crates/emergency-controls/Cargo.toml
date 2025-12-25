@@ -1,5 +1,5 @@
 [package]
-name = "exorust-emergency-controls"
+name = "stratoswarm-emergency-controls"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -20,9 +20,9 @@ dashmap = { workspace = true }
 rand = { workspace = true }
 
 # ExoRust dependencies - minimal for emergency controls
-# exorust-agent-core = { path = "../agent-core" }
-# exorust-runtime = { path = "../runtime" }
-# exorust-monitoring = { path = "../monitoring" }
+# stratoswarm-agent-core = { path = "../agent-core" }
+# stratoswarm-runtime = { path = "../runtime" }
+# stratoswarm-monitoring = { path = "../monitoring" }
 
 [dev-dependencies]
 tempfile = { workspace = true }

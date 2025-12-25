@@ -7,7 +7,7 @@ use async_openai::types::{
     ChatCompletionRequestUserMessage, CreateChatCompletionRequestArgs,
 };
 use async_openai::{config::OpenAIConfig, Client};
-// use exorust_agent_core::{Goal, GoalConstraints};
+// use stratoswarm_agent_core::{Goal, GoalConstraints};
 // Mock for testing
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Goal {
@@ -22,7 +22,7 @@ pub struct GoalConstraints {
     pub throughput_target: Option<f64>,
     pub memory_limit: Option<u64>,
 }
-use parking_lot::RwLock;
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -163,7 +163,7 @@ pub struct GoalInterpreter {
     config: InterpreterConfig,
     #[cfg(not(feature = "mock-llm"))]
     llm_client: Client<OpenAIConfig>,
-    context_cache: Arc<RwLock<HashMap<Uuid, InterpretationContext>>>,
+    context_cache: Arc<DashMap<Uuid, InterpretationContext>>,
 }
 
 impl GoalInterpreter {
@@ -173,7 +173,7 @@ impl GoalInterpreter {
             config,
             #[cfg(not(feature = "mock-llm"))]
             llm_client: Client::new(),
-            context_cache: Arc::new(RwLock::new(HashMap::new())),
+            context_cache: Arc::new(DashMap::new()),
         }
     }
 
@@ -418,15 +418,14 @@ Generate only valid JSON, no explanations."#,
 
     /// Cache interpretation context
     fn cache_context(&self, goal_id: Uuid, context: InterpretationContext) {
-        let mut cache = self.context_cache.write();
-        cache.insert(goal_id, context);
+        self.context_cache.insert(goal_id, context);
 
         // Limit cache size
-        if cache.len() > 1000 {
+        if self.context_cache.len() > 1000 {
             // Remove oldest entries (simple FIFO for now)
-            let to_remove: Vec<_> = cache.keys().take(100).cloned().collect();
+            let to_remove: Vec<_> = self.context_cache.iter().take(100).map(|e| *e.key()).collect();
             for key in to_remove {
-                cache.remove(&key);
+                self.context_cache.remove(&key);
             }
         }
     }

@@ -77,10 +77,11 @@ impl StorageStreamSink {
 
     /// Get current statistics snapshot
     pub fn get_stats_snapshot(&self) -> StreamStats {
-        let chunks = self.stats.chunks_written.load(Ordering::SeqCst);
-        let bytes = self.stats.bytes_written.load(Ordering::SeqCst);
-        let time_ns = self.stats.write_time_ns.load(Ordering::SeqCst);
-        let errors = self.stats.errors.load(Ordering::SeqCst);
+        // Relaxed: independent statistics counters with no ordering dependencies
+        let chunks = self.stats.chunks_written.load(Ordering::Relaxed);
+        let bytes = self.stats.bytes_written.load(Ordering::Relaxed);
+        let time_ns = self.stats.write_time_ns.load(Ordering::Relaxed);
+        let errors = self.stats.errors.load(Ordering::Relaxed);
 
         let throughput_mbps = if time_ns > 0 {
             (bytes as f64) / ((time_ns as f64) / 1_000_000_000.0) / (1024.0 * 1024.0)
@@ -173,17 +174,19 @@ impl StorageStreamSink {
             file.sync_all()
                 .await
                 .map_err(|e| StreamingError::IoError(format!("Sync failed: {e}")))?;
-            self.stats.sync_operations.fetch_add(1, Ordering::SeqCst);
+            // Relaxed: independent sync counter
+            self.stats.sync_operations.fetch_add(1, Ordering::Relaxed);
         }
 
         let write_time = start_time.elapsed().as_nanos() as u64;
+        // Relaxed: independent statistics counters
         self.stats
             .write_time_ns
-            .fetch_add(write_time, Ordering::SeqCst);
-        self.stats.chunks_written.fetch_add(1, Ordering::SeqCst);
+            .fetch_add(write_time, Ordering::Relaxed);
+        self.stats.chunks_written.fetch_add(1, Ordering::Relaxed);
         self.stats
             .bytes_written
-            .fetch_add(chunk.data.len() as u64, Ordering::SeqCst);
+            .fetch_add(chunk.data.len() as u64, Ordering::Relaxed);
 
         Ok(())
     }
@@ -213,7 +216,8 @@ impl StreamSink for StorageStreamSink {
         file.sync_all()
             .await
             .map_err(|e| StreamingError::IoError(format!("Flush failed: {e}")))?;
-        self.stats.sync_operations.fetch_add(1, Ordering::SeqCst);
+        // Relaxed: independent sync counter
+        self.stats.sync_operations.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
 
@@ -392,7 +396,7 @@ mod tests {
 
         let stats = sink.stats().await.unwrap();
         assert_eq!(stats.chunks_processed, 1);
-        assert!(sink.stats.sync_operations.load(Ordering::SeqCst) > 0);
+        assert!(sink.stats.sync_operations.load(Ordering::Relaxed) > 0);
     }
 
     #[tokio::test]

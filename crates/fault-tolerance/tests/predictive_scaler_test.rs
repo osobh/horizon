@@ -22,9 +22,9 @@ use candle_nn::{Linear, Module, VarBuilder, linear, sequential, Seq, activation,
 use ndarray::{Array2, Array1, Array3};
 use serde::{Deserialize, Serialize};
 
-use exorust_fault_tolerance::{Checkpoint, Recovery};
-use exorust_memory::pool::MemoryPool;
-use exorust_runtime::container::Container;
+use stratoswarm_fault_tolerance::{Checkpoint, Recovery};
+use stratoswarm_memory::pool::MemoryPool;
+use stratoswarm_runtime::container::Container;
 
 /// Machine learning model for predictive scaling
 #[derive(Clone)]

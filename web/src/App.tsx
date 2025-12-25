@@ -1,93 +1,117 @@
-import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import {
-  BookOpen,
-  Server,
-  BarChart3,
-  Settings,
-  Zap,
-  Cpu
-} from 'lucide-react';
-import { useClusterStore } from './stores/clusterStore';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { Sidebar } from './components/Sidebar';
+
+// Existing views
 import NotebookView from './views/NotebookView';
 import ClusterView from './views/ClusterView';
 import DashboardView from './views/DashboardView';
 
-function App() {
-  const { connected, nodeCount, totalGpus } = useClusterStore();
+// New stub views
+import SchedulerView from './views/SchedulerView';
+import StorageView from './views/StorageView';
+import DataProcessingView from './views/DataProcessingView';
+import NetworkView from './views/NetworkView';
+import EdgeProxyView from './views/EdgeProxyView';
+import CostsView from './views/CostsView';
+import IntelligenceView from './views/IntelligenceView';
+import SettingsView from './views/SettingsView';
+import TrainingView from './views/TrainingView';
+import EvolutionView from './views/EvolutionView';
 
+function App() {
   return (
     <div className="flex h-screen bg-slate-900">
-      {/* Sidebar */}
-      <aside className="w-16 bg-slate-800 border-r border-slate-700 flex flex-col items-center py-4">
-        {/* Logo */}
-        <div className="mb-8">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-            <Zap className="w-6 h-6 text-white" />
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 flex flex-col gap-2">
-          <NavButton to="/notebook" icon={BookOpen} label="Notebook" />
-          <NavButton to="/cluster" icon={Server} label="Cluster" />
-          <NavButton to="/dashboard" icon={BarChart3} label="Dashboard" />
-        </nav>
-
-        {/* Status & Settings */}
-        <div className="flex flex-col gap-2 items-center">
-          {/* Connection Status */}
-          <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center ${
-              connected ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-500'
-            }`}
-            title={connected ? `${nodeCount} nodes, ${totalGpus} GPUs` : 'Disconnected'}
-          >
-            <Cpu className="w-4 h-4" />
-          </div>
-
-          <button
-            className="w-10 h-10 rounded-lg hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors"
-            title="Settings"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
-      </aside>
+      {/* Unified Sidebar */}
+      <Sidebar />
 
       {/* Main Content */}
       <main className="flex-1 overflow-hidden">
         <Routes>
-          <Route path="/" element={<Navigate to="/notebook" replace />} />
-          <Route path="/notebook" element={<NotebookView />} />
-          <Route path="/cluster" element={<ClusterView />} />
+          {/* Default redirect */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+          {/* Dashboard */}
           <Route path="/dashboard" element={<DashboardView />} />
+
+          {/* Notebooks (ML Researchers) */}
+          <Route path="/notebook" element={<NotebookView />} />
+          <Route path="/notebook/compiler" element={<NotebookView />} />
+
+          {/* Training (RustyTorch) */}
+          <Route path="/training" element={<TrainingView />} />
+          <Route path="/training/distributed" element={<TrainingView />} />
+          <Route path="/training/models" element={<TrainingView />} />
+          <Route path="/training/metrics" element={<TrainingView />} />
+
+          {/* Data Processing (RustySpark) */}
+          <Route path="/data" element={<DataProcessingView />} />
+          <Route path="/data/sql" element={<DataProcessingView />} />
+          <Route path="/data/streaming" element={<DataProcessingView />} />
+          <Route path="/data/quality" element={<DataProcessingView />} />
+
+          {/* Cluster (StratoSwarm) */}
+          <Route path="/cluster" element={<ClusterView />} />
+          <Route path="/cluster/editor" element={<ClusterView />} />
+          <Route path="/cluster/topology" element={<ClusterView />} />
+
+          {/* Scheduler (SLAI) */}
+          <Route path="/scheduler" element={<SchedulerView />} />
+          <Route path="/scheduler/tenants" element={<SchedulerView />} />
+          <Route path="/scheduler/backfill" element={<SchedulerView />} />
+          <Route path="/scheduler/reservations" element={<SchedulerView />} />
+          <Route path="/scheduler/qos" element={<SchedulerView />} />
+          <Route path="/scheduler/federation" element={<SchedulerView />} />
+
+          {/* Storage (WARP) */}
+          <Route path="/storage" element={<StorageView />} />
+          <Route path="/storage/transfers" element={<StorageView />} />
+          <Route path="/storage/archives" element={<StorageView />} />
+          <Route path="/storage/burst" element={<StorageView />} />
+
+          {/* Network (Nebula) */}
+          <Route path="/network" element={<NetworkView />} />
+          <Route path="/network/mesh" element={<NetworkView />} />
+          <Route path="/network/zk" element={<NetworkView />} />
+          <Route path="/network/nat" element={<NetworkView />} />
+          <Route path="/network/ebpf" element={<NetworkView />} />
+
+          {/* Edge Proxy (Vortex) */}
+          <Route path="/edge" element={<EdgeProxyView />} />
+          <Route path="/edge/routing" element={<EdgeProxyView />} />
+          <Route path="/edge/brain" element={<EdgeProxyView />} />
+          <Route path="/edge/transmutation" element={<EdgeProxyView />} />
+          <Route path="/edge/ddos" element={<EdgeProxyView />} />
+
+          {/* Evolution */}
+          <Route path="/evolution" element={<EvolutionView />} />
+          <Route path="/evolution/dgm" element={<EvolutionView />} />
+          <Route path="/evolution/swarm" element={<EvolutionView />} />
+          <Route path="/evolution/explorer" element={<EvolutionView />} />
+
+          {/* Costs */}
+          <Route path="/costs" element={<CostsView />} />
+          <Route path="/costs/forecast" element={<CostsView />} />
+          <Route path="/costs/chargeback" element={<CostsView />} />
+          <Route path="/costs/showback" element={<CostsView />} />
+          <Route path="/costs/alerts" element={<CostsView />} />
+
+          {/* Intelligence */}
+          <Route path="/intelligence" element={<IntelligenceView />} />
+          <Route path="/intelligence/margin" element={<IntelligenceView />} />
+          <Route path="/intelligence/vendor" element={<IntelligenceView />} />
+          <Route path="/intelligence/initiatives" element={<IntelligenceView />} />
+
+          {/* Settings */}
+          <Route path="/settings" element={<SettingsView />} />
+          <Route path="/settings/policies" element={<SettingsView />} />
+          <Route path="/settings/api-keys" element={<SettingsView />} />
+          <Route path="/settings/preferences" element={<SettingsView />} />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
     </div>
-  );
-}
-
-interface NavButtonProps {
-  to: string;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}
-
-function NavButton({ to, icon: Icon, label }: NavButtonProps) {
-  return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        `w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
-          isActive
-            ? 'bg-blue-600 text-white'
-            : 'text-slate-400 hover:bg-slate-700 hover:text-slate-200'
-        }`
-      }
-      title={label}
-    >
-      <Icon className="w-5 h-5" />
-    </NavLink>
   );
 }
 

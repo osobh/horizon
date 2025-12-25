@@ -1,7 +1,7 @@
-//! ExoRust GPU Container Runtime
+//! Stratoswarm GPU Container Runtime
 //!
 //! This crate provides GPU container runtime for isolated agent execution
-//! in the ExoRust agent-first operating system.
+//! in the Stratoswarm agent-first operating system.
 
 use anyhow::Result;
 
@@ -12,6 +12,9 @@ pub mod lifecycle;
 pub mod personality;
 pub mod secure_runtime;
 
+#[cfg(feature = "hpc-channels")]
+pub mod hpc_bridge;
+
 #[cfg(test)]
 mod test_helpers;
 
@@ -20,8 +23,8 @@ pub use container::{
 };
 pub use error::RuntimeError;
 pub use isolation::{
-    ExecutionSandbox, IsolationContext, IsolationManager, IsolationResult, IsolationStats,
-    KernelSignature, MemoryFence, MemoryPermissions, QuotaViolation, ResourceQuota, ViolationType,
+    IsolatedContainer, IsolationManager, IsolationResult, IsolationStats, KernelSignature,
+    Namespace, Sandbox, SecurityPolicy,
 };
 pub use lifecycle::{ContainerLifecycle, ContainerState};
 pub use personality::{
@@ -29,6 +32,12 @@ pub use personality::{
     PersonalityError, PersonalityInfluence, PersonalityType, ResourceAllocation,
 };
 pub use secure_runtime::SecureContainerRuntime;
+
+#[cfg(feature = "hpc-channels")]
+pub use hpc_bridge::{
+    RuntimeChannelBridge, SharedRuntimeChannelBridge, shared_channel_bridge,
+    ContainerStartEvent, ContainerStopEvent, RuntimeEvent,
+};
 
 /// GPU container runtime for managing agent containers
 #[async_trait::async_trait]

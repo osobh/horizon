@@ -1,5 +1,5 @@
 use telemetry_collector::cardinality::CardinalityTracker;
-use horizon_hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch, Timestamp};
+use hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch, Timestamp};
 
 fn create_test_gpu_metric(host_id: &str, gpu_id: &str) -> GpuMetric {
     GpuMetric {

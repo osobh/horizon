@@ -7,13 +7,13 @@ use cpu_agents::{
     io_manager::{IoManager, IoOperation},
     orchestrator::{Orchestrator, Workflow, WorkflowStep},
 };
-use exorust_agent_core::{Agent, AgentConfig, Goal, GoalPriority, MemoryType};
-use exorust_evolution::{EvolutionEngine, GeneticEvolutionEngine, Population};
-use exorust_knowledge_graph::{KnowledgeGraph, KnowledgeGraphConfig, Query, QueryType};
-use exorust_memory::{GpuMemoryAllocator, MemoryPool};
-use exorust_net::{Network, ZeroCopyTransport};
-use exorust_runtime::{ContainerRuntime, SecureContainerRuntime};
-use exorust_storage::{NvmeConfig, NvmeStorage, Storage};
+use stratoswarm_agent_core::{Agent, AgentConfig, Goal, GoalPriority, MemoryType};
+use stratoswarm_evolution::{EvolutionEngine, GeneticEvolutionEngine, Population};
+use stratoswarm_knowledge_graph::{KnowledgeGraph, KnowledgeGraphConfig, Query, QueryType};
+use stratoswarm_memory::{GpuMemoryAllocator, MemoryPool};
+use stratoswarm_net::{Network, ZeroCopyTransport};
+use stratoswarm_runtime::{ContainerRuntime, SecureContainerRuntime};
+use stratoswarm_storage::{NvmeConfig, NvmeStorage, Storage};
 use gpu_agents::{
     evolution::{GpuEvolutionEngine, PopulationBuffer},
     streaming::{StreamConfig, StreamProcessor},
@@ -201,7 +201,7 @@ async fn test_consensus_maximum_scale() {
 #[tokio::test]
 async fn test_evolution_extreme_generations() {
     // Test with maximum speed - 1 generation, huge population
-    let speed_config = exorust_evolution::EvolutionConfig {
+    let speed_config = stratoswarm_evolution::EvolutionConfig {
         population_size: 100000,
         mutation_rate: 0.5,
         crossover_rate: 0.5,

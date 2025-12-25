@@ -4,7 +4,9 @@ use crate::swarm_particle::{Particle, ParticleParameters};
 use crate::traits::{Evolvable, EvolvableAgent};
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, Rng};
+use rayon::prelude::*;
 use std::sync::Arc;
+use wide::f64x4;  // SIMD primitives for 4-wide f64 operations
 
 /// Velocity updater for particle swarm optimization
 pub struct VelocityUpdater {
@@ -18,8 +20,8 @@ impl VelocityUpdater {
         Self { rng }
     }
 
-    /// Update particle velocities using PSO formula
-    pub fn update_velocities<E: Evolvable>(
+    /// Update particle velocities using PSO formula with parallel processing
+    pub fn update_velocities<E: Evolvable + Send + Sync>(
         &self,
         particles: &mut [Particle<E>],
         global_best: &Option<E>,
@@ -32,23 +34,98 @@ impl VelocityUpdater {
             return;
         }
 
-        let mut rng = self.rng.write();
+        // Pre-generate random numbers for all particles (serial, fast)
+        // Each particle needs 2 random numbers per velocity dimension
+        let total_random_needed: usize = particles
+            .iter()
+            .map(|p| p.velocity.len() * 2)
+            .sum();
 
-        for particle in particles {
-            // Update velocity using PSO formula
-            for i in 0..particle.velocity.len() {
-                let r1: f64 = rng.gen();
-                let r2: f64 = rng.gen();
+        let random_numbers: Vec<f64> = {
+            let mut rng = self.rng.write();
+            (0..total_random_needed).map(|_| rng.gen()).collect()
+        };
 
-                // Simplified velocity update (normally would use actual position differences)
-                particle.velocity[i] = inertia_weight * particle.velocity[i]
-                    + cognitive_influence * r1 * 0.1  // Simplified
-                    + social_influence * r2 * 0.1; // Simplified
-            }
-
-            // Apply velocity constraints
-            particle.clamp_velocity(particle_params.velocity_clamp);
+        // Build offset map for each particle's random numbers
+        let mut offsets = Vec::with_capacity(particles.len());
+        let mut current_offset = 0;
+        for particle in particles.iter() {
+            offsets.push(current_offset);
+            current_offset += particle.velocity.len() * 2;
         }
+
+        let velocity_clamp = particle_params.velocity_clamp;
+
+        // SIMD constants
+        let inertia_simd = f64x4::splat(inertia_weight);
+        let cognitive_simd = f64x4::splat(cognitive_influence * 0.1);
+        let social_simd = f64x4::splat(social_influence * 0.1);
+
+        // Parallel velocity update using pre-generated random numbers with SIMD inner loop
+        particles
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(idx, particle)| {
+                let base_offset = offsets[idx];
+                let len = particle.velocity.len();
+                let chunks = len / 4;
+                let remainder = len % 4;
+
+                // SIMD update: process 4 velocity components at once
+                for chunk in 0..chunks {
+                    let i = chunk * 4;
+                    let r_offset = base_offset + i * 2;
+
+                    // Load velocity components
+                    let vel = f64x4::new([
+                        particle.velocity[i],
+                        particle.velocity[i + 1],
+                        particle.velocity[i + 2],
+                        particle.velocity[i + 3],
+                    ]);
+
+                    // Load random numbers for cognitive component
+                    let r1 = f64x4::new([
+                        random_numbers[r_offset],
+                        random_numbers[r_offset + 2],
+                        random_numbers[r_offset + 4],
+                        random_numbers[r_offset + 6],
+                    ]);
+
+                    // Load random numbers for social component
+                    let r2 = f64x4::new([
+                        random_numbers[r_offset + 1],
+                        random_numbers[r_offset + 3],
+                        random_numbers[r_offset + 5],
+                        random_numbers[r_offset + 7],
+                    ]);
+
+                    // SIMD velocity update formula
+                    let new_vel = inertia_simd * vel + cognitive_simd * r1 + social_simd * r2;
+
+                    // Store back
+                    let new_vel_arr: [f64; 4] = new_vel.into();
+                    particle.velocity[i] = new_vel_arr[0];
+                    particle.velocity[i + 1] = new_vel_arr[1];
+                    particle.velocity[i + 2] = new_vel_arr[2];
+                    particle.velocity[i + 3] = new_vel_arr[3];
+                }
+
+                // Handle remainder with scalar operations
+                let base = chunks * 4;
+                for i in 0..remainder {
+                    let idx = base + i;
+                    let r1 = random_numbers[base_offset + idx * 2];
+                    let r2 = random_numbers[base_offset + idx * 2 + 1];
+
+                    particle.velocity[idx] = inertia_weight * particle.velocity[idx]
+                        + cognitive_influence * r1 * 0.1
+                        + social_influence * r2 * 0.1;
+                }
+
+                // Apply velocity constraints
+                particle.clamp_velocity(velocity_clamp);
+            });
     }
 
     /// Initialize particle velocities randomly
@@ -87,9 +164,9 @@ mod tests {
 
     fn create_test_agent() -> EvolvableAgent {
         let genome = crate::traits::AgentGenome {
-            goal: exorust_agent_core::Goal::new(
+            goal: stratoswarm_agent_core::Goal::new(
                 "test".to_string(),
-                exorust_agent_core::GoalPriority::Normal,
+                stratoswarm_agent_core::GoalPriority::Normal,
             ),
             architecture: crate::traits::ArchitectureGenes {
                 memory_capacity: 1024,
@@ -103,7 +180,7 @@ mod tests {
             },
         };
 
-        let config = exorust_agent_core::AgentConfig {
+        let config = stratoswarm_agent_core::AgentConfig {
             name: "test_agent".to_string(),
             agent_type: "test".to_string(),
             max_memory: 1024,
@@ -112,7 +189,7 @@ mod tests {
             metadata: serde_json::Value::Null,
         };
 
-        let agent = exorust_agent_core::Agent::new(config)?;
+        let agent = stratoswarm_agent_core::Agent::new(config)?;
         EvolvableAgent { agent, genome }
     }
 

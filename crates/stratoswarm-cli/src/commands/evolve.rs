@@ -103,8 +103,8 @@ pub async fn execute(args: EvolveArgs) -> Result<()> {
 }
 
 async fn run_evolution(args: &EvolveArgs) -> Result<()> {
-    // TODO: Uncomment when exorust_runtime is available
-    // use exorust_runtime::Runtime;
+    // TODO: Uncomment when stratoswarm_runtime is available
+    // use stratoswarm_runtime::Runtime;
 
     // Mock implementation for testing
     output::info(&format!(

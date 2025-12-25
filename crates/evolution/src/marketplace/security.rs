@@ -1,19 +1,20 @@
 //! Security management for package integrity and access control
 
 use std::sync::Arc;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use anyhow::{Result, anyhow};
 use uuid::Uuid;
 use sha2::{Sha256, Digest};
+use dashmap::DashMap;
 
 /// Security manager for package integrity and access control
 #[derive(Debug)]
 pub struct SecurityManager {
     trusted_clusters: Arc<RwLock<HashSet<String>>>,
-    package_signatures: Arc<RwLock<HashMap<Uuid, String>>>,
-    access_control_policies: Arc<RwLock<HashMap<String, AccessPolicy>>>,
+    package_signatures: Arc<DashMap<Uuid, String>>,
+    access_control_policies: Arc<DashMap<String, AccessPolicy>>,
     audit_log: Arc<RwLock<Vec<SecurityAuditEntry>>>,
 }
 
@@ -39,8 +40,8 @@ impl SecurityManager {
     pub fn new() -> Self {
         Self {
             trusted_clusters: Arc::new(RwLock::new(HashSet::new())),
-            package_signatures: Arc::new(RwLock::new(HashMap::new())),
-            access_control_policies: Arc::new(RwLock::new(HashMap::new())),
+            package_signatures: Arc::new(DashMap::new()),
+            access_control_policies: Arc::new(DashMap::new()),
             audit_log: Arc::new(RwLock::new(Vec::new())),
         }
     }
@@ -66,34 +67,29 @@ impl SecurityManager {
     }
     
     pub async fn verify_package_signature(&self, package_id: Uuid, signature: &str) -> Result<bool> {
-        let signatures = self.package_signatures.read().await;
-        
-        if let Some(expected_sig) = signatures.get(&package_id) {
-            Ok(expected_sig == signature)
+        if let Some(expected_sig) = self.package_signatures.get(&package_id) {
+            Ok(expected_sig.value() == signature)
         } else {
             Err(anyhow!("No signature found for package {}", package_id))
         }
     }
-    
+
     pub async fn sign_package(&self, package_id: Uuid, content: &[u8]) -> Result<String> {
         // Calculate SHA256 hash
         let mut hasher = Sha256::new();
         hasher.update(content);
         let hash = hasher.finalize();
         let signature = format!("{:x}", hash);
-        
-        let mut signatures = self.package_signatures.write().await;
-        signatures.insert(package_id, signature.clone());
-        
+
+        self.package_signatures.insert(package_id, signature.clone());
+
         Ok(signature)
     }
     
     pub async fn check_access(&self, cluster_id: &str, operation: &str) -> Result<bool> {
-        let policies = self.access_control_policies.read().await;
-        
-        if let Some(policy) = policies.get(cluster_id) {
+        if let Some(policy) = self.access_control_policies.get(cluster_id) {
             let allowed = policy.allowed_operations.contains(&operation.to_string());
-            
+
             self.log_audit_entry(
                 cluster_id.to_string(),
                 operation.to_string(),
@@ -101,7 +97,7 @@ impl SecurityManager {
                 allowed,
                 format!("Access check for operation: {}", operation),
             ).await;
-            
+
             Ok(allowed)
         } else {
             // No policy means no access
@@ -112,7 +108,7 @@ impl SecurityManager {
                 false,
                 "No access policy found".to_string(),
             ).await;
-            
+
             Ok(false)
         }
     }
@@ -123,16 +119,16 @@ impl SecurityManager {
         allowed_operations: Vec<String>,
         security_clearance: u32,
     ) -> Result<()> {
+        use std::collections::HashMap;
         let policy = AccessPolicy {
             cluster_id: cluster_id.clone(),
             allowed_operations,
             rate_limits: HashMap::new(),
             security_clearance,
         };
-        
-        let mut policies = self.access_control_policies.write().await;
-        policies.insert(cluster_id.clone(), policy);
-        
+
+        self.access_control_policies.insert(cluster_id.clone(), policy);
+
         self.log_audit_entry(
             cluster_id,
             "set_access_policy".to_string(),
@@ -140,7 +136,7 @@ impl SecurityManager {
             true,
             format!("Security clearance level: {}", security_clearance),
         ).await;
-        
+
         Ok(())
     }
     

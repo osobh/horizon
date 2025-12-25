@@ -2,11 +2,11 @@
 //!
 //! Tests the complete flow from agent evolution through synthesis
 
-use exorust_agent_core::{Agent, AgentConfig, Goal, GoalPriority};
-use exorust_evolution_engines::hybrid::{EngineStrategy, HybridConfig, HybridEvolutionSystem};
-use exorust_evolution_engines::EvolutionEngine;
-use exorust_synthesis::interpreter::{InterpreterConfig, OperationType};
-use exorust_synthesis::GoalInterpreter;
+use stratoswarm_agent_core::{Agent, AgentConfig, Goal, GoalPriority};
+use stratoswarm_evolution_engines::hybrid::{EngineStrategy, HybridConfig, HybridEvolutionSystem};
+use stratoswarm_evolution_engines::EvolutionEngine;
+use stratoswarm_synthesis::interpreter::{InterpreterConfig, OperationType};
+use stratoswarm_synthesis::GoalInterpreter;
 
 #[tokio::test]
 async fn test_agent_evolution_to_synthesis() {

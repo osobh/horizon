@@ -142,7 +142,9 @@ impl CodeModifier {
         &self,
         mut proposals: Vec<ModificationProposal>,
     ) -> Vec<ModificationProposal> {
-        proposals.sort_by(|a, b| b.priority.partial_cmp(&a.priority)?);
+        proposals.sort_by(|a, b| {
+            b.priority.partial_cmp(&a.priority).unwrap_or(std::cmp::Ordering::Equal)
+        });
         proposals
     }
 

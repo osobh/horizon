@@ -10,7 +10,7 @@ license = "MIT"
 horizon-agents-core = { path = "../horizon-agents/core" }
 
 # Evolution engine integration (optional, for advanced features)
-# exorust-evolution-engines = { path = "../evolution-engines" }
+# stratoswarm-evolution-engines = { path = "../evolution-engines" }
 
 # Async runtime
 tokio = { workspace = true, features = ["full"] }

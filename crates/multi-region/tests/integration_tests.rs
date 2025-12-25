@@ -2,8 +2,8 @@
 //!
 //! These tests verify that all modules work together correctly in realistic scenarios.
 
-use exorust_multi_region::tunnels::TlsVersion;
-use exorust_multi_region::*;
+use stratoswarm_multi_region::tunnels::TlsVersion;
+use stratoswarm_multi_region::*;
 use std::collections::HashMap;
 
 /// Test end-to-end multi-region deployment scenario

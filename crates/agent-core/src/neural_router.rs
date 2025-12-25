@@ -7,15 +7,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use dashmap::DashMap;
 use tokio::sync::RwLock;
 use rand::prelude::*;
+use wide::f32x4;  // SIMD primitives for 4-wide f32 operations
 
 use crate::AgentId;
 
 /// Neural network-based router for intelligent routing decisions
 #[derive(Clone)]
 pub struct NeuralRouter {
-    routing_table: Arc<RwLock<HashMap<AgentId, RoutingEntry>>>,
+    routing_table: Arc<DashMap<AgentId, RoutingEntry>>,
     training_data: Arc<RwLock<Vec<TrainingExample>>>,
     performance_metrics: Arc<RwLock<PerformanceMetrics>>,
     weights: Arc<RwLock<Vec<Vec<f32>>>>, // Simplified neural network weights
@@ -123,14 +125,14 @@ impl NeuralRouter {
         let weights = vec![
             // Layer 1: 5 inputs -> 10 hidden
             (0..50).map(|_| rng.gen_range(-1.0..1.0)).collect(),
-            // Layer 2: 10 hidden -> 10 hidden  
+            // Layer 2: 10 hidden -> 10 hidden
             (0..100).map(|_| rng.gen_range(-1.0..1.0)).collect(),
             // Layer 3: 10 hidden -> 3 outputs
             (0..30).map(|_| rng.gen_range(-1.0..1.0)).collect(),
         ];
-        
+
         Ok(Self {
-            routing_table: Arc::new(RwLock::new(HashMap::new())),
+            routing_table: Arc::new(DashMap::new()),
             training_data: Arc::new(RwLock::new(Vec::new())),
             performance_metrics: Arc::new(RwLock::new(PerformanceMetrics::default())),
             weights: Arc::new(RwLock::new(weights)),
@@ -155,17 +157,14 @@ impl NeuralRouter {
         let path = vec![source, destination];
 
         // Update routing table
-        {
-            let mut table = self.routing_table.write().await;
-            table.insert(destination, RoutingEntry {
-                destination,
-                latency_prediction: latency_pred,
-                bandwidth_prediction: bandwidth_pred,
-                reliability_score: reliability,
-                last_updated: Instant::now(),
-                confidence: 0.8, // Fixed confidence for simplicity
-            });
-        }
+        self.routing_table.insert(destination, RoutingEntry {
+            destination,
+            latency_prediction: latency_pred,
+            bandwidth_prediction: bandwidth_pred,
+            reliability_score: reliability,
+            last_updated: Instant::now(),
+            confidence: 0.8, // Fixed confidence for simplicity
+        });
 
         // Update performance metrics
         {
@@ -195,19 +194,16 @@ impl NeuralRouter {
         }
 
         // Update routing table entries based on real measurements
-        {
-            let mut table = self.routing_table.write().await;
-            for example in &training_examples {
-                let entry = RoutingEntry {
-                    destination: example.destination,
-                    latency_prediction: example.actual_latency,
-                    bandwidth_prediction: example.actual_bandwidth,
-                    reliability_score: if example.success { 0.95 } else { 0.1 },
-                    last_updated: Instant::now(),
-                    confidence: 0.9,
-                };
-                table.insert(example.destination, entry);
-            }
+        for example in &training_examples {
+            let entry = RoutingEntry {
+                destination: example.destination,
+                latency_prediction: example.actual_latency,
+                bandwidth_prediction: example.actual_bandwidth,
+                reliability_score: if example.success { 0.95 } else { 0.1 },
+                last_updated: Instant::now(),
+                confidence: 0.9,
+            };
+            self.routing_table.insert(example.destination, entry);
         }
 
         Ok(())
@@ -281,42 +277,116 @@ impl NeuralRouter {
 
     /// Get current routing table
     pub async fn get_routing_table(&self) -> HashMap<AgentId, RoutingEntry> {
-        let table = self.routing_table.read().await;
-        table.clone()
+        self.routing_table.iter().map(|e| (*e.key(), e.value().clone())).collect()
     }
 
     // Helper methods
     async fn forward_pass(&self, inputs: &[f32]) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
         let weights = self.weights.read().await;
-        
-        // Simple 3-layer forward pass
-        let mut layer1_outputs = Vec::new();
+
+        // Layer 1: 5 inputs -> 10 hidden (SIMD optimized)
+        // 5 inputs: 1 chunk of 4 + 1 remainder
+        let inputs_simd = f32x4::new([inputs[0], inputs[1], inputs[2], inputs[3]]);
+        let mut layer1_outputs = Vec::with_capacity(10);
+
         for i in 0..10 {
-            let mut sum = 0.0;
-            for j in 0..5 {
-                sum += inputs[j] * weights[0][i * 5 + j];
-            }
-            layer1_outputs.push((sum).tanh()); // Tanh activation
+            let w_offset = i * 5;
+            let weights_simd = f32x4::new([
+                weights[0][w_offset],
+                weights[0][w_offset + 1],
+                weights[0][w_offset + 2],
+                weights[0][w_offset + 3],
+            ]);
+
+            let product = inputs_simd * weights_simd;
+            let product_arr: [f32; 4] = product.into();
+            let sum: f32 = product_arr.iter().sum::<f32>() + inputs[4] * weights[0][w_offset + 4];
+            layer1_outputs.push(sum.tanh());
         }
-        
-        let mut layer2_outputs = Vec::new();
+
+        // Layer 2: 10 hidden -> 10 hidden (SIMD optimized)
+        // 10 inputs: 2 chunks of 4 + 2 remainder
+        let layer1_simd_0 = f32x4::new([
+            layer1_outputs[0],
+            layer1_outputs[1],
+            layer1_outputs[2],
+            layer1_outputs[3],
+        ]);
+        let layer1_simd_1 = f32x4::new([
+            layer1_outputs[4],
+            layer1_outputs[5],
+            layer1_outputs[6],
+            layer1_outputs[7],
+        ]);
+
+        let mut layer2_outputs = Vec::with_capacity(10);
         for i in 0..10 {
-            let mut sum = 0.0;
-            for j in 0..10 {
-                sum += layer1_outputs[j] * weights[1][i * 10 + j];
-            }
-            layer2_outputs.push((sum).tanh());
+            let w_offset = i * 10;
+            let weights_simd_0 = f32x4::new([
+                weights[1][w_offset],
+                weights[1][w_offset + 1],
+                weights[1][w_offset + 2],
+                weights[1][w_offset + 3],
+            ]);
+            let weights_simd_1 = f32x4::new([
+                weights[1][w_offset + 4],
+                weights[1][w_offset + 5],
+                weights[1][w_offset + 6],
+                weights[1][w_offset + 7],
+            ]);
+
+            let product_0 = layer1_simd_0 * weights_simd_0;
+            let product_1 = layer1_simd_1 * weights_simd_1;
+            let p0_arr: [f32; 4] = product_0.into();
+            let p1_arr: [f32; 4] = product_1.into();
+            let sum: f32 = p0_arr.iter().sum::<f32>()
+                + p1_arr.iter().sum::<f32>()
+                + layer1_outputs[8] * weights[1][w_offset + 8]
+                + layer1_outputs[9] * weights[1][w_offset + 9];
+            layer2_outputs.push(sum.tanh());
         }
-        
-        let mut final_outputs = Vec::new();
+
+        // Layer 3: 10 hidden -> 3 outputs (SIMD optimized)
+        let layer2_simd_0 = f32x4::new([
+            layer2_outputs[0],
+            layer2_outputs[1],
+            layer2_outputs[2],
+            layer2_outputs[3],
+        ]);
+        let layer2_simd_1 = f32x4::new([
+            layer2_outputs[4],
+            layer2_outputs[5],
+            layer2_outputs[6],
+            layer2_outputs[7],
+        ]);
+
+        let mut final_outputs = Vec::with_capacity(3);
         for i in 0..3 {
-            let mut sum = 0.0;
-            for j in 0..10 {
-                sum += layer2_outputs[j] * weights[2][i * 10 + j];
-            }
+            let w_offset = i * 10;
+            let weights_simd_0 = f32x4::new([
+                weights[2][w_offset],
+                weights[2][w_offset + 1],
+                weights[2][w_offset + 2],
+                weights[2][w_offset + 3],
+            ]);
+            let weights_simd_1 = f32x4::new([
+                weights[2][w_offset + 4],
+                weights[2][w_offset + 5],
+                weights[2][w_offset + 6],
+                weights[2][w_offset + 7],
+            ]);
+
+            let product_0 = layer2_simd_0 * weights_simd_0;
+            let product_1 = layer2_simd_1 * weights_simd_1;
+            let p0_arr: [f32; 4] = product_0.into();
+            let p1_arr: [f32; 4] = product_1.into();
+            let sum: f32 = p0_arr.iter().sum::<f32>()
+                + p1_arr.iter().sum::<f32>()
+                + layer2_outputs[8] * weights[2][w_offset + 8]
+                + layer2_outputs[9] * weights[2][w_offset + 9];
             final_outputs.push(sum);
         }
-        
+
         Ok(final_outputs)
     }
 

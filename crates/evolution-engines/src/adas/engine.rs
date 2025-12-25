@@ -12,8 +12,10 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use exorust_agent_core::{Agent, AgentConfig, Goal, GoalPriority};
-use exorust_synthesis::interpreter::GoalInterpreter;
+use futures::future::join_all;
+use rayon::prelude::*;
+use stratoswarm_agent_core::{Agent, AgentConfig, Goal, GoalPriority};
+use stratoswarm_synthesis::interpreter::GoalInterpreter;
 use parking_lot::RwLock;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -46,7 +48,7 @@ impl AdasEngine {
             metrics_collector: MetricsCollector::new(),
             rng: Arc::new(RwLock::new(rng)),
             goal_interpreter: Arc::new(GoalInterpreter::new(
-                exorust_synthesis::interpreter::InterpreterConfig::default(),
+                stratoswarm_synthesis::interpreter::InterpreterConfig::default(),
             )),
             architecture_performance: Arc::new(RwLock::new(Vec::new())),
             meta_agent: MetaAgent::new(config.base.max_generations as usize),
@@ -196,17 +198,26 @@ impl AdasEngine {
         mutated
     }
 
-    /// Calculate population diversity
+    /// Calculate population diversity using parallel pairwise comparisons
     fn calculate_diversity(&self, population: &[EvolvableAgent]) -> f64 {
         if population.len() < 2 {
             return 0.0;
         }
 
-        let mut diversity = 0.0;
-        let mut comparisons = 0;
+        // Generate all pairs for parallel processing
+        let pairs: Vec<(usize, usize)> = (0..population.len())
+            .flat_map(|i| ((i + 1)..population.len()).map(move |j| (i, j)))
+            .collect();
 
-        for i in 0..population.len() {
-            for j in i + 1..population.len() {
+        let comparisons = pairs.len();
+        if comparisons == 0 {
+            return 0.0;
+        }
+
+        // Parallel diversity calculation using rayon
+        let total_diversity: f64 = pairs
+            .par_iter()
+            .map(|&(i, j)| {
                 let genome1 = &population[i].genome;
                 let genome2 = &population[j].genome;
 
@@ -217,12 +228,11 @@ impl AdasEngine {
                 // Behavior diversity
                 let behav_div = self.behavior_distance(&genome1.behavior, &genome2.behavior);
 
-                diversity += (arch_div + behav_div) / 2.0;
-                comparisons += 1;
-            }
-        }
+                (arch_div + behav_div) / 2.0
+            })
+            .sum();
 
-        diversity / comparisons as f64
+        total_diversity / comparisons as f64
     }
 
     /// Calculate distance between architectures
@@ -272,21 +282,35 @@ impl EvolutionEngine for AdasEngine {
     ) -> EvolutionEngineResult<Population<Self::Entity>> {
         self.metrics_collector.start_generation();
 
-        // Evaluate fitness for all individuals
+        // Evaluate fitness for all individuals in parallel using async concurrency
+        // This leverages multiple CPU cores for fitness evaluation
+        let fitness_futures: Vec<_> = population
+            .individuals
+            .iter()
+            .map(|individual| individual.entity.evaluate_fitness())
+            .collect();
+
+        let fitness_results = join_all(fitness_futures).await;
+
+        // Process results and update individuals
         let mut total_fitness = 0.0;
         let mut best_fitness = 0.0;
+        let mut arch_performance_batch = Vec::with_capacity(population.individuals.len());
 
-        for individual in &mut population.individuals {
-            let fitness = individual.entity.evaluate_fitness().await?;
+        for (individual, result) in population.individuals.iter_mut().zip(fitness_results) {
+            let fitness = result?;
             total_fitness += fitness;
             best_fitness = f64::max(best_fitness, fitness);
             individual.fitness = Some(fitness);
 
-            // Track architecture performance
-            self.architecture_performance
-                .write()
-                .push((individual.entity.genome.architecture.clone(), fitness));
+            // Collect architecture performance for batch update
+            arch_performance_batch.push((individual.entity.genome.architecture.clone(), fitness));
         }
+
+        // Batch update architecture performance (single lock acquisition)
+        self.architecture_performance
+            .write()
+            .extend(arch_performance_batch);
 
         // Sort by fitness
         population.individuals.sort_by(|a, b| {

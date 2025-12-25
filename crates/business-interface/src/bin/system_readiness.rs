@@ -3,7 +3,7 @@
 //! This tool validates that all components are working together for a complete
 //! "Hello World" GPU agent demonstration.
 
-use exorust_business_interface::{
+use stratoswarm_business_interface::{
     benchmarks::LlmBenchmark,
     ollama_client::{OllamaClient, OllamaConfig, TaskType},
     BusinessInterface, GoalCategory, GoalPriority, GoalSubmissionRequest,

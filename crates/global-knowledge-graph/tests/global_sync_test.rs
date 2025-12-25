@@ -11,7 +11,7 @@
 //! All tests in this file MUST initially fail (RED phase) to drive proper TDD implementation.
 
 use chrono::{DateTime, Utc};
-use exorust_global_knowledge_graph::{
+use stratoswarm_global_knowledge_graph::{
     GraphConfig, GraphManager, GlobalKnowledgeGraphError, GlobalKnowledgeGraphResult, Node, Edge
 };
 use serde::{Deserialize, Serialize};

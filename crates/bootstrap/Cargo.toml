@@ -1,5 +1,5 @@
 [package]
-name = "exorust-bootstrap"
+name = "stratoswarm-bootstrap"
 version = "0.1.0"
 edition = "2021"
 authors = ["ExoRust Team"]
@@ -11,14 +11,14 @@ default = []
 
 [dependencies]
 # Core ExoRust dependencies
-exorust-agent-core = { path = "../agent-core" }
-exorust-runtime = { path = "../runtime" }
-exorust-memory = { path = "../memory" }
-exorust-cuda = { path = "../cuda" }
-exorust-synthesis = { path = "../synthesis" }
-exorust-evolution-engines = { path = "../evolution-engines" }
-exorust-knowledge-graph = { path = "../knowledge-graph" }  # Re-enabled after fixing compilation issues
-exorust-monitoring = { path = "../monitoring" }
+stratoswarm-agent-core = { path = "../agent-core" }
+stratoswarm-runtime = { path = "../runtime" }
+stratoswarm-memory = { path = "../memory" }
+stratoswarm-cuda = { path = "../cuda" }
+stratoswarm-synthesis = { path = "../synthesis" }
+stratoswarm-evolution-engines = { path = "../evolution-engines" }
+stratoswarm-knowledge-graph = { path = "../knowledge-graph" }  # Re-enabled after fixing compilation issues
+stratoswarm-monitoring = { path = "../monitoring" }
 
 # External dependencies
 tokio = { workspace = true }

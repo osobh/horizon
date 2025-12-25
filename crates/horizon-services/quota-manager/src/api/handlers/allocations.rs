@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use hpc_channels::QuotaMessage;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -44,6 +45,7 @@ pub async fn create_allocation(
 ) -> Result<(StatusCode, Json<Allocation>), HpcError> {
     let entity_type = EntityType::from_str(&req.entity_type)?;
     let resource_type = ResourceType::from_str(&req.resource_type)?;
+    let requested_amount: f64 = req.requested_value.try_into().unwrap_or(0.0);
 
     let allocation = state
         .allocation_service
@@ -56,6 +58,13 @@ pub async fn create_allocation(
             req.metadata,
         )
         .await?;
+
+    // Publish allocation granted event
+    state.publish_allocation_event(QuotaMessage::AllocationGranted {
+        allocation_id: allocation.id.to_string(),
+        quota_id: allocation.quota_id.to_string(),
+        amount: requested_amount,
+    });
 
     Ok((StatusCode::CREATED, Json(allocation)))
 }
@@ -73,6 +82,15 @@ pub async fn release_allocation(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Allocation>, HpcError> {
     let allocation = state.allocation_service.release(id).await?;
+
+    // Publish allocation released event
+    let amount: f64 = allocation.allocated_value.try_into().unwrap_or(0.0);
+    state.publish_allocation_event(QuotaMessage::AllocationReleased {
+        allocation_id: allocation.id.to_string(),
+        quota_id: allocation.quota_id.to_string(),
+        amount,
+    });
+
     Ok(Json(allocation))
 }
 

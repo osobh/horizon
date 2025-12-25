@@ -6,16 +6,15 @@ use super::types::{
     SnapshotStorage, StorageStats,
 };
 use crate::DebugError;
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Main snapshot manager coordinating all snapshot operations
 pub struct SnapshotManager {
     config: SnapshotConfig,
     storage: Arc<dyn SnapshotStorage>,
-    active_sessions: Arc<RwLock<HashMap<Uuid, SnapshotSession>>>,
+    active_sessions: Arc<DashMap<Uuid, SnapshotSession>>,
 }
 
 impl SnapshotManager {
@@ -27,7 +26,7 @@ impl SnapshotManager {
         Self {
             config,
             storage,
-            active_sessions: Arc::new(RwLock::new(HashMap::new())),
+            active_sessions: Arc::new(DashMap::new()),
         }
     }
 
@@ -36,7 +35,7 @@ impl SnapshotManager {
         Self {
             config,
             storage,
-            active_sessions: Arc::new(RwLock::new(HashMap::new())),
+            active_sessions: Arc::new(DashMap::new()),
         }
     }
 
@@ -52,18 +51,14 @@ impl SnapshotManager {
             session_config: self.config.clone(),
         };
 
-        let mut sessions = self.active_sessions.write().await;
-        sessions.insert(container_id, session);
+        self.active_sessions.insert(container_id, session);
 
         Ok(())
     }
 
     /// End a debugging session and optionally clean up snapshots
     pub async fn end_session(&self, container_id: Uuid, cleanup: bool) -> Result<(), DebugError> {
-        let session = {
-            let mut sessions = self.active_sessions.write().await;
-            sessions.remove(&container_id)
-        };
+        let session = self.active_sessions.remove(&container_id).map(|(_, s)| s);
 
         if let Some(session) = session {
             if cleanup {
@@ -88,12 +83,7 @@ impl SnapshotManager {
         creation_reason: String,
     ) -> Result<Uuid, DebugError> {
         // Check if session exists
-        let session_exists = {
-            let sessions = self.active_sessions.read().await;
-            sessions.contains_key(&container_id)
-        };
-
-        if !session_exists {
+        if !self.active_sessions.contains_key(&container_id) {
             return Err(DebugError::SessionNotFound { container_id });
         }
 
@@ -122,11 +112,8 @@ impl SnapshotManager {
         self.storage.store_snapshot(snapshot).await?;
 
         // Update session tracking
-        {
-            let mut sessions = self.active_sessions.write().await;
-            if let Some(session) = sessions.get_mut(&container_id) {
-                session.active_snapshots.push(snapshot_id);
-            }
+        if let Some(mut session) = self.active_sessions.get_mut(&container_id) {
+            session.active_snapshots.push(snapshot_id);
         }
 
         Ok(snapshot_id)
@@ -161,11 +148,8 @@ impl SnapshotManager {
         self.storage.delete_snapshot(snapshot_id).await?;
 
         // Update session tracking
-        {
-            let mut sessions = self.active_sessions.write().await;
-            if let Some(session) = sessions.get_mut(&container_id) {
-                session.active_snapshots.retain(|&id| id != snapshot_id);
-            }
+        if let Some(mut session) = self.active_sessions.get_mut(&container_id) {
+            session.active_snapshots.retain(|&id| id != snapshot_id);
         }
 
         Ok(())
@@ -184,9 +168,8 @@ impl SnapshotManager {
             .await?;
 
         // Update session tracking to remove cleaned snapshots
-        let mut sessions = self.active_sessions.write().await;
-        for session in sessions.values_mut() {
-            let original_len = session.active_snapshots.len();
+        for mut entry in self.active_sessions.iter_mut() {
+            let session = entry.value_mut();
             session.active_snapshots.retain(|&snapshot_id| {
                 // Check if snapshot still exists
                 matches!(
@@ -225,14 +208,17 @@ impl SnapshotManager {
 
     /// Get active session information
     pub async fn get_session_info(&self, container_id: Uuid) -> Option<SnapshotSession> {
-        let sessions = self.active_sessions.read().await;
-        sessions.get(&container_id).cloned()
+        self.active_sessions
+            .get(&container_id)
+            .map(|entry| entry.clone())
     }
 
     /// List all active sessions
     pub async fn list_active_sessions(&self) -> Vec<Uuid> {
-        let sessions = self.active_sessions.read().await;
-        sessions.keys().copied().collect()
+        self.active_sessions
+            .iter()
+            .map(|entry| *entry.key())
+            .collect()
     }
 
     /// Update configuration

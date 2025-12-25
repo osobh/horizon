@@ -1,6 +1,6 @@
 //! Test to verify traits module structure works correctly
 
-use exorust_evolution_engines::traits::{
+use stratoswarm_evolution_engines::traits::{
     AgentGenome, ArchitectureGenes, BehaviorGenes, EngineConfig, EvolutionEngine, Evolvable,
     EvolvableAgent, MockEvolvableAgent,
 };
@@ -28,7 +28,7 @@ fn test_traits_module_imports() {
 #[test]
 fn test_agent_genome() {
     let goal =
-        exorust_agent_core::Goal::new("test".to_string(), exorust_agent_core::GoalPriority::Normal);
+        stratoswarm_agent_core::Goal::new("test".to_string(), stratoswarm_agent_core::GoalPriority::Normal);
     let genome = AgentGenome {
         goal,
         architecture: ArchitectureGenes {

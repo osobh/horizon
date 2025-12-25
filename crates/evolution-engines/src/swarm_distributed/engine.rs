@@ -14,6 +14,7 @@ use crate::{
     traits::{EngineConfig, EvolutionEngine, EvolvableAgent, MockEvolvableAgent},
 };
 use async_trait::async_trait;
+use rayon::prelude::*;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::RwLock;
@@ -221,14 +222,17 @@ impl DistributedSwarmEngine {
         let mut global_best_fitness = self.global_best_fitness.write().await;
         let local_particles = self.local_particles.read().await;
 
-        // Find local best
-        let mut local_best = None;
-        for particle in local_particles.iter() {
-            let fitness = particle.get_fitness();
-            if local_best.is_none() || fitness > local_best? {
-                local_best = Some(fitness);
-            }
-        }
+        // Find local best (parallelized with Rayon for large swarms)
+        let local_best: Option<f64> = if local_particles.is_empty() {
+            None
+        } else {
+            Some(
+                local_particles
+                    .par_iter()
+                    .map(|particle| particle.get_fitness())
+                    .reduce(|| f64::MIN, |a, b| a.max(b)),
+            )
+        };
 
         // Update global best if local is better
         if let Some(fitness) = local_best {

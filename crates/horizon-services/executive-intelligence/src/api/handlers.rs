@@ -3,9 +3,11 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
+use hpc_channels::{broadcast, channels, ExecutiveMessage};
 use serde::Deserialize;
 use sqlx::PgPool;
 use std::sync::Arc;
+use tokio::sync::broadcast::Sender as BroadcastSender;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -15,11 +17,50 @@ use crate::models::*;
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
+    /// Channel for KPI events.
+    pub kpi_events: BroadcastSender<ExecutiveMessage>,
+    /// Channel for initiative events.
+    pub initiative_events: BroadcastSender<ExecutiveMessage>,
+    /// Channel for alert events.
+    pub alert_events: BroadcastSender<ExecutiveMessage>,
+    /// Channel for report events.
+    pub report_events: BroadcastSender<ExecutiveMessage>,
 }
 
 impl AppState {
     pub fn new(db: PgPool) -> Self {
-        Self { db }
+        let kpi_events = broadcast::<ExecutiveMessage>(channels::EXECUTIVE_KPIS, 256);
+        let initiative_events = broadcast::<ExecutiveMessage>(channels::EXECUTIVE_INITIATIVES, 256);
+        let alert_events = broadcast::<ExecutiveMessage>(channels::EXECUTIVE_ALERTS, 256);
+        let report_events = broadcast::<ExecutiveMessage>(channels::EXECUTIVE_REPORTS, 64);
+
+        Self {
+            db,
+            kpi_events,
+            initiative_events,
+            alert_events,
+            report_events,
+        }
+    }
+
+    /// Publish a KPI event (non-blocking).
+    pub fn publish_kpi_event(&self, event: ExecutiveMessage) {
+        let _ = self.kpi_events.send(event);
+    }
+
+    /// Publish an initiative event (non-blocking).
+    pub fn publish_initiative_event(&self, event: ExecutiveMessage) {
+        let _ = self.initiative_events.send(event);
+    }
+
+    /// Publish an alert event (non-blocking).
+    pub fn publish_alert_event(&self, event: ExecutiveMessage) {
+        let _ = self.alert_events.send(event);
+    }
+
+    /// Publish a report event (non-blocking).
+    pub fn publish_report_event(&self, event: ExecutiveMessage) {
+        let _ = self.report_events.send(event);
     }
 }
 

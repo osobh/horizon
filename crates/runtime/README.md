@@ -25,7 +25,7 @@ The `runtime` crate provides a sophisticated container runtime specifically desi
 ### Basic Container Operations
 
 ```rust
-use exorust_runtime::{Container, ContainerConfig, Personality};
+use stratoswarm_runtime::{Container, ContainerConfig, Personality};
 
 // Create container configuration
 let config = ContainerConfig::builder()
@@ -53,7 +53,7 @@ container.remove().await?;
 ### Personality-Driven Behavior
 
 ```rust
-use exorust_runtime::{Personality, PersonalityTraits};
+use stratoswarm_runtime::{Personality, PersonalityTraits};
 
 // Get personality traits
 let traits = Personality::Aggressive.traits();
@@ -69,7 +69,7 @@ let resources = container.allocate_resources(&workload)?;
 ### Hardware Affinity
 
 ```rust
-use exorust_runtime::{HardwareAffinity, NumaNode};
+use stratoswarm_runtime::{HardwareAffinity, NumaNode};
 
 // Pin to specific hardware
 let affinity = HardwareAffinity::builder()
@@ -85,7 +85,7 @@ config.set_hardware_affinity(affinity);
 ### Evolution Integration
 
 ```rust
-use exorust_runtime::{EvolutionConfig, MutationRate};
+use stratoswarm_runtime::{EvolutionConfig, MutationRate};
 
 // Enable evolution for container
 let evolution = EvolutionConfig::builder()

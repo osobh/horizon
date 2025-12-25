@@ -1,7 +1,7 @@
 //! Test to verify swarm_network module structure works correctly
 
-use exorust_evolution_engines::swarm_distributed::DistributedSwarmConfig;
-use exorust_evolution_engines::swarm_network::{
+use stratoswarm_evolution_engines::swarm_distributed::DistributedSwarmConfig;
+use stratoswarm_evolution_engines::swarm_network::{
     EdgeWeight, LoadBalanceMetrics, LoadBalancer, Migration, MigrationPlan, NetworkGraph,
     NetworkPartition, NetworkTopology, NodeCapacity, ParticleMetadata, PartitionManager,
     PartitionStrategy,

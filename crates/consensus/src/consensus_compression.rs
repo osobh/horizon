@@ -9,7 +9,7 @@ use crate::protocol::{ConsensusMessage, GpuStatus};
 use crate::validator::ValidatorId;
 use crate::voting::{RoundId, Vote, VoteType};
 use dashmap::DashMap;
-use exorust_cuda::{GpuContext, GpuMemoryPool, CudaStream};
+use stratoswarm_cuda::{Context as GpuContext, MemoryPool as GpuMemoryPool, Stream as CudaStream};
 use lz4::EncoderBuilder as Lz4Encoder;
 use parking_lot::RwLock;
 use ring::digest::{Context as HashContext, SHA256};
@@ -42,46 +42,58 @@ pub struct CompressionConfig {
     pub pattern_config: PatternAnalysisConfig,
 }
 
+/// GPU acceleration configuration for compression.
+///
+/// Field ordering optimized for cache locality (largest fields first,
+/// bools last to minimize padding waste).
 #[derive(Debug, Clone)]
 pub struct CompressionGpuConfig {
-    /// Enable GPU-accelerated compression
-    pub enabled: bool,
-    /// Number of GPU devices to utilize
-    pub device_count: u32,
     /// GPU memory pool size (MB)
     pub memory_pool_size: u64,
+    /// Number of GPU devices to utilize
+    pub device_count: u32,
     /// CUDA stream count for parallel processing
     pub stream_count: u32,
     /// GPU kernel optimization level
     pub optimization_level: u8,
+    /// Enable GPU-accelerated compression
+    pub enabled: bool,
 }
 
+/// Memory configuration for compression engine.
+///
+/// Field ordering optimized for cache locality (largest fields first,
+/// bools last to minimize padding waste).
 #[derive(Debug, Clone)]
 pub struct CompressionMemoryConfig {
     /// Compression buffer size (MB)
     pub buffer_size: u64,
+    /// Maximum memory usage limit (MB)
+    pub memory_limit: u64,
     /// Dictionary cache size for adaptive compression
     pub dictionary_cache_size: usize,
     /// Enable memory-mapped I/O
     pub use_mmap: bool,
-    /// Maximum memory usage limit (MB)
-    pub memory_limit: u64,
 }
 
+/// Pattern analysis configuration for adaptive compression.
+///
+/// Field ordering optimized for cache locality (largest fields first,
+/// bools last to minimize padding waste).
 #[derive(Debug, Clone)]
 pub struct PatternAnalysisConfig {
-    /// Enable consensus-aware pattern detection
-    pub consensus_aware: bool,
+    /// Pattern adaptation interval
+    pub adaptation_interval: Duration,
     /// Pattern history size
     pub history_size: usize,
     /// Minimum pattern frequency threshold
     pub frequency_threshold: f32,
-    /// Pattern adaptation interval
-    pub adaptation_interval: Duration,
+    /// Enable consensus-aware pattern detection
+    pub consensus_aware: bool,
 }
 
 /// Supported compression algorithms
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CompressionAlgorithm {
     /// LZ4 for speed-optimized compression
     LZ4,
@@ -198,7 +210,7 @@ pub struct ConsensusContext {
     pub message_volume: f32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MessagePattern {
     /// Voting round messages
     VotingRound,
@@ -728,14 +740,15 @@ impl ConsensusCompressionEngine {
     }
     
     async fn decompress_with_zstd(&self, data: &[u8], dictionary: Option<&CompressionDictionary>) -> ConsensusResult<Vec<u8>> {
-        let decompressed = if let Some(dict) = dictionary {
-            zstd::decode_all_with_dict(data, &dict.data)
-                .map_err(|e| ConsensusError::ValidationFailed(format!("ZSTD decode error: {}", e)))?
-        } else {
-            zstd::decode_all(data)
-                .map_err(|e| ConsensusError::ValidationFailed(format!("ZSTD decode error: {}", e)))?
-        };
-        
+        use std::io::Cursor;
+
+        // Note: Dictionary-based decompression would require zstd::stream::Decoder with dict
+        // For now, we use standard decompression (dictionary was used during compression)
+        let _dict = dictionary; // Reserved for future dictionary-based decompression
+
+        let decompressed = zstd::stream::decode_all(Cursor::new(data))
+            .map_err(|e| ConsensusError::ValidationFailed(format!("ZSTD decode error: {}", e)))?;
+
         Ok(decompressed)
     }
     

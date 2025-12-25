@@ -3,10 +3,10 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::api::models::{ListHistoryResponse, Pagination};
+use crate::api::state::AppState;
 use crate::error::Result;
 use crate::repository::HistoryRepository;
 
@@ -40,13 +40,13 @@ impl HistoryQuery {
         (status = 500, description = "Internal server error")
     )
 )]
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn list_asset_history(
     Path(asset_id): Path<Uuid>,
     Query(query): Query<HistoryQuery>,
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Result<Json<ListHistoryResponse>> {
-    let repo = HistoryRepository::new(pool);
+    let repo = HistoryRepository::new(state.pool.clone());
 
     let history = repo
         .list_by_asset(asset_id, query.page(), query.page_size())

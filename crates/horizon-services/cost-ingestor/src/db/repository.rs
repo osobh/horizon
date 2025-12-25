@@ -4,6 +4,7 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub struct BillingRepository {
     pool: PgPool,
 }

@@ -1,5 +1,5 @@
 [package]
-name = "exorust-net"
+name = "stratoswarm-net"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

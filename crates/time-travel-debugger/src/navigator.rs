@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -141,9 +142,9 @@ impl NavigationState {
 pub struct TimeNavigator {
     snapshot_manager: Arc<SnapshotManager>,
     event_log: Arc<EventLog>,
-    navigation_states: Arc<RwLock<HashMap<Uuid, NavigationState>>>, // session_id -> state
-    breakpoints: Arc<RwLock<HashMap<Uuid, Breakpoint>>>,            // breakpoint_id -> breakpoint
-    agent_breakpoints: Arc<RwLock<HashMap<Uuid, Vec<Uuid>>>>,       // agent_id -> breakpoint_ids
+    navigation_states: Arc<DashMap<Uuid, NavigationState>>, // session_id -> state (lock-free)
+    breakpoints: Arc<DashMap<Uuid, Breakpoint>>,            // breakpoint_id -> breakpoint (lock-free)
+    agent_breakpoints: Arc<DashMap<Uuid, Vec<Uuid>>>,       // agent_id -> breakpoint_ids (lock-free)
     max_navigation_history: usize,
 }
 
@@ -156,9 +157,9 @@ impl TimeNavigator {
         Self {
             snapshot_manager,
             event_log,
-            navigation_states: Arc::new(RwLock::new(HashMap::new())),
-            breakpoints: Arc::new(RwLock::new(HashMap::new())),
-            agent_breakpoints: Arc::new(RwLock::new(HashMap::new())),
+            navigation_states: Arc::new(DashMap::new()),
+            breakpoints: Arc::new(DashMap::new()),
+            agent_breakpoints: Arc::new(DashMap::new()),
             max_navigation_history,
         }
     }
@@ -199,8 +200,7 @@ impl TimeNavigator {
 
         let nav_state = NavigationState::new(position.clone(), self.max_navigation_history);
 
-        let mut states = self.navigation_states.write().await;
-        states.insert(session_id, nav_state);
+        self.navigation_states.insert(session_id, nav_state);
 
         Ok(position)
     }
@@ -211,12 +211,10 @@ impl TimeNavigator {
         session_id: Uuid,
         target_time: DateTime<Utc>,
     ) -> Result<TimePosition> {
-        let mut states = self.navigation_states.write().await;
-        let nav_state = states
-            .get_mut(&session_id)
+        let nav_state_ref = self.navigation_states.get(&session_id)
             .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
-
-        let agent_id = nav_state.current_position.agent_id;
+        let agent_id = nav_state_ref.current_position.agent_id;
+        drop(nav_state_ref); // Release read lock before async operations
 
         // Get events up to target time
         let events = self
@@ -243,7 +241,10 @@ impl TimeNavigator {
             agent_id,
         };
 
-        nav_state.add_position(position.clone());
+        // Get mutable access to update navigation state
+        let mut nav_state_mut = self.navigation_states.get_mut(&session_id)
+            .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
+        nav_state_mut.add_position(position.clone());
         Ok(position)
     }
 
@@ -253,12 +254,10 @@ impl TimeNavigator {
         session_id: Uuid,
         target_index: usize,
     ) -> Result<TimePosition> {
-        let mut states = self.navigation_states.write().await;
-        let nav_state = states
-            .get_mut(&session_id)
+        let nav_state_ref = self.navigation_states.get(&session_id)
             .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
-
-        let agent_id = nav_state.current_position.agent_id;
+        let agent_id = nav_state_ref.current_position.agent_id;
+        drop(nav_state_ref); // Release read lock before async operations
 
         // Get all events for the agent
         let events = self
@@ -292,7 +291,10 @@ impl TimeNavigator {
             agent_id,
         };
 
-        nav_state.add_position(position.clone());
+        // Get mutable access to update navigation state
+        let mut nav_state_mut = self.navigation_states.get_mut(&session_id)
+            .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
+        nav_state_mut.add_position(position.clone());
         Ok(position)
     }
 
@@ -303,13 +305,10 @@ impl TimeNavigator {
         direction: NavigationDirection,
         step_size: StepSize,
     ) -> Result<TimePosition> {
-        let states = self.navigation_states.read().await;
-        let nav_state = states
-            .get(&session_id)
+        let nav_state_ref = self.navigation_states.get(&session_id)
             .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
-
-        let current_position = nav_state.current_position.clone();
-        drop(states);
+        let current_position = nav_state_ref.current_position.clone();
+        drop(nav_state_ref);
 
         match step_size {
             StepSize::Event => {
@@ -376,9 +375,7 @@ impl TimeNavigator {
         session_id: Uuid,
         direction: NavigationDirection,
     ) -> Result<TimePosition> {
-        let mut states = self.navigation_states.write().await;
-        let nav_state = states
-            .get_mut(&session_id)
+        let mut nav_state = self.navigation_states.get_mut(&session_id)
             .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
 
         match direction {
@@ -389,9 +386,7 @@ impl TimeNavigator {
 
     /// Get current navigation position
     pub async fn get_current_position(&self, session_id: Uuid) -> Result<TimePosition> {
-        let states = self.navigation_states.read().await;
-        let nav_state = states
-            .get(&session_id)
+        let nav_state = self.navigation_states.get(&session_id)
             .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
 
         Ok(nav_state.current_position.clone())
@@ -399,9 +394,7 @@ impl TimeNavigator {
 
     /// Get navigation history
     pub async fn get_navigation_history(&self, session_id: Uuid) -> Result<Vec<TimePosition>> {
-        let states = self.navigation_states.read().await;
-        let nav_state = states
-            .get(&session_id)
+        let nav_state = self.navigation_states.get(&session_id)
             .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
 
         Ok(nav_state.history.clone())
@@ -425,11 +418,8 @@ impl TimeNavigator {
             metadata,
         };
 
-        let mut breakpoints = self.breakpoints.write().await;
-        let mut agent_breakpoints = self.agent_breakpoints.write().await;
-
-        breakpoints.insert(breakpoint_id, breakpoint);
-        agent_breakpoints
+        self.breakpoints.insert(breakpoint_id, breakpoint);
+        self.agent_breakpoints
             .entry(agent_id)
             .or_insert_with(Vec::new)
             .push(breakpoint_id);
@@ -439,13 +429,11 @@ impl TimeNavigator {
 
     /// Remove a breakpoint
     pub async fn remove_breakpoint(&self, breakpoint_id: Uuid) -> Result<()> {
-        let mut breakpoints = self.breakpoints.write().await;
-        let breakpoint = breakpoints
+        let (_, breakpoint) = self.breakpoints
             .remove(&breakpoint_id)
             .ok_or(TimeDebuggerError::BreakpointNotFound { id: breakpoint_id })?;
 
-        let mut agent_breakpoints = self.agent_breakpoints.write().await;
-        if let Some(bp_list) = agent_breakpoints.get_mut(&breakpoint.agent_id) {
+        if let Some(mut bp_list) = self.agent_breakpoints.get_mut(&breakpoint.agent_id) {
             bp_list.retain(|&id| id != breakpoint_id);
         }
 
@@ -454,9 +442,7 @@ impl TimeNavigator {
 
     /// Enable/disable a breakpoint
     pub async fn set_breakpoint_enabled(&self, breakpoint_id: Uuid, enabled: bool) -> Result<()> {
-        let mut breakpoints = self.breakpoints.write().await;
-        let breakpoint = breakpoints
-            .get_mut(&breakpoint_id)
+        let mut breakpoint = self.breakpoints.get_mut(&breakpoint_id)
             .ok_or(TimeDebuggerError::BreakpointNotFound { id: breakpoint_id })?;
 
         breakpoint.is_enabled = enabled;
@@ -465,17 +451,14 @@ impl TimeNavigator {
 
     /// Get all breakpoints for an agent
     pub async fn get_agent_breakpoints(&self, agent_id: Uuid) -> Result<Vec<Breakpoint>> {
-        let breakpoints = self.breakpoints.read().await;
-        let agent_breakpoints = self.agent_breakpoints.read().await;
-
-        let breakpoint_ids = agent_breakpoints
+        let breakpoint_ids = self.agent_breakpoints
             .get(&agent_id)
-            .cloned()
+            .map(|r| r.clone())
             .unwrap_or_default();
 
         let mut result = Vec::new();
         for id in breakpoint_ids {
-            if let Some(breakpoint) = breakpoints.get(&id) {
+            if let Some(breakpoint) = self.breakpoints.get(&id) {
                 result.push(breakpoint.clone());
             }
         }
@@ -541,8 +524,7 @@ impl TimeNavigator {
                 triggered_breakpoints.push(breakpoint.id);
 
                 // Increment hit count
-                let mut breakpoints = self.breakpoints.write().await;
-                if let Some(bp) = breakpoints.get_mut(&breakpoint.id) {
+                if let Some(mut bp) = self.breakpoints.get_mut(&breakpoint.id) {
                     bp.hit_count += 1;
                 }
             }
@@ -553,8 +535,7 @@ impl TimeNavigator {
 
     /// Remove navigation state for a session
     pub async fn cleanup_session(&self, session_id: Uuid) -> Result<()> {
-        let mut states = self.navigation_states.write().await;
-        states.remove(&session_id);
+        self.navigation_states.remove(&session_id);
         Ok(())
     }
 

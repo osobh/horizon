@@ -1,6 +1,6 @@
 //! Property-based tests for synthesis crate
 
-use exorust_synthesis::interpreter::{
+use stratoswarm_synthesis::interpreter::{
     DataLayout, KernelSpecification, MemoryLayout, OperationType, OptimizationHint,
     PerformanceModel, Precision,
 };

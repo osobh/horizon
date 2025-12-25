@@ -7,7 +7,7 @@
 //! - Maintains workflow archive
 //! - Performs iterative search
 
-use exorust_evolution_engines::{
+use stratoswarm_evolution_engines::{
     adas::{AdasConfig, AdasEngine},
     adas_meta_agent::{ComparisonOperator, MetaAgent},
     error::EvolutionEngineResult,

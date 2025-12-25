@@ -1,0 +1,52 @@
+[package]
+name = "hpc-ephemeral-identity"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Ephemeral identity management for time-limited external access in HPC Platform"
+
+[dependencies]
+# Internal dependencies
+hpc-error = { path = "../hpc-error" }
+hpc-crypto = { path = "../hpc-crypto" }
+hpc-vault = { path = "../hpc-vault" }
+
+# Async runtime
+tokio = { workspace = true, features = ["sync"] }
+async-trait = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# Time handling
+chrono = { workspace = true, features = ["serde"] }
+
+# UUID generation
+uuid = { workspace = true, features = ["v4", "serde"] }
+
+# Encoding
+base64 = "0.22"
+
+# Random number generation
+rand = { workspace = true }
+
+# Utilities
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+proptest = { workspace = true }
+
+[lib]
+name = "hpc_ephemeral_identity"
+path = "src/lib.rs"

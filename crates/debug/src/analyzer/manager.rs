@@ -2,15 +2,15 @@
 
 use super::types::*;
 use crate::DebugError;
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Analysis manager for coordinating analysis operations
 pub struct AnalysisManager {
     engine: Arc<dyn AnalysisEngine + Send + Sync>,
-    reports: Arc<RwLock<HashMap<Uuid, AnalysisReport>>>,
+    reports: Arc<DashMap<Uuid, AnalysisReport>>,
     config: AnalysisManagerConfig,
 }
 
@@ -40,7 +40,7 @@ impl AnalysisManager {
     ) -> Self {
         Self {
             engine,
-            reports: Arc::new(RwLock::new(HashMap::new())),
+            reports: Arc::new(DashMap::new()),
             config,
         }
     }
@@ -53,20 +53,18 @@ impl AnalysisManager {
         let report = self.engine.analyze_performance(target).await?;
         let report_id = report.report_id;
 
-        {
-            let mut reports = self.reports.write().await;
-            reports.insert(report_id, report);
+        self.reports.insert(report_id, report);
 
-            // Cleanup old reports if needed
-            if reports.len() > self.config.max_stored_reports {
-                let oldest_id = reports
-                    .iter()
-                    .min_by_key(|(_, r)| r.timestamp)
-                    .map(|(id, _)| *id);
+        // Cleanup old reports if needed
+        if self.reports.len() > self.config.max_stored_reports {
+            let oldest_id = self
+                .reports
+                .iter()
+                .min_by_key(|entry| entry.value().timestamp)
+                .map(|entry| *entry.key());
 
-                if let Some(id) = oldest_id {
-                    reports.remove(&id);
-                }
+            if let Some(id) = oldest_id {
+                self.reports.remove(&id);
             }
         }
 
@@ -91,10 +89,7 @@ impl AnalysisManager {
         let report = self.engine.compare_analysis(baseline, comparison).await?;
         let report_id = report.report_id;
 
-        {
-            let mut reports = self.reports.write().await;
-            reports.insert(report_id, report);
-        }
+        self.reports.insert(report_id, report);
 
         Ok(report_id)
     }
@@ -110,34 +105,34 @@ impl AnalysisManager {
 
     /// Get analysis report by ID
     pub async fn get_report(&self, report_id: Uuid) -> Option<AnalysisReport> {
-        let reports = self.reports.read().await;
-        reports.get(&report_id).cloned()
+        self.reports.get(&report_id).map(|r| r.clone())
     }
 
     /// List all reports
     pub async fn list_reports(&self) -> Vec<AnalysisReport> {
-        self.reports.read().await.values().cloned().collect()
+        self.reports.iter().map(|r| r.value().clone()).collect()
     }
 
     /// Get reports by analysis type
     pub async fn get_reports_by_type(&self, analysis_type: AnalysisType) -> Vec<AnalysisReport> {
         self.reports
-            .read()
-            .await
-            .values()
-            .filter(|r| r.analysis_type == analysis_type)
-            .cloned()
+            .iter()
+            .filter(|entry| entry.value().analysis_type == analysis_type)
+            .map(|entry| entry.value().clone())
             .collect()
     }
 
     /// Get high-severity reports
     pub async fn get_critical_reports(&self) -> Vec<AnalysisReport> {
         self.reports
-            .read()
-            .await
-            .values()
-            .filter(|r| matches!(r.severity, Severity::Critical | Severity::High))
-            .cloned()
+            .iter()
+            .filter(|entry| {
+                matches!(
+                    entry.value().severity,
+                    Severity::Critical | Severity::High
+                )
+            })
+            .map(|entry| entry.value().clone())
             .collect()
     }
 
@@ -149,8 +144,8 @@ impl AnalysisManager {
             .as_secs()
             - (self.config.report_retention_hours * 3600);
 
-        let mut reports = self.reports.write().await;
-        reports.retain(|_, report| report.timestamp > cutoff_time);
+        self.reports
+            .retain(|_, report| report.timestamp > cutoff_time);
     }
 
     /// Export reports to JSON
@@ -169,10 +164,9 @@ impl AnalysisManager {
             })?;
 
         let count = imported_reports.len();
-        let mut reports = self.reports.write().await;
 
         for report in imported_reports {
-            reports.insert(report.report_id, report);
+            self.reports.insert(report.report_id, report);
         }
 
         Ok(count)
@@ -180,18 +174,18 @@ impl AnalysisManager {
 
     /// Get summary statistics for all reports
     pub async fn get_report_statistics(&self) -> HashMap<String, serde_json::Value> {
-        let reports = self.reports.read().await;
         let mut stats = HashMap::new();
 
         stats.insert(
             "total_reports".to_string(),
-            serde_json::Value::Number(serde_json::Number::from(reports.len())),
+            serde_json::Value::Number(serde_json::Number::from(self.reports.len())),
         );
 
         let mut severity_counts = HashMap::new();
         let mut type_counts = HashMap::new();
 
-        for report in reports.values() {
+        for entry in self.reports.iter() {
+            let report = entry.value();
             *severity_counts
                 .entry(format!("{:?}", report.severity))
                 .or_insert(0) += 1;

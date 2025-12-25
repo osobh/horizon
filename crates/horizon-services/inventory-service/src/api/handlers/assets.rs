@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use sqlx::PgPool;
+use hpc_channels::InventoryMessage;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -11,6 +11,7 @@ use crate::api::models::{
     CreateAssetRequest, DiscoverAssetsRequest, DiscoverAssetsResponse, ListAssetsQuery,
     ListAssetsResponse, Pagination, UpdateAssetRequest,
 };
+use crate::api::state::AppState;
 use crate::error::{HpcError, InventoryErrorExt, Result};
 use crate::models::Asset;
 use crate::repository::AssetRepository;
@@ -24,12 +25,12 @@ use crate::repository::AssetRepository;
         (status = 500, description = "Internal server error")
     )
 )]
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn list_assets(
     Query(query): Query<ListAssetsQuery>,
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Result<Json<ListAssetsResponse>> {
-    let repo = AssetRepository::new(pool);
+    let repo = AssetRepository::new(state.pool.clone());
 
     let assets = repo.list(&query).await?;
     let total = repo.count(&query).await?;
@@ -53,16 +54,28 @@ pub async fn list_assets(
         (status = 500, description = "Internal server error")
     )
 )]
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn create_asset(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(req): Json<CreateAssetRequest>,
 ) -> Result<(StatusCode, Json<Asset>)> {
     req.validate()
         .map_err(|e| HpcError::validation(e.to_string()))?;
 
-    let repo = AssetRepository::new(pool);
+    let asset_type = format!("{:?}", req.asset_type);
+    let provider = format!("{:?}", req.provider);
+    let hostname = req.hostname.clone();
+
+    let repo = AssetRepository::new(state.pool.clone());
     let asset = repo.create(req, "api".to_string()).await?;
+
+    // Publish asset created event via hpc-channels
+    state.publish_asset_event(InventoryMessage::AssetCreated {
+        asset_id: asset.id.to_string(),
+        asset_type,
+        provider,
+        hostname,
+    });
 
     Ok((StatusCode::CREATED, Json(asset)))
 }
@@ -79,12 +92,12 @@ pub async fn create_asset(
         (status = 500, description = "Internal server error")
     )
 )]
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn get_asset(
     Path(id): Path<Uuid>,
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Result<Json<Asset>> {
-    let repo = AssetRepository::new(pool);
+    let repo = AssetRepository::new(state.pool.clone());
     let asset = repo.get_by_id(id).await?;
 
     Ok(Json(asset))
@@ -104,17 +117,27 @@ pub async fn get_asset(
         (status = 500, description = "Internal server error")
     )
 )]
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn update_asset(
     Path(id): Path<Uuid>,
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(req): Json<UpdateAssetRequest>,
 ) -> Result<Json<Asset>> {
     req.validate()
         .map_err(|e| HpcError::validation(e.to_string()))?;
 
-    let repo = AssetRepository::new(pool);
+    let status = req.status.as_ref().map(|s| format!("{:?}", s));
+
+    let repo = AssetRepository::new(state.pool.clone());
     let asset = repo.update(id, req).await?;
+
+    // Publish asset updated event via hpc-channels
+    if let Some(status) = status {
+        state.publish_asset_event(InventoryMessage::AssetUpdated {
+            asset_id: asset.id.to_string(),
+            status,
+        });
+    }
 
     Ok(Json(asset))
 }
@@ -131,13 +154,18 @@ pub async fn update_asset(
         (status = 500, description = "Internal server error")
     )
 )]
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn decommission_asset(
     Path(id): Path<Uuid>,
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Result<StatusCode> {
-    let repo = AssetRepository::new(pool);
+    let repo = AssetRepository::new(state.pool.clone());
     repo.decommission(id).await?;
+
+    // Publish asset decommissioned event via hpc-channels
+    state.publish_asset_event(InventoryMessage::AssetDecommissioned {
+        asset_id: id.to_string(),
+    });
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -152,12 +180,12 @@ pub async fn decommission_asset(
         (status = 500, description = "Internal server error")
     )
 )]
-#[tracing::instrument(skip(pool))]
+#[tracing::instrument(skip(state))]
 pub async fn discover_assets(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(req): Json<DiscoverAssetsRequest>,
 ) -> Result<Json<DiscoverAssetsResponse>> {
-    let repo = AssetRepository::new(pool);
+    let repo = AssetRepository::new(state.pool.clone());
 
     let node_metadata = req.node.metadata.unwrap_or_else(|| serde_json::json!({}));
     let (node_id, node_created) = repo
@@ -188,12 +216,22 @@ pub async fn discover_assets(
         }
     }
 
-    Ok(Json(DiscoverAssetsResponse {
+    let response = DiscoverAssetsResponse {
         node_id,
-        gpu_ids,
+        gpu_ids: gpu_ids.clone(),
         created,
         updated,
-    }))
+    };
+
+    // Publish discovery event via hpc-channels
+    state.publish_discovery_event(InventoryMessage::AssetsDiscovered {
+        node_id: node_id.to_string(),
+        created: created as u32,
+        updated: updated as u32,
+        gpu_ids: gpu_ids.into_iter().map(|id| id.to_string()).collect(),
+    });
+
+    Ok(Json(response))
 }
 
 #[cfg(test)]

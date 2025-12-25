@@ -3,7 +3,7 @@
 use crate::error::{OperationalError, OperationalResult};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use exorust_agent_core::AgentId;
+use stratoswarm_agent_core::AgentId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

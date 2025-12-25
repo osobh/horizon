@@ -1,5 +1,7 @@
+use hpc_channels::{broadcast, channels, CostMessage};
 use sqlx::PgPool;
 use std::sync::Arc;
+use tokio::sync::broadcast::Sender as BroadcastSender;
 
 use crate::config::ReporterConfig;
 use crate::db::{Repository, ViewManager};
@@ -19,6 +21,10 @@ pub struct AppState {
     pub csv_exporter: Arc<CsvExporter>,
     pub json_exporter: Arc<JsonExporter>,
     pub markdown_exporter: Arc<MarkdownExporter>,
+    /// Channel for report events.
+    pub report_events: BroadcastSender<CostMessage>,
+    /// Channel for cost alerts (anomalies).
+    pub alert_events: BroadcastSender<CostMessage>,
 }
 
 impl AppState {
@@ -35,6 +41,9 @@ impl AppState {
         let json_exporter = Arc::new(JsonExporter::new());
         let markdown_exporter = Arc::new(MarkdownExporter::new());
 
+        let report_events = broadcast::<CostMessage>(channels::COST_REPORTS, 256);
+        let alert_events = broadcast::<CostMessage>(channels::COST_ALERTS, 64);
+
         Self {
             config: Arc::new(config),
             db: pool,
@@ -47,6 +56,18 @@ impl AppState {
             csv_exporter,
             json_exporter,
             markdown_exporter,
+            report_events,
+            alert_events,
         }
+    }
+
+    /// Publish a report event (non-blocking).
+    pub fn publish_report_event(&self, event: CostMessage) {
+        let _ = self.report_events.send(event);
+    }
+
+    /// Publish an alert event (non-blocking).
+    pub fn publish_alert_event(&self, event: CostMessage) {
+        let _ = self.alert_events.send(event);
     }
 }

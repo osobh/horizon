@@ -12,7 +12,7 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::{GovernanceError, Result};
-use exorust_agent_core::agent::AgentId;
+use stratoswarm_agent_core::agent::AgentId;
 
 /// Permission system for managing agent permissions and roles
 pub struct PermissionSystem {

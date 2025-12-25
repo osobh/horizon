@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use exorust_evolution_global::{
+use stratoswarm_evolution_global::{
     ai_safety_compliance::{
         BiasDetectionResult, BiasDetector, EthicalAssessment, EthicalAssessor,
         SafetyComplianceConfig, SafetyComplianceManager,
@@ -91,7 +91,7 @@ impl EthicalAssessor for SystemMockEthicalAssessor {
     async fn validate_principle(
         &self,
         _model_id: &str,
-        _principle: exorust_evolution_global::ai_safety_compliance::EthicalPrinciple,
+        _principle: stratoswarm_evolution_global::ai_safety_compliance::EthicalPrinciple,
     ) -> EvolutionGlobalResult<bool> {
         Ok(true)
     }
@@ -175,7 +175,7 @@ impl CryptographicProvider for SystemMockCryptoProvider {
     async fn encrypt_data(
         &self,
         data: &[u8],
-        _scheme: exorust_evolution_global::secure_multiparty::EncryptionScheme,
+        _scheme: stratoswarm_evolution_global::secure_multiparty::EncryptionScheme,
         _key: &[u8],
     ) -> EvolutionGlobalResult<Vec<u8>> {
         Ok(data.to_vec())
@@ -184,7 +184,7 @@ impl CryptographicProvider for SystemMockCryptoProvider {
     async fn decrypt_data(
         &self,
         encrypted_data: &[u8],
-        _scheme: exorust_evolution_global::secure_multiparty::EncryptionScheme,
+        _scheme: stratoswarm_evolution_global::secure_multiparty::EncryptionScheme,
         _key: &[u8],
     ) -> EvolutionGlobalResult<Vec<u8>> {
         Ok(encrypted_data.to_vec())
@@ -192,11 +192,11 @@ impl CryptographicProvider for SystemMockCryptoProvider {
 
     async fn generate_zk_proof(
         &self,
-        proof_type: exorust_evolution_global::secure_multiparty::ZKProofType,
+        proof_type: stratoswarm_evolution_global::secure_multiparty::ZKProofType,
         private_inputs: &[u8],
         public_inputs: &[u8],
-    ) -> EvolutionGlobalResult<exorust_evolution_global::secure_multiparty::ZKProof> {
-        Ok(exorust_evolution_global::secure_multiparty::ZKProof {
+    ) -> EvolutionGlobalResult<stratoswarm_evolution_global::secure_multiparty::ZKProof> {
+        Ok(stratoswarm_evolution_global::secure_multiparty::ZKProof {
             proof_type,
             proof_data: private_inputs.to_vec(),
             public_inputs: public_inputs.to_vec(),
@@ -207,7 +207,7 @@ impl CryptographicProvider for SystemMockCryptoProvider {
 
     async fn verify_zk_proof(
         &self,
-        _proof: &exorust_evolution_global::secure_multiparty::ZKProof,
+        _proof: &stratoswarm_evolution_global::secure_multiparty::ZKProof,
     ) -> EvolutionGlobalResult<bool> {
         Ok(true)
     }
@@ -219,12 +219,12 @@ struct SystemMockSecureAggregator;
 impl SecureAggregator for SystemMockSecureAggregator {
     async fn aggregate_encrypted_data(
         &self,
-        encrypted_inputs: Vec<exorust_evolution_global::secure_multiparty::EncryptedEvolutionData>,
+        encrypted_inputs: Vec<stratoswarm_evolution_global::secure_multiparty::EncryptedEvolutionData>,
         _aggregation_function: String,
-    ) -> EvolutionGlobalResult<exorust_evolution_global::secure_multiparty::SecureAggregationResult>
+    ) -> EvolutionGlobalResult<stratoswarm_evolution_global::secure_multiparty::SecureAggregationResult>
     {
         Ok(
-            exorust_evolution_global::secure_multiparty::SecureAggregationResult {
+            stratoswarm_evolution_global::secure_multiparty::SecureAggregationResult {
                 aggregation_id: Uuid::new_v4(),
                 session_id: Uuid::new_v4(),
                 aggregated_data: vec![],
@@ -286,7 +286,7 @@ async fn test_complete_system_workflow() {
         SecureMultiPartyManager::new(mpc_config, crypto_provider, secure_aggregator).unwrap();
 
     // Test workflow: Start evolution
-    let evolution_request = exorust_evolution_global::evolution_coordinator::EvolutionRequest {
+    let evolution_request = stratoswarm_evolution_global::evolution_coordinator::EvolutionRequest {
         region: "us-east-1".to_string(),
         model_id: "system-test-model".to_string(),
         evolution_type: "system_integration".to_string(),
@@ -349,7 +349,7 @@ async fn test_complete_system_workflow() {
         .unwrap();
     assert_eq!(
         status.phase,
-        exorust_evolution_global::evolution_coordinator::EvolutionPhase::Completion
+        stratoswarm_evolution_global::evolution_coordinator::EvolutionPhase::Completion
     );
 }
 
@@ -366,7 +366,7 @@ async fn test_system_resilience() {
         EvolutionCoordinator::new(evolution_config, evolution_executor).unwrap();
 
     // Start evolution
-    let evolution_request = exorust_evolution_global::evolution_coordinator::EvolutionRequest {
+    let evolution_request = stratoswarm_evolution_global::evolution_coordinator::EvolutionRequest {
         region: "us-west-2".to_string(),
         model_id: "resilience-test-model".to_string(),
         evolution_type: "resilience_test".to_string(),
@@ -420,7 +420,7 @@ async fn test_system_performance() {
     for i in 0..5 {
         let coordinator_clone = coordinator.clone();
         let handle = tokio::spawn(async move {
-            let request = exorust_evolution_global::evolution_coordinator::EvolutionRequest {
+            let request = stratoswarm_evolution_global::evolution_coordinator::EvolutionRequest {
                 region: format!("region-{}", i),
                 model_id: format!("perf-model-{}", i),
                 evolution_type: "performance_test".to_string(),

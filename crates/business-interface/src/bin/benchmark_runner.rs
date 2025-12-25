@@ -2,7 +2,7 @@
 //!
 //! Usage: cargo run --bin benchmark_runner
 
-use exorust_business_interface::benchmarks::{ComprehensiveBenchmarkResults, LlmBenchmark};
+use stratoswarm_business_interface::benchmarks::{ComprehensiveBenchmarkResults, LlmBenchmark};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

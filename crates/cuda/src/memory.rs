@@ -139,7 +139,8 @@ impl MemoryPool {
         }
 
         // Update used memory
-        self.used.fetch_add(aligned_size, Ordering::SeqCst);
+        // Relaxed: independent counter tracking memory usage
+        self.used.fetch_add(aligned_size, Ordering::Relaxed);
 
         // Create allocation
         let device_mem = DeviceMemory {
@@ -181,7 +182,8 @@ impl MemoryPool {
         self.coalesce_free_blocks(&mut free_blocks);
 
         // Update used memory
-        self.used.fetch_sub(allocation.size, Ordering::SeqCst);
+        // Relaxed: independent counter tracking memory usage
+        self.used.fetch_sub(allocation.size, Ordering::Relaxed);
 
         Ok(())
     }
@@ -215,10 +217,12 @@ impl MemoryPool {
 
     /// Get pool statistics
     pub fn stats(&self) -> PoolStats {
+        // Relaxed: approximate snapshot sufficient for statistics
+        let used = self.used.load(Ordering::Relaxed);
         PoolStats {
             total_size: self.total_size,
-            used_size: self.used.load(Ordering::SeqCst),
-            free_size: self.total_size - self.used.load(Ordering::SeqCst),
+            used_size: used,
+            free_size: self.total_size - used,
             fragmentation: 0.0, // Would calculate in real implementation
         }
     }

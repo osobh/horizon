@@ -5,7 +5,7 @@ use crate::error::{KnowledgeGraphError, KnowledgeGraphResult};
 use crate::graph::{Edge, EdgeType, KnowledgeGraph, Node, NodeType};
 use crate::semantic::{EmbeddingVector, SemanticSearchEngine};
 use chrono::{DateTime, Utc};
-use exorust_agent_core::{memory::*, Agent, AgentId};
+use stratoswarm_agent_core::{memory::*, Agent, AgentId};
 use std::collections::HashMap;
 
 /// Pending memory update

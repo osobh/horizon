@@ -10,8 +10,9 @@
 use super::{adas::*, dgm::*, swarm::*, FitnessObjective};
 use anyhow::{Result, anyhow};
 use cudarc::driver::CudaDevice;
+use dashmap::DashMap;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// Resource allocation strategy
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -171,7 +172,7 @@ struct StrategyInstance {
 pub struct HybridCoordinator {
     device: Arc<CudaDevice>,
     config: HybridConfig,
-    strategies: Arc<Mutex<HashMap<String, StrategyInstance>>>,
+    strategies: Arc<DashMap<String, StrategyInstance>>,
     generation: usize,
     phase: EvolutionPhase,
     fitness_objectives: Vec<FitnessObjective>,
@@ -185,7 +186,7 @@ impl HybridCoordinator {
         Ok(Self {
             device,
             config,
-            strategies: Arc::new(Mutex::new(HashMap::new())),
+            strategies: Arc::new(DashMap::new()),
             generation: 0,
             phase: EvolutionPhase::Exploration,
             fitness_objectives: vec![FitnessObjective::Performance],
@@ -196,9 +197,7 @@ impl HybridCoordinator {
 
     /// Add evolution strategy
     pub fn add_strategy(&mut self, name: &str, strategy: EvolutionStrategy) -> Result<()> {
-        let mut strategies = self.strategies.lock()?;
-        
-        if strategies.len() >= self.config.max_strategies {
+        if self.strategies.len() >= self.config.max_strategies {
             return Err(anyhow!("Maximum number of strategies reached"));
         }
 
@@ -213,10 +212,10 @@ impl HybridCoordinator {
             return Err(anyhow!("Strategy population exceeds total population limit"));
         }
 
-        let population_share = if strategies.is_empty() {
+        let population_share = if self.strategies.is_empty() {
             1.0
         } else {
-            1.0 / (strategies.len() + 1) as f32
+            1.0 / (self.strategies.len() + 1) as f32
         };
 
         // Create strategy instance
@@ -230,7 +229,7 @@ impl HybridCoordinator {
             swarm: None,
         };
 
-        strategies.insert(name.to_string(), instance);
+        self.strategies.insert(name.to_string(), instance);
 
         // Rebalance population shares
         self.rebalance_population_shares()?;
@@ -240,9 +239,8 @@ impl HybridCoordinator {
 
     /// Initialize all strategies
     pub fn initialize_all(&mut self) -> Result<()> {
-        let mut strategies = self.strategies.lock()?;
-
-        for (name, instance) in strategies.iter_mut() {
+        for mut entry in self.strategies.iter_mut() {
+            let instance = entry.value_mut();
             match &instance.strategy_type {
                 EvolutionStrategy::Adas(config) => {
                     let mut adas = AdasPopulation::new(
@@ -282,7 +280,7 @@ impl HybridCoordinator {
 
     /// Get number of active strategies
     pub fn active_strategies(&self) -> usize {
-        self.strategies.lock()?.len()
+        self.strategies.len()
     }
 
     /// Check if coordinator is running
@@ -292,14 +290,13 @@ impl HybridCoordinator {
 
     /// Get coordinator status
     pub fn get_status(&self) -> Result<CoordinatorStatus> {
-        let strategies = self.strategies.lock()?;
-        
-        let strategies_initialized = strategies.values().all(|s| {
+        let strategies_initialized = self.strategies.iter().all(|entry| {
+            let s = entry.value();
             s.adas.is_some() || s.dgm.is_some() || s.swarm.is_some()
         });
 
-        let total_population = strategies.values()
-            .map(|s| match &s.strategy_type {
+        let total_population = self.strategies.iter()
+            .map(|entry| match &entry.value().strategy_type {
                 EvolutionStrategy::Adas(c) => c.population_size,
                 EvolutionStrategy::Dgm(c) => c.population_size,
                 EvolutionStrategy::Swarm(c) => c.population_size,
@@ -309,7 +306,7 @@ impl HybridCoordinator {
         Ok(CoordinatorStatus {
             strategies_initialized,
             total_population,
-            active_strategies: strategies.keys().cloned().collect(),
+            active_strategies: self.strategies.iter().map(|e| e.key().clone()).collect(),
             current_phase: self.phase,
         })
     }
@@ -320,12 +317,13 @@ impl HybridCoordinator {
             return Err(anyhow!("Coordinator not initialized"));
         }
 
-        let mut strategies = self.strategies.lock()?;
         let mut strategy_performances = HashMap::new();
         let mut all_fitness_values = Vec::new();
 
         // Evolve each strategy
-        for (name, instance) in strategies.iter_mut() {
+        for mut entry in self.strategies.iter_mut() {
+            let name = entry.key().clone();
+            let instance = entry.value_mut();
             let performance = match &instance.strategy_type {
                 EvolutionStrategy::Adas(_) => {
                     if let Some(adas) = &mut instance.adas {
@@ -355,22 +353,22 @@ impl HybridCoordinator {
 
             instance.current_performance = performance;
             instance.performance_history.push(performance);
-            strategy_performances.insert(name.clone(), performance);
+            strategy_performances.insert(name, performance);
         }
 
         self.generation += 1;
 
         // Perform migration if enabled
-        let migrations_performed = if self.config.enable_migration && 
+        let migrations_performed = if self.config.enable_migration &&
                                      self.generation % self.config.migration_interval == 0 {
-            self.perform_migration(&mut strategies)?
+            self.perform_migration()?
         } else {
             0
         };
 
         // Adapt resources if needed
         if self.generation % self.config.adaptation_interval == 0 {
-            self.adapt_resources(&mut strategies)?;
+            self.adapt_resources()?;
         }
 
         // Calculate metrics
@@ -403,11 +401,10 @@ impl HybridCoordinator {
     /// Set evolution phase
     pub fn set_evolution_phase(&mut self, phase: EvolutionPhase) -> Result<()> {
         self.phase = phase;
-        
+
         // Adjust strategy parameters based on phase
-        let mut strategies = self.strategies.lock()?;
-        
-        for (_, instance) in strategies.iter_mut() {
+        for mut entry in self.strategies.iter_mut() {
+            let instance = entry.value_mut();
             match (&instance.strategy_type, phase) {
                 (EvolutionStrategy::Adas(_), EvolutionPhase::Exploration) => {
                     // Increase mutation rate for exploration
@@ -430,11 +427,10 @@ impl HybridCoordinator {
 
     /// Get resource allocations
     pub fn get_resource_allocations(&self) -> Result<HashMap<String, f32>> {
-        let strategies = self.strategies.lock()?;
         let mut allocations = HashMap::new();
 
-        for (name, instance) in strategies.iter() {
-            allocations.insert(name.clone(), instance.population_share);
+        for entry in self.strategies.iter() {
+            allocations.insert(entry.key().clone(), entry.value().population_share);
         }
 
         Ok(allocations)
@@ -442,9 +438,7 @@ impl HybridCoordinator {
 
     /// Set strategy performance (for testing)
     pub fn set_strategy_performance(&mut self, name: &str, performance: f64) -> Result<()> {
-        let mut strategies = self.strategies.lock()?;
-        
-        if let Some(instance) = strategies.get_mut(name) {
+        if let Some(mut instance) = self.strategies.get_mut(name) {
             instance.current_performance = performance;
             instance.performance_history.push(performance);
             Ok(())
@@ -470,64 +464,60 @@ impl HybridCoordinator {
 
     /// Rebalance population shares
     fn rebalance_population_shares(&self) -> Result<()> {
-        let mut strategies = self.strategies.lock()?;
-        let num_strategies = strategies.len() as f32;
+        let num_strategies = self.strategies.len() as f32;
 
         if num_strategies == 0.0 {
             return Ok(());
         }
 
         let equal_share = 1.0 / num_strategies;
-        
-        for (_, instance) in strategies.iter_mut() {
-            instance.population_share = equal_share;
+
+        for mut entry in self.strategies.iter_mut() {
+            entry.value_mut().population_share = equal_share;
         }
 
         Ok(())
     }
 
     /// Perform migration between populations
-    fn perform_migration(&self, strategies: &mut HashMap<String, StrategyInstance>) -> Result<usize> {
+    fn perform_migration(&self) -> Result<usize> {
         let migration_count = (self.config.migration_rate * self.config.population_size as f32) as usize;
-        
+
         // Simple ring migration for now
-        let strategy_names: Vec<String> = strategies.keys().cloned().collect();
-        
+        let strategy_names: Vec<String> = self.strategies.iter().map(|e| e.key().clone()).collect();
+
         if strategy_names.len() < 2 {
             return Ok(0);
         }
 
         // Migrate best individuals in a ring
         for i in 0..strategy_names.len() {
-            let source = &strategy_names[i];
-            let target = &strategy_names[(i + 1) % strategy_names.len()];
+            let _source = &strategy_names[i];
+            let _target = &strategy_names[(i + 1) % strategy_names.len()];
 
             // Get best individuals from source
             // (Simplified - in real implementation would transfer actual individuals)
-            if let (Some(source_instance), Some(target_instance)) = 
-                (strategies.get(source), strategies.get(target)) {
-                
-                // Mark migration occurred
-                // In real implementation, would transfer genetic material
-            }
+            // Mark migration occurred
+            // In real implementation, would transfer genetic material
         }
 
         Ok(migration_count)
     }
 
     /// Adapt resource allocation based on performance
-    fn adapt_resources(&self, strategies: &mut HashMap<String, StrategyInstance>) -> Result<()> {
+    fn adapt_resources(&self) -> Result<()> {
         match self.config.resource_allocation {
             ResourceAllocation::Fixed => Ok(()),
             ResourceAllocation::Dynamic => {
                 // Calculate performance-based weights
-                let total_performance: f64 = strategies.values()
-                    .map(|s| s.current_performance.max(0.1)) // Avoid zero
+                let total_performance: f64 = self.strategies.iter()
+                    .map(|e| e.value().current_performance.max(0.1)) // Avoid zero
                     .sum();
 
                 if total_performance > 0.0 {
-                    for (_, instance) in strategies.iter_mut() {
-                        instance.population_share = 
+                    for mut entry in self.strategies.iter_mut() {
+                        let instance = entry.value_mut();
+                        instance.population_share =
                             (instance.current_performance.max(0.1) / total_performance) as f32;
                     }
                 }
@@ -539,7 +529,8 @@ impl HybridCoordinator {
                 match self.phase {
                     EvolutionPhase::Exploration => {
                         // Favor ADAS for exploration
-                        for (_, instance) in strategies.iter_mut() {
+                        for mut entry in self.strategies.iter_mut() {
+                            let instance = entry.value_mut();
                             match instance.strategy_type {
                                 EvolutionStrategy::Adas(_) => instance.population_share = 0.5,
                                 _ => instance.population_share = 0.25,
@@ -548,7 +539,8 @@ impl HybridCoordinator {
                     }
                     EvolutionPhase::Exploitation => {
                         // Favor Swarm for exploitation
-                        for (_, instance) in strategies.iter_mut() {
+                        for mut entry in self.strategies.iter_mut() {
+                            let instance = entry.value_mut();
                             match instance.strategy_type {
                                 EvolutionStrategy::Swarm(_) => instance.population_share = 0.5,
                                 _ => instance.population_share = 0.25,

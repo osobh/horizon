@@ -180,9 +180,9 @@ fn test_message_serialization() {
 #[test]
 fn test_migration_particle_serialization() {
     let genome = AgentGenome {
-        goal: exorust_agent_core::Goal::new(
+        goal: stratoswarm_agent_core::Goal::new(
             "test".to_string(),
-            exorust_agent_core::GoalPriority::Normal,
+            stratoswarm_agent_core::GoalPriority::Normal,
         ),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,

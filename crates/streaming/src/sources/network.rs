@@ -67,10 +67,11 @@ impl NetworkStreamSource {
 
     /// Get current statistics snapshot
     pub fn get_stats_snapshot(&self) -> StreamStats {
-        let chunks = self.stats.chunks_received.load(Ordering::SeqCst);
-        let bytes = self.stats.bytes_received.load(Ordering::SeqCst);
-        let time_ns = self.stats.network_time_ns.load(Ordering::SeqCst);
-        let errors = self.stats.connection_errors.load(Ordering::SeqCst);
+        // Relaxed: independent statistics counters with no ordering dependencies
+        let chunks = self.stats.chunks_received.load(Ordering::Relaxed);
+        let bytes = self.stats.bytes_received.load(Ordering::Relaxed);
+        let time_ns = self.stats.network_time_ns.load(Ordering::Relaxed);
+        let errors = self.stats.connection_errors.load(Ordering::Relaxed);
 
         let throughput_mbps = if time_ns > 0 {
             (bytes as f64) / ((time_ns as f64) / 1_000_000_000.0) / (1024.0 * 1024.0)
@@ -117,9 +118,10 @@ impl NetworkStreamSource {
                         buffer.truncate(bytes_read);
                         let network_time = start_time.elapsed().as_nanos() as u64;
 
-                        stats.network_time_ns.fetch_add(network_time, Ordering::SeqCst);
-                        stats.chunks_received.fetch_add(1, Ordering::SeqCst);
-                        stats.bytes_received.fetch_add(bytes_read as u64, Ordering::SeqCst);
+                        // Relaxed: independent statistics counters
+                        stats.network_time_ns.fetch_add(network_time, Ordering::Relaxed);
+                        stats.chunks_received.fetch_add(1, Ordering::Relaxed);
+                        stats.bytes_received.fetch_add(bytes_read as u64, Ordering::Relaxed);
 
                         let chunk = StreamChunk::new(
                             Bytes::copy_from_slice(&buffer),
@@ -133,7 +135,8 @@ impl NetworkStreamSource {
                         buffer.resize(chunk_size, 0);
                     }
                     Err(e) => {
-                        stats.connection_errors.fetch_add(1, Ordering::SeqCst);
+                        // Relaxed: independent error counter
+                        stats.connection_errors.fetch_add(1, Ordering::Relaxed);
                         yield Err(StreamingError::IoError(format!("TCP read failed: {e}")));
                         break;
                     }
@@ -171,9 +174,10 @@ impl NetworkStreamSource {
                     Ok(bytes_read) => {
                         let network_time = start_time.elapsed().as_nanos() as u64;
 
-                        stats.network_time_ns.fetch_add(network_time, Ordering::SeqCst);
-                        stats.chunks_received.fetch_add(1, Ordering::SeqCst);
-                        stats.bytes_received.fetch_add(bytes_read as u64, Ordering::SeqCst);
+                        // Relaxed: independent statistics counters
+                        stats.network_time_ns.fetch_add(network_time, Ordering::Relaxed);
+                        stats.chunks_received.fetch_add(1, Ordering::Relaxed);
+                        stats.bytes_received.fetch_add(bytes_read as u64, Ordering::Relaxed);
 
                         let chunk = StreamChunk::new(
                             Bytes::copy_from_slice(&buffer[..bytes_read]),
@@ -185,7 +189,8 @@ impl NetworkStreamSource {
                         sequence += 1;
                     }
                     Err(e) => {
-                        stats.connection_errors.fetch_add(1, Ordering::SeqCst);
+                        // Relaxed: independent error counter
+                        stats.connection_errors.fetch_add(1, Ordering::Relaxed);
                         yield Err(StreamingError::IoError(format!("UDP recv failed: {e}")));
                         break;
                     }

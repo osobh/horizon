@@ -3,23 +3,24 @@
 //! Implements intelligent kernel scheduling to maximize GPU throughput
 
 use crate::utilization::kernel_optimizer::KernelConfig;
-use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, LaunchAsync, LaunchConfig};
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, VecDeque};
+use anyhow::Result;
+use cudarc::driver::CudaDevice;
+use dashmap::DashMap;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock};
+use stratoswarm_core::priority_queue::{PrioritySchedulerQueue, SchedulerPriority};
+use tokio::sync::Mutex;
 
 /// Advanced kernel scheduler for maximizing GPU utilization
 pub struct AdvancedKernelScheduler {
     device: Arc<CudaDevice>,
     /// Stream IDs for concurrent execution (in production would use real streams)
     streams: Vec<usize>,
-    /// Kernel queue organized by priority
-    kernel_queue: Arc<Mutex<BinaryHeap<ScheduledKernel>>>,
+    /// Kernel queue organized by priority (branch-prediction-friendly)
+    kernel_queue: Arc<Mutex<PrioritySchedulerQueue<ScheduledKernel>>>,
     /// Active kernels per stream
-    active_kernels: Arc<RwLock<HashMap<usize, ActiveKernel>>>,
+    active_kernels: Arc<DashMap<usize, ActiveKernel>>,
     /// Scheduling statistics
     stats: Arc<SchedulingStats>,
     /// Scheduler configuration
@@ -66,20 +67,6 @@ pub struct ScheduledKernel {
     pub data_size: usize,
 }
 
-impl Ord for ScheduledKernel {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.priority
-            .cmp(&other.priority)
-            .then_with(|| other.submitted_at.cmp(&self.submitted_at))
-    }
-}
-
-impl PartialOrd for ScheduledKernel {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 impl PartialEq for ScheduledKernel {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
@@ -88,6 +75,9 @@ impl PartialEq for ScheduledKernel {
 
 impl Eq for ScheduledKernel {}
 
+// Note: Ord/PartialOrd removed - PrioritySchedulerQueue handles ordering
+// via the priority parameter at enqueue time (branch-prediction-friendly)
+
 /// Kernel priority levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum KernelPriority {
@@ -95,6 +85,18 @@ pub enum KernelPriority {
     Normal = 1,
     High = 2,
     Critical = 3,
+}
+
+impl From<KernelPriority> for SchedulerPriority {
+    #[inline]
+    fn from(priority: KernelPriority) -> Self {
+        match priority {
+            KernelPriority::Low => SchedulerPriority::Low,
+            KernelPriority::Normal => SchedulerPriority::Normal,
+            KernelPriority::High => SchedulerPriority::High,
+            KernelPriority::Critical => SchedulerPriority::Critical,
+        }
+    }
 }
 
 /// Active kernel information
@@ -127,8 +129,8 @@ impl AdvancedKernelScheduler {
         Ok(Self {
             device,
             streams,
-            kernel_queue: Arc::new(Mutex::new(BinaryHeap::new())),
-            active_kernels: Arc::new(RwLock::new(HashMap::new())),
+            kernel_queue: Arc::new(Mutex::new(PrioritySchedulerQueue::new())),
+            active_kernels: Arc::new(DashMap::new()),
             stats: Arc::new(SchedulingStats::default()),
             config,
         })
@@ -137,17 +139,19 @@ impl AdvancedKernelScheduler {
     /// Submit kernel for scheduling
     pub async fn submit_kernel(&self, kernel: ScheduledKernel) -> Result<u64> {
         let kernel_id = kernel.id;
+        let priority: SchedulerPriority = kernel.priority.into();
 
         // Check dependencies
         if !kernel.dependencies.is_empty() {
             self.wait_for_dependencies(&kernel.dependencies).await?;
         }
 
-        // Add to queue
+        // Add to queue (O(1) enqueue with branch-prediction-friendly structure)
         let mut queue = self.kernel_queue.lock().await;
-        queue.push(kernel);
+        queue.enqueue(kernel, priority);
 
         // Trigger scheduling
+        drop(queue); // Release lock before scheduling
         self.schedule_kernels().await?;
 
         Ok(kernel_id)
@@ -156,19 +160,18 @@ impl AdvancedKernelScheduler {
     /// Schedule kernels from queue to streams
     async fn schedule_kernels(&self) -> Result<()> {
         let mut queue = self.kernel_queue.lock().await;
-        let active_kernels = self.active_kernels.read().await;
 
         // Find available streams
         let mut available_streams = Vec::new();
         for stream_id in 0..self.config.num_streams {
-            if !active_kernels.contains_key(&stream_id) {
+            if !self.active_kernels.contains_key(&stream_id) {
                 available_streams.push(stream_id);
             }
         }
 
-        // Schedule kernels to available streams
+        // Schedule kernels to available streams (O(1) dequeue - branch-prediction-friendly)
         while !queue.is_empty() && !available_streams.is_empty() {
-            if let Some(kernel) = queue.pop() {
+            if let Some(kernel) = queue.dequeue() {
                 let stream_id = self
                     .select_optimal_stream(&available_streams, &kernel)
                     .await?;
@@ -193,7 +196,7 @@ impl AdvancedKernelScheduler {
     async fn select_optimal_stream(
         &self,
         available_streams: &[usize],
-        kernel: &ScheduledKernel,
+        _kernel: &ScheduledKernel,
     ) -> Result<usize> {
         if !self.config.enable_load_balancing {
             // Simple round-robin
@@ -201,13 +204,12 @@ impl AdvancedKernelScheduler {
         }
 
         // Load balancing based on estimated completion times
-        let active_kernels = self.active_kernels.read().await;
         let mut best_stream = available_streams[0];
         let mut earliest_available = Instant::now() + Duration::from_secs(3600);
 
         for &stream_id in available_streams {
             // Check when this stream will be available
-            let availability = if let Some(active) = active_kernels.get(&stream_id) {
+            let availability = if let Some(active) = self.active_kernels.get(&stream_id) {
                 active.estimated_completion
             } else {
                 Instant::now()
@@ -233,18 +235,15 @@ impl AdvancedKernelScheduler {
         let estimated_completion = start_time + kernel.estimated_time;
 
         // Record active kernel
-        {
-            let mut active = self.active_kernels.write().await;
-            active.insert(
+        self.active_kernels.insert(
+            stream_id,
+            ActiveKernel {
+                kernel: kernel.clone(),
                 stream_id,
-                ActiveKernel {
-                    kernel: kernel.clone(),
-                    stream_id,
-                    start_time,
-                    estimated_completion,
-                },
-            );
-        }
+                start_time,
+                estimated_completion,
+            },
+        );
 
         // Update statistics
         let wait_time = start_time.duration_since(kernel.submitted_at);
@@ -259,15 +258,14 @@ impl AdvancedKernelScheduler {
         // Launch kernel asynchronously
         let active_kernels = self.active_kernels.clone();
         let stats = self.stats.clone();
-        let kernel_id = kernel.id;
+        let _kernel_id = kernel.id;
 
         tokio::spawn(async move {
             // Simulate kernel execution
             tokio::time::sleep(kernel.estimated_time).await;
 
             // Remove from active kernels
-            let mut active = active_kernels.write().await;
-            active.remove(&stream_id);
+            active_kernels.remove(&stream_id);
 
             // Update completion stats
             stats
@@ -279,12 +277,15 @@ impl AdvancedKernelScheduler {
     }
 
     /// Try to fuse compatible kernels
-    async fn try_kernel_fusion(&self, queue: &mut BinaryHeap<ScheduledKernel>) -> Result<()> {
+    async fn try_kernel_fusion(
+        &self,
+        queue: &mut PrioritySchedulerQueue<ScheduledKernel>,
+    ) -> Result<()> {
         if queue.len() < 2 {
             return Ok(());
         }
 
-        // Look for fusable kernel pairs
+        // Look for fusable kernel pairs - drain all items
         let kernels: Vec<_> = queue.drain().collect();
         let mut fused = Vec::new();
         let mut remaining = Vec::new();
@@ -304,7 +305,8 @@ impl AdvancedKernelScheduler {
 
         // Re-add kernels to queue
         for kernel in fused.into_iter().chain(remaining.into_iter()) {
-            queue.push(kernel);
+            let priority: SchedulerPriority = kernel.priority.into();
+            queue.enqueue(kernel, priority);
         }
 
         Ok(())
@@ -386,14 +388,8 @@ impl AdvancedKernelScheduler {
 
     /// Calculate current stream utilization
     fn calculate_stream_utilization(&self) -> f32 {
-        // In a real implementation, would measure actual utilization
-        // For now, estimate based on active kernels
-        let active_count = self
-            .active_kernels
-            .try_read()
-            .map(|active| active.len())
-            .unwrap_or(0);
-
+        // Estimate based on active kernels (DashMap provides lock-free len())
+        let active_count = self.active_kernels.len();
         active_count as f32 / self.config.num_streams as f32
     }
 
@@ -431,9 +427,9 @@ impl AdvancedKernelScheduler {
     /// Remove a CUDA stream
     async fn remove_stream(&mut self) -> Result<()> {
         if self.streams.len() > 1 {
-            // Wait for the last stream to be idle
+            // Wait for the last stream to be idle (DashMap contains_key is lock-free)
             let stream_id = self.streams.len() - 1;
-            while self.active_kernels.read().await.contains_key(&stream_id) {
+            while self.active_kernels.contains_key(&stream_id) {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
             self.streams.pop();
@@ -526,28 +522,14 @@ mod tests {
 
     #[test]
     fn test_kernel_priority_ordering() {
-        let low = ScheduledKernel {
-            id: 1,
-            name: "low".to_string(),
-            priority: KernelPriority::Low,
-            config: KernelConfig::default(),
-            dependencies: vec![],
-            estimated_time: Duration::from_millis(10),
-            submitted_at: Instant::now(),
-            data_size: 1024,
-        };
+        // Test that KernelPriority ordering is correct
+        assert!(KernelPriority::High > KernelPriority::Low);
+        assert!(KernelPriority::Critical > KernelPriority::High);
+        assert!(KernelPriority::Normal > KernelPriority::Low);
 
-        let high = ScheduledKernel {
-            id: 2,
-            name: "high".to_string(),
-            priority: KernelPriority::High,
-            config: KernelConfig::default(),
-            dependencies: vec![],
-            estimated_time: Duration::from_millis(10),
-            submitted_at: Instant::now(),
-            data_size: 1024,
-        };
-
-        assert!(high > low);
+        // Test conversion to SchedulerPriority
+        let high_scheduler: SchedulerPriority = KernelPriority::High.into();
+        let low_scheduler: SchedulerPriority = KernelPriority::Low.into();
+        assert!(high_scheduler > low_scheduler);
     }
 }

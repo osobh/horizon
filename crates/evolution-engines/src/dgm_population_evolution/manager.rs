@@ -6,15 +6,16 @@ use super::types::*;
 use crate::error::{EvolutionEngineError, EvolutionEngineResult};
 use crate::traits::EvolvableAgent;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
+use dashmap::DashMap;
 
 /// Manages multiple populations for parallel evolution
 pub struct PopulationEvolutionManager {
     /// Configuration
     config: PopulationConfig,
     /// Managed populations
-    populations: Arc<RwLock<HashMap<String, ManagedPopulation>>>,
+    populations: Arc<DashMap<String, ManagedPopulation>>,
     /// Migration controller
     migration_controller: MigrationController,
     /// Current generation across all populations
@@ -29,7 +30,7 @@ impl PopulationEvolutionManager {
     /// Create new population evolution manager
     pub fn new(config: PopulationConfig) -> EvolutionEngineResult<Self> {
         let migration_controller = MigrationController::new(config.migration_policy.clone())?;
-        let populations = Arc::new(RwLock::new(HashMap::new()));
+        let populations = Arc::new(DashMap::new());
 
         let mut manager = Self {
             config,
@@ -48,7 +49,7 @@ impl PopulationEvolutionManager {
 
     /// Get population count
     pub fn get_population_count(&self) -> usize {
-        self.populations.read()?.len()
+        self.populations.len()
     }
 
     /// Get configuration
@@ -58,18 +59,16 @@ impl PopulationEvolutionManager {
 
     /// Get a specific population
     pub fn get_population(&self, id: &str) -> Option<ManagedPopulation> {
-        self.populations.read()?.get(id).cloned()
+        self.populations.get(id).map(|r| r.clone())
     }
 
     /// Initialize populations with empty agents (to be filled later)
     fn initialize_populations(&mut self) -> EvolutionEngineResult<()> {
-        let mut populations = self.populations.write()?;
-
         for i in 0..self.config.num_populations {
             let pop_id = format!("population_{}", i);
             let empty_agents = Vec::new(); // Will be initialized later
             let population = ManagedPopulation::new(pop_id.clone(), empty_agents)?;
-            populations.insert(pop_id, population);
+            self.populations.insert(pop_id, population);
         }
 
         Ok(())
@@ -82,16 +81,14 @@ impl PopulationEvolutionManager {
         agents: Vec<EvolvableAgent>,
     ) -> EvolutionEngineResult<()> {
         let population = ManagedPopulation::new(id.to_string(), agents)?;
-        let mut populations = self.populations.write()?;
-        populations.insert(id.to_string(), population);
+        self.populations.insert(id.to_string(), population);
         Ok(())
     }
 
     /// Evolve all populations for one generation
     pub fn evolve_generation(&mut self) -> EvolutionEngineResult<()> {
-        let mut populations = self.populations.write()?;
-
-        for population in populations.values_mut() {
+        for mut entry in self.populations.iter_mut() {
+            let population = entry.value_mut();
             if !population.is_converged() {
                 population.evolve_generation(
                     &self.config.selection_strategy,
@@ -104,8 +101,8 @@ impl PopulationEvolutionManager {
 
         // Update global best
         let mut best_fitness = self.global_best_fitness;
-        for population in populations.values() {
-            let pop_best = population.get_best_fitness();
+        for entry in self.populations.iter() {
+            let pop_best = entry.value().get_best_fitness();
             if pop_best > best_fitness {
                 best_fitness = pop_best;
             }
@@ -121,21 +118,22 @@ impl PopulationEvolutionManager {
             return Ok(());
         }
 
-        let populations = self.populations.read()?;
-        let pop_ids: Vec<String> = populations.keys().cloned().collect();
+        let pop_ids: Vec<String> = self.populations.iter().map(|e| e.key().clone()).collect();
 
         // Plan migrations between population pairs
         for i in 0..pop_ids.len() {
             for j in 0..pop_ids.len() {
                 if i != j {
-                    let source = populations.get(&pop_ids[i])?;
-                    let target = populations.get(&pop_ids[j])?;
+                    let source = self.populations.get(&pop_ids[i]);
+                    let target = self.populations.get(&pop_ids[j]);
 
-                    let migration = self
-                        .migration_controller
-                        .plan_migration(source, target, generation)?;
-                    if !migration.agents.is_empty() {
-                        self.migration_controller.record_migration(migration)?;
+                    if let (Some(src), Some(tgt)) = (source, target) {
+                        let migration = self
+                            .migration_controller
+                            .plan_migration(&src, &tgt, generation)?;
+                        if !migration.agents.is_empty() {
+                            self.migration_controller.record_migration(migration)?;
+                        }
                     }
                 }
             }
@@ -146,9 +144,7 @@ impl PopulationEvolutionManager {
 
     /// Calculate comprehensive metrics
     pub fn calculate_metrics(&self) -> EvolutionEngineResult<PopulationMetrics> {
-        let populations = self.populations.read()?;
-
-        let total_populations = populations.len();
+        let total_populations = self.populations.len();
         let mut active_populations = 0;
         let mut global_best_fitness = 0.0;
         let mut total_fitness = 0.0;
@@ -156,7 +152,10 @@ impl PopulationEvolutionManager {
         let mut population_diversities = HashMap::new();
         let mut convergence_status = HashMap::new();
 
-        for (id, population) in populations.iter() {
+        for entry in self.populations.iter() {
+            let id = entry.key();
+            let population = entry.value();
+
             if !population.is_converged() {
                 active_populations += 1;
             }
@@ -205,8 +204,7 @@ impl PopulationEvolutionManager {
         &self,
         population_id: &str,
     ) -> EvolutionEngineResult<PopulationHealthReport> {
-        let populations = self.populations.read()?;
-        let population = populations.get(population_id).ok_or_else(|| {
+        let population = self.populations.get(population_id).ok_or_else(|| {
             EvolutionEngineError::Other(format!("Population {} not found", population_id))
         })?;
 

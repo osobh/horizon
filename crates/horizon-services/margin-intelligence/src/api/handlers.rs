@@ -7,9 +7,11 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use hpc_channels::{broadcast, channels, MarginMessage};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use std::sync::Arc;
+use tokio::sync::broadcast::Sender as BroadcastSender;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -18,6 +20,50 @@ pub struct AppState {
     pub profiler: CustomerProfiler,
     pub simulator: PricingSimulator,
     pub at_risk_threshold: Decimal,
+    /// Channel for margin analysis events.
+    pub analysis_events: BroadcastSender<MarginMessage>,
+    /// Channel for at-risk customer alerts.
+    pub alert_events: BroadcastSender<MarginMessage>,
+    /// Channel for simulation events.
+    pub simulation_events: BroadcastSender<MarginMessage>,
+}
+
+impl AppState {
+    pub fn new(
+        repository: MarginRepository,
+        profiler: CustomerProfiler,
+        simulator: PricingSimulator,
+        at_risk_threshold: Decimal,
+    ) -> Self {
+        let analysis_events = broadcast::<MarginMessage>(channels::MARGIN_ANALYSIS, 256);
+        let alert_events = broadcast::<MarginMessage>(channels::MARGIN_ALERTS, 256);
+        let simulation_events = broadcast::<MarginMessage>(channels::MARGIN_SIMULATIONS, 64);
+
+        Self {
+            repository,
+            profiler,
+            simulator,
+            at_risk_threshold,
+            analysis_events,
+            alert_events,
+            simulation_events,
+        }
+    }
+
+    /// Publish an analysis event (non-blocking).
+    pub fn publish_analysis_event(&self, event: MarginMessage) {
+        let _ = self.analysis_events.send(event);
+    }
+
+    /// Publish an alert event (non-blocking).
+    pub fn publish_alert_event(&self, event: MarginMessage) {
+        let _ = self.alert_events.send(event);
+    }
+
+    /// Publish a simulation event (non-blocking).
+    pub fn publish_simulation_event(&self, event: MarginMessage) {
+        let _ = self.simulation_events.send(event);
+    }
 }
 
 pub async fn health() -> &'static str {

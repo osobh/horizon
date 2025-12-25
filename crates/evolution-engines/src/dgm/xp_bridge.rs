@@ -2,13 +2,12 @@
 
 use super::engine::DgmEngine;
 use super::improvement::{GrowthPattern, GrowthHistory};
-use crate::traits::EvolvableAgent;
+use crate::traits::{EvolvableAgent, EvolutionEngine};
 use crate::error::{EvolutionEngineError, EvolutionEngineResult};
-use exorust_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
-use exorust_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
+use stratoswarm_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
+use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use async_trait::async_trait;
 
 /// DGM-specific XP fitness function that rewards self-improvement and pattern discovery
 pub struct DgmXPFitnessFunction {
@@ -94,10 +93,10 @@ impl DgmXPFitnessFunction {
     /// Evaluate pattern discovery contribution to fitness
     fn evaluate_pattern_discovery_fitness(&self, _agent: &Agent, growth_history: Option<&GrowthHistory>) -> f64 {
         if let Some(history) = growth_history {
-            // Score based on pattern discovery rate and success
-            let discovery_rate = history.get_discovery_rate();
-            let pattern_success_rate = history.get_pattern_success_rate();
-            
+            // Score based on pattern discovery rate and success (using window of 10 generations)
+            let discovery_rate = history.discovery_rate(10);
+            let pattern_success_rate = history.pattern_success_rate(10);
+
             (discovery_rate * 0.6 + pattern_success_rate * 0.4).min(1.0)
         } else {
             0.0
@@ -130,7 +129,6 @@ impl DgmXPFitnessFunction {
     }
 }
 
-#[async_trait]
 impl XPFitnessFunction for DgmXPFitnessFunction {
     async fn evaluate_agent_fitness(&self, agent: &Agent) -> f64 {
         let stats = agent.stats().await;
@@ -232,7 +230,7 @@ impl DgmXPEngine {
         // Add DGM-specific reward categories
         reward_calculator.set_reward_category(
             "self_modification".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 150,
                 level_multiplier: 1.4,
                 performance_multiplier: 1.7,
@@ -242,7 +240,7 @@ impl DgmXPEngine {
         
         reward_calculator.set_reward_category(
             "pattern_discovery".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 200,
                 level_multiplier: 1.5,
                 performance_multiplier: 2.2,
@@ -252,7 +250,7 @@ impl DgmXPEngine {
         
         reward_calculator.set_reward_category(
             "growth_momentum".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 125,
                 level_multiplier: 1.3,
                 performance_multiplier: 1.8,
@@ -262,7 +260,7 @@ impl DgmXPEngine {
         
         reward_calculator.set_reward_category(
             "meta_improvement".to_string(),
-            exorust_evolution::XPRewardCategory {
+            stratoswarm_evolution::XPRewardCategory {
                 base_reward: 300,
                 level_multiplier: 1.6,
                 performance_multiplier: 2.5,
@@ -524,7 +522,7 @@ impl DgmXPStats {
 mod tests {
     use super::*;
     use crate::dgm::config::DgmConfig;
-    use exorust_agent_core::agent::AgentConfig;
+    use stratoswarm_agent_core::agent::AgentConfig;
 
     #[tokio::test]
     async fn test_dgm_xp_fitness_function() {

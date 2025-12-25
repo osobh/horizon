@@ -1,7 +1,7 @@
 //! Main adaptive consensus engine
 
 use super::{
-    AdaptiveConsensusConfig, ConsensusAlgorithmType, ConsensusResult,
+    AdaptiveConsensusConfig, ConsensusAlgorithmType, ConsensusOutcome,
     AlgorithmSelector, NetworkMonitor, OptimizationEngine,
     ConsensusCoordinator, AdaptationController, GpuConsensusAccelerator,
 };
@@ -71,7 +71,7 @@ impl AdaptiveConsensusEngine {
         &self,
         proposal: &[u8],
         nodes: usize,
-    ) -> Result<ConsensusResult, ConsensusError> {
+    ) -> Result<ConsensusOutcome, ConsensusError> {
         let start = std::time::Instant::now();
         
         // Get current algorithm
@@ -114,7 +114,7 @@ impl AdaptiveConsensusEngine {
         metrics.average_latency = (metrics.average_latency * (metrics.total_rounds - 1) as f64
             + latency_us) / metrics.total_rounds as f64;
         
-        Ok(ConsensusResult {
+        Ok(ConsensusOutcome {
             algorithm,
             time_taken: elapsed.as_micros() as u64,
             consensus_reached: result.consensus_reached,

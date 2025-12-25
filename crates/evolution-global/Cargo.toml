@@ -1,5 +1,5 @@
 [package]
-name = "exorust-evolution-global"
+name = "stratoswarm-evolution-global"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

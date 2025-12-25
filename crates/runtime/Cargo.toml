@@ -1,5 +1,5 @@
 [package]
-name = "exorust-runtime"
+name = "stratoswarm-runtime"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -20,16 +20,20 @@ cust = { workspace = true, optional = true }
 uuid.workspace = true
 rand.workspace = true
 
+# HPC Channels integration
+hpc-channels = { path = "../../../01-hpc-channels", optional = true, features = ["rkyv-codec"] }
+
 # Internal dependencies
-exorust-memory = { path = "../memory" }
+stratoswarm-memory = { path = "../memory" }
 
 # Async utilities
 futures = "0.3"
 
 [features]
 default = []
-cuda = ["cust", "exorust-memory/cuda"]
-cuda-alt = ["exorust-memory/cuda-alt"]
+cuda = ["cust", "stratoswarm-memory/cuda"]
+cuda-alt = ["stratoswarm-memory/cuda-alt"]
+hpc-channels = ["dep:hpc-channels"]
 
 [dev-dependencies]
 criterion.workspace = true

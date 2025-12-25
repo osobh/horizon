@@ -1,5 +1,5 @@
 [package]
-name = "exorust-business-interface"
+name = "stratoswarm-business-interface"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -28,11 +28,11 @@ env_logger = "0.10"
 sysinfo = "0.29"
 
 # ExoRust dependencies for system integration (temporarily disabled for compilation)
-# exorust-agent-core = { path = "../agent-core" }
-# exorust-bootstrap = { path = "../bootstrap" }
-# exorust-runtime = { path = "../runtime" }
-# exorust-monitoring = { path = "../monitoring" }
-# exorust-synthesis = { path = "../synthesis" }
+# stratoswarm-agent-core = { path = "../agent-core" }
+# stratoswarm-bootstrap = { path = "../bootstrap" }
+# stratoswarm-runtime = { path = "../runtime" }
+# stratoswarm-monitoring = { path = "../monitoring" }
+# stratoswarm-synthesis = { path = "../synthesis" }
 
 [dev-dependencies]
 tempfile = { workspace = true }

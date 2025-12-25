@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(feature = "hpc-channels")]
+use crate::hpc_bridge::{SharedConsensusChannelBridge, shared_channel_bridge};
+
 /// Leader election state
 #[derive(Debug, Clone, PartialEq)]
 pub enum LeaderState {
@@ -35,6 +38,9 @@ pub struct LeaderElection {
     last_heartbeat_received: SystemTime,
     /// Random election timeout offset
     election_timeout_offset: Duration,
+    /// HPC-Channels event bridge for publishing consensus events
+    #[cfg(feature = "hpc-channels")]
+    event_bridge: SharedConsensusChannelBridge,
 }
 
 /// Election message types
@@ -89,7 +95,15 @@ impl LeaderElection {
             election_timeout_offset: Duration::from_millis(
                 (validator_id.as_uuid().as_u128() % 1000) as u64,
             ),
+            #[cfg(feature = "hpc-channels")]
+            event_bridge: shared_channel_bridge(),
         }
+    }
+
+    /// Get the event bridge for subscribing to consensus events
+    #[cfg(feature = "hpc-channels")]
+    pub fn event_bridge(&self) -> &SharedConsensusChannelBridge {
+        &self.event_bridge
     }
 
     /// Get current state
@@ -149,6 +163,10 @@ impl LeaderElection {
             self.current_term,
             self.validator_id
         );
+
+        // Publish election started event
+        #[cfg(feature = "hpc-channels")]
+        self.event_bridge.publish_election_started(self.current_term, &self.validator_id);
 
         Ok(ElectionMessage::RequestVote {
             term: self.current_term,
@@ -327,6 +345,10 @@ impl LeaderElection {
             self.validator_id
         );
 
+        // Publish leader elected event
+        #[cfg(feature = "hpc-channels")]
+        self.event_bridge.publish_leader_elected(self.current_term, &self.validator_id);
+
         Ok(())
     }
 
@@ -370,6 +392,10 @@ impl LeaderElection {
 
     /// Step down from leadership
     pub fn step_down(&mut self) {
+        // Publish leader stepped down event before changing state
+        #[cfg(feature = "hpc-channels")]
+        self.event_bridge.publish_leader_stepped_down(self.current_term, &self.validator_id);
+
         self.state = LeaderState::Follower { leader_id: None };
         tracing::info!("Stepped down from leadership in term {}", self.current_term);
     }

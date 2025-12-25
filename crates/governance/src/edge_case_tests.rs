@@ -19,7 +19,7 @@ mod tests {
         GovernanceError, Result,
     };
     use chrono::{DateTime, Duration, Utc};
-    use exorust_agent_core::agent::AgentId;
+    use stratoswarm_agent_core::agent::AgentId;
     use parking_lot::RwLock;
     use std::collections::HashMap;
     use std::sync::Arc;

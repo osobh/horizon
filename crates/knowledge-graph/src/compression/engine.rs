@@ -24,7 +24,7 @@ impl KnowledgeCompressionEngine {
     /// Create a new compression engine
     pub fn new(config: CompressionConfig) -> KnowledgeGraphResult<Self> {
         let gpu_device = if config.gpu_config.enabled {
-            Some(Arc::new(cudarc::driver::CudaDevice::new(0)?))
+            Some(cudarc::driver::CudaDevice::new(0)?)
         } else {
             None
         };
@@ -96,16 +96,22 @@ impl KnowledgeCompressionEngine {
 
     // Private compression methods
     async fn compress_lossless(&self, graph: &KnowledgeGraph) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
-        // Simplified implementation
-        let nodes_data = bincode::serialize(&graph.get_all_nodes())?;
-        let edges_data = bincode::serialize(&graph.get_all_edges())?;
-        
+        // Get nodes and edges, cloning for serialization
+        let nodes: Vec<Node> = graph.get_all_nodes()?.into_iter().cloned().collect();
+        let edges: Vec<Edge> = graph.get_all_edges()?.into_iter().cloned().collect();
+
+        // Serialize the data
+        let nodes_data = bincode::serialize(&nodes)?;
+        let edges_data = bincode::serialize(&edges)?;
+
+        let original_size = nodes_data.len() + edges_data.len();
+
         Ok(CompressedKnowledgeGraph {
             compressed_nodes: nodes_data,
             compressed_edges: edges_data,
             metadata: CompressionMetadata {
-                original_size: nodes_data.len() + edges_data.len(),
-                compressed_size: nodes_data.len() + edges_data.len(),
+                original_size,
+                compressed_size: original_size,
                 compression_ratio: 1.0,
                 algorithm: CompressionAlgorithm::Lossless,
                 timestamp: chrono::Utc::now(),
@@ -144,18 +150,26 @@ impl KnowledgeCompressionEngine {
     }
 
     async fn decompress_lossless(&self, compressed: &CompressedKnowledgeGraph) -> KnowledgeGraphResult<KnowledgeGraph> {
+        use crate::graph::KnowledgeGraphConfig;
+
         // Simplified decompression
         let nodes: Vec<Node> = bincode::deserialize(&compressed.compressed_nodes)?;
         let edges: Vec<Edge> = bincode::deserialize(&compressed.compressed_edges)?;
-        
-        let mut graph = KnowledgeGraph::new();
+
+        // Create graph with default config but GPU disabled for decompression
+        let config = KnowledgeGraphConfig {
+            gpu_enabled: false,
+            ..Default::default()
+        };
+        let mut graph = KnowledgeGraph::new(config).await?;
+
         for node in nodes {
             graph.add_node(node)?;
         }
         for edge in edges {
             graph.add_edge(edge)?;
         }
-        
+
         Ok(graph)
     }
 

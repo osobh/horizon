@@ -1,5 +1,5 @@
 [package]
-name = "exorust-evolution-engines"
+name = "stratoswarm-evolution-engines"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -20,13 +20,14 @@ rand = { workspace = true }
 rayon = { workspace = true }
 
 # Project crates
-exorust-evolution = { path = "../evolution" }
-exorust-agent-core = { path = "../agent-core" }
-exorust-synthesis = { path = "../synthesis" }
-exorust-runtime = { path = "../runtime" }
-exorust-monitoring = { path = "../monitoring" }
+stratoswarm-evolution = { path = "../evolution" }
+stratoswarm-agent-core = { path = "../agent-core" }
+stratoswarm-synthesis = { path = "../synthesis" }
+stratoswarm-runtime = { path = "../runtime" }
+stratoswarm-monitoring = { path = "../monitoring" }
 
 # Evolution-specific dependencies
+clap = "2.34"  # CLI argument parsing for binaries
 ndarray = { version = "0.16", features = ["serde", "rayon"] }
 ordered-float = "4.3"
 dashmap = "6.1"
@@ -37,6 +38,7 @@ itertools = "0.13"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3.8"
 lazy_static = "1.4"
+wide = "0.7"  # SIMD primitives for vectorized computation
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -46,7 +48,7 @@ approx = "0.5"
 
 [features]
 default = []
-mock = ["exorust-synthesis/mock-llm"]
+mock = ["stratoswarm-synthesis/mock-llm"]
 
 # [[bench]]
 # name = "evolution_engines"

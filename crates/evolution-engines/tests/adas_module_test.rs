@@ -1,9 +1,9 @@
 //! Test to verify ADAS module structure works correctly
 
-use exorust_evolution_engines::adas::{
+use stratoswarm_evolution_engines::adas::{
     AdasConfig, AdasEngine, ArchitectureSearchSpace, BehaviorSearchSpace,
 };
-use exorust_evolution_engines::traits::{EngineConfig, EvolutionEngine};
+use stratoswarm_evolution_engines::traits::{EngineConfig, EvolutionEngine};
 
 #[test]
 fn test_adas_module_imports() {

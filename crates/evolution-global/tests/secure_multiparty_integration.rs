@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use exorust_evolution_global::{
+use stratoswarm_evolution_global::{
     error::EvolutionGlobalResult,
     secure_multiparty::{
         CryptographicProvider, EncryptedEvolutionData, EncryptionScheme, MPCParticipant,

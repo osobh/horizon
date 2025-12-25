@@ -35,11 +35,11 @@ pub enum EvolutionEngineError {
 
     /// Agent synthesis error
     #[error("Agent synthesis failed: {0}")]
-    SynthesisError(#[from] exorust_synthesis::error::SynthesisError),
+    SynthesisError(#[from] stratoswarm_synthesis::error::SynthesisError),
 
     /// Agent core error
     #[error("Agent core error: {0}")]
-    AgentCoreError(#[from] exorust_agent_core::error::AgentError),
+    AgentCoreError(#[from] stratoswarm_agent_core::error::AgentError),
 
     /// Fitness evaluation failed
     #[error("Fitness evaluation failed: {message}")]
@@ -60,6 +60,13 @@ pub enum EvolutionEngineError {
     ConvergenceFailed {
         /// Number of iterations attempted
         iterations: u32,
+    },
+
+    /// Evolution error (generic evolution process failure)
+    #[error("Evolution error: {message}")]
+    EvolutionError {
+        /// Error message
+        message: String,
     },
 
     /// Resource exhaustion
@@ -91,9 +98,39 @@ pub enum EvolutionEngineError {
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
 
+    /// Lock poisoned error
+    #[error("Lock poisoned: {message}")]
+    LockPoisoned {
+        /// Error message
+        message: String,
+    },
+
+    /// System time error
+    #[error("System time error: {message}")]
+    SystemTimeError {
+        /// Error message
+        message: String,
+    },
+
     /// Other error
     #[error("Evolution engine error: {0}")]
     Other(String),
+}
+
+impl<T> From<std::sync::PoisonError<T>> for EvolutionEngineError {
+    fn from(err: std::sync::PoisonError<T>) -> Self {
+        EvolutionEngineError::LockPoisoned {
+            message: err.to_string(),
+        }
+    }
+}
+
+impl From<std::time::SystemTimeError> for EvolutionEngineError {
+    fn from(err: std::time::SystemTimeError) -> Self {
+        EvolutionEngineError::SystemTimeError {
+            message: err.to_string(),
+        }
+    }
 }
 
 /// Result type for evolution engine operations

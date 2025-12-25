@@ -14,6 +14,9 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use warp::Filter;
 
+#[cfg(feature = "hpc-channels")]
+use crate::hpc_bridge::{SharedAgentChannelBridge, shared_channel_bridge};
+
 /// Main swarmlet agent that manages node lifecycle
 pub struct SwarmletAgent {
     config: Arc<Config>,
@@ -25,6 +28,9 @@ pub struct SwarmletAgent {
     health_status: Arc<RwLock<HealthStatus>>,
     shutdown_signal: tokio::sync::watch::Receiver<bool>,
     shutdown_sender: tokio::sync::watch::Sender<bool>,
+    /// HPC-Channels event bridge for publishing agent lifecycle events
+    #[cfg(feature = "hpc-channels")]
+    event_bridge: SharedAgentChannelBridge,
 }
 
 /// Health status of the swarmlet
@@ -88,7 +94,15 @@ impl SwarmletAgent {
             health_status,
             shutdown_signal,
             shutdown_sender,
+            #[cfg(feature = "hpc-channels")]
+            event_bridge: shared_channel_bridge(),
         })
+    }
+
+    /// Get the event bridge for subscribing to agent lifecycle events
+    #[cfg(feature = "hpc-channels")]
+    pub fn event_bridge(&self) -> &SharedAgentChannelBridge {
+        &self.event_bridge
     }
 
     /// Create a swarmlet agent from configuration
@@ -113,6 +127,14 @@ impl SwarmletAgent {
             health.status = NodeStatus::Healthy;
             health.last_heartbeat = chrono::Utc::now();
         }
+
+        // Publish agent started event
+        #[cfg(feature = "hpc-channels")]
+        self.event_bridge.publish_agent_started(&self.join_result.node_id.to_string());
+
+        // Publish agent healthy event
+        #[cfg(feature = "hpc-channels")]
+        self.event_bridge.publish_agent_healthy(&self.join_result.node_id.to_string(), "Healthy");
 
         // Start background tasks
         let agent = Arc::new(self);
@@ -161,6 +183,10 @@ impl SwarmletAgent {
             let mut health = agent.health_status.write().await;
             health.status = NodeStatus::Shutting;
         }
+
+        // Publish agent shutdown event
+        #[cfg(feature = "hpc-channels")]
+        agent.event_bridge.publish_agent_shutdown(&agent.join_result.node_id.to_string(), "graceful shutdown");
 
         // Send final heartbeat
         if let Err(e) = agent.send_heartbeat().await {

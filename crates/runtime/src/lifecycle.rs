@@ -5,7 +5,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crate::{ContainerConfig, ContainerRuntime, ContainerStats, GpuContainer, RuntimeError};
-use exorust_memory::MemoryManager;
+use stratoswarm_memory::MemoryManager;
+
+#[cfg(feature = "hpc-channels")]
+use crate::hpc_bridge::{SharedRuntimeChannelBridge, shared_channel_bridge};
 
 /// Container lifecycle states
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -22,6 +25,9 @@ pub enum ContainerState {
 pub struct ContainerLifecycle {
     containers: Arc<Mutex<HashMap<String, Arc<GpuContainer>>>>,
     memory_manager: Arc<dyn MemoryManager>,
+    /// HPC-Channels event bridge for publishing lifecycle events
+    #[cfg(feature = "hpc-channels")]
+    event_bridge: SharedRuntimeChannelBridge,
 }
 
 impl ContainerLifecycle {
@@ -30,7 +36,15 @@ impl ContainerLifecycle {
         Self {
             containers: Arc::new(Mutex::new(HashMap::new())),
             memory_manager,
+            #[cfg(feature = "hpc-channels")]
+            event_bridge: shared_channel_bridge(),
         }
+    }
+
+    /// Get the event bridge for subscribing to lifecycle events
+    #[cfg(feature = "hpc-channels")]
+    pub fn event_bridge(&self) -> &SharedRuntimeChannelBridge {
+        &self.event_bridge
     }
 
     /// Get container by ID
@@ -80,6 +94,10 @@ impl ContainerRuntime for ContainerLifecycle {
         let container_arc = Arc::new(container);
         containers.insert(container_id.clone(), container_arc.clone());
 
+        // Publish container created event
+        #[cfg(feature = "hpc-channels")]
+        self.event_bridge.publish_container_created(&container_id);
+
         Ok((*container_arc).clone())
     }
 
@@ -106,6 +124,11 @@ impl ContainerRuntime for ContainerLifecycle {
         container.set_state(ContainerState::Running)?;
 
         tracing::info!("Container {} started successfully", container_id);
+
+        // Publish container started event
+        #[cfg(feature = "hpc-channels")]
+        self.event_bridge.publish_container_started(container_id, "Running");
+
         Ok(())
     }
 
@@ -125,6 +148,11 @@ impl ContainerRuntime for ContainerLifecycle {
         container.set_state(ContainerState::Stopped)?;
 
         tracing::info!("Container {} stopped successfully", container_id);
+
+        // Publish container stopped event
+        #[cfg(feature = "hpc-channels")]
+        self.event_bridge.publish_container_stopped(container_id, "Stopped");
+
         Ok(())
     }
 
@@ -162,6 +190,11 @@ impl ContainerRuntime for ContainerLifecycle {
             })?;
 
         tracing::info!("Container {} removed successfully", container_id);
+
+        // Publish container removed event
+        #[cfg(feature = "hpc-channels")]
+        self.event_bridge.publish_container_removed(container_id);
+
         Ok(())
     }
 
@@ -185,7 +218,7 @@ impl ContainerRuntime for ContainerLifecycle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use exorust_memory::GpuMemoryAllocator;
+    use stratoswarm_memory::GpuMemoryAllocator;
 
     #[tokio::test]
     async fn test_container_lifecycle_creation() {

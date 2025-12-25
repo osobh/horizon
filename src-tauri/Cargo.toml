@@ -32,26 +32,27 @@ uuid = { version = "1.11", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 sysinfo = "0.30"  # For system/GPU detection
 hex = "0.4"  # For encoding merkle roots
+dashmap = "6.1"  # Lock-free concurrent HashMap
+rand = "0.8"  # Random number generation for ephemeral tokens
 
 # Internal crate dependencies
 hpc-channels.workspace = true
-notebook-kernel = { workspace = true, optional = true }
-stratoswarm-cluster-mesh = { path = "../../05-stratoswarm/crates/cluster-mesh", optional = true }
-rtx-distributed = { path = "../../07-rustytorch/crates/training/rtx-distributed", optional = true, default-features = false }
-warp-core = { path = "../../04-warp/crates/warp-core", optional = true }
-warp-format = { path = "../../04-warp/crates/warp-format", optional = true }
-# vortex-core = { workspace = true, optional = true }
+stratoswarm-cluster-mesh = { path = "../crates/cluster-mesh", optional = true }
+rtx-distributed = { path = "../../08-rustytorch/crates/training/rtx-distributed", optional = true, default-features = false }
+warp-core = { path = "../../05-warp/crates/warp-core", optional = true }
+warp-format = { path = "../../05-warp/crates/warp-format", optional = true }
+# vortex-core = { path = "../../09-vortex/crates/vortex-core", optional = true }
 
 # GPU-accelerated Rust compilation (10x faster)
 # Works on macOS (Metal) and Linux/Windows (CUDA)
-rustg = { path = "../../01-rust/rustg", optional = true, default-features = false }
+rustg = { path = "../../00-rust/rustg", optional = true, default-features = false }
+
+# SLAI GPU scheduling and multi-tenant job management
+slai = { path = "../../04-slai", optional = true }
 
 [features]
-# Default: embedded kernel for notebook execution
-default = ["embedded-kernel"]
-
-# Embed notebook-kernel for ~10-50ns latency code execution
-embedded-kernel = ["notebook-kernel"]
+# Default: no embedded features (uses mock implementations)
+default = []
 
 # Embed stratoswarm cluster-mesh for real cluster management
 # NOTE: Currently Linux-only due to procfs dependency in cluster-mesh
@@ -75,13 +76,17 @@ embedded-storage = ["warp-core", "warp-format"]
 # Linux/Windows: Uses CUDA GPU acceleration
 gpu-compiler = ["rustg"]
 
+# Embed SLAI for real GPU scheduling and multi-tenant job management
+# Provides FairShareScheduler, GpuDetector, and Tenant management
+embedded-slai = ["slai"]
+
 # Embed nebula for RDMA transport and ZK proofs
 # NOTE: RDMA requires Linux with InfiniBand/RoCE
 # On non-Linux systems, mock implementation is used
 # embedded-nebula = ["nebula-rdma", "nebula-zk", "nebula-relay"]
 
 # Embed all optional crates for full functionality
-full = ["embedded-kernel", "embedded-cluster", "embedded-training", "embedded-storage", "gpu-compiler"]
+full = ["embedded-cluster", "embedded-training", "embedded-storage", "embedded-slai", "gpu-compiler"]
 
 # Minimal build without embedded crates (uses mocks)
 minimal = []

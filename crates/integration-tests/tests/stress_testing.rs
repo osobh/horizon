@@ -1,13 +1,13 @@
 //! Stress Testing Integration Tests
 //! Tests system behavior under extreme load conditions and edge cases
 
-use exorust_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
-use exorust_cuda::{CudaContext, CudaMemoryManager};
-use exorust_evolution_engines::{EvolutionEngineConfig, HybridEvolutionSystem};
-use exorust_knowledge_graph::{
+use stratoswarm_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
+use stratoswarm_cuda::{CudaContext, CudaMemoryManager};
+use stratoswarm_evolution_engines::{EvolutionEngineConfig, HybridEvolutionSystem};
+use stratoswarm_knowledge_graph::{
     KnowledgeGraph, KnowledgeGraphConfig, Query, QueryEngine, QueryType,
 };
-use exorust_synthesis::{SynthesisConfig, SynthesisPipeline};
+use stratoswarm_synthesis::{SynthesisConfig, SynthesisPipeline};
 // Unused: use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 
@@ -207,7 +207,7 @@ async fn test_knowledge_graph_node_limit_stress() {
     let mut query_engine = QueryEngine::new(false).await.unwrap();
     let query = Query {
         query_type: QueryType::FindNodes {
-            node_type: Some(exorust_knowledge_graph::NodeType::Memory),
+            node_type: Some(stratoswarm_knowledge_graph::NodeType::Memory),
             properties: std::collections::HashMap::new(),
         },
         timeout_ms: Some(5000),

@@ -1,4 +1,4 @@
-use exorust_business_interface::BusinessInterface;
+use stratoswarm_business_interface::BusinessInterface;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Debug)]

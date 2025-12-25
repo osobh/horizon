@@ -245,6 +245,7 @@ pub struct EvolutionMetrics {
 }
 
 /// Core agent structure
+#[derive(Clone)]
 pub struct Agent {
     /// Unique agent ID
     pub id: AgentId,

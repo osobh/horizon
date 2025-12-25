@@ -162,8 +162,8 @@ async fn deploy_with_zero_config(_path: &PathBuf) -> Result<Vec<AgentSpec>> {
 }
 
 async fn deploy_specs(specs: Vec<AgentSpec>, _args: &DeployArgs) -> Result<()> {
-    // TODO: Uncomment when exorust_runtime is available
-    // use exorust_runtime::Runtime;
+    // TODO: Uncomment when stratoswarm_runtime is available
+    // use stratoswarm_runtime::Runtime;
 
     // Mock implementation for testing
     for spec in specs {

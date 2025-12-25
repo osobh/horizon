@@ -7,7 +7,7 @@
 //! ALL TESTS IN THIS FILE ARE DESIGNED TO FAIL INITIALLY (RED PHASE)
 //! They represent the target functionality that needs to be implemented.
 
-use exorust_consensus::*;
+use stratoswarm_consensus::*;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;

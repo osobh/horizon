@@ -175,7 +175,7 @@ impl LoadBalancer {
     fn find_least_loaded_node(&self) -> Option<String> {
         self.load_distribution
             .iter()
-            .min_by(|a, b| a.1.partial_cmp(b.1)?)
+            .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(node_id, _)| node_id.clone())
     }
 
@@ -184,7 +184,7 @@ impl LoadBalancer {
         self.load_distribution
             .iter()
             .filter(|(node_id, _)| *node_id != exclude_node)
-            .min_by(|a, b| a.1.partial_cmp(b.1)?)
+            .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(node_id, _)| node_id.clone())
     }
 

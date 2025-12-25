@@ -2,7 +2,7 @@ use telemetry_collector::config::CollectorConfig;
 use telemetry_collector::cardinality::CardinalityTracker;
 use telemetry_collector::writers::{InfluxDbWriter, ParquetWriter};
 use telemetry_collector::handler::StreamHandler;
-use horizon_hpc_types::{GpuMetric, MetricBatch, Timestamp};
+use hpc_types::{GpuMetric, MetricBatch, Timestamp};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tempfile::TempDir;

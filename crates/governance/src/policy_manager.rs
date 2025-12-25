@@ -13,7 +13,7 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::{GovernanceError, Result};
-use exorust_agent_core::agent::AgentId;
+use stratoswarm_agent_core::agent::AgentId;
 
 /// Policy manager for defining and enforcing governance rules
 pub struct PolicyManager {

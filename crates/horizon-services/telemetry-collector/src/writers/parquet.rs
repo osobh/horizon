@@ -9,7 +9,7 @@ use std::fs::{File, create_dir_all};
 use std::path::{PathBuf, Path};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use horizon_hpc_types::{MetricBatch};
+use hpc_types::{MetricBatch};
 use crate::config::ParquetConfig;
 
 pub struct ParquetWriter {

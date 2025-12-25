@@ -3,12 +3,15 @@
 //! This module handles intelligent work distribution across heterogeneous nodes,
 //! considering capabilities, constraints, and locality.
 
-use crate::{ClusterMeshError, ClusterNode, Job, NodeCapabilities, NodeClass, NodeStatus, Result};
+use crate::{
+    ClusterMeshError, ClusterNode, Job, JobPriority, NodeCapabilities, NodeClass, NodeStatus,
+    Result,
+};
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
+use stratoswarm_core::{PrioritySchedulerQueue, SchedulerPriority};
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
@@ -83,12 +86,27 @@ pub enum JobStatus {
     Migrating,
 }
 
+/// Convert JobPriority to SchedulerPriority for branch-prediction-friendly queue.
+impl From<JobPriority> for SchedulerPriority {
+    #[inline]
+    fn from(priority: JobPriority) -> Self {
+        match priority {
+            JobPriority::Low => SchedulerPriority::Low,
+            JobPriority::Normal => SchedulerPriority::Normal,
+            JobPriority::High => SchedulerPriority::High,
+            JobPriority::Critical => SchedulerPriority::Critical,
+        }
+    }
+}
+
 /// Work distributor
 pub struct WorkDistributor {
     policy: RwLock<SchedulingPolicy>,
-    job_queue: Arc<Mutex<BinaryHeap<PrioritizedJob>>>,
-    scheduled_jobs: Arc<RwLock<HashMap<Uuid, ScheduledJob>>>,
-    node_loads: Arc<RwLock<HashMap<Uuid, NodeLoad>>>,
+    /// Branch-prediction-friendly priority queue using segmented VecDeques
+    /// instead of BinaryHeap (O(1) enqueue/dequeue with predictable branches)
+    job_queue: Arc<Mutex<PrioritySchedulerQueue<Job>>>,
+    scheduled_jobs: Arc<DashMap<Uuid, ScheduledJob>>,
+    node_loads: Arc<DashMap<Uuid, NodeLoad>>,
     migration_threshold: f32,
 }
 
@@ -102,41 +120,14 @@ struct NodeLoad {
     last_updated: Option<DateTime<Utc>>,
 }
 
-/// Prioritized job for the heap
-#[derive(Debug, Clone)]
-struct PrioritizedJob {
-    job: Job,
-    score: i32,
-}
-
-impl PartialEq for PrioritizedJob {
-    fn eq(&self, other: &Self) -> bool {
-        self.score == other.score
-    }
-}
-
-impl Eq for PrioritizedJob {}
-
-impl PartialOrd for PrioritizedJob {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for PrioritizedJob {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.score.cmp(&other.score)
-    }
-}
-
 impl WorkDistributor {
     /// Create a new work distributor
     pub fn new() -> Self {
         Self {
             policy: RwLock::new(SchedulingPolicy::BestFit),
-            job_queue: Arc::new(Mutex::new(BinaryHeap::new())),
-            scheduled_jobs: Arc::new(RwLock::new(HashMap::new())),
-            node_loads: Arc::new(RwLock::new(HashMap::new())),
+            job_queue: Arc::new(Mutex::new(PrioritySchedulerQueue::new())),
+            scheduled_jobs: Arc::new(DashMap::new()),
+            node_loads: Arc::new(DashMap::new()),
             migration_threshold: 0.8, // 80% load threshold for migration
         }
     }
@@ -169,10 +160,10 @@ impl WorkDistributor {
 
             // Process pending jobs
             if let Ok(mut queue) = self.job_queue.try_lock() {
-                while let Some(prioritized_job) = queue.pop() {
+                while let Some(job) = queue.dequeue() {
                     // This would attempt to schedule the job
                     // For now, we'll just log it
-                    tracing::debug!("Processing job: {}", prioritized_job.job.id);
+                    tracing::debug!("Processing job: {}", job.id);
                 }
             }
         }
@@ -337,11 +328,9 @@ impl WorkDistributor {
     /// Calculate fit score for a job on a node
     async fn calculate_fit_score(&self, job: &Job, node: &ClusterNode) -> Result<f32> {
         let mut score = 100.0;
-        let node_loads = self.node_loads.read().await;
-        let load = node_loads.get(&node.id);
 
         // Penalize based on current load
-        if let Some(load) = load {
+        if let Some(load) = self.node_loads.get(&node.id) {
             score -= load.cpu_usage * 20.0;
             score -= load.memory_usage * 20.0;
             score -= load.gpu_usage * 20.0;
@@ -369,15 +358,14 @@ impl WorkDistributor {
     /// Round-robin selection
     async fn select_round_robin<'a>(&self, nodes: &[&'a ClusterNode]) -> Result<&'a ClusterNode> {
         // Simple round-robin based on job count
-        let node_loads = self.node_loads.read().await;
-
         let mut min_jobs = usize::MAX;
         let mut selected = nodes[0];
 
         for node in nodes {
-            let job_count = node_loads
+            let job_count = self
+                .node_loads
                 .get(&node.id)
-                .map(|l| l.active_jobs.len())
+                .map(|entry| entry.active_jobs.len())
                 .unwrap_or(0);
 
             if job_count < min_jobs {
@@ -467,28 +455,29 @@ impl WorkDistributor {
         };
 
         // Add to scheduled jobs
-        let mut scheduled = self.scheduled_jobs.write().await;
-        scheduled.insert(job.id, scheduled_job);
+        self.scheduled_jobs.insert(job.id, scheduled_job);
 
         // Update node load
-        let mut loads = self.node_loads.write().await;
-        let load = loads.entry(node_id).or_default();
-        load.active_jobs.push(job.id);
-        load.last_updated = Some(Utc::now());
+        self.node_loads
+            .entry(node_id)
+            .or_default()
+            .active_jobs
+            .push(job.id);
+        if let Some(mut load) = self.node_loads.get_mut(&node_id) {
+            load.last_updated = Some(Utc::now());
+        }
 
         Ok(job.id)
     }
 
     /// Migrate work from a node
     pub async fn migrate_work_from_node(&self, node_id: Uuid) -> Result<()> {
-        let scheduled = self.scheduled_jobs.read().await;
-        let jobs_to_migrate: Vec<Uuid> = scheduled
-            .values()
-            .filter(|j| j.node_id == node_id && j.status == JobStatus::Running)
-            .map(|j| j.job.id)
+        let jobs_to_migrate: Vec<Uuid> = self
+            .scheduled_jobs
+            .iter()
+            .filter(|entry| entry.node_id == node_id && entry.status == JobStatus::Running)
+            .map(|entry| entry.job.id)
             .collect();
-
-        drop(scheduled);
 
         for job_id in jobs_to_migrate {
             self.migrate_job(job_id).await?;
@@ -499,9 +488,7 @@ impl WorkDistributor {
 
     /// Migrate a specific job
     async fn migrate_job(&self, job_id: Uuid) -> Result<()> {
-        let mut scheduled = self.scheduled_jobs.write().await;
-
-        if let Some(scheduled_job) = scheduled.get_mut(&job_id) {
+        if let Some(mut scheduled_job) = self.scheduled_jobs.get_mut(&job_id) {
             scheduled_job.status = JobStatus::Migrating;
 
             // In a real implementation, this would:
@@ -522,9 +509,9 @@ impl WorkDistributor {
 
     /// Check and rebalance load
     async fn check_and_rebalance(&self) -> Result<()> {
-        let loads = self.node_loads.read().await;
-
-        for (node_id, load) in loads.iter() {
+        for entry in self.node_loads.iter() {
+            let node_id = entry.key();
+            let load = entry.value();
             let total_usage = (load.cpu_usage + load.memory_usage + load.gpu_usage) / 3.0;
 
             if total_usage > self.migration_threshold {
@@ -549,28 +536,35 @@ impl WorkDistributor {
         memory_usage: f32,
         gpu_usage: f32,
     ) -> Result<()> {
-        let mut loads = self.node_loads.write().await;
-        let load = loads.entry(node_id).or_default();
-
-        load.cpu_usage = cpu_usage;
-        load.memory_usage = memory_usage;
-        load.gpu_usage = gpu_usage;
-        load.last_updated = Some(Utc::now());
+        self.node_loads
+            .entry(node_id)
+            .and_modify(|load| {
+                load.cpu_usage = cpu_usage;
+                load.memory_usage = memory_usage;
+                load.gpu_usage = gpu_usage;
+                load.last_updated = Some(Utc::now());
+            })
+            .or_insert_with(|| NodeLoad {
+                cpu_usage,
+                memory_usage,
+                gpu_usage,
+                active_jobs: Vec::new(),
+                last_updated: Some(Utc::now()),
+            });
 
         Ok(())
     }
 
     /// Get scheduling statistics
     pub async fn get_statistics(&self) -> SchedulingStatistics {
-        let scheduled = self.scheduled_jobs.read().await;
         let queue = self.job_queue.lock().await;
 
         let mut stats = SchedulingStatistics::default();
         stats.queued_jobs = queue.len();
-        stats.total_jobs = scheduled.len();
+        stats.total_jobs = self.scheduled_jobs.len();
 
-        for job in scheduled.values() {
-            match job.status {
+        for entry in self.scheduled_jobs.iter() {
+            match entry.value().status {
                 JobStatus::Running => stats.running_jobs += 1,
                 JobStatus::Completed => stats.completed_jobs += 1,
                 JobStatus::Failed(_) => stats.failed_jobs += 1,
@@ -780,12 +774,10 @@ mod tests {
         assert_eq!(job_id, job.id);
 
         // Check job is scheduled
-        let scheduled = distributor.scheduled_jobs.read().await;
-        assert!(scheduled.contains_key(&job_id));
+        assert!(distributor.scheduled_jobs.contains_key(&job_id));
 
         // Check node load is updated
-        let loads = distributor.node_loads.read().await;
-        let load = loads.get(&node_id).unwrap();
+        let load = distributor.node_loads.get(&node_id).unwrap();
         assert!(load.active_jobs.contains(&job_id));
     }
 
@@ -816,36 +808,53 @@ mod tests {
             .await
             .unwrap();
 
-        let loads = distributor.node_loads.read().await;
-        let load = loads.get(&node_id).unwrap();
+        let load = distributor.node_loads.get(&node_id).unwrap();
         assert_eq!(load.cpu_usage, 0.5);
         assert_eq!(load.memory_usage, 0.6);
         assert_eq!(load.gpu_usage, 0.3);
     }
 
     #[test]
-    fn test_job_priority_heap() {
-        let mut heap = BinaryHeap::new();
+    fn test_job_priority_queue() {
+        use stratoswarm_core::{PrioritySchedulerQueue, SchedulerPriority};
 
-        heap.push(PrioritizedJob {
-            job: create_test_job(1, 1.0, 0),
-            score: 10,
-        });
+        let mut queue = PrioritySchedulerQueue::<Job>::new();
 
-        heap.push(PrioritizedJob {
-            job: create_test_job(2, 2.0, 0),
-            score: 20,
-        });
+        // Enqueue jobs with different priorities
+        let low_job = create_test_job(1, 1.0, 0);
+        let high_job = create_test_job(2, 2.0, 0);
+        let critical_job = create_test_job(3, 3.0, 0);
 
-        heap.push(PrioritizedJob {
-            job: create_test_job(3, 3.0, 0),
-            score: 15,
-        });
+        // Enqueue in arbitrary order
+        queue.enqueue(low_job.clone(), SchedulerPriority::Low);
+        queue.enqueue(high_job.clone(), SchedulerPriority::High);
+        queue.enqueue(critical_job.clone(), SchedulerPriority::Critical);
 
-        // Should pop in order of score
-        assert_eq!(heap.pop().unwrap().score, 20);
-        assert_eq!(heap.pop().unwrap().score, 15);
-        assert_eq!(heap.pop().unwrap().score, 10);
+        // Should dequeue in priority order: Critical > High > Low
+        assert_eq!(queue.dequeue().unwrap().id, critical_job.id);
+        assert_eq!(queue.dequeue().unwrap().id, high_job.id);
+        assert_eq!(queue.dequeue().unwrap().id, low_job.id);
+    }
+
+    #[test]
+    fn test_job_priority_conversion() {
+        // Test JobPriority to SchedulerPriority conversion
+        assert_eq!(
+            SchedulerPriority::from(JobPriority::Low),
+            SchedulerPriority::Low
+        );
+        assert_eq!(
+            SchedulerPriority::from(JobPriority::Normal),
+            SchedulerPriority::Normal
+        );
+        assert_eq!(
+            SchedulerPriority::from(JobPriority::High),
+            SchedulerPriority::High
+        );
+        assert_eq!(
+            SchedulerPriority::from(JobPriority::Critical),
+            SchedulerPriority::Critical
+        );
     }
 }
 

@@ -10,7 +10,7 @@ use tokio::sync::RwLock;
 use tower_http::cors::{Any, CorsLayer};
 
 // Import from agent-core
-use exorust_agent_core::{Agent, AgentConfig, AgentId};
+use stratoswarm_agent_core::{Agent, AgentConfig, AgentId};
 
 use crate::{
     api::{create_graphql_schema, GraphQLSchema},

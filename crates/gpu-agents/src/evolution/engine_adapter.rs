@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 // Import from exorust-evolution-engines crate
-use exorust_evolution_engines::{
+use stratoswarm_evolution_engines::{
     adas::{AdasConfig, AdasEngine},
     dgm::{DgmConfig, DgmEngine},
     population::{Individual, Population},
@@ -19,7 +19,7 @@ use exorust_evolution_engines::{
 };
 
 // Import from exorust-agent-core
-use exorust_agent_core::{Agent, AgentConfig, AgentId, Goal, GoalPriority};
+use stratoswarm_agent_core::{Agent, AgentConfig, AgentId, Goal, GoalPriority};
 
 // Import local types
 use crate::consensus_synthesis::integration::ConsensusSynthesisEngine;

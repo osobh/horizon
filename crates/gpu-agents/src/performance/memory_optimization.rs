@@ -6,6 +6,7 @@
 pub use super::memory_optimization_types::*;
 use super::*;
 use anyhow::{anyhow, Result};
+use dashmap::DashMap;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -19,7 +20,7 @@ pub struct MemoryTierOptimizer {
     is_monitoring: Arc<AtomicBool>,
     monitor_handle: Arc<RwLock<Option<JoinHandle<()>>>>,
     access_patterns: Arc<RwLock<AccessPatternTracker>>,
-    tier_metrics: Arc<RwLock<HashMap<MemoryTier, TierMetrics>>>,
+    tier_metrics: Arc<DashMap<MemoryTier, TierMetrics>>,
     optimization_stats: Arc<MemoryOptimizationStats>,
     migration_scheduler: Arc<MigrationScheduler>,
     prefetch_engine: Arc<PrefetchEngine>,
@@ -28,7 +29,7 @@ pub struct MemoryTierOptimizer {
 impl MemoryTierOptimizer {
     /// Create new memory tier optimizer
     pub fn new(config: MemoryOptimizationConfig) -> Self {
-        let mut tier_metrics = HashMap::new();
+        let tier_metrics = DashMap::new();
         tier_metrics.insert(MemoryTier::Gpu, TierMetrics::new(32 * 1024 * 1024 * 1024)); // 32GB
         tier_metrics.insert(MemoryTier::Cpu, TierMetrics::new(96 * 1024 * 1024 * 1024)); // 96GB
         tier_metrics.insert(
@@ -43,7 +44,7 @@ impl MemoryTierOptimizer {
             is_monitoring: Arc::new(AtomicBool::new(false)),
             monitor_handle: Arc::new(RwLock::new(None)),
             access_patterns: Arc::new(RwLock::new(AccessPatternTracker::new())),
-            tier_metrics: Arc::new(RwLock::new(tier_metrics)),
+            tier_metrics: Arc::new(tier_metrics),
             optimization_stats: Arc::new(MemoryOptimizationStats::default()),
             migration_scheduler: Arc::new(MigrationScheduler::new(config.clone())),
             prefetch_engine: Arc::new(PrefetchEngine::new(config)),
@@ -168,8 +169,9 @@ impl MemoryTierOptimizer {
         }
 
         // Balance tier utilization
-        let tier_metrics = self.tier_metrics.read().await;
-        for (tier, metrics) in tier_metrics.iter() {
+        for entry in self.tier_metrics.iter() {
+            let tier = entry.key();
+            let metrics = entry.value();
             if metrics.utilization > self.config.max_tier_utilization {
                 // Find data to migrate out
                 let candidates = self.find_migration_candidates(tier, &analysis).await?;
@@ -270,8 +272,9 @@ impl MemoryTierOptimizer {
         }
 
         // Tier balancing recommendations
-        let tier_metrics = self.tier_metrics.read().await;
-        for (tier, metrics) in tier_metrics.iter() {
+        for entry in self.tier_metrics.iter() {
+            let tier = entry.key();
+            let metrics = entry.value();
             if metrics.utilization > 0.9 {
                 recommendations.push(OptimizationRecommendation {
                     optimization_type: OptimizationType::MemoryTier,
@@ -378,12 +381,16 @@ impl MemoryTierOptimizer {
     pub async fn generate_report(&self) -> Result<MemoryOptimizationReport> {
         let efficiency = self.get_efficiency_metrics();
         let analysis = self.analyze_access_patterns().await?;
-        let tier_metrics = self.tier_metrics.read().await;
+        let tier_utilization: HashMap<MemoryTier, TierMetrics> = self
+            .tier_metrics
+            .iter()
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
+            .collect();
 
         Ok(MemoryOptimizationReport {
             efficiency_metrics: efficiency,
             access_pattern_analysis: analysis,
-            tier_utilization: tier_metrics.clone(),
+            tier_utilization,
             optimizations_applied: self
                 .optimization_stats
                 .optimizations_applied
@@ -404,18 +411,15 @@ impl MemoryTierOptimizer {
         is_monitoring: Arc<AtomicBool>,
         config: MemoryOptimizationConfig,
         access_patterns: Arc<RwLock<AccessPatternTracker>>,
-        tier_metrics: Arc<RwLock<HashMap<MemoryTier, TierMetrics>>>,
+        tier_metrics: Arc<DashMap<MemoryTier, TierMetrics>>,
         optimization_stats: Arc<MemoryOptimizationStats>,
         migration_scheduler: Arc<MigrationScheduler>,
         prefetch_engine: Arc<PrefetchEngine>,
     ) {
         while is_monitoring.load(Ordering::Relaxed) {
             // Update tier metrics
-            {
-                let mut metrics = tier_metrics.write().await;
-                for (tier, tier_metrics) in metrics.iter_mut() {
-                    tier_metrics.update();
-                }
+            for mut entry in tier_metrics.iter_mut() {
+                entry.value_mut().update();
             }
 
             // Check for optimization opportunities

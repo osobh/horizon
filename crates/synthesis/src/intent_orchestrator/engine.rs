@@ -39,14 +39,23 @@ pub struct ExecutionPlanner {
 }
 
 /// Sequence model for planning
-#[derive(Clone)]
 pub struct SequenceModel {
     /// LSTM network
-    pub lstm_network: candle_nn::Sequential,
+    pub lstm_network: Arc<candle_nn::Sequential>,
     /// Attention mechanism
     pub attention_mechanism: AttentionMechanism,
     /// Output projection
-    pub output_projection: candle_nn::Linear,
+    pub output_projection: Arc<candle_nn::Linear>,
+}
+
+impl Clone for SequenceModel {
+    fn clone(&self) -> Self {
+        Self {
+            lstm_network: Arc::clone(&self.lstm_network),
+            attention_mechanism: self.attention_mechanism.clone(),
+            output_projection: Arc::clone(&self.output_projection),
+        }
+    }
 }
 
 /// Attention mechanism
@@ -161,14 +170,14 @@ impl SequenceModel {
             .add(linear(64, 128, vb.pp("lstm_input"))?)
             .add_fn(|x| x.tanh())
             .add(linear(128, 64, vb.pp("lstm_output"))?);
-        
+
         let attention_mechanism = AttentionMechanism::new(64, vb.pp("attention"))?;
         let output_projection = linear(64, 32, vb.pp("output_projection"))?;
-        
+
         Ok(Self {
-            lstm_network,
+            lstm_network: Arc::new(lstm_network),
             attention_mechanism,
-            output_projection,
+            output_projection: Arc::new(output_projection),
         })
     }
 }

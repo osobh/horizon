@@ -192,16 +192,16 @@ pub struct KnowledgeGraph {
     /// Node type index
     node_type_index: HashMap<NodeType, Vec<String>>,
     /// GPU context for accelerated operations
-    gpu_context: Option<exorust_cuda::Context>,
+    gpu_context: Option<stratoswarm_cuda::Context>,
 }
 
 impl KnowledgeGraph {
     /// Create a new knowledge graph
     pub async fn new(config: KnowledgeGraphConfig) -> KnowledgeGraphResult<Self> {
         let gpu_context = if config.gpu_enabled {
-            Some(exorust_cuda::Context::new(
+            Some(stratoswarm_cuda::Context::new(
                 0,
-                exorust_cuda::ContextFlags::default(),
+                stratoswarm_cuda::ContextFlags::default(),
             )?)
         } else {
             None

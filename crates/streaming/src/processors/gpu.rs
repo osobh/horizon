@@ -68,10 +68,11 @@ impl GpuStreamProcessor {
 
     /// Get current statistics snapshot
     pub fn get_stats_snapshot(&self) -> StreamStats {
-        let chunks = self.stats.chunks_processed.load(Ordering::SeqCst);
-        let bytes = self.stats.bytes_processed.load(Ordering::SeqCst);
-        let time_ns = self.stats.gpu_time_ns.load(Ordering::SeqCst);
-        let errors = self.stats.errors.load(Ordering::SeqCst);
+        // Relaxed: independent statistics counters with no ordering dependencies
+        let chunks = self.stats.chunks_processed.load(Ordering::Relaxed);
+        let bytes = self.stats.bytes_processed.load(Ordering::Relaxed);
+        let time_ns = self.stats.gpu_time_ns.load(Ordering::Relaxed);
+        let errors = self.stats.errors.load(Ordering::Relaxed);
 
         let throughput_mbps = if time_ns > 0 {
             (bytes as f64) / ((time_ns as f64) / 1_000_000_000.0) / (1024.0 * 1024.0)
@@ -158,13 +159,14 @@ impl StreamProcessor for GpuStreamProcessor {
         };
 
         let processing_time = start_time.elapsed().as_nanos() as u64;
+        // Relaxed: independent statistics counters
         self.stats
             .gpu_time_ns
-            .fetch_add(processing_time, Ordering::SeqCst);
-        self.stats.chunks_processed.fetch_add(1, Ordering::SeqCst);
+            .fetch_add(processing_time, Ordering::Relaxed);
+        self.stats.chunks_processed.fetch_add(1, Ordering::Relaxed);
         self.stats
             .bytes_processed
-            .fetch_add(chunk.data.len() as u64, Ordering::SeqCst);
+            .fetch_add(chunk.data.len() as u64, Ordering::Relaxed);
 
         Ok(StreamChunk::new(
             Bytes::from(result_data),
@@ -182,7 +184,8 @@ impl StreamProcessor for GpuStreamProcessor {
 
         if self.use_cuda && chunks.len() >= self.batch_size {
             // Batch GPU processing for efficiency
-            self.stats.batch_operations.fetch_add(1, Ordering::SeqCst);
+            // Relaxed: independent counter
+            self.stats.batch_operations.fetch_add(1, Ordering::Relaxed);
 
             for chunk in chunks {
                 let result_data = self.simulate_gpu_operation(&chunk.data)?;
@@ -200,9 +203,10 @@ impl StreamProcessor for GpuStreamProcessor {
         }
 
         let processing_time = start_time.elapsed().as_nanos() as u64;
+        // Relaxed: independent statistics counter
         self.stats
             .gpu_time_ns
-            .fetch_add(processing_time, Ordering::SeqCst);
+            .fetch_add(processing_time, Ordering::Relaxed);
 
         Ok(results)
     }

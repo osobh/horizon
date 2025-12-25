@@ -1,7 +1,7 @@
 //! XP reward calculation system for evolution outcomes
 
 use crate::EvolutionError;
-use exorust_agent_core::agent::{Agent, EvolutionResult, EvolutionMetrics};
+use stratoswarm_agent_core::agent::{Agent, EvolutionResult, EvolutionMetrics};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -132,14 +132,14 @@ impl EvolutionXPRewardCalculator {
         }
 
         // Capability rewards
-        let capability_reward = evolution_result.capabilities_gained.len() as f64 * 
+        let capability_reward = evolution_result.capabilities_gained.len() as f64 *
             self.calculate_category_reward(
                 "capability_gained",
                 1.0,
                 evolution_result.new_level,
                 &evolution_result.new_metrics,
                 &evolution_result.previous_metrics,
-            );
+            ) as f64;
         breakdown.capability_reward = capability_reward as u64;
 
         // Performance improvement rewards
@@ -242,7 +242,7 @@ impl EvolutionXPRewardCalculator {
     }
 
     /// Calculate streak bonus based on recent successful evolutions
-    fn calculate_streak_bonus(&self, _agent_stats: &exorust_agent_core::agent::AgentStats) -> f64 {
+    fn calculate_streak_bonus(&self, _agent_stats: &stratoswarm_agent_core::agent::AgentStats) -> f64 {
         // For now, return base multiplier
         // In a real implementation, we'd track evolution success streaks
         self.streak_bonus_multiplier
@@ -341,7 +341,7 @@ impl XPRewardBreakdown {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use exorust_agent_core::agent::{Agent, AgentConfig};
+    use stratoswarm_agent_core::agent::{Agent, AgentConfig};
     use std::time::Duration;
 
     async fn create_test_agent_with_level(level: u32) -> Agent {

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { loader } from '@monaco-editor/react';
 import App from './App';
+import { UserRoleProvider } from './contexts/UserRoleContext';
 import './index.css';
 import { registerSwarmLanguage, swarmThemeRules } from './languages/swarm';
 
@@ -25,7 +26,9 @@ loader.init().then((monaco) => {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <UserRoleProvider>
+        <App />
+      </UserRoleProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );

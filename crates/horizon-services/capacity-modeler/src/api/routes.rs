@@ -2,11 +2,12 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use super::handlers;
+use super::handlers::{self, AppState};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -34,7 +35,7 @@ use super::handlers;
 )]
 pub struct ApiDoc;
 
-pub fn create_routes() -> Router {
+pub fn create_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/health", get(handlers::health_check))
         .route(

@@ -128,7 +128,7 @@ impl Population {
             .filter(|ind| ind.fitness.is_some())
             .max_by(|a, b| {
                 a.fitness
-                    ?
+                    .unwrap()
                     .partial_cmp(&b.fitness.unwrap())
                     .unwrap_or(std::cmp::Ordering::Equal)
             })

@@ -2,10 +2,9 @@
 
 use crate::mocks::cluster_mesh::{ClusterMesh, Message};
 use crate::{Result, SwarmImage, SwarmRegistryError};
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tracing::{debug, info};
 
 /// Registry configuration
@@ -36,9 +35,9 @@ pub struct DistributedRegistry {
     /// Cluster mesh connection
     cluster_mesh: Arc<ClusterMesh>,
     /// Local image store
-    local_images: Arc<RwLock<HashMap<String, SwarmImage>>>,
+    local_images: Arc<DashMap<String, SwarmImage>>,
     /// Remote image locations
-    remote_images: Arc<RwLock<HashMap<String, Vec<String>>>>,
+    remote_images: Arc<DashMap<String, Vec<String>>>,
 }
 
 impl DistributedRegistry {
@@ -50,8 +49,8 @@ impl DistributedRegistry {
         let registry = Self {
             config,
             cluster_mesh,
-            local_images: Arc::new(RwLock::new(HashMap::new())),
-            remote_images: Arc::new(RwLock::new(HashMap::new())),
+            local_images: Arc::new(DashMap::new()),
+            remote_images: Arc::new(DashMap::new()),
         };
 
         Ok(registry)
@@ -63,10 +62,7 @@ impl DistributedRegistry {
         info!("Publishing image {} to distributed registry", image_hash);
 
         // Store locally
-        {
-            let mut local_images = self.local_images.write().await;
-            local_images.insert(image_hash.clone(), image.clone());
-        }
+        self.local_images.insert(image_hash.clone(), image.clone());
 
         // Store image data
         let image_path = self.config.storage_path.join(&image_hash);
@@ -96,12 +92,9 @@ impl DistributedRegistry {
         info!("Pulling image {} from distributed registry", image_ref);
 
         // Check if we have it locally
-        {
-            let local_images = self.local_images.read().await;
-            if let Some(image) = local_images.get(image_ref) {
-                debug!("Image {} found locally", image_ref);
-                return Ok(image.clone());
-            }
+        if let Some(image) = self.local_images.get(image_ref).map(|r| r.clone()) {
+            debug!("Image {} found locally", image_ref);
+            return Ok(image);
         }
 
         // Check if file exists on disk
@@ -111,10 +104,7 @@ impl DistributedRegistry {
             let image: SwarmImage = bincode::deserialize(&image_data)?;
 
             // Cache in memory
-            {
-                let mut local_images = self.local_images.write().await;
-                local_images.insert(image_ref.to_string(), image.clone());
-            }
+            self.local_images.insert(image_ref.to_string(), image.clone());
 
             return Ok(image);
         }
@@ -124,36 +114,28 @@ impl DistributedRegistry {
 
     /// List all available images
     pub async fn list(&self) -> Result<Vec<(String, String, String)>> {
-        let mut images = Vec::new();
-
-        // Add local images
-        {
-            let local_images = self.local_images.read().await;
-            for (hash, image) in local_images.iter() {
-                images.push((
-                    hash.clone(),
-                    image.metadata.name.clone(),
-                    image.metadata.tag.clone(),
-                ));
-            }
-        }
+        let images: Vec<_> = self.local_images
+            .iter()
+            .map(|entry| {
+                let hash = entry.key().clone();
+                let image = entry.value();
+                (hash, image.metadata.name.clone(), image.metadata.tag.clone())
+            })
+            .collect();
 
         Ok(images)
     }
 
     /// Search for images by name
     pub async fn search(&self, query: &str) -> Result<Vec<SwarmImage>> {
-        let mut results = Vec::new();
-
-        // Search local images
-        {
-            let local_images = self.local_images.read().await;
-            for image in local_images.values() {
-                if image.metadata.name.contains(query) || image.metadata.tag.contains(query) {
-                    results.push(image.clone());
-                }
-            }
-        }
+        let results: Vec<_> = self.local_images
+            .iter()
+            .filter(|entry| {
+                let image = entry.value();
+                image.metadata.name.contains(query) || image.metadata.tag.contains(query)
+            })
+            .map(|entry| entry.value().clone())
+            .collect();
 
         Ok(results)
     }

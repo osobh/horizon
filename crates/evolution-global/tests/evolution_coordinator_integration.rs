@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use exorust_evolution_global::{
+use stratoswarm_evolution_global::{
     error::EvolutionGlobalResult,
     evolution_coordinator::{
         EvolutionConfig, EvolutionCoordinator, EvolutionExecutor, EvolutionPhase, EvolutionRequest,

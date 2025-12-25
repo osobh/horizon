@@ -1,0 +1,110 @@
+# Bounty Pool Access Policy
+#
+# Controls access to shared resource pools for external contributors.
+# Pool types:
+# - bounty: Compute for external contributor rewards
+# - trial: Demo accounts with sandboxed resources
+# - hackathon: Event-based temporary pools
+# - research: Academic/research grant pools
+#
+# Usage: Apply this policy to enable bounty/pool-based resource allocation.
+
+apiVersion: policy.horizon.dev/v1
+kind: Policy
+metadata:
+  name: bounty-pool-access
+  version: "1"
+  description: "Policy for ephemeral access to shared resource pools (bounties, trials, hackathons)"
+spec:
+  principals:
+    # Match users with pool allocations
+    - type: user
+      pattern: "*"
+  resources:
+    # GPU compute resources
+    - type: gpu
+      pattern: "*"
+    # Training jobs
+    - type: job
+      pattern: "pool/*"
+    # Inference endpoints
+    - type: inference
+      pattern: "pool/*"
+  rules:
+    # Allow bounty pool access for verified contributors
+    - effect: allow
+      actions: [allocate, submit, view]
+      conditions:
+        - field: principal.attributes.pool_type
+          operator: eq
+          value: "bounty"
+        - field: principal.attributes.pool_status
+          operator: eq
+          value: "active"
+        - field: principal.attributes.contribution_verified
+          operator: eq
+          value: true
+
+    # Allow trial pool access with reduced limits
+    - effect: allow
+      actions: [allocate, submit, view]
+      conditions:
+        - field: principal.attributes.pool_type
+          operator: eq
+          value: "trial"
+        - field: principal.attributes.pool_status
+          operator: eq
+          value: "active"
+        - field: resource.gpu_count
+          operator: lte
+          value: 1
+        - field: resource.duration_hours
+          operator: lte
+          value: 1
+
+    # Allow hackathon pool access during event
+    - effect: allow
+      actions: [allocate, submit, view, collaborate]
+      conditions:
+        - field: principal.attributes.pool_type
+          operator: eq
+          value: "hackathon"
+        - field: principal.attributes.pool_status
+          operator: eq
+          value: "active"
+        - field: principal.attributes.event_active
+          operator: eq
+          value: true
+
+    # Allow research pool access for verified academics
+    - effect: allow
+      actions: [allocate, submit, view]
+      conditions:
+        - field: principal.attributes.pool_type
+          operator: eq
+          value: "research"
+        - field: principal.attributes.pool_status
+          operator: eq
+          value: "active"
+        - field: principal.attributes.academic_verified
+          operator: eq
+          value: true
+
+    # Auto-approve for whitelisted domains (universities, research institutions)
+    - effect: allow
+      actions: [allocate]
+      conditions:
+        - field: principal.attributes.pool_auto_approve
+          operator: eq
+          value: true
+        - field: principal.attributes.domain
+          operator: contains
+          value: ".edu"
+
+    # Deny allocations that exceed pool limits
+    - effect: deny
+      actions: [allocate]
+      conditions:
+        - field: resource.amount
+          operator: gt
+          value: "principal.attributes.max_allocation"

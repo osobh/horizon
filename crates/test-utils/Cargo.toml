@@ -1,5 +1,5 @@
 [package]
-name = "exorust-test-utils"
+name = "stratoswarm-test-utils"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

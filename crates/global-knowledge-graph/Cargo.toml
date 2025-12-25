@@ -1,5 +1,5 @@
 [package]
-name = "exorust-global-knowledge-graph"
+name = "stratoswarm-global-knowledge-graph"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

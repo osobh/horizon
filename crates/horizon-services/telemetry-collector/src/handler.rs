@@ -1,15 +1,19 @@
 use anyhow::{Context, Result};
+use hpc_channels::TelemetryMessage;
 use prost::Message;
-use horizon_hpc_types::MetricBatch;
+use hpc_types::MetricBatch;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use crate::cardinality::CardinalityTracker;
+use crate::channels::TelemetryChannels;
 use crate::writers::{InfluxDbWriter, ParquetWriter};
 
 pub struct StreamHandler {
     cardinality_tracker: Arc<Mutex<CardinalityTracker>>,
     influxdb_writer: Arc<InfluxDbWriter>,
     parquet_writer: Arc<Mutex<ParquetWriter>>,
+    channels: TelemetryChannels,
 }
 
 impl StreamHandler {
@@ -22,6 +26,21 @@ impl StreamHandler {
             cardinality_tracker,
             influxdb_writer,
             parquet_writer,
+            channels: TelemetryChannels::new(),
+        }
+    }
+
+    pub fn with_channels(
+        cardinality_tracker: Arc<Mutex<CardinalityTracker>>,
+        influxdb_writer: Arc<InfluxDbWriter>,
+        parquet_writer: Arc<Mutex<ParquetWriter>>,
+        channels: TelemetryChannels,
+    ) -> Self {
+        Self {
+            cardinality_tracker,
+            influxdb_writer,
+            parquet_writer,
+            channels,
         }
     }
 
@@ -43,6 +62,14 @@ impl StreamHandler {
 
     /// Handle a received metric batch
     pub async fn handle_batch(&self, batch: MetricBatch) -> Result<()> {
+        let metric_count = (batch.gpu_metrics.len() + batch.cpu_metrics.len() + batch.nic_metrics.len()) as u32;
+
+        // Extract node_id from first metric if available
+        let node_id = batch.gpu_metrics.first()
+            .map(|m| m.host_id.clone())
+            .or_else(|| batch.cpu_metrics.first().map(|m| m.host_id.clone()))
+            .unwrap_or_else(|| "unknown".to_string());
+
         // Check cardinality
         {
             let mut tracker = self.cardinality_tracker.lock().await;
@@ -51,15 +78,39 @@ impl StreamHandler {
         }
 
         // Write to InfluxDB (async)
-        self.influxdb_writer.write_batch(&batch).await
-            .context("Failed to write to InfluxDB")?;
+        if let Err(e) = self.influxdb_writer.write_batch(&batch).await {
+            // Publish writer error event
+            self.channels.publish_alert(TelemetryMessage::WriterError {
+                writer_type: "influxdb".to_string(),
+                error: e.to_string(),
+            });
+            return Err(e).context("Failed to write to InfluxDB");
+        }
 
         // Write to Parquet (async)
         {
             let mut writer = self.parquet_writer.lock().await;
-            writer.write_batch(&batch).await
-                .context("Failed to write to Parquet")?;
+            if let Err(e) = writer.write_batch(&batch).await {
+                // Publish writer error event
+                self.channels.publish_alert(TelemetryMessage::WriterError {
+                    writer_type: "parquet".to_string(),
+                    error: e.to_string(),
+                });
+                return Err(e).context("Failed to write to Parquet");
+            }
         }
+
+        // Publish metrics received event via hpc-channels
+        let timestamp_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        self.channels.publish_metrics(TelemetryMessage::MetricsBatchReceived {
+            node_id,
+            metric_count,
+            timestamp_ms,
+        });
 
         Ok(())
     }
@@ -79,7 +130,7 @@ impl StreamHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use horizon_hpc_types::{GpuMetric, Timestamp};
+    use hpc_types::{GpuMetric, Timestamp};
 
     #[test]
     fn test_length_prefixed_encoding() {

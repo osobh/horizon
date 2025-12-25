@@ -7,6 +7,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 pub mod benchmarks;
+pub mod channels;
 pub mod engine;
 pub mod error;
 pub mod fitness;
@@ -19,9 +20,12 @@ pub mod agent_xp_sharing;
 #[cfg(test)]
 pub mod integration_tests;
 
-// Production self-evolution modules
+// Production self-evolution modules (require CUDA)
+#[cfg(feature = "cuda")]
 pub mod kernel_hot_swap;
+#[cfg(feature = "cuda")]
 pub mod performance_profiler;
+#[cfg(feature = "cuda")]
 pub mod marketplace;
 
 #[cfg(test)]
@@ -44,15 +48,18 @@ pub use fitness::{
 pub use mutation::{Mutation, MutationType};
 pub use population::{Individual, Population};
 
-// Production self-evolution exports
+// Production self-evolution exports (require CUDA)
+#[cfg(feature = "cuda")]
 pub use kernel_hot_swap::{
     KernelHotSwap, KernelMetadata, HotSwapEvent, ProductionWorkloadSimulator,
 };
+#[cfg(feature = "cuda")]
 pub use performance_profiler::{
     GpuPerformanceProfiler, GpuPerformanceMetrics, ProfilerConfig, PerformanceTrend,
     OptimizationAction, OptimizationCommand, AutonomousOptimizer, PerformanceFeedbackLoop,
     PerformanceStats,
 };
+#[cfg(feature = "cuda")]
 pub use marketplace::{
     EvolutionMarketplace, EvolutionPackage, BenchmarkResults, CompatibilityMatrix,
     UsageStatistics, DistributedConsensus, ValidationResult, EvolutionParameters,
@@ -69,6 +76,10 @@ pub use performance_xp_bridge::{
 pub use agent_xp_sharing::{
     AgentXPSharingCoordinator, KnowledgeType, KnowledgePackage, LearningResult,
     XPSharingConfig, LearningStats, XPSharingResult,
+};
+pub use channels::{
+    EvolutionChannelBridge, EvolutionEvent, CapabilityUpdate,
+    SharedEvolutionChannelBridge, shared_channel_bridge,
 };
 
 /// Evolution engine interface

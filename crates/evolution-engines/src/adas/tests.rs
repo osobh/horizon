@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::traits::EngineConfig;
-use exorust_agent_core::{Goal, GoalPriority};
+use stratoswarm_agent_core::{Goal, GoalPriority};
 
 #[test]
 fn test_adas_config_default() {
@@ -93,7 +93,7 @@ fn test_diversity_calculation() {
             architecture: engine.random_architecture(),
             behavior: engine.random_behavior(),
         };
-        let config = exorust_agent_core::AgentConfig {
+        let config = stratoswarm_agent_core::AgentConfig {
             name: format!("test_agent_{i}"),
             agent_type: "test".to_string(),
             max_memory: genome.architecture.memory_capacity,
@@ -101,7 +101,7 @@ fn test_diversity_calculation() {
             priority: 1,
             metadata: serde_json::Value::Null,
         };
-        let agent = exorust_agent_core::Agent::new(config).unwrap();
+        let agent = stratoswarm_agent_core::Agent::new(config).unwrap();
         population.push(crate::traits::EvolvableAgent { agent, genome });
     }
 

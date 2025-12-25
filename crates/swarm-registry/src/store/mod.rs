@@ -2,6 +2,7 @@
 
 use crate::mocks::memory::{MemoryTier, TierManager};
 use crate::{Result, SwarmRegistryError};
+use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -97,9 +98,9 @@ impl Default for StoreConfig {
 pub struct ContentAddressableStore {
     config: StoreConfig,
     /// Object metadata index
-    metadata: Arc<RwLock<HashMap<String, ObjectMetadata>>>,
+    metadata: Arc<DashMap<String, ObjectMetadata>>,
     /// Reverse index: content hash -> objects using it
-    content_index: Arc<RwLock<HashMap<String, HashSet<String>>>>,
+    content_index: Arc<DashMap<String, HashSet<String>>>,
     /// Tier manager for tier-aware storage
     tier_manager: Option<Arc<TierManager>>,
     /// Storage statistics
@@ -126,8 +127,8 @@ impl ContentAddressableStore {
 
         let store = Self {
             config,
-            metadata: Arc::new(RwLock::new(HashMap::new())),
-            content_index: Arc::new(RwLock::new(HashMap::new())),
+            metadata: Arc::new(DashMap::new()),
+            content_index: Arc::new(DashMap::new()),
             tier_manager,
             stats: Arc::new(RwLock::new(StorageStats::default())),
             gc_lock: Arc::new(Mutex::new(())),
@@ -146,14 +147,14 @@ impl ContentAddressableStore {
         debug!("Storing object {} with content hash {}", key, content_hash);
 
         // Check if content already exists (deduplication)
-        let metadata = self.metadata.read().await;
-        let existing = metadata.values().find(|m| m.hash == content_hash);
+        let existing = self.metadata.iter().find(|entry| entry.value().hash == content_hash);
 
-        if let Some(existing_meta) = existing {
+        if let Some(existing_entry) = existing {
             if self.config.enable_dedup {
                 info!("Content already exists, deduplicating");
 
                 // Clone the existing metadata for the new key
+                let existing_meta = existing_entry.value();
                 let new_meta = ObjectMetadata {
                     hash: existing_meta.hash.clone(),
                     size: existing_meta.size,
@@ -164,13 +165,10 @@ impl ContentAddressableStore {
                     created: self.current_timestamp(),
                 };
 
-                drop(metadata);
+                drop(existing_entry);
 
                 // Add metadata for the new key
-                {
-                    let mut metadata = self.metadata.write().await;
-                    metadata.insert(key.to_string(), new_meta);
-                }
+                self.metadata.insert(key.to_string(), new_meta);
 
                 // Update content index
                 self.add_reference(&content_hash, key).await?;
@@ -178,8 +176,6 @@ impl ContentAddressableStore {
                 return Ok(content_hash);
             }
         }
-
-        drop(metadata);
 
         // Determine storage tier
         let tier = self.select_tier(data.len() as u64);
@@ -201,18 +197,12 @@ impl ContentAddressableStore {
         };
 
         // Update indexes
-        {
-            let mut metadata = self.metadata.write().await;
-            metadata.insert(key.to_string(), meta.clone());
-        }
+        self.metadata.insert(key.to_string(), meta.clone());
 
-        {
-            let mut content_index = self.content_index.write().await;
-            content_index
-                .entry(content_hash.clone())
-                .or_insert_with(HashSet::new)
-                .insert(key.to_string());
-        }
+        self.content_index
+            .entry(content_hash.clone())
+            .or_insert_with(HashSet::new)
+            .insert(key.to_string());
 
         // Update stats
         self.update_stats_for_put(&meta).await?;
@@ -223,12 +213,10 @@ impl ContentAddressableStore {
     /// Get an object
     pub async fn get(&self, key: &str) -> Result<Vec<u8>> {
         // Get metadata
-        let metadata = self.metadata.read().await;
-        let meta = metadata
+        let meta = self.metadata
             .get(key)
             .ok_or_else(|| SwarmRegistryError::Storage(format!("Object not found: {}", key)))?
             .clone();
-        drop(metadata);
 
         // Read from storage
         let storage_path = self.get_storage_path(&meta.hash, &meta.tier);
@@ -247,26 +235,24 @@ impl ContentAddressableStore {
 
     /// Check if an object exists
     pub async fn exists(&self, key: &str) -> bool {
-        let metadata = self.metadata.read().await;
-        metadata.contains_key(key)
+        self.metadata.contains_key(key)
     }
 
     /// Delete an object
     pub async fn delete(&self, key: &str) -> Result<()> {
         // Get metadata
-        let mut metadata = self.metadata.write().await;
-        let meta = metadata
+        let (_, meta) = self.metadata
             .remove(key)
             .ok_or_else(|| SwarmRegistryError::Storage(format!("Object not found: {}", key)))?;
 
         // Update content index
-        let mut content_index = self.content_index.write().await;
-        if let Some(refs) = content_index.get_mut(&meta.hash) {
+        if let Some(mut refs) = self.content_index.get_mut(&meta.hash) {
             refs.remove(key);
 
             // If no more references and dedup is enabled, delete the content
             if refs.is_empty() && self.config.enable_dedup {
-                content_index.remove(&meta.hash);
+                drop(refs);
+                self.content_index.remove(&meta.hash);
 
                 // Delete from storage
                 let storage_path = self.get_storage_path(&meta.hash, &meta.tier);
@@ -282,10 +268,9 @@ impl ContentAddressableStore {
 
     /// List all objects
     pub async fn list(&self) -> Result<Vec<(String, ObjectMetadata)>> {
-        let metadata = self.metadata.read().await;
-        Ok(metadata
+        Ok(self.metadata
             .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
             .collect())
     }
 
@@ -304,10 +289,7 @@ impl ContentAddressableStore {
         let mut space_reclaimed = 0u64;
 
         // Find orphaned content (content with no references)
-        let metadata = self.metadata.read().await;
-        let content_index = self.content_index.read().await;
-
-        let all_content_hashes: HashSet<_> = metadata.values().map(|m| m.hash.clone()).collect();
+        let all_content_hashes: HashSet<_> = self.metadata.iter().map(|e| e.value().hash.clone()).collect();
 
         // Check all tier directories
         for tier in &["gpu", "cpu", "nvme", "ssd", "hdd"] {
@@ -341,8 +323,7 @@ impl ContentAddressableStore {
 
     /// Migrate object between tiers
     pub async fn migrate(&self, key: &str, target_tier: MemoryTier) -> Result<()> {
-        let mut metadata = self.metadata.write().await;
-        let meta = metadata
+        let mut meta = self.metadata
             .get_mut(key)
             .ok_or_else(|| SwarmRegistryError::Storage(format!("Object not found: {}", key)))?;
 
@@ -421,24 +402,24 @@ impl ContentAddressableStore {
     }
 
     async fn add_reference(&self, content_hash: &str, key: &str) -> Result<()> {
-        let mut content_index = self.content_index.write().await;
-        content_index
+        self.content_index
             .entry(content_hash.to_string())
             .or_insert_with(HashSet::new)
             .insert(key.to_string());
 
         // Update ref count in metadata if exists
-        let mut metadata = self.metadata.write().await;
-        if let Some(meta) = metadata.values_mut().find(|m| m.hash == content_hash) {
-            meta.ref_count += 1;
+        for mut entry in self.metadata.iter_mut() {
+            if entry.value().hash == content_hash {
+                entry.value_mut().ref_count += 1;
+                break;
+            }
         }
 
         Ok(())
     }
 
     async fn update_access_stats(&self, key: &str) -> Result<()> {
-        let mut metadata = self.metadata.write().await;
-        if let Some(meta) = metadata.get_mut(key) {
+        if let Some(mut meta) = self.metadata.get_mut(key) {
             meta.access_count += 1;
             meta.last_access = self.current_timestamp();
         }

@@ -17,13 +17,13 @@ pub use stats::MemoryIntegrationStats;
 pub use sync::{MemorySync, MemoryUpdateType, PendingMemoryUpdate};
 
 // Re-export MemoryType from agent-core
-pub use exorust_agent_core::memory::MemoryType;
+pub use stratoswarm_agent_core::memory::MemoryType;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::graph::{KnowledgeGraph, KnowledgeGraphConfig, NodeType};
-    use exorust_agent_core::{memory::*, Agent, AgentConfig, AgentId};
+    use stratoswarm_agent_core::{memory::*, Agent, AgentConfig, AgentId};
     use std::collections::HashMap;
 
     #[tokio::test]

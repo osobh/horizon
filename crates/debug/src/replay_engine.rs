@@ -6,10 +6,10 @@ use super::types::*;
 use crate::snapshot::MemorySnapshot;
 use crate::DebugError;
 use async_trait::async_trait;
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Replay engine trait for executing snapshots
@@ -49,7 +49,7 @@ pub trait ReplayEngine {
 
 /// Mock replay engine for testing and development
 pub struct MockReplayEngine {
-    sessions: Arc<RwLock<HashMap<Uuid, ReplaySession>>>,
+    sessions: Arc<DashMap<Uuid, ReplaySession>>,
     execution_delay_ms: u64,
 }
 
@@ -57,7 +57,7 @@ impl MockReplayEngine {
     /// Create new mock replay engine
     pub fn new() -> Self {
         Self {
-            sessions: Arc::new(RwLock::new(HashMap::new())),
+            sessions: Arc::new(DashMap::new()),
             execution_delay_ms: 100,
         }
     }
@@ -133,21 +133,19 @@ impl ReplayEngine for MockReplayEngine {
             results: None,
         };
 
-        let mut sessions = self.sessions.write().await;
-        sessions.insert(session_id, session.clone());
+        self.sessions.insert(session_id, session.clone());
 
         Ok(session)
     }
 
     async fn start_replay(&self, session_id: Uuid) -> Result<(), DebugError> {
         {
-            let mut sessions = self.sessions.write().await;
-            let session =
-                sessions
-                    .get_mut(&session_id)
-                    .ok_or_else(|| DebugError::ReplayFailed {
-                        reason: "Session not found".to_string(),
-                    })?;
+            let mut session = self
+                .sessions
+                .get_mut(&session_id)
+                .ok_or_else(|| DebugError::ReplayFailed {
+                    reason: "Session not found".to_string(),
+                })?;
 
             if session.status != ReplayStatus::Pending && session.status != ReplayStatus::Paused {
                 return Err(DebugError::ReplayFailed {
@@ -169,8 +167,7 @@ impl ReplayEngine for MockReplayEngine {
 
             match engine.simulate_execution(session_id_clone).await {
                 Ok(results) => {
-                    let mut sessions = sessions_clone.write().await;
-                    if let Some(session) = sessions.get_mut(&session_id_clone) {
+                    if let Some(mut session) = sessions_clone.get_mut(&session_id_clone) {
                         session.status = ReplayStatus::Completed;
                         session.end_time = Some(
                             SystemTime::now()
@@ -182,8 +179,7 @@ impl ReplayEngine for MockReplayEngine {
                     }
                 }
                 Err(_) => {
-                    let mut sessions = sessions_clone.write().await;
-                    if let Some(session) = sessions.get_mut(&session_id_clone) {
+                    if let Some(mut session) = sessions_clone.get_mut(&session_id_clone) {
                         session.status = ReplayStatus::Failed;
                     }
                 }
@@ -194,8 +190,8 @@ impl ReplayEngine for MockReplayEngine {
     }
 
     async fn pause_replay(&self, session_id: Uuid) -> Result<(), DebugError> {
-        let mut sessions = self.sessions.write().await;
-        let session = sessions
+        let mut session = self
+            .sessions
             .get_mut(&session_id)
             .ok_or_else(|| DebugError::ReplayFailed {
                 reason: "Session not found".to_string(),
@@ -212,8 +208,8 @@ impl ReplayEngine for MockReplayEngine {
     }
 
     async fn resume_replay(&self, session_id: Uuid) -> Result<(), DebugError> {
-        let mut sessions = self.sessions.write().await;
-        let session = sessions
+        let mut session = self
+            .sessions
             .get_mut(&session_id)
             .ok_or_else(|| DebugError::ReplayFailed {
                 reason: "Session not found".to_string(),
@@ -230,8 +226,8 @@ impl ReplayEngine for MockReplayEngine {
     }
 
     async fn step_replay(&self, session_id: Uuid) -> Result<(), DebugError> {
-        let sessions = self.sessions.read().await;
-        let session = sessions
+        let session = self
+            .sessions
             .get(&session_id)
             .ok_or_else(|| DebugError::ReplayFailed {
                 reason: "Session not found".to_string(),
@@ -249,8 +245,8 @@ impl ReplayEngine for MockReplayEngine {
     }
 
     async fn stop_replay(&self, session_id: Uuid) -> Result<ReplayResults, DebugError> {
-        let mut sessions = self.sessions.write().await;
-        let session = sessions
+        let mut session = self
+            .sessions
             .get_mut(&session_id)
             .ok_or_else(|| DebugError::ReplayFailed {
                 reason: "Session not found".to_string(),
@@ -288,8 +284,8 @@ impl ReplayEngine for MockReplayEngine {
     }
 
     async fn get_replay_status(&self, session_id: Uuid) -> Result<ReplayStatus, DebugError> {
-        let sessions = self.sessions.read().await;
-        let session = sessions
+        let session = self
+            .sessions
             .get(&session_id)
             .ok_or_else(|| DebugError::ReplayFailed {
                 reason: "Session not found".to_string(),
@@ -302,8 +298,8 @@ impl ReplayEngine for MockReplayEngine {
         &self,
         session_id: Uuid,
     ) -> Result<Option<ReplayResults>, DebugError> {
-        let sessions = self.sessions.read().await;
-        let session = sessions
+        let session = self
+            .sessions
             .get(&session_id)
             .ok_or_else(|| DebugError::ReplayFailed {
                 reason: "Session not found".to_string(),

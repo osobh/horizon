@@ -72,13 +72,13 @@ impl CudaToolkit {
     /// Detect CUDA installation
     pub fn detect(&mut self) -> CudaResult<&ToolkitInfo> {
         if self.info.is_some() {
-            return Ok(self.info.as_ref()?);
+            return Ok(self.info.as_ref().unwrap());
         }
 
         #[cfg(cuda_mock)]
         {
             self.info = Some(Self::create_mock_info());
-            return Ok(self.info.as_ref()?);
+            return Ok(self.info.as_ref().unwrap());
         }
 
         #[cfg(not(cuda_mock))]
