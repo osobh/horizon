@@ -28,7 +28,7 @@ pub struct ScaleTestConfig {
     pub monitoring_interval_ms: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScaleTestMetrics {
     /// Nodes successfully started
     pub nodes_active: usize,
@@ -245,7 +245,7 @@ impl ScaleTestOrchestrator {
         // This would use our existing DistributedSwarmEngine to start a node
         use stratoswarm_evolution_engines::{
             error::EvolutionEngineResult,
-            swarm_distributed::{config::DistributedSwarmConfig, DistributedSwarmEngine},
+            swarm_distributed::{DistributedSwarmConfig, DistributedSwarmEngine},
         };
 
         // Create a basic configuration for testing

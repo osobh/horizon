@@ -3,13 +3,15 @@
 //! This module handles intelligent work distribution across heterogeneous nodes,
 //! considering capabilities, constraints, and locality.
 
-use crate::{ClusterMeshError, ClusterNode, Job, NodeCapabilities, NodeClass, NodeStatus, Result};
+use crate::{
+    ClusterMeshError, ClusterNode, Job, JobPriority, NodeCapabilities, NodeClass, NodeStatus,
+    Result,
+};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
-use std::collections::BinaryHeap;
 use std::sync::Arc;
+use stratoswarm_core::{PrioritySchedulerQueue, SchedulerPriority};
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
@@ -84,10 +86,25 @@ pub enum JobStatus {
     Migrating,
 }
 
+/// Convert JobPriority to SchedulerPriority for branch-prediction-friendly queue.
+impl From<JobPriority> for SchedulerPriority {
+    #[inline]
+    fn from(priority: JobPriority) -> Self {
+        match priority {
+            JobPriority::Low => SchedulerPriority::Low,
+            JobPriority::Normal => SchedulerPriority::Normal,
+            JobPriority::High => SchedulerPriority::High,
+            JobPriority::Critical => SchedulerPriority::Critical,
+        }
+    }
+}
+
 /// Work distributor
 pub struct WorkDistributor {
     policy: RwLock<SchedulingPolicy>,
-    job_queue: Arc<Mutex<BinaryHeap<PrioritizedJob>>>,
+    /// Branch-prediction-friendly priority queue using segmented VecDeques
+    /// instead of BinaryHeap (O(1) enqueue/dequeue with predictable branches)
+    job_queue: Arc<Mutex<PrioritySchedulerQueue<Job>>>,
     scheduled_jobs: Arc<DashMap<Uuid, ScheduledJob>>,
     node_loads: Arc<DashMap<Uuid, NodeLoad>>,
     migration_threshold: f32,
@@ -103,39 +120,12 @@ struct NodeLoad {
     last_updated: Option<DateTime<Utc>>,
 }
 
-/// Prioritized job for the heap
-#[derive(Debug, Clone)]
-struct PrioritizedJob {
-    job: Job,
-    score: i32,
-}
-
-impl PartialEq for PrioritizedJob {
-    fn eq(&self, other: &Self) -> bool {
-        self.score == other.score
-    }
-}
-
-impl Eq for PrioritizedJob {}
-
-impl PartialOrd for PrioritizedJob {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for PrioritizedJob {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.score.cmp(&other.score)
-    }
-}
-
 impl WorkDistributor {
     /// Create a new work distributor
     pub fn new() -> Self {
         Self {
             policy: RwLock::new(SchedulingPolicy::BestFit),
-            job_queue: Arc::new(Mutex::new(BinaryHeap::new())),
+            job_queue: Arc::new(Mutex::new(PrioritySchedulerQueue::new())),
             scheduled_jobs: Arc::new(DashMap::new()),
             node_loads: Arc::new(DashMap::new()),
             migration_threshold: 0.8, // 80% load threshold for migration
@@ -170,10 +160,10 @@ impl WorkDistributor {
 
             // Process pending jobs
             if let Ok(mut queue) = self.job_queue.try_lock() {
-                while let Some(prioritized_job) = queue.pop() {
+                while let Some(job) = queue.dequeue() {
                     // This would attempt to schedule the job
                     // For now, we'll just log it
-                    tracing::debug!("Processing job: {}", prioritized_job.job.id);
+                    tracing::debug!("Processing job: {}", job.id);
                 }
             }
         }
@@ -825,28 +815,46 @@ mod tests {
     }
 
     #[test]
-    fn test_job_priority_heap() {
-        let mut heap = BinaryHeap::new();
+    fn test_job_priority_queue() {
+        use stratoswarm_core::{PrioritySchedulerQueue, SchedulerPriority};
 
-        heap.push(PrioritizedJob {
-            job: create_test_job(1, 1.0, 0),
-            score: 10,
-        });
+        let mut queue = PrioritySchedulerQueue::<Job>::new();
 
-        heap.push(PrioritizedJob {
-            job: create_test_job(2, 2.0, 0),
-            score: 20,
-        });
+        // Enqueue jobs with different priorities
+        let low_job = create_test_job(1, 1.0, 0);
+        let high_job = create_test_job(2, 2.0, 0);
+        let critical_job = create_test_job(3, 3.0, 0);
 
-        heap.push(PrioritizedJob {
-            job: create_test_job(3, 3.0, 0),
-            score: 15,
-        });
+        // Enqueue in arbitrary order
+        queue.enqueue(low_job.clone(), SchedulerPriority::Low);
+        queue.enqueue(high_job.clone(), SchedulerPriority::High);
+        queue.enqueue(critical_job.clone(), SchedulerPriority::Critical);
 
-        // Should pop in order of score
-        assert_eq!(heap.pop().unwrap().score, 20);
-        assert_eq!(heap.pop().unwrap().score, 15);
-        assert_eq!(heap.pop().unwrap().score, 10);
+        // Should dequeue in priority order: Critical > High > Low
+        assert_eq!(queue.dequeue().unwrap().id, critical_job.id);
+        assert_eq!(queue.dequeue().unwrap().id, high_job.id);
+        assert_eq!(queue.dequeue().unwrap().id, low_job.id);
+    }
+
+    #[test]
+    fn test_job_priority_conversion() {
+        // Test JobPriority to SchedulerPriority conversion
+        assert_eq!(
+            SchedulerPriority::from(JobPriority::Low),
+            SchedulerPriority::Low
+        );
+        assert_eq!(
+            SchedulerPriority::from(JobPriority::Normal),
+            SchedulerPriority::Normal
+        );
+        assert_eq!(
+            SchedulerPriority::from(JobPriority::High),
+            SchedulerPriority::High
+        );
+        assert_eq!(
+            SchedulerPriority::from(JobPriority::Critical),
+            SchedulerPriority::Critical
+        );
     }
 }
 

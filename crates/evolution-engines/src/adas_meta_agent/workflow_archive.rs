@@ -81,8 +81,14 @@ impl WorkflowArchive {
         }
 
         let recent = &self.performance_history[self.performance_history.len() - 5..];
-        let oldest_recent = recent.first()?.performance.success_rate;
-        let newest_recent = recent.last()?.performance.success_rate;
+        let oldest_recent = match recent.first() {
+            Some(r) => r.performance.success_rate,
+            None => return false,
+        };
+        let newest_recent = match recent.last() {
+            Some(r) => r.performance.success_rate,
+            None => return false,
+        };
 
         (newest_recent - oldest_recent).abs() < 0.01
     }

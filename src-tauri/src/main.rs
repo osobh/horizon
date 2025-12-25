@@ -12,6 +12,7 @@ mod cluster_bridge;
 mod commands;
 mod data_pipeline_bridge;
 mod edge_proxy_bridge;
+mod ephemeral_bridge;
 mod events;
 mod evolution_bridge;
 mod gpu_compiler_bridge;
@@ -175,6 +176,18 @@ fn main() {
             commands::scheduler::resume_tenant,
             commands::scheduler::get_scheduler_summary,
             commands::scheduler::get_fair_share,
+            // Ephemeral session commands
+            commands::ephemeral::create_ephemeral_session,
+            commands::ephemeral::get_invite_url,
+            commands::ephemeral::join_ephemeral_session,
+            commands::ephemeral::get_ephemeral_presence,
+            commands::ephemeral::get_ephemeral_session,
+            commands::ephemeral::list_ephemeral_sessions,
+            commands::ephemeral::end_ephemeral_session,
+            commands::ephemeral::leave_ephemeral_session,
+            commands::ephemeral::update_ephemeral_activity,
+            commands::ephemeral::get_ephemeral_stats,
+            commands::ephemeral::cleanup_expired_sessions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");

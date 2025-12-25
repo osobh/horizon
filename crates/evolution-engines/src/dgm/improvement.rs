@@ -165,8 +165,14 @@ impl GrowthHistory {
             return 0.0;
         }
 
-        let (start_gen, start_fitness) = recent_history.first()?;
-        let (end_gen, end_fitness) = recent_history.last()?;
+        let (start_gen, start_fitness) = match recent_history.first() {
+            Some(v) => v,
+            None => return 0.0,
+        };
+        let (end_gen, end_fitness) = match recent_history.last() {
+            Some(v) => v,
+            None => return 0.0,
+        };
 
         if end_gen == start_gen {
             return 0.0;
@@ -187,5 +193,28 @@ impl GrowthHistory {
             .count();
 
         recent_discoveries as f64 / window.max(1) as f64
+    }
+
+    /// Get pattern success rate based on positive fitness deltas
+    pub fn pattern_success_rate(&self, window: u32) -> f64 {
+        let current_gen = self.fitness_history.last().map(|(g, _)| *g).unwrap_or(0);
+        let start_gen = current_gen.saturating_sub(window);
+
+        let recent_applications: Vec<_> = self
+            .pattern_applications
+            .iter()
+            .filter(|(_, _, gen)| *gen >= start_gen)
+            .collect();
+
+        if recent_applications.is_empty() {
+            return 0.0;
+        }
+
+        let successful = recent_applications
+            .iter()
+            .filter(|(_, delta, _)| *delta > 0.0)
+            .count();
+
+        successful as f64 / recent_applications.len() as f64
     }
 }

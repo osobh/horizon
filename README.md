@@ -327,6 +327,38 @@ cargo tauri build --features minimal
 - [x] **Synergy 5**: Intelligent edge proxy (`edge_proxy_bridge.rs`, `EdgeProxy.tsx`)
 - [x] **Synergy 6**: Tensor mesh operations (`tensor_mesh_bridge.rs`, `TensorMesh.tsx`)
 
+### Phase 9: Ephemeral Access System ✓
+Time-limited collaboration for external users with zero-trust security.
+
+- [x] **hpc-ephemeral-identity** crate (144 tests)
+  - Ephemeral identity state machine with automatic expiration
+  - Ed25519-signed tokens with two-factor redemption
+  - Capability-based access control with rate limits
+  - Integration with Zero-Trust SessionManager
+- [x] **Quota Manager Services**
+  - `EphemeralQuotaService` - Time-bounded quotas with burst support
+  - `ResourcePoolService` - Bounty pools with approval workflows
+  - Background workers for expiry processing
+  - Database migrations (ephemeral_quotas, resource_pools, time_windows)
+- [x] **Warp EphemeralRelayAuth** (925 lines)
+  - Token validation for relay requests
+  - Target-based authorization with bandwidth limits
+  - Priority-based relay queuing
+  - Full test coverage
+- [x] **Nebula EphemeralPeerRegistry**
+  - Peer lifecycle management with expiration
+  - Channel-level access control
+  - Connection quality tracking
+- [x] **Horizon Tauri Bridge**
+  - `ephemeral_bridge.rs` (~600 lines)
+  - 11 Tauri commands for session management
+  - Real-time presence updates via events
+- [x] **Frontend Components**
+  - `ephemeralStore.ts` - Zustand store with Tauri bindings
+  - `InviteLinkGenerator.tsx` - Session creation with permissions
+  - `JoinPage.tsx` - Invite redemption with code validation
+  - `EphemeralPresenceBar.tsx` - Real-time participant display
+
 ## GPU Support
 
 | Platform | GPU Type | Detection Method |

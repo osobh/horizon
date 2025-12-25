@@ -7,6 +7,7 @@ use super::gpu_kernels::GpuKernelManager;
 use super::query_types::*;
 use crate::error::KnowledgeGraphResult;
 use crate::graph::{Edge, EdgeType, KnowledgeGraph, Node, NodeType};
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Query execution engine with algorithm implementations
@@ -63,12 +64,12 @@ impl QueryExecutor {
             vec![]
         };
 
-        // Filter by properties
-        for node in candidates {
-            if self.node_matches_properties(&node, &properties) {
-                matching_nodes.push(node.clone());
-            }
-        }
+        // Filter by properties (parallelized with Rayon)
+        matching_nodes = candidates
+            .par_iter()
+            .filter(|node| self.node_matches_properties(node, &properties))
+            .map(|node| (*node).clone())
+            .collect();
 
         // Apply limit and offset
         matching_nodes = self.apply_pagination(matching_nodes, query.limit, query.offset);
@@ -437,10 +438,18 @@ impl QueryExecutor {
             vec![] // Would need all nodes
         };
 
-        for node in candidates {
-            let outgoing = graph.get_outgoing_edges(&node.id).len();
-            let incoming = graph.get_incoming_edges(&node.id).len();
-            scores.insert(node.id.clone(), (outgoing + incoming) as f64);
+        // Parallelized degree centrality computation with Rayon
+        let parallel_scores: Vec<_> = candidates
+            .par_iter()
+            .map(|node| {
+                let outgoing = graph.get_outgoing_edges(&node.id).len();
+                let incoming = graph.get_incoming_edges(&node.id).len();
+                (node.id.clone(), (outgoing + incoming) as f64)
+            })
+            .collect();
+
+        for (id, score) in parallel_scores {
+            scores.insert(id, score);
         }
 
         Ok(scores)

@@ -23,6 +23,7 @@ mod invitation;
 mod service;
 mod token;
 pub mod integration;
+pub mod workers;
 
 pub use capabilities::{Capability, CapabilitySet, RateLimits, TimeRestrictions};
 pub use error::{EphemeralError, Result};
@@ -36,3 +37,4 @@ pub use integration::{
     EphemeralSessionAdapter, EphemeralSessionConfig, EphemeralSessionBinding,
     EphemeralVerificationResult, EphemeralSessionActivity,
 };
+pub use workers::{CleanupWorker, CleanupWorkerConfig, CleanupWorkerHandle, CleanupStats};

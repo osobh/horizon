@@ -40,6 +40,9 @@ rand = { workspace = true }
 dashmap = { workspace = true }
 parking_lot = { workspace = true }
 
+# Logging
+tracing = { workspace = true }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 proptest = { workspace = true }

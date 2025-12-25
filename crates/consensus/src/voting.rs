@@ -2,6 +2,7 @@
 
 use crate::error::{ConsensusError, ConsensusResult};
 use crate::validator::{ValidatorId, ValidatorInfo};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -294,34 +295,45 @@ impl VotingRound {
         Ok(None)
     }
 
-    /// Count total stake for votes of given type
+    /// Count total stake for votes of given type (parallelized with Rayon)
     fn count_votes_by_type(&self, vote_type: VoteType) -> u64 {
-        let mut total_stake = 0;
+        // Collect votes into a Vec for parallel iteration
+        let votes: Vec<_> = self.votes.iter().collect();
 
-        for ((validator_id, v_type), _vote) in &self.votes {
-            if *v_type == vote_type {
-                if let Some(stake) = self.validators.get(validator_id) {
-                    total_stake += stake;
-                }
-            }
-        }
-
-        total_stake
+        // Use Rayon parallel fold/reduce for stake counting
+        votes
+            .par_iter()
+            .filter(|((_, v_type), _)| *v_type == vote_type)
+            .map(|((validator_id, _), _)| {
+                self.validators.get(validator_id).copied().unwrap_or(0)
+            })
+            .sum()
     }
 
-    /// Group commit votes by their value hash
+    /// Group commit votes by their value hash (parallelized with Rayon)
     fn group_commit_votes_by_value(&self) -> HashMap<Option<String>, u64> {
-        let mut votes_by_value: HashMap<Option<String>, u64> = HashMap::new();
+        // Collect votes into a Vec for parallel iteration
+        let votes: Vec<_> = self.votes.iter().collect();
 
-        for ((validator_id, vote_type), vote) in &self.votes {
-            if *vote_type == VoteType::Commit {
-                if let Some(stake) = self.validators.get(validator_id) {
-                    *votes_by_value.entry(vote.value_hash.clone()).or_insert(0) += stake;
+        // Use Rayon parallel fold/reduce for grouping
+        votes
+            .par_iter()
+            .filter(|((_, vote_type), _)| *vote_type == VoteType::Commit)
+            .fold(
+                HashMap::new,
+                |mut acc: HashMap<Option<String>, u64>, ((validator_id, _), vote)| {
+                    if let Some(stake) = self.validators.get(validator_id) {
+                        *acc.entry(vote.value_hash.clone()).or_insert(0) += stake;
+                    }
+                    acc
+                },
+            )
+            .reduce(HashMap::new, |mut a, b| {
+                for (k, v) in b {
+                    *a.entry(k).or_insert(0) += v;
                 }
-            }
-        }
-
-        votes_by_value
+                a
+            })
     }
 
     /// Get all votes for a specific type

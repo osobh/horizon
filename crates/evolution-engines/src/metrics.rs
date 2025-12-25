@@ -78,10 +78,16 @@ impl PerformanceHistory {
         }
 
         let recent = &self.best_fitness_history[self.best_fitness_history.len() - window..];
-        let first = recent.first()?;
-        let last = recent.last()?;
+        let first = match recent.first() {
+            Some(f) => *f,
+            None => return 0.0,
+        };
+        let last = match recent.last() {
+            Some(l) => *l,
+            None => return 0.0,
+        };
 
-        if *first == 0.0 {
+        if first == 0.0 {
             return 0.0;
         }
 
@@ -363,8 +369,8 @@ mod tests {
         metrics.custom_metrics.insert("test".to_string(), 42.0);
 
         // Test JSON serialization
-        let json = serde_json::to_string(&metrics)?;
-        let deserialized: EvolutionMetrics = serde_json::from_str(&json)?;
+        let json = serde_json::to_string(&metrics).unwrap();
+        let deserialized: EvolutionMetrics = serde_json::from_str(&json).unwrap();
 
         assert_eq!(deserialized.generation, 10);
         assert_eq!(deserialized.best_fitness, 95.5);
@@ -378,8 +384,8 @@ mod tests {
         history.add_generation(20.0, 10.0, 0.8, Duration::from_millis(110));
 
         // Test JSON serialization
-        let json = serde_json::to_string(&history)?;
-        let deserialized: PerformanceHistory = serde_json::from_str(&json)?;
+        let json = serde_json::to_string(&history).unwrap();
+        let deserialized: PerformanceHistory = serde_json::from_str(&json).unwrap();
 
         assert_eq!(deserialized.best_fitness_history.len(), 2);
         assert_eq!(deserialized.best_fitness_history[0], 10.0);

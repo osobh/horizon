@@ -1,6 +1,7 @@
 //! Generic population management for evolution engines
 
 use crate::traits::Evolvable;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use uuid::Uuid;
@@ -78,31 +79,43 @@ impl<E: Evolvable> Population<E> {
             .iter()
             .filter(|i| i.fitness.is_some())
             .max_by(|a, b| {
-                a.fitness
-                    .as_ref()
-                    ?
-                    .partial_cmp(b.fitness.as_ref()?)
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                match (a.fitness.as_ref(), b.fitness.as_ref()) {
+                    (Some(fa), Some(fb)) => fa.partial_cmp(fb).unwrap_or(std::cmp::Ordering::Equal),
+                    _ => std::cmp::Ordering::Equal,
+                }
             })
     }
 
-    /// Select individuals based on fitness
-    pub fn select_top(&self, n: usize) -> Vec<&Individual<E>> {
-        let mut sorted: Vec<_> = self
+    /// Select individuals based on fitness using parallel sorting for large populations
+    pub fn select_top(&self, n: usize) -> Vec<&Individual<E>>
+    where
+        E::Fitness: Send + Sync,
+    {
+        // Collect indices of individuals with fitness
+        let mut indexed: Vec<(usize, &E::Fitness)> = self
             .individuals
             .iter()
-            .filter(|i| i.fitness.is_some())
+            .enumerate()
+            .filter_map(|(idx, i)| i.fitness.as_ref().map(|f| (idx, f)))
             .collect();
 
-        sorted.sort_by(|a, b| {
-            b.fitness
-                .as_ref()
-                ?
-                .partial_cmp(a.fitness.as_ref().unwrap())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        // Use parallel sort for large populations (threshold: 100 individuals)
+        if indexed.len() > 100 {
+            indexed.par_sort_by(|a, b| {
+                b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal)
+            });
+        } else {
+            indexed.sort_by(|a, b| {
+                b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
 
-        sorted.into_iter().take(n).collect()
+        // Return references to top n individuals
+        indexed
+            .into_iter()
+            .take(n)
+            .map(|(idx, _)| &self.individuals[idx])
+            .collect()
     }
 
     /// Increment generation

@@ -26,5 +26,9 @@ criterion = { workspace = true }
 name = "gpu_latency"
 harness = false
 
+[[bench]]
+name = "priority_queue_bench"
+harness = false
+
 [lints]
 workspace = true

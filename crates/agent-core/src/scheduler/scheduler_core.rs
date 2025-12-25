@@ -4,16 +4,29 @@ use super::resources::ResourceAllocation;
 use super::tasks::{QueueStats, ScheduledTask, TaskStatus};
 use crate::agent::AgentId;
 use crate::error::{AgentError, AgentResult};
-use crate::goal::Goal;
+use crate::goal::{Goal, GoalPriority};
 use chrono::Utc;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::BinaryHeap;
 use std::sync::Arc;
 use std::time::Duration;
+use stratoswarm_core::{PrioritySchedulerQueue, SchedulerPriority};
 use tokio::sync::Semaphore;
 use uuid::Uuid;
+
+/// Convert GoalPriority to SchedulerPriority for branch-prediction-friendly queue.
+impl From<GoalPriority> for SchedulerPriority {
+    #[inline]
+    fn from(priority: GoalPriority) -> Self {
+        match priority {
+            GoalPriority::Low => SchedulerPriority::Low,
+            GoalPriority::Normal => SchedulerPriority::Normal,
+            GoalPriority::High => SchedulerPriority::High,
+            GoalPriority::Critical => SchedulerPriority::Critical,
+        }
+    }
+}
 
 /// Scheduling policy
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,8 +60,9 @@ pub struct SchedulerCore {
     resource_limits: ResourceAllocation,
     /// Currently allocated resources
     allocated_resources: Arc<RwLock<ResourceAllocation>>,
-    /// Task queue
-    task_queue: Arc<RwLock<BinaryHeap<ScheduledTask>>>,
+    /// Branch-prediction-friendly priority queue using segmented VecDeques
+    /// instead of BinaryHeap (O(1) enqueue/dequeue with predictable branches)
+    task_queue: Arc<RwLock<PrioritySchedulerQueue<ScheduledTask>>>,
     /// Running tasks
     running_tasks: DashMap<Uuid, ScheduledTask>,
     /// Agent allocations
@@ -70,7 +84,7 @@ impl SchedulerCore {
             policy,
             resource_limits,
             allocated_resources: Arc::new(RwLock::new(ResourceAllocation::empty())),
-            task_queue: Arc::new(RwLock::new(BinaryHeap::new())),
+            task_queue: Arc::new(RwLock::new(PrioritySchedulerQueue::new())),
             running_tasks: DashMap::new(),
             agent_allocations: DashMap::new(),
             max_concurrent_tasks,
@@ -94,13 +108,14 @@ impl SchedulerCore {
         }
 
         // Create scheduled task
+        let priority: SchedulerPriority = goal.priority.into();
         let task = ScheduledTask::new(agent_id, goal, required_resources, estimated_duration);
         let task_id = task.id;
 
         // Add to queue
         {
             let mut queue = self.task_queue.write();
-            queue.push(task);
+            queue.enqueue(task, priority);
         }
 
         // Try to run tasks
@@ -133,7 +148,7 @@ impl SchedulerCore {
         let mut temp_tasks = Vec::new();
         let mut found = false;
 
-        while let Some(mut task) = queue.pop() {
+        while let Some(mut task) = queue.dequeue() {
             if task.goal.description.contains(task_id) {
                 task.update_status(TaskStatus::Cancelled);
                 found = true;
@@ -143,9 +158,10 @@ impl SchedulerCore {
             }
         }
 
-        // Put back non-cancelled tasks
+        // Put back non-cancelled tasks with their original priorities
         for task in temp_tasks {
-            queue.push(task);
+            let priority: SchedulerPriority = task.goal.priority.into();
+            queue.enqueue(task, priority);
         }
 
         if found {
@@ -197,7 +213,7 @@ impl SchedulerCore {
                 let mut temp_tasks = Vec::new();
                 let mut selected_task = None;
 
-                while let Some(task) = queue.pop() {
+                while let Some(task) = queue.dequeue() {
                     let mut test_allocation = allocated.clone();
                     test_allocation.add(&task.resources);
 
@@ -209,9 +225,10 @@ impl SchedulerCore {
                     }
                 }
 
-                // Put back tasks we couldn't run
+                // Put back tasks we couldn't run with their original priorities
                 for task in temp_tasks {
-                    queue.push(task);
+                    let priority: SchedulerPriority = task.goal.priority.into();
+                    queue.enqueue(task, priority);
                 }
 
                 selected_task

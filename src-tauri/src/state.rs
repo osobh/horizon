@@ -5,6 +5,7 @@
 use crate::cluster_bridge::ClusterBridge;
 use crate::data_pipeline_bridge::DataPipelineBridge;
 use crate::edge_proxy_bridge::EdgeProxyBridge;
+use crate::ephemeral_bridge::EphemeralBridge;
 use crate::evolution_bridge::EvolutionBridge;
 use crate::gpu_compiler_bridge::GpuCompilerBridge;
 use crate::kernel_bridge::KernelBridge;
@@ -45,6 +46,8 @@ pub struct AppState {
     pub edge_proxy: Arc<EdgeProxyBridge>,
     /// SLAI bridge for GPU scheduling and multi-tenant job management
     pub slai: Arc<SlaiBridge>,
+    /// Ephemeral bridge for time-bounded collaboration sessions
+    pub ephemeral: Arc<EphemeralBridge>,
 }
 
 impl AppState {
@@ -63,6 +66,7 @@ impl AppState {
             data_pipeline: Arc::new(DataPipelineBridge::new()),
             edge_proxy: Arc::new(EdgeProxyBridge::new()),
             slai: Arc::new(SlaiBridge::new()),
+            ephemeral: Arc::new(EphemeralBridge::new()),
         }
     }
 

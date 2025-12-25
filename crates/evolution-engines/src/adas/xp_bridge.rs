@@ -1,14 +1,12 @@
 //! XP system integration bridge for ADAS engine
 
 use super::engine::AdasEngine;
-use crate::traits::EvolvableAgent;
+use crate::traits::{EvolvableAgent, EvolutionEngine};
 use crate::error::{EvolutionEngineError, EvolutionEngineResult};
 use stratoswarm_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
 use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use async_trait::async_trait;
-
 /// XP-aware ADAS fitness function that evaluates agents based on their architecture and behavior evolution
 pub struct AdasXPFitnessFunction {
     /// Base architecture fitness weight
@@ -73,7 +71,6 @@ impl AdasXPFitnessFunction {
     }
 }
 
-#[async_trait]
 impl XPFitnessFunction for AdasXPFitnessFunction {
     async fn evaluate_agent_fitness(&self, agent: &Agent) -> f64 {
         let stats = agent.stats().await;
@@ -287,24 +284,31 @@ impl AdasXPEngine {
             total_xp += stats.current_xp;
         }
 
+        // Calculate average agent level (calculate_level is async, so we do it sequentially)
+        let average_level = if !agent_population.is_empty() {
+            let mut total_level: f64 = 0.0;
+            for agent in agent_population.iter() {
+                total_level += agent.calculate_level().await as f64;
+            }
+            total_level / agent_population.len() as f64
+        } else {
+            1.0
+        };
+
         Ok(AdasXPStats {
             // ADAS stats
-            adas_generation: adas_metrics.generation,
+            adas_generation: adas_metrics.generation as u64,
             adas_best_fitness: adas_metrics.best_fitness,
-            adas_diversity: adas_metrics.diversity,
+            adas_diversity: adas_metrics.diversity_score,
             meta_workflows_discovered: total_workflows as u64,
             meta_search_iteration: current_iteration as u64,
             best_meta_performance: best_performance,
-            
+
             // XP stats
             xp_evolution_stats: xp_stats,
             agent_level_distribution: level_distribution,
             total_agent_xp: total_xp,
-            average_agent_level: if !agent_population.is_empty() {
-                agent_population.iter().map(|a| a.calculate_level()).sum::<f64>() / agent_population.len() as f64
-            } else {
-                1.0
-            },
+            average_agent_level: average_level,
         })
     }
 

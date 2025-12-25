@@ -9,14 +9,14 @@
 use crate::error::{CostOptimizationError, CostOptimizationResult};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use ordered_float::OrderedFloat;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
+use stratoswarm_core::{PrioritySchedulerQueue, SchedulerPriority};
 use tokio::sync::{Mutex, Semaphore};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// GPU device information
@@ -194,6 +194,17 @@ struct GpuDeviceState {
     last_allocation: DateTime<Utc>,
 }
 
+/// Convert request priority (u32) to SchedulerPriority for branch-prediction-friendly queue.
+#[inline]
+fn priority_to_scheduler(priority: u32) -> SchedulerPriority {
+    match priority {
+        0 => SchedulerPriority::Low,
+        1 => SchedulerPriority::Normal,
+        2 => SchedulerPriority::High,
+        _ => SchedulerPriority::Critical, // 3 or higher
+    }
+}
+
 /// GPU optimizer for intelligent resource allocation
 pub struct GpuOptimizer {
     /// Configuration
@@ -202,39 +213,13 @@ pub struct GpuOptimizer {
     devices: Arc<DashMap<String, Arc<Mutex<GpuDeviceState>>>>,
     /// Active allocations by ID
     allocations: Arc<DashMap<Uuid, GpuAllocation>>,
-    /// Pending requests queue
-    pending_requests: Arc<Mutex<BinaryHeap<PrioritizedRequest>>>,
+    /// Branch-prediction-friendly priority queue using segmented VecDeques
+    /// instead of BinaryHeap (O(1) enqueue/dequeue with predictable branches)
+    pending_requests: Arc<Mutex<PrioritySchedulerQueue<GpuAllocationRequest>>>,
     /// Round-robin state
     round_robin_index: Arc<RwLock<usize>>,
     /// Metrics
     metrics: Arc<RwLock<GpuOptimizerMetrics>>,
-}
-
-/// Prioritized allocation request
-#[derive(Debug, Clone)]
-struct PrioritizedRequest {
-    request: GpuAllocationRequest,
-    priority_score: OrderedFloat<f64>,
-}
-
-impl PartialEq for PrioritizedRequest {
-    fn eq(&self, other: &Self) -> bool {
-        self.priority_score == other.priority_score
-    }
-}
-
-impl Eq for PrioritizedRequest {}
-
-impl PartialOrd for PrioritizedRequest {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for PrioritizedRequest {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.priority_score.cmp(&other.priority_score)
-    }
 }
 
 /// GPU optimizer metrics
@@ -261,7 +246,7 @@ impl GpuOptimizer {
             config: Arc::new(config),
             devices: Arc::new(DashMap::new()),
             allocations: Arc::new(DashMap::new()),
-            pending_requests: Arc::new(Mutex::new(BinaryHeap::new())),
+            pending_requests: Arc::new(Mutex::new(PrioritySchedulerQueue::new())),
             round_robin_index: Arc::new(RwLock::new(0)),
             metrics: Arc::new(RwLock::new(GpuOptimizerMetrics::default())),
         })
@@ -672,16 +657,11 @@ impl GpuOptimizer {
 
     /// Queue a pending request
     async fn queue_request(&self, request: GpuAllocationRequest) {
-        let priority_score = OrderedFloat(
-            (request.priority as f64) * 1000.0 + (1.0 / request.memory_required) * 10.0,
-        );
-
-        let prioritized = PrioritizedRequest {
-            request,
-            priority_score,
-        };
-
-        self.pending_requests.lock().await.push(prioritized);
+        let priority = priority_to_scheduler(request.priority);
+        self.pending_requests
+            .lock()
+            .await
+            .enqueue(request, priority);
     }
 
     /// Process pending allocation requests
@@ -689,19 +669,17 @@ impl GpuOptimizer {
         let mut pending = self.pending_requests.lock().await;
         let mut processed = Vec::new();
 
-        while let Some(prioritized) = pending.pop() {
-            match self.try_allocate(&prioritized.request).await {
+        while let Some(request) = pending.dequeue() {
+            match self.try_allocate(&request).await {
                 Ok(allocation) => {
-                    info!(
-                        "Processed pending request: {}",
-                        prioritized.request.request_id
-                    );
+                    info!("Processed pending request: {}", request.request_id);
                     self.update_metrics_on_allocation(&allocation);
-                    processed.push(prioritized.request.request_id);
+                    processed.push(request.request_id);
                 }
                 Err(_) => {
                     // Re-queue if still can't allocate
-                    pending.push(prioritized);
+                    let priority = priority_to_scheduler(request.priority);
+                    pending.enqueue(request, priority);
                     break;
                 }
             }

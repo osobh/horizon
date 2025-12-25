@@ -49,6 +49,7 @@ dashmap = "6.1"
 chrono.workspace = true
 
 # Internal dependencies
+stratoswarm-core = { path = "../stratoswarm-core" }
 # stratoswarm-agent-core = { path = "../agent-core" }
 # stratoswarm-net = { path = "../net" }
 # stratoswarm-monitoring = { path = "../monitoring" }

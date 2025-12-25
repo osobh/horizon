@@ -14,3 +14,25 @@ BINDGEN_EXTRA_CLANG_ARGS = "-I/usr/lib/gcc/x86_64-linux-gnu/14/include -I/usr/in
 # export RUSTG_GPU_MEMORY_MODEL=distributed
 # export RUSTG_OPTIMIZATION_LEVEL=3
 # export RUSTG_TARGET_CAPABILITY=8.9
+
+# ===========================================
+# CPU Target Optimization Flags (from parallel programming lecture)
+# Enable native CPU features for maximum performance
+# ===========================================
+
+[build]
+# Enable native CPU features (AVX2, etc.) for local development builds
+# Comment this out for cross-compilation or distribution builds
+rustflags = ["-C", "target-cpu=native"]
+
+# Linux x86_64: Enable AVX2 SIMD instructions
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=native", "-C", "target-feature=+avx2"]
+
+# macOS Apple Silicon: Native ARM optimizations
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "target-cpu=native"]
+
+# macOS Intel: Enable AVX2
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "target-cpu=native", "-C", "target-feature=+avx2"]

@@ -36,6 +36,7 @@ chrono = { version = "0.4", features = ["serde"] }
 # Dependencies for new modules
 zstd = "0.13"
 rand = "0.8"
+rayon = { workspace = true }  # Parallel iteration for vote aggregation
 
 [features]
 default = []

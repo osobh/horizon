@@ -2,14 +2,12 @@
 
 use crate::swarm::{SwarmEngine, SwarmConfig};
 use crate::swarm_particle::Particle;
-use crate::traits::EvolvableAgent;
+use crate::traits::{EvolvableAgent, EvolutionEngine};
 use crate::error::{EvolutionEngineError, EvolutionEngineResult};
 use stratoswarm_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
 use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use async_trait::async_trait;
-
 /// Swarm-specific XP fitness function that rewards collective optimization and social learning
 pub struct SwarmXPFitnessFunction {
     /// Weight for individual particle performance
@@ -154,7 +152,6 @@ impl SwarmXPFitnessFunction {
     }
 }
 
-#[async_trait]
 impl XPFitnessFunction for SwarmXPFitnessFunction {
     async fn evaluate_agent_fitness(&self, agent: &Agent) -> f64 {
         let stats = agent.stats().await;
@@ -404,7 +401,7 @@ impl SwarmXPEngine {
         // Record convergence history
         let swarm_metrics = self.swarm_engine.metrics();
         self.convergence_history.write().await.push((
-            swarm_metrics.generation,
+            swarm_metrics.generation as u64,
             swarm_metrics.best_fitness,
             swarm_metrics.convergence_rate,
         ));
@@ -475,7 +472,7 @@ impl SwarmXPEngine {
         
         // Calculate convergence metrics
         let convergence_rate = swarm_metrics.convergence_rate;
-        let swarm_diversity = swarm_metrics.diversity;
+        let swarm_diversity = swarm_metrics.diversity_score;
         
         // Best global fitness achieved
         let best_global_fitness = convergence_history.iter()

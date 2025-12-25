@@ -27,6 +27,7 @@ stratoswarm-runtime = { path = "../runtime" }
 stratoswarm-monitoring = { path = "../monitoring" }
 
 # Evolution-specific dependencies
+clap = "2.34"  # CLI argument parsing for binaries
 ndarray = { version = "0.16", features = ["serde", "rayon"] }
 ordered-float = "4.3"
 dashmap = "6.1"
@@ -37,6 +38,7 @@ itertools = "0.13"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3.8"
 lazy_static = "1.4"
+wide = "0.7"  # SIMD primitives for vectorized computation
 
 [dev-dependencies]
 tokio-test = "0.4"

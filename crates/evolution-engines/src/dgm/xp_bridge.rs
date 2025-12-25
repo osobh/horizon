@@ -2,13 +2,12 @@
 
 use super::engine::DgmEngine;
 use super::improvement::{GrowthPattern, GrowthHistory};
-use crate::traits::EvolvableAgent;
+use crate::traits::{EvolvableAgent, EvolutionEngine};
 use crate::error::{EvolutionEngineError, EvolutionEngineResult};
 use stratoswarm_evolution::{XPFitnessFunction, AgentEvolutionEngine, XPEvolutionEngine, XPEvolutionStats, AgentFitnessScore, EvolutionXPRewardCalculator, XPRewardBreakdown};
 use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use async_trait::async_trait;
 
 /// DGM-specific XP fitness function that rewards self-improvement and pattern discovery
 pub struct DgmXPFitnessFunction {
@@ -94,10 +93,10 @@ impl DgmXPFitnessFunction {
     /// Evaluate pattern discovery contribution to fitness
     fn evaluate_pattern_discovery_fitness(&self, _agent: &Agent, growth_history: Option<&GrowthHistory>) -> f64 {
         if let Some(history) = growth_history {
-            // Score based on pattern discovery rate and success
-            let discovery_rate = history.get_discovery_rate();
-            let pattern_success_rate = history.get_pattern_success_rate();
-            
+            // Score based on pattern discovery rate and success (using window of 10 generations)
+            let discovery_rate = history.discovery_rate(10);
+            let pattern_success_rate = history.pattern_success_rate(10);
+
             (discovery_rate * 0.6 + pattern_success_rate * 0.4).min(1.0)
         } else {
             0.0
@@ -130,7 +129,6 @@ impl DgmXPFitnessFunction {
     }
 }
 
-#[async_trait]
 impl XPFitnessFunction for DgmXPFitnessFunction {
     async fn evaluate_agent_fitness(&self, agent: &Agent) -> f64 {
         let stats = agent.stats().await;

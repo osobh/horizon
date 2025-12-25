@@ -17,6 +17,7 @@ use cust::prelude::*;
 use uuid::Uuid;
 use futures::future::try_join_all;
 use dashmap::DashMap;
+use wide::f64x4;  // SIMD primitives for 4-wide f64 operations
 
 /// Comprehensive GPU performance metrics
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -432,14 +433,62 @@ impl GpuPerformanceProfiler {
             .map(|m| m.throughput_ops_per_sec)
             .collect();
         
-        // Simple linear regression for trend
+        // Simple linear regression for trend with SIMD optimization
         let n = throughputs.len() as f64;
         let x_values: Vec<f64> = (0..throughputs.len()).map(|i| i as f64).collect();
-        
-        let sum_x: f64 = x_values.iter().sum();
-        let sum_y: f64 = throughputs.iter().sum();
-        let sum_xy: f64 = x_values.iter().zip(&throughputs).map(|(x, y)| x * y).sum();
-        let sum_x_squared: f64 = x_values.iter().map(|x| x * x).sum();
+
+        // SIMD-optimized sums: process 4 values at a time
+        let chunks = x_values.len() / 4;
+        let remainder = x_values.len() % 4;
+
+        let mut sum_x_simd = f64x4::splat(0.0);
+        let mut sum_y_simd = f64x4::splat(0.0);
+        let mut sum_xy_simd = f64x4::splat(0.0);
+        let mut sum_x2_simd = f64x4::splat(0.0);
+
+        for chunk in 0..chunks {
+            let i = chunk * 4;
+            let x = f64x4::new([
+                x_values[i],
+                x_values[i + 1],
+                x_values[i + 2],
+                x_values[i + 3],
+            ]);
+            let y = f64x4::new([
+                throughputs[i],
+                throughputs[i + 1],
+                throughputs[i + 2],
+                throughputs[i + 3],
+            ]);
+
+            sum_x_simd += x;
+            sum_y_simd += y;
+            sum_xy_simd += x * y;
+            sum_x2_simd += x * x;
+        }
+
+        // Reduce SIMD vectors to scalars
+        let sum_x_arr: [f64; 4] = sum_x_simd.into();
+        let sum_y_arr: [f64; 4] = sum_y_simd.into();
+        let sum_xy_arr: [f64; 4] = sum_xy_simd.into();
+        let sum_x2_arr: [f64; 4] = sum_x2_simd.into();
+
+        let mut sum_x: f64 = sum_x_arr.iter().sum();
+        let mut sum_y: f64 = sum_y_arr.iter().sum();
+        let mut sum_xy: f64 = sum_xy_arr.iter().sum();
+        let mut sum_x_squared: f64 = sum_x2_arr.iter().sum();
+
+        // Handle remainder with scalar operations
+        let base = chunks * 4;
+        for i in 0..remainder {
+            let idx = base + i;
+            let x = x_values[idx];
+            let y = throughputs[idx];
+            sum_x += x;
+            sum_y += y;
+            sum_xy += x * y;
+            sum_x_squared += x * x;
+        }
         
         // Calculate slope (trend direction)
         let slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x_squared - sum_x * sum_x);
