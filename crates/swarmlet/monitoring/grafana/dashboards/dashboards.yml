@@ -1,0 +1,59 @@
+# Grafana Dashboard Provisioning for StratoSwarm
+apiVersion: 1
+
+providers:
+  # Main dashboards directory
+  - name: 'stratoswarm-dashboards'
+    orgId: 1
+    folder: 'StratoSwarm'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json
+
+  # System dashboards
+  - name: 'system-dashboards'
+    orgId: 1
+    folder: 'System'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards/system
+
+  # GPU dashboards
+  - name: 'gpu-dashboards'
+    orgId: 1
+    folder: 'GPU Performance'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 5
+    options:
+      path: /etc/grafana/provisioning/dashboards/gpu
+
+  # Consensus dashboards
+  - name: 'consensus-dashboards'
+    orgId: 1
+    folder: 'Consensus'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards/consensus
+
+  # Evolution dashboards
+  - name: 'evolution-dashboards'
+    orgId: 1
+    folder: 'Evolution'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 15
+    options:
+      path: /etc/grafana/provisioning/dashboards/evolution

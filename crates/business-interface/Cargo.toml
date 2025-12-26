@@ -1,0 +1,43 @@
+[package]
+name = "stratoswarm-business-interface"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Business interface layer for ExoRust with natural language goal submission and LLM integration"
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+uuid = { workspace = true, features = ["v4", "serde"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+dashmap = { workspace = true }
+async-openai = { workspace = true }
+regex = "1.11"
+reqwest = { version = "0.11", features = ["json"] }
+async-trait = "0.1"
+rand = "0.8"
+colored = "2.0"
+env_logger = "0.10"
+sysinfo = "0.29"
+
+# ExoRust dependencies for system integration (temporarily disabled for compilation)
+# stratoswarm-agent-core = { path = "../agent-core" }
+# stratoswarm-bootstrap = { path = "../bootstrap" }
+# stratoswarm-runtime = { path = "../runtime" }
+# stratoswarm-monitoring = { path = "../monitoring" }
+# stratoswarm-synthesis = { path = "../synthesis" }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+criterion = { workspace = true }
+
+[features]
+default = ["mock"]
+mock = []

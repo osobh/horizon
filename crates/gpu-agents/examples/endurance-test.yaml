@@ -1,0 +1,49 @@
+name: "24-Hour Endurance Test"
+description: "Extended duration benchmark for stability and memory leak detection"
+
+benchmarks:
+  - type: scalability
+    enabled: true
+    config:
+      initial_agents: 100000
+      max_agents: 10000000
+      scaling_factor: 1.5
+      iterations: 50
+      hold_duration_seconds: 60     # 1 minute per level
+      memory_tracking: true
+      performance_logging_interval: 30
+      
+  - type: llm
+    enabled: true
+    config:
+      batch_sizes: [16, 32, 64]
+      sequence_lengths: [512, 1024]
+      test_duration_seconds: 3600   # 1 hour
+      continuous_mode: true
+      memory_limit_gb: 24
+      
+  - type: knowledge_graph
+    enabled: true
+    config:
+      initial_nodes: 100000
+      max_nodes: 50000000
+      edge_density: 0.15
+      query_complexity: "mixed"    # Mix of simple, medium, complex
+      test_duration_seconds: 7200  # 2 hours
+      operation_mix:
+        insert: 0.4
+        query: 0.4
+        update: 0.15
+        delete: 0.05
+      
+  - type: evolution
+    enabled: true
+    config:
+      population_size: 50000
+      generations: 10000
+      mutation_rate: 0.015
+      crossover_rate: 0.85
+      selection_method: "ranked"
+      parallel_populations: 8
+      adaptive_parameters: true
+      convergence_threshold: 0.001

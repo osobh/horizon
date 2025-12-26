@@ -1,0 +1,63 @@
+[package]
+name = "swarm-registry"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.45", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+bytes = "1.8"
+futures = "0.3"
+
+# Concurrent data structures
+dashmap = { workspace = true }
+
+# Storage and hashing
+sha2 = "0.10"
+digest = "0.10"
+hex = "0.4"
+bincode = "1.3"
+
+# Container/rootfs building
+tar = "0.4"
+flate2 = "1.0"
+serde_yaml = "0.9"
+
+# P2P networking  
+libp2p = { version = "0.53", features = ["tokio", "kad", "gossipsub"] }
+
+# OCI/Docker compatibility
+oci-spec = "0.7"
+chrono = "0.4"
+
+# File system operations
+tempfile = "3.14"
+walkdir = "2.5"
+
+# HTTP client for downloading packages
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Progress tracking
+indicatif = "0.17"
+
+# Internal dependencies
+# TODO: Re-enable when these crates are available
+# cluster-mesh = { path = "../cluster-mesh" }
+# memory = { path = "../memory" }
+# net = { path = "../net" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.14"
+criterion = "0.5"
+proptest = "1.6"
+mockall = "0.13"
+

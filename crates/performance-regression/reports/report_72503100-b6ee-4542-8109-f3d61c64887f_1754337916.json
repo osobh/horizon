@@ -1,0 +1,86 @@
+{
+  "id": "72503100-b6ee-4542-8109-f3d61c64887f",
+  "title": "CPU Usage Report",
+  "generated_at": "2025-08-04T20:05:16.607057127Z",
+  "time_range": [
+    "2025-08-04T20:00:16.607053347Z",
+    "2025-08-04T20:04:16.607053347Z"
+  ],
+  "format": "Json",
+  "sections": [
+    {
+      "title": "Performance Summary",
+      "content_type": "Summary",
+      "data": {
+        "metric_types": [
+          "CpuUsage"
+        ],
+        "statistics_count": 1,
+        "total_metrics": 5
+      }
+    },
+    {
+      "title": "Metric Statistics",
+      "content_type": "Table",
+      "data": [
+        {
+          "average": 150.0,
+          "maximum": 200.0,
+          "metric_type": "CpuUsage",
+          "minimum": 100.0,
+          "p95": 190.0,
+          "p99": 199.0,
+          "sample_count": 100,
+          "std_deviation": 25.0,
+          "window_end": "2025-08-04T20:05:16.607056717Z",
+          "window_start": "2025-08-04T19:05:16.607056507Z"
+        }
+      ]
+    },
+    {
+      "title": "Performance Trends",
+      "content_type": "Chart",
+      "data": {
+        "chart_type": "time_series",
+        "data": [
+          {
+            "metric_type": "CpuUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-04T20:00:16.607053347Z",
+            "value": 100.0
+          },
+          {
+            "metric_type": "CpuUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-04T20:01:16.607053347Z",
+            "value": 110.0
+          },
+          {
+            "metric_type": "CpuUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-04T20:02:16.607053347Z",
+            "value": 120.0
+          },
+          {
+            "metric_type": "CpuUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-04T20:03:16.607053347Z",
+            "value": 130.0
+          },
+          {
+            "metric_type": "CpuUsage",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-04T20:04:16.607053347Z",
+            "value": 140.0
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {}
+}

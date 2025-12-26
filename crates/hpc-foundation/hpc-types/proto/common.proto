@@ -1,0 +1,21 @@
+syntax = "proto3";
+package horizon.common.v1;
+
+// Health check service
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string version = 2;
+  int64 uptime_seconds = 3;
+}
+
+service Health {
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// Timestamp with nanosecond precision
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}

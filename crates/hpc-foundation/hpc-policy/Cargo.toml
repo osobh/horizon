@@ -1,0 +1,32 @@
+[package]
+name = "hpc-policy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Policy engine with RBAC/ABAC for HPC Platform"
+
+[dependencies]
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+# Pattern matching
+glob = "0.3"
+regex = "1.10"
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "policy_benchmarks"
+harness = false
+
+[lib]
+name = "hpc_policy"
+path = "src/lib.rs"

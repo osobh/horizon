@@ -33,6 +33,8 @@ uuid = { version = "1.11", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 sysinfo = "0.30"  # For system/GPU detection
 hex = "0.4"  # For encoding merkle roots
+dashmap = "6.1"  # Lock-free concurrent HashMap
+rand = "0.8"  # Random number generation for ephemeral tokens
 
 # Internal crate dependencies
 hpc-channels.workspace = true
@@ -86,10 +88,6 @@ gpu-compiler = ["rustg"]
 # Provides multi-vendor GPU support (Metal, CUDA, ROCm)
 # Includes fair-share scheduler with tenant management
 embedded-slai = ["slai"]
-
-# Embed evolution engines for self-improving AI systems
-# Provides ADAS, DGM, and SwarmAgentic evolution engines
-# embedded-evolution = ["evolution-engines"]
 
 # Embed nebula for RDMA transport and ZK proofs
 # NOTE: RDMA requires Linux with InfiniBand/RoCE

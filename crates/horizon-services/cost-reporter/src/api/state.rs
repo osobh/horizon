@@ -1,0 +1,73 @@
+use hpc_channels::{broadcast, channels, CostMessage};
+use sqlx::PgPool;
+use std::sync::Arc;
+use tokio::sync::broadcast::Sender as BroadcastSender;
+
+use crate::config::ReporterConfig;
+use crate::db::{Repository, ViewManager};
+use crate::export::{CsvExporter, JsonExporter, MarkdownExporter};
+use crate::reports::{ChargebackGenerator, CostForecaster, ShowbackGenerator, TrendAnalyzer};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub config: Arc<ReporterConfig>,
+    pub db: PgPool,
+    pub repository: Arc<Repository>,
+    pub view_manager: Arc<ViewManager>,
+    pub showback_generator: Arc<ShowbackGenerator>,
+    pub chargeback_generator: Arc<ChargebackGenerator>,
+    pub trend_analyzer: Arc<TrendAnalyzer>,
+    pub forecaster: Arc<CostForecaster>,
+    pub csv_exporter: Arc<CsvExporter>,
+    pub json_exporter: Arc<JsonExporter>,
+    pub markdown_exporter: Arc<MarkdownExporter>,
+    /// Channel for report events.
+    pub report_events: BroadcastSender<CostMessage>,
+    /// Channel for cost alerts (anomalies).
+    pub alert_events: BroadcastSender<CostMessage>,
+}
+
+impl AppState {
+    pub fn new(config: ReporterConfig, pool: PgPool) -> Self {
+        let repository = Arc::new(Repository::new(pool.clone()));
+        let view_manager = Arc::new(ViewManager::new(pool.clone()));
+
+        let showback_generator = Arc::new(ShowbackGenerator::new(repository.as_ref().clone()));
+        let chargeback_generator = Arc::new(ChargebackGenerator::new(repository.as_ref().clone()));
+        let trend_analyzer = Arc::new(TrendAnalyzer::new());
+        let forecaster = Arc::new(CostForecaster::new());
+
+        let csv_exporter = Arc::new(CsvExporter::new());
+        let json_exporter = Arc::new(JsonExporter::new());
+        let markdown_exporter = Arc::new(MarkdownExporter::new());
+
+        let report_events = broadcast::<CostMessage>(channels::COST_REPORTS, 256);
+        let alert_events = broadcast::<CostMessage>(channels::COST_ALERTS, 64);
+
+        Self {
+            config: Arc::new(config),
+            db: pool,
+            repository,
+            view_manager,
+            showback_generator,
+            chargeback_generator,
+            trend_analyzer,
+            forecaster,
+            csv_exporter,
+            json_exporter,
+            markdown_exporter,
+            report_events,
+            alert_events,
+        }
+    }
+
+    /// Publish a report event (non-blocking).
+    pub fn publish_report_event(&self, event: CostMessage) {
+        let _ = self.report_events.send(event);
+    }
+
+    /// Publish an alert event (non-blocking).
+    pub fn publish_alert_event(&self, event: CostMessage) {
+        let _ = self.alert_events.send(event);
+    }
+}

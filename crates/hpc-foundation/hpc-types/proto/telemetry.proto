@@ -1,0 +1,76 @@
+syntax = "proto3";
+package horizon.telemetry.v1;
+
+import "common.proto";
+
+// GPU metrics from DCGM/NVML
+message GpuMetric {
+  string host_id = 1;
+  string gpu_id = 2;
+  horizon.common.v1.Timestamp timestamp = 3;
+
+  // Utilization metrics
+  float utilization = 4;
+  float sm_occupancy = 5;
+  float memory_used_gb = 6;
+  float memory_total_gb = 7;
+
+  // Bandwidth metrics
+  float pcie_tx_gbps = 8;
+  float pcie_rx_gbps = 9;
+  float nvlink_bandwidth_gbps = 10;
+
+  // Health metrics
+  float temperature_celsius = 11;
+  float power_watts = 12;
+
+  // Error tracking
+  bool ecc_errors = 13;
+  string mig_profile = 14;
+}
+
+// CPU metrics
+message CpuMetric {
+  string host_id = 1;
+  horizon.common.v1.Timestamp timestamp = 2;
+
+  uint32 socket = 3;
+  float utilization = 4;
+  float ipc = 5;
+  uint64 cache_misses = 6;
+}
+
+// NIC metrics
+message NicMetric {
+  string host_id = 1;
+  horizon.common.v1.Timestamp timestamp = 2;
+
+  string interface = 3;
+  float rx_gbps = 4;
+  float tx_gbps = 5;
+  uint64 errors = 6;
+  uint64 drops = 7;
+}
+
+// Batch of metrics for efficient transmission
+message MetricBatch {
+  repeated GpuMetric gpu_metrics = 1;
+  repeated CpuMetric cpu_metrics = 2;
+  repeated NicMetric nic_metrics = 3;
+}
+
+// Telemetry service responses
+message PublishResponse {
+  bool accepted = 1;
+  string message = 2;
+}
+
+message StreamResponse {
+  uint64 metrics_received = 1;
+}
+
+// Telemetry service
+service TelemetryCollector {
+  rpc PublishMetrics(MetricBatch) returns (PublishResponse);
+  rpc StreamMetrics(stream MetricBatch) returns (StreamResponse);
+}

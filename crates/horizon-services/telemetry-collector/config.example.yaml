@@ -1,0 +1,29 @@
+server:
+  listen_addr: "0.0.0.0:5001"
+  max_connections: 1000
+  connection_timeout_secs: 300
+
+security:
+  tls_cert_path: "/etc/horizon/certs/server.pem"
+  tls_key_path: "/etc/horizon/certs/server-key.pem"
+  tls_ca_path: "/etc/horizon/certs/ca.pem"
+
+influxdb:
+  url: "http://localhost:8086"
+  org: "horizon"
+  bucket: "telemetry"
+  token: "${INFLUXDB_TOKEN}"  # Will be substituted from environment
+
+parquet:
+  output_dir: "/var/lib/horizon/telemetry"
+  rotation_interval_secs: 3600  # Rotate files every hour
+  compression: "snappy"  # Options: snappy, gzip, lz4, zstd, none
+
+limits:
+  max_cardinality: 100000  # Maximum unique metric series
+  max_batch_size: 1000     # Maximum metrics per batch
+  backpressure_threshold: 5000  # Queue depth threshold
+
+observability:
+  metrics_port: 9091
+  log_level: "info"  # Options: trace, debug, info, warn, error

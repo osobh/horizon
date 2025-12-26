@@ -1,0 +1,32 @@
+[package]
+name = "stratoswarm-integration-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+stratoswarm-runtime = { path = "../runtime" }
+stratoswarm-memory = { path = "../memory" }
+stratoswarm-storage = { path = "../storage" }
+stratoswarm-net = { path = "../net" }
+stratoswarm-evolution = { path = "../evolution" }
+stratoswarm-agent-core = { path = "../agent-core" }
+stratoswarm-knowledge-graph = { path = "../knowledge-graph" }
+stratoswarm-evolution-engines = { path = "../evolution-engines" }
+stratoswarm-synthesis = { path = "../synthesis" }
+stratoswarm-cuda = { path = "../cuda" }
+stratoswarm-monitoring = { path = "../monitoring" }
+stratoswarm-debug = { path = "../debug" }
+cpu-agents = { path = "../cpu-agents" }
+# gpu-agents = { path = "../gpu-agents" } # Temporarily disabled due to compilation issues
+swarmlet = { path = "../swarmlet" }
+stratoswarm-zero-config = { path = "../zero-config" }
+stratoswarm-cluster-mesh = { path = "../cluster-mesh" }
+tokio = { workspace = true, features = ["test-util", "macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3.8"
+futures = "0.3"
+uuid = { version = "1.5", features = ["v4", "serde"] }
+rand = "0.8"

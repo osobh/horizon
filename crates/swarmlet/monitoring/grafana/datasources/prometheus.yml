@@ -1,0 +1,67 @@
+# Grafana Datasource Configuration for StratoSwarm
+apiVersion: 1
+
+datasources:
+  # Primary Prometheus instance
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      prometheusType: Prometheus
+      prometheusVersion: 2.40.0
+      queryTimeout: 60s
+      timeInterval: 5s
+      incrementalQuerying: false
+      disableMetricsLookup: false
+      customQueryParameters: ""
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: jaeger
+    uid: prometheus-main
+
+  # Loki for logs
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: true
+    jsonData:
+      maxLines: 1000
+      timeout: 60
+      httpHeaderName1: X-Scope-OrgID
+    secureJsonData:
+      httpHeaderValue1: tenant1
+    uid: loki-main
+
+  # TestData for demo purposes
+  - name: TestData
+    type: testdata
+    access: proxy
+    isDefault: false
+    editable: true
+    uid: testdata-demo
+
+  # Optional: Remote Prometheus for multi-cluster
+  # - name: Prometheus-Remote
+  #   type: prometheus
+  #   access: proxy
+  #   url: http://remote-prometheus:9090
+  #   isDefault: false
+  #   editable: true
+  #   uid: prometheus-remote
+
+  # Optional: InfluxDB for high-frequency metrics
+  # - name: InfluxDB
+  #   type: influxdb
+  #   access: proxy
+  #   url: http://influxdb:8086
+  #   database: stratoswarm
+  #   user: admin
+  #   isDefault: false
+  #   editable: true
+  #   uid: influxdb-main

@@ -1,0 +1,52 @@
+[package]
+name = "horizon-governor"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "governor"
+path = "src/main.rs"
+
+[dependencies]
+# Internal dependencies
+hpc-error = { path = "../../hpc-foundation/hpc-error", features = ["sqlx", "axum"] }
+hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
+hpc-config = { path = "../../hpc-foundation/hpc-config" }
+hpc-policy = { path = "../../hpc-foundation/hpc-policy" }
+hpc-channels = { path = "../../../../01-hpc-channels" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Web framework
+axum = { workspace = true }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+# Database
+sqlx = { workspace = true, features = ["postgres", "uuid", "chrono", "runtime-tokio-rustls", "migrate"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# OpenAPI
+utoipa = { version = "4.0", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }

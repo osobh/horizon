@@ -1,0 +1,42 @@
+[package]
+name = "stratoswarm-streaming"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tokio = { workspace = true, features = ["fs", "io-util", "time"] }
+tokio-stream = "0.1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+async-stream = "0.3"
+
+# GPU dependencies
+cust = { workspace = true, optional = true }
+cudarc = { workspace = true, optional = true }
+
+# Performance
+rayon = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { workspace = true }
+proptest = { workspace = true }
+tempfile = "3.0"
+
+[features]
+default = []
+cuda = ["cust", "cudarc"]
+
+# Benchmarks will be added later
+# [[bench]]
+# name = "streaming_benchmarks"  
+# harness = false

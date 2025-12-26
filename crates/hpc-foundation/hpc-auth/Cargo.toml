@@ -1,0 +1,50 @@
+[package]
+name = "hpc-auth"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Authentication and TLS for HPC Platform"
+
+[dependencies]
+# Workspace dependencies
+hpc-error = { path = "../hpc-error" }
+hpc-crypto = { path = "../hpc-crypto" }
+
+# TLS & certificate handling
+rustls = { workspace = true }
+rustls-pemfile = { workspace = true }
+rcgen = { workspace = true }
+x509-parser = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+
+# Utilities
+chrono = "0.4"
+pem = "3.0"
+time = { version = "0.3", features = ["macros"] }
+
+[dev-dependencies]
+# Testing
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
+proptest = { workspace = true }
+
+# Benchmarking
+criterion = { workspace = true }
+
+[[bench]]
+name = "auth_bench"
+harness = false
+
+[lib]
+name = "hpc_auth"
+path = "src/lib.rs"

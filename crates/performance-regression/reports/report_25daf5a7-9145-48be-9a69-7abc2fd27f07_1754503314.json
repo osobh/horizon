@@ -1,0 +1,121 @@
+{
+  "id": "25daf5a7-9145-48be-9a69-7abc2fd27f07",
+  "title": "Report with Metadata",
+  "generated_at": "2025-08-06T18:01:54.776400015Z",
+  "time_range": [
+    "2025-08-06T17:51:54.776396805Z",
+    "2025-08-06T18:00:54.776396805Z"
+  ],
+  "format": "Json",
+  "sections": [
+    {
+      "title": "Performance Summary",
+      "content_type": "Summary",
+      "data": {
+        "metric_types": [
+          "ResponseTime"
+        ],
+        "statistics_count": 1,
+        "total_metrics": 10
+      }
+    },
+    {
+      "title": "Metric Statistics",
+      "content_type": "Table",
+      "data": [
+        {
+          "average": 150.0,
+          "maximum": 200.0,
+          "metric_type": "ResponseTime",
+          "minimum": 100.0,
+          "p95": 190.0,
+          "p99": 199.0,
+          "sample_count": 100,
+          "std_deviation": 25.0,
+          "window_end": "2025-08-06T18:01:54.776399695Z",
+          "window_start": "2025-08-06T17:01:54.776399535Z"
+        }
+      ]
+    },
+    {
+      "title": "Performance Trends",
+      "content_type": "Chart",
+      "data": {
+        "chart_type": "time_series",
+        "data": [
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:51:54.776396805Z",
+            "value": 100.0
+          },
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:52:54.776396805Z",
+            "value": 110.0
+          },
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:53:54.776396805Z",
+            "value": 120.0
+          },
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:54:54.776396805Z",
+            "value": 130.0
+          },
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:55:54.776396805Z",
+            "value": 140.0
+          },
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:56:54.776396805Z",
+            "value": 150.0
+          },
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:57:54.776396805Z",
+            "value": 160.0
+          },
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:58:54.776396805Z",
+            "value": 170.0
+          },
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T17:59:54.776396805Z",
+            "value": 180.0
+          },
+          {
+            "metric_type": "ResponseTime",
+            "source": "test",
+            "tags": {},
+            "timestamp": "2025-08-06T18:00:54.776396805Z",
+            "value": 190.0
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {}
+}

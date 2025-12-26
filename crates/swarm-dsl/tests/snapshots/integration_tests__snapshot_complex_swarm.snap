@@ -1,0 +1,86 @@
+---
+source: crates/swarm-dsl/tests/integration_tests.rs
+assertion_line: 535
+expression: serialized
+---
+{
+  "imports": [],
+  "templates": [],
+  "swarms": [
+    {
+      "name": "production_app",
+      "agents": {
+        "frontend": {
+          "agent_type": "WebAgent",
+          "type_params": [],
+          "properties": {
+            "replicas": {
+              "Range": {
+                "start": 5.0,
+                "end": 20.0
+              }
+            },
+            "tier_preference": {
+              "Array": [
+                {
+                  "String": "GPU"
+                },
+                {
+                  "String": "CPU"
+                }
+              ]
+            },
+            "resources": {
+              "Object": {
+                "cpu": {
+                  "Number": 2.0
+                },
+                "memory": {
+                  "String": "4Gi"
+                }
+              }
+            },
+            "evolution": {
+              "Object": {
+                "strategy": {
+                  "String": "conservative"
+                }
+              }
+            }
+          }
+        },
+        "backend": {
+          "agent_type": "ComputeAgent",
+          "type_params": [],
+          "properties": {
+            "replicas": {
+              "Number": 10.0
+            },
+            "requires_gpu": {
+              "Boolean": true
+            }
+          }
+        }
+      },
+      "connections": [
+        {
+          "from": "frontend",
+          "to": "backend",
+          "properties": {
+            "protocol": {
+              "String": "grpc"
+            }
+          }
+        }
+      ],
+      "policies": {
+        "zero_downtime_updates": {
+          "Boolean": true
+        }
+      },
+      "functions": [],
+      "evolution": null,
+      "affinity": null
+    }
+  ]
+}

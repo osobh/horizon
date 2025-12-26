@@ -1,0 +1,43 @@
+[package]
+name = "stratoswarm-runtime"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+cust = { workspace = true, optional = true }
+# nvrtc = { workspace = true, optional = true }  # Temporarily disabled
+
+# UUID generation and random numbers
+uuid.workspace = true
+rand.workspace = true
+
+# HPC Channels integration
+hpc-channels = { path = "../../../01-hpc-channels", optional = true, features = ["rkyv-codec"] }
+
+# Internal dependencies
+stratoswarm-memory = { path = "../memory" }
+
+# Async utilities
+futures = "0.3"
+
+[features]
+default = []
+cuda = ["cust", "stratoswarm-memory/cuda"]
+cuda-alt = ["stratoswarm-memory/cuda-alt"]
+hpc-channels = ["dep:hpc-channels"]
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+tokio-test = "0.4"
+futures = "0.3"
+

@@ -1,0 +1,96 @@
+# Ephemeral Identity Access Policy
+#
+# Controls access for users with ephemeral identities (time-limited external access).
+# Enforces:
+# - Active identity state
+# - Valid device binding
+# - Risk score thresholds
+# - Capability-based access
+#
+# Usage: Apply this policy to enable identity verification for ephemeral users.
+
+apiVersion: policy.horizon.dev/v1
+kind: Policy
+metadata:
+  name: ephemeral-identity-access
+  version: "1"
+  description: "Policy for ephemeral identity verification and access control"
+spec:
+  principals:
+    # Match users with ephemeral identity attributes
+    - type: user
+      pattern: "*"
+  resources:
+    # Collaboration resources
+    - type: notebook
+      pattern: "*"
+    - type: session
+      pattern: "*"
+    # Training resources
+    - type: training_run
+      pattern: "*"
+    - type: model
+      pattern: "*"
+    # Data resources
+    - type: dataset
+      pattern: "*"
+  rules:
+    # Allow full access for low-risk active ephemeral users
+    - effect: allow
+      actions: [read, write, execute, collaborate]
+      conditions:
+        - field: principal.attributes.ephemeral_identity
+          operator: eq
+          value: true
+        - field: principal.attributes.identity_state
+          operator: eq
+          value: "active"
+        - field: principal.attributes.risk_level
+          operator: eq
+          value: "low"
+        - field: principal.attributes.device_bound
+          operator: eq
+          value: true
+
+    # Allow limited access for medium-risk users (read + collaborate only)
+    - effect: allow
+      actions: [read, collaborate]
+      conditions:
+        - field: principal.attributes.ephemeral_identity
+          operator: eq
+          value: true
+        - field: principal.attributes.identity_state
+          operator: eq
+          value: "active"
+        - field: principal.attributes.risk_level
+          operator: eq
+          value: "medium"
+
+    # Allow read-only for high-risk users
+    - effect: allow
+      actions: [read]
+      conditions:
+        - field: principal.attributes.ephemeral_identity
+          operator: eq
+          value: true
+        - field: principal.attributes.identity_state
+          operator: eq
+          value: "active"
+        - field: principal.attributes.risk_level
+          operator: eq
+          value: "high"
+
+    # Deny all access for critical risk or non-active states
+    - effect: deny
+      actions: [read, write, execute, collaborate, delete]
+      conditions:
+        - field: principal.attributes.risk_level
+          operator: eq
+          value: "critical"
+
+    - effect: deny
+      actions: [read, write, execute, collaborate, delete]
+      conditions:
+        - field: principal.attributes.identity_state
+          operator: in
+          value: ["suspended", "revoked", "expired"]

@@ -1,0 +1,40 @@
+[Unit]
+Description=Horizon Telemetry Collector Service
+Documentation=https://github.com/anthropic/horizon
+After=network.target influxdb.service
+
+[Service]
+Type=simple
+User=horizon
+Group=horizon
+
+# Environment
+Environment="RUST_LOG=info"
+EnvironmentFile=-/etc/horizon/telemetry-collector.env
+
+# Executable
+ExecStart=/usr/local/bin/telemetry-collector /etc/horizon/telemetry-collector.yaml
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/horizon/telemetry
+ReadOnlyPaths=/etc/horizon/certs
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=telemetry-collector
+
+[Install]
+WantedBy=multi-user.target

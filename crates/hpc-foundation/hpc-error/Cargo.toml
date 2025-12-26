@@ -1,0 +1,51 @@
+[package]
+name = "hpc-error"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Unified error handling for the HPC Platform"
+
+[features]
+default = []
+# Enable sqlx::Error conversion (for database services)
+sqlx = ["dep:sqlx"]
+# Enable axum IntoResponse (for HTTP services)
+axum = ["dep:axum", "dep:axum-core"]
+# Enable csv::Error conversion
+csv = ["dep:csv"]
+# Enable reqwest::Error conversion
+reqwest = ["dep:reqwest"]
+# Enable all integrations
+full = ["sqlx", "axum", "csv", "reqwest"]
+
+[dependencies]
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# gRPC for tonic::Status conversions
+tonic = { version = "0.11", default-features = false }
+
+# Serialization error conversions
+serde_json = { workspace = true }
+
+# Optional: Database
+sqlx = { workspace = true, optional = true }
+
+# Optional: HTTP framework
+axum = { workspace = true, optional = true }
+axum-core = { version = "0.4", optional = true }
+
+# Optional: CSV parsing
+csv = { workspace = true, optional = true }
+
+# Optional: HTTP client
+reqwest = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lib]
+name = "hpc_error"
+path = "src/lib.rs"

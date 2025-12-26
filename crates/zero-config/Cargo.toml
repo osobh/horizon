@@ -1,0 +1,67 @@
+[package]
+name = "stratoswarm-zero-config"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+
+# File system operations and path handling
+walkdir.workspace = true
+ignore.workspace = true
+
+# Language detection and parsing
+tree-sitter.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-javascript.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-go.workspace = true
+tree-sitter-java.workspace = true
+
+# Package.json, requirements.txt, Cargo.toml parsing
+toml.workspace = true
+pest.workspace = true
+pest_derive.workspace = true
+
+# Machine learning and pattern recognition
+# candle-core.workspace = true
+# candle-nn.workspace = true
+# linfa.workspace = true
+# ndarray.workspace = true
+
+# Text processing and embeddings
+regex.workspace = true
+unicode-segmentation.workspace = true
+
+# Metrics and complexity calculation
+petgraph.workspace = true
+
+# Time handling
+chrono.workspace = true
+
+# UUID generation
+uuid.workspace = true
+
+# Internal dependencies
+stratoswarm-runtime = { path = "../runtime" }
+stratoswarm-memory = { path = "../memory" }
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+tokio-test = "0.4"
+tempfile = "3.13"
+
+
+[features]
+default = []
+# ml-embeddings = ["candle-core/cuda"]

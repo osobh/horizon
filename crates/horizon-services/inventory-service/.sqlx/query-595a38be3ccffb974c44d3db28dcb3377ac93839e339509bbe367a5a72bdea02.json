@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO assets (\n                id, asset_type, provider, provider_id, parent_id,\n                status, metadata, created_by\n            )\n            VALUES ($1, 'gpu', 'baremetal', $2, $3, 'available', $4, $5)\n            ON CONFLICT (provider, provider_id)\n            DO UPDATE SET\n                parent_id = EXCLUDED.parent_id,\n                metadata = EXCLUDED.metadata,\n                updated_at = NOW()\n            RETURNING id, (xmax = 0) AS created\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "created",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Uuid",
+        "Jsonb",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "595a38be3ccffb974c44d3db28dcb3377ac93839e339509bbe367a5a72bdea02"
+}

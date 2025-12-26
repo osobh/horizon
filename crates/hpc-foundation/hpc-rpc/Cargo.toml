@@ -1,0 +1,54 @@
+[package]
+name = "hpc-rpc"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "gRPC and QUIC RPC infrastructure for HPC Platform"
+
+[dependencies]
+# Workspace dependencies
+hpc-error = { path = "../hpc-error" }
+hpc-auth = { path = "../hpc-auth" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }
+async-trait = { workspace = true }
+
+# gRPC dependencies
+tonic = { workspace = true }
+prost = { workspace = true }
+
+# QUIC dependencies
+quinn = { workspace = true }
+rustls = { workspace = true }
+rustls-pemfile = { workspace = true }
+rcgen = { workspace = true }
+
+# Utilities
+pin-project = { workspace = true }
+tower = { version = "0.4", features = ["util"] }
+http = "1.0"
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+proptest = { workspace = true }
+tempfile = { workspace = true }
+criterion = { workspace = true }
+tonic-build = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[build-dependencies]
+tonic-build = { workspace = true }
+
+[[bench]]
+name = "rpc_bench"
+harness = false
+
+[lib]
+name = "hpc_rpc"
+path = "src/lib.rs"
+doctest = false

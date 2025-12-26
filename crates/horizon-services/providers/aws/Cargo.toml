@@ -1,0 +1,25 @@
+[package]
+name = "horizon-aws-provider"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+hpc-provider = { path = "../../../hpc-foundation/hpc-provider" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rust_decimal = "1.33"
+rust_decimal_macros = "1.33"
+reqwest = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
+
+[lib]
+doctest = false

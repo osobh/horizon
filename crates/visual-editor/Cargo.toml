@@ -1,0 +1,63 @@
+[package]
+name = "stratoswarm-visual-editor"
+version = "0.1.0"
+edition = "2021"
+authors = ["StratoSwarm Team"]
+description = "Visual topology editor for StratoSwarm"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# Web framework
+axum = { workspace = true, features = ["ws", "macros"] }
+tower = { workspace = true, features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+hyper = { workspace = true, features = ["full"] }
+
+# Async runtime
+tokio = { workspace = true }
+futures = { workspace = true }
+
+# GraphQL
+async-graphql = "7.0"
+async-graphql-axum = "7.0"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# WebSocket
+tokio-tungstenite = "0.21"
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Utils
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# CLI parsing
+clap = { version = "4.0", features = ["derive"] }
+
+# Agent Core for XP system
+stratoswarm-agent-core = { path = "../agent-core" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+pretty_assertions = "1.4"
+tempfile = { workspace = true }
+
+[lib]
+name = "stratoswarm_visual_editor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "visual-editor"
+path = "src/main.rs"

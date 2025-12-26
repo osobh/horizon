@@ -1,0 +1,32 @@
+[package]
+name = "hpc-types"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Shared types and Protobuf messages for HPC Platform"
+
+[dependencies]
+# Workspace dependencies
+prost.workspace = true
+tonic.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+# Error handling for helper functions
+anyhow.workspace = true
+
+[build-dependencies]
+tonic-build.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "schema_bench"
+harness = false
+
+[lib]
+name = "hpc_types"
+path = "src/lib.rs"

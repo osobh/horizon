@@ -1,0 +1,79 @@
+[package]
+name = "swarmlet"
+version = "0.1.0"
+edition = "2021"
+authors = ["StratoSwarm Team"]
+description = "Lightweight StratoSwarm node agent for easy cluster joining"
+license = "MIT"
+repository = "https://github.com/stratoswarm/stratoswarm"
+
+[[bin]]
+name = "swarmlet"
+path = "src/main.rs"
+
+[dependencies]
+# Core async runtime
+tokio = { workspace = true, features = ["full"] }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Network and discovery
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+mdns-sd = "0.7"
+
+# System information
+sysinfo = { workspace = true }
+uuid = { workspace = true }
+
+# CLI parsing
+clap = { version = "4.0", features = ["derive"] }
+
+# Crypto for join tokens
+ed25519-dalek = "2.0"
+rand = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# Additional dependencies
+futures = { workspace = true }
+num_cpus = "1.16"
+hostname = "0.3"
+
+# Configuration
+toml = { workspace = true }
+
+# HPC Channels integration
+hpc-channels = { path = "../../../01-hpc-channels", optional = true, features = ["rkyv-codec"] }
+
+# Docker integration (optional)
+bollard = { version = "0.14", optional = true }
+
+# Unix-specific dependencies
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.27", features = ["signal", "process"] }
+
+# HTTP server for API
+warp = "0.3"
+
+[features]
+default = ["docker"]
+docker = ["bollard"]
+hpc-channels = ["dep:hpc-channels"]
+
+[dev-dependencies]
+tempfile = "3.8"
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+# ARM-specific optimizations can go here

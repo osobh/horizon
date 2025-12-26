@@ -1,0 +1,54 @@
+[package]
+name = "stratoswarm-evolution"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+
+# HPC Channels integration
+hpc-channels.workspace = true
+
+# Evolution-specific dependencies
+rand.workspace = true
+rayon.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+sha2 = "0.10"
+
+# GPU/CUDA dependencies
+cudarc = { workspace = true, optional = true }
+cust = { workspace = true, optional = true }
+# nvrtc = { workspace = true, optional = true }  # Temporarily disabled
+dashmap.workspace = true
+wide = "0.7"  # SIMD primitives for vectorized computation
+
+# Network and distributed systems
+axum.workspace = true
+tower.workspace = true
+hyper.workspace = true
+hyper-util = "0.1.15"
+futures.workspace = true
+
+# Internal dependencies
+stratoswarm-storage = { path = "../storage" }
+stratoswarm-agent-core = { path = "../agent-core" }
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+tokio-test = "0.4"
+
+[features]
+default = ["mock-cuda"]
+cuda = ["cudarc", "cust"]
+mock-cuda = []
+

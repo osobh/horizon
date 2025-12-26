@@ -1,0 +1,61 @@
+# Kernel Module Testing Steps
+# Execute these commands step by step
+
+# 1. First, copy the archive (from host terminal):
+scp -P 2222 gpu_dma_lock.tar.gz osobh@localhost:~/
+# Password: clouddev249
+
+# 2. SSH into VM:
+ssh -p 2222 osobh@localhost
+# Password: clouddev249
+
+# 3. Inside VM, run these commands:
+
+# Extract archive
+tar -xzf gpu_dma_lock.tar.gz
+cd gpu_dma_lock
+
+# Install kernel headers
+sudo apt-get update
+sudo apt-get install -y linux-headers-$(uname -r) build-essential make gcc
+
+# Check kernel version
+uname -r
+ls -la /lib/modules/$(uname -r)/build
+
+# Build the kernel module
+make clean
+make
+
+# Check if module built
+ls -la *.ko
+
+# Load the module
+sudo insmod gpu_dma_lock.ko debug=1
+
+# Verify it loaded
+lsmod | grep gpu_dma_lock
+sudo dmesg | tail -20
+
+# Check proc interface
+ls -la /proc/swarm/gpu/
+
+# Run functional tests
+./tests/test_module.sh
+
+# Run performance benchmarks
+./tests/benchmark.sh
+
+# Check kernel logs for any issues
+sudo dmesg | grep gpu_dma
+
+# Unload module
+sudo rmmod gpu_dma_lock
+
+# Generate coverage if built with gcov
+# make clean
+# make CFLAGS="-fprofile-arcs -ftest-coverage"
+# sudo insmod gpu_dma_lock.ko
+# ./tests/test_module.sh
+# sudo rmmod gpu_dma_lock
+# gcov src/*.c

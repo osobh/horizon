@@ -1,0 +1,22 @@
+{
+  "id": "f3369198-4b99-4d62-80b9-71df9bc021e7",
+  "title": "Empty Report",
+  "generated_at": "2025-08-04T20:05:16.605841068Z",
+  "time_range": [
+    "2025-08-04T19:05:16.605841068Z",
+    "2025-08-04T20:05:16.605841068Z"
+  ],
+  "format": "Json",
+  "sections": [
+    {
+      "title": "Performance Summary",
+      "content_type": "Summary",
+      "data": {
+        "metric_types": [],
+        "statistics_count": 0,
+        "total_metrics": 0
+      }
+    }
+  ],
+  "metadata": {}
+}

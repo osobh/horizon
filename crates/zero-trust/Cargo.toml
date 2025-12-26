@@ -1,0 +1,39 @@
+[package]
+name = "stratoswarm-zero-trust"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Zero-trust security framework with identity verification and continuous authentication"
+
+[dependencies]
+async-trait = "0.1.83"
+tokio = { version = "1.41", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
+dashmap = "6.1"
+parking_lot = "0.12"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+rustls = "0.23"
+jwt = "0.16"
+ring = "0.17"
+x509-parser = "0.16"
+sha2 = "0.10"
+base64 = "0.13"
+
+[dev-dependencies]
+tempfile = "3.14"
+criterion = "0.5"
+proptest = "1.6"
+test-log = "0.2"
+env_logger = "0.11"
+mockall = "0.13"
+
+[[bench]]
+name = "zero_trust_bench"
+harness = false

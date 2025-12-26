@@ -1,0 +1,34 @@
+[package]
+name = "stratoswarm-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tokio = { workspace = true, features = ["full", "sync"] }
+bytes = { workspace = true, features = ["serde"] }
+dashmap = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+serde = { workspace = true, features = ["derive"] }
+tracing = { workspace = true }
+async-trait = "0.1"
+rand = "0.8"
+rand_distr = "0.4"
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "gpu_latency"
+harness = false
+
+[[bench]]
+name = "priority_queue_bench"
+harness = false
+
+[lints]
+workspace = true

@@ -1,0 +1,35 @@
+name: "GPU Agents Comprehensive Test"
+description: "Complete test scenario covering all GPU agent benchmark types"
+
+benchmarks:
+  - type: scalability
+    enabled: true
+    config:
+      initial_agents: 100
+      max_agents: 10000
+      scaling_factor: 2
+      iterations: 5
+      
+  - type: llm
+    enabled: true
+    config:
+      batch_sizes: [1, 4, 8, 16, 32]
+      sequence_lengths: [128, 256, 512]
+      test_duration_seconds: 60
+      
+  - type: knowledge_graph
+    enabled: true
+    config:
+      initial_nodes: 1000
+      max_nodes: 100000
+      edge_density: 0.1
+      query_complexity: "medium"
+      
+  - type: evolution
+    enabled: true
+    config:
+      population_size: 500
+      generations: 100
+      mutation_rate: 0.01
+      crossover_rate: 0.7
+      selection_method: "tournament"

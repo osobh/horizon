@@ -1,0 +1,29 @@
+[package]
+name = "stratoswarm-net"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+bytes.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+rand = "0.8"
+
+# Networking dependencies
+axum.workspace = true
+tower.workspace = true
+hyper.workspace = true
+bincode = "1.3"
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+tokio-test = "0.4"
+

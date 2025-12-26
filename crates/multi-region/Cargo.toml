@@ -1,0 +1,35 @@
+[package]
+name = "stratoswarm-multi-region"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Multi-region deployment and data sovereignty management"
+
+[dependencies]
+async-trait = "0.1.83"
+tokio = { version = "1.41", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
+dashmap = "6.1"
+parking_lot = "0.12"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+rustls = "0.23"
+fastrand = "2.2"
+
+[dev-dependencies]
+tempfile = "3.14"
+criterion = "0.5"
+proptest = "1.6"
+test-log = "0.2"
+env_logger = "0.11"
+mockall = "0.13"
+
+[[bench]]
+name = "multi_region_bench"
+harness = false

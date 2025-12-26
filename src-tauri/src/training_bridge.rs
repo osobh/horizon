@@ -16,9 +16,11 @@
 //!
 //! Both implementations expose the same API to the Tauri commands.
 
+use dashmap::DashMap;
 use hpc_channels::{channels, TrainingMessage, TrainingConfig as ChannelTrainingConfig, TrainingStatus as ChannelTrainingStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -30,10 +32,10 @@ use rtx_distributed::{
 
 /// Bridge to the rustytorch training system.
 pub struct TrainingBridge {
-    /// Active training jobs
-    jobs: Arc<RwLock<HashMap<String, TrainingJob>>>,
+    /// Active training jobs (lock-free concurrent access)
+    jobs: Arc<DashMap<String, TrainingJob>>,
     /// Job counter for generating IDs
-    job_counter: Arc<RwLock<u64>>,
+    job_counter: AtomicU64,
     /// Real multi-GPU trainer (when embedded-training feature is enabled)
     #[cfg(feature = "embedded-training")]
     trainer: Arc<RwLock<Option<MultiGpuTrainer>>>,
@@ -154,8 +156,8 @@ impl TrainingBridge {
     pub fn new() -> Self {
         tracing::info!("TrainingBridge initialized with rtx-distributed (CUDA required)");
         let bridge = Self {
-            jobs: Arc::new(RwLock::new(HashMap::new())),
-            job_counter: Arc::new(RwLock::new(0)),
+            jobs: Arc::new(DashMap::new()),
+            job_counter: AtomicU64::new(0),
             trainer: Arc::new(RwLock::new(None)),
         };
 
@@ -169,8 +171,8 @@ impl TrainingBridge {
     pub fn new() -> Self {
         tracing::info!("TrainingBridge initialized with mock data (embedded-training feature disabled)");
         let bridge = Self {
-            jobs: Arc::new(RwLock::new(HashMap::new())),
-            job_counter: Arc::new(RwLock::new(0)),
+            jobs: Arc::new(DashMap::new()),
+            job_counter: AtomicU64::new(0),
         };
 
         // Add mock jobs for demo
@@ -179,12 +181,10 @@ impl TrainingBridge {
     }
 
     /// Add demo jobs for development/demo purposes.
-    fn add_demo_jobs(jobs: Arc<RwLock<HashMap<String, TrainingJob>>>) {
+    fn add_demo_jobs(jobs: Arc<DashMap<String, TrainingJob>>) {
         tokio::spawn(async move {
-            let mut jobs_guard = jobs.write().await;
-
             // Add a running job
-            jobs_guard.insert("job-001".to_string(), TrainingJob {
+            jobs.insert("job-001".to_string(), TrainingJob {
                 id: "job-001".to_string(),
                 name: "LLaMA-7B Fine-tune".to_string(),
                 status: TrainingStatus::Running,
@@ -226,7 +226,7 @@ impl TrainingBridge {
             });
 
             // Add a completed job
-            jobs_guard.insert("job-002".to_string(), TrainingJob {
+            jobs.insert("job-002".to_string(), TrainingJob {
                 id: "job-002".to_string(),
                 name: "Vision Transformer".to_string(),
                 status: TrainingStatus::Completed,
@@ -301,9 +301,9 @@ impl TrainingBridge {
 
     /// Start a new training job.
     pub async fn start_training(&self, name: String, config: TrainingConfig) -> Result<TrainingJob, String> {
-        let mut counter = self.job_counter.write().await;
-        *counter += 1;
-        let job_id = format!("job-{:03}", *counter);
+        // Relaxed: independent job ID counter
+        let counter = self.job_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        let job_id = format!("job-{:03}", counter);
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -339,7 +339,7 @@ impl TrainingBridge {
             completed_at: None,
         };
 
-        self.jobs.write().await.insert(job_id.clone(), job.clone());
+        self.jobs.insert(job_id.clone(), job.clone());
 
         // Broadcast training start via channel
         if let Some(tx) = hpc_channels::sender::<TrainingMessage>(channels::TRAINING_START) {
@@ -374,65 +374,60 @@ impl TrainingBridge {
 
     /// Get a training job by ID.
     pub async fn get_job(&self, job_id: &str) -> Option<TrainingJob> {
-        self.jobs.read().await.get(job_id).cloned()
+        self.jobs.get(job_id).map(|r| r.clone())
     }
 
     /// Get all training jobs.
     pub async fn get_all_jobs(&self) -> Vec<TrainingJob> {
-        self.jobs.read().await.values().cloned().collect()
+        self.jobs.iter().map(|r| r.value().clone()).collect()
     }
 
     /// Get training summary.
     pub async fn get_summary(&self) -> TrainingSummary {
-        let jobs = self.jobs.read().await;
-
         TrainingSummary {
-            total_jobs: jobs.len(),
-            running_jobs: jobs.values().filter(|j| j.status == TrainingStatus::Running).count(),
-            completed_jobs: jobs.values().filter(|j| j.status == TrainingStatus::Completed).count(),
-            failed_jobs: jobs.values().filter(|j| j.status == TrainingStatus::Failed).count(),
-            queued_jobs: jobs.values().filter(|j| j.status == TrainingStatus::Queued).count(),
+            total_jobs: self.jobs.len(),
+            running_jobs: self.jobs.iter().filter(|r| r.value().status == TrainingStatus::Running).count(),
+            completed_jobs: self.jobs.iter().filter(|r| r.value().status == TrainingStatus::Completed).count(),
+            failed_jobs: self.jobs.iter().filter(|r| r.value().status == TrainingStatus::Failed).count(),
+            queued_jobs: self.jobs.iter().filter(|r| r.value().status == TrainingStatus::Queued).count(),
         }
     }
 
     /// Pause a training job.
     pub async fn pause_job(&self, job_id: &str) -> Result<(), String> {
-        let mut jobs = self.jobs.write().await;
-        let job = jobs.get_mut(job_id).ok_or("Job not found")?;
+        let mut job_ref = self.jobs.get_mut(job_id).ok_or("Job not found")?;
 
-        if job.status != TrainingStatus::Running {
+        if job_ref.status != TrainingStatus::Running {
             return Err("Job is not running".to_string());
         }
 
-        job.status = TrainingStatus::Paused;
+        job_ref.status = TrainingStatus::Paused;
         tracing::info!("Paused training job: {}", job_id);
         Ok(())
     }
 
     /// Resume a training job.
     pub async fn resume_job(&self, job_id: &str) -> Result<(), String> {
-        let mut jobs = self.jobs.write().await;
-        let job = jobs.get_mut(job_id).ok_or("Job not found")?;
+        let mut job_ref = self.jobs.get_mut(job_id).ok_or("Job not found")?;
 
-        if job.status != TrainingStatus::Paused {
+        if job_ref.status != TrainingStatus::Paused {
             return Err("Job is not paused".to_string());
         }
 
-        job.status = TrainingStatus::Running;
+        job_ref.status = TrainingStatus::Running;
         tracing::info!("Resumed training job: {}", job_id);
         Ok(())
     }
 
     /// Cancel a training job.
     pub async fn cancel_job(&self, job_id: &str) -> Result<(), String> {
-        let mut jobs = self.jobs.write().await;
-        let job = jobs.get_mut(job_id).ok_or("Job not found")?;
+        let mut job_ref = self.jobs.get_mut(job_id).ok_or("Job not found")?;
 
-        if job.status == TrainingStatus::Completed || job.status == TrainingStatus::Failed {
+        if job_ref.status == TrainingStatus::Completed || job_ref.status == TrainingStatus::Failed {
             return Err("Job is already finished".to_string());
         }
 
-        job.status = TrainingStatus::Cancelled;
+        job_ref.status = TrainingStatus::Cancelled;
         tracing::info!("Cancelled training job: {}", job_id);
         Ok(())
     }
@@ -440,9 +435,8 @@ impl TrainingBridge {
     /// Simulate progress update (for demo purposes).
     #[allow(dead_code)]
     pub async fn simulate_progress(&self) {
-        let mut jobs = self.jobs.write().await;
-
-        for job in jobs.values_mut() {
+        for mut job_ref in self.jobs.iter_mut() {
+            let job = job_ref.value_mut();
             if job.status == TrainingStatus::Running {
                 // Increment progress
                 job.progress.current_step += 10;

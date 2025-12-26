@@ -1,0 +1,51 @@
+[package]
+name = "stratoswarm-metal-core"
+version = "0.1.0"
+edition = "2021"
+description = "Metal GPU backend abstraction layer for StratoSwarm"
+license = "MIT"
+authors = ["StratoSwarm Team"]
+
+[features]
+default = ["metal3"]
+metal3 = []
+metal4 = []  # Enable when Xcode 26 / macOS 26 stabilizes
+
+[dependencies]
+# Objective-C runtime and Metal bindings
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-metal = "0.3"
+block2 = "0.6"
+dispatch2 = "0.2"
+
+# Error handling and logging
+thiserror = "2.0"
+tracing = "0.1"
+
+# Byte manipulation for buffer access
+bytemuck = { version = "1.14", features = ["derive"] }
+
+# Async support
+tokio = { version = "1.40", features = ["sync"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# macOS-specific dependencies handled by objc2
+
+[dev-dependencies]
+tokio = { version = "1.40", features = ["full", "test-util"] }
+
+[lib]
+name = "stratoswarm_metal_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "memory_bandwidth"
+path = "src/bin/memory_bandwidth.rs"
+
+[[bin]]
+name = "pipeline_overhead"
+path = "src/bin/pipeline_overhead.rs"
+
+[dependencies.anyhow]
+version = "1.0"

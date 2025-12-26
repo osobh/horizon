@@ -1,0 +1,11 @@
+# Test Service Configuration (TOML format)
+# This is a sample configuration file for testing the configx crate
+
+listen_addr = "0.0.0.0:9090"
+log_level = "debug"
+max_connections = 200
+enable_tls = false
+timeout_ms = 10000
+
+# Optional features
+features = ["metrics", "tracing", "health_check"]

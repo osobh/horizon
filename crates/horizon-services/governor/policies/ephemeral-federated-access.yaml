@@ -1,0 +1,97 @@
+# Ephemeral Federated Training Access Policy
+#
+# Controls access for external nodes participating in federated training.
+# Enforces:
+# - Round-based participation limits
+# - Gradient-only data sharing
+# - Session-scoped access
+#
+# Usage: Apply this policy to enable external participation in federated training.
+
+apiVersion: policy.horizon.dev/v1
+kind: Policy
+metadata:
+  name: ephemeral-federated-access
+  version: "1"
+  description: "Policy for ephemeral node participation in federated training sessions"
+spec:
+  principals:
+    # Match federated training participants
+    - type: user
+      pattern: "*"
+  resources:
+    # Federated training sessions
+    - type: training_session
+      pattern: "federated/*"
+    # Gradient updates
+    - type: gradient
+      pattern: "*"
+    # Model checkpoints (limited access)
+    - type: checkpoint
+      pattern: "federated/*"
+  rules:
+    # Allow gradient submission for active participants
+    - effect: allow
+      actions: [submit_gradient, receive_model]
+      conditions:
+        - field: principal.attributes.federated_participant
+          operator: eq
+          value: true
+        - field: principal.attributes.session_active
+          operator: eq
+          value: true
+        - field: principal.attributes.rounds_remaining
+          operator: gt
+          value: 0
+
+    # Allow model download at start of round
+    - effect: allow
+      actions: [download_model]
+      conditions:
+        - field: principal.attributes.federated_participant
+          operator: eq
+          value: true
+        - field: principal.attributes.session_active
+          operator: eq
+          value: true
+        - field: principal.attributes.round_started
+          operator: eq
+          value: true
+
+    # Allow viewing training metrics
+    - effect: allow
+      actions: [view_metrics]
+      conditions:
+        - field: principal.attributes.federated_participant
+          operator: eq
+          value: true
+        - field: principal.attributes.session_active
+          operator: eq
+          value: true
+
+    # Deny access to raw training data (only gradients allowed)
+    - effect: deny
+      actions: [access_data, download_data]
+      conditions:
+        - field: principal.attributes.federated_participant
+          operator: eq
+          value: true
+
+    # Deny checkpoint access (only aggregated models allowed)
+    - effect: deny
+      actions: [download_checkpoint]
+      conditions:
+        - field: principal.attributes.federated_participant
+          operator: eq
+          value: true
+        - field: resource.checkpoint_type
+          operator: eq
+          value: "individual"
+
+    # Deny if session quota exhausted
+    - effect: deny
+      actions: [submit_gradient, receive_model, download_model]
+      conditions:
+        - field: principal.attributes.rounds_remaining
+          operator: lte
+          value: 0

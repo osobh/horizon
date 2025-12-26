@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                asset_id,\n                gpu_utilization_percent,\n                gpu_memory_used_gb as \"gpu_memory_used_gb: f64\",\n                gpu_memory_total_gb as \"gpu_memory_total_gb: f64\",\n                gpu_temperature_celsius,\n                gpu_power_watts as \"gpu_power_watts: f64\",\n                cpu_utilization_percent,\n                cpu_temperature_celsius,\n                nic_rx_bandwidth_gbps as \"nic_rx_bandwidth_gbps: f64\",\n                nic_tx_bandwidth_gbps as \"nic_tx_bandwidth_gbps: f64\",\n                last_updated\n            FROM asset_metrics\n            WHERE asset_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "asset_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "gpu_utilization_percent",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "gpu_memory_used_gb: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 3,
+        "name": "gpu_memory_total_gb: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "gpu_temperature_celsius",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "gpu_power_watts: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 6,
+        "name": "cpu_utilization_percent",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "cpu_temperature_celsius",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "nic_rx_bandwidth_gbps: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "nic_tx_bandwidth_gbps: f64",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 10,
+        "name": "last_updated",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "a37157161a86559693bcf50436568ffe678eec9398e6a24391b9f43417e39493"
+}
