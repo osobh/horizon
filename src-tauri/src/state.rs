@@ -5,10 +5,12 @@
 use crate::cluster_bridge::ClusterBridge;
 use crate::data_pipeline_bridge::DataPipelineBridge;
 use crate::edge_proxy_bridge::EdgeProxyBridge;
+use crate::ephemeral_bridge::EphemeralBridge;
 use crate::evolution_bridge::EvolutionBridge;
 use crate::gpu_compiler_bridge::GpuCompilerBridge;
 use crate::kernel_bridge::KernelBridge;
 use crate::nebula_bridge::NebulaBridge;
+use crate::slai_bridge::SlaiBridge;
 use crate::storage_bridge::StorageBridge;
 use crate::tensor_mesh_bridge::TensorMeshBridge;
 use crate::training_bridge::TrainingBridge;
@@ -42,6 +44,10 @@ pub struct AppState {
     pub data_pipeline: Arc<DataPipelineBridge>,
     /// Edge proxy bridge for Vortex + SLAI routing (Synergy 5)
     pub edge_proxy: Arc<EdgeProxyBridge>,
+    /// Ephemeral bridge for time-limited external collaboration
+    pub ephemeral: Arc<EphemeralBridge>,
+    /// SLAI bridge for GPU scheduler and job management
+    pub slai: Arc<SlaiBridge>,
 }
 
 impl AppState {
@@ -59,6 +65,8 @@ impl AppState {
             tensor_mesh: Arc::new(TensorMeshBridge::new()),
             data_pipeline: Arc::new(DataPipelineBridge::new()),
             edge_proxy: Arc::new(EdgeProxyBridge::new()),
+            ephemeral: Arc::new(EphemeralBridge::new()),
+            slai: Arc::new(SlaiBridge::new()),
         }
     }
 
