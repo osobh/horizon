@@ -16,6 +16,7 @@ mod ephemeral_bridge;
 mod events;
 mod evolution_bridge;
 mod gpu_compiler_bridge;
+mod hpc_bridge;
 mod kernel_bridge;
 mod nebula_bridge;
 mod slai_bridge;
@@ -42,6 +43,12 @@ fn main() {
     let app_state = AppState::new();
     let kernel = Arc::clone(&app_state.kernel);
     let gpu_compiler = Arc::clone(&app_state.gpu_compiler);
+    let training = Arc::clone(&app_state.training);
+    let nebula = Arc::clone(&app_state.nebula);
+    let tensor_mesh = Arc::clone(&app_state.tensor_mesh);
+    let storage = Arc::clone(&app_state.storage);
+    let ephemeral = Arc::clone(&app_state.ephemeral);
+    let slai = Arc::clone(&app_state.slai);
 
     // Create metrics collector (updates every 2 seconds)
     let metrics_collector = Arc::new(MetricsCollector::new(2000));
@@ -79,10 +86,81 @@ fn main() {
                 }
             });
 
+            // Initialize training bridge in background
+            let training_clone = Arc::clone(&training);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing training bridge...");
+                if let Err(e) = training_clone.initialize().await {
+                    tracing::error!("Failed to initialize training: {}", e);
+                } else {
+                    tracing::info!("Training bridge initialized successfully");
+                }
+            });
+
+            // Initialize nebula bridge in background
+            let nebula_clone = Arc::clone(&nebula);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing nebula bridge...");
+                if let Err(e) = nebula_clone.initialize().await {
+                    tracing::error!("Failed to initialize nebula: {}", e);
+                } else {
+                    tracing::info!("Nebula bridge initialized successfully");
+                }
+            });
+
+            // Initialize tensor mesh bridge in background
+            let tensor_mesh_clone = Arc::clone(&tensor_mesh);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing tensor mesh bridge...");
+                if let Err(e) = tensor_mesh_clone.initialize().await {
+                    tracing::error!("Failed to initialize tensor mesh: {}", e);
+                } else {
+                    tracing::info!("Tensor mesh bridge initialized successfully");
+                }
+            });
+
+            // Initialize storage bridge in background
+            let storage_clone = Arc::clone(&storage);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing storage bridge...");
+                if let Err(e) = storage_clone.initialize().await {
+                    tracing::error!("Failed to initialize storage: {}", e);
+                } else {
+                    tracing::info!("Storage bridge initialized successfully");
+                }
+            });
+
+            // Initialize SLAI bridge in background
+            let slai_clone = Arc::clone(&slai);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing SLAI bridge...");
+                if let Err(e) = slai_clone.initialize().await {
+                    tracing::error!("Failed to initialize SLAI: {}", e);
+                } else {
+                    tracing::info!("SLAI bridge initialized successfully");
+                }
+            });
+
             // Start metrics collection
             let metrics = Arc::clone(&metrics_collector);
             tauri::async_runtime::spawn(async move {
                 metrics.start(app_handle).await;
+            });
+
+            // Start ephemeral session cleanup worker (runs every 60 seconds)
+            let ephemeral_clone = Arc::clone(&ephemeral);
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+                    let (sessions, invites) = ephemeral_clone.cleanup_expired().await;
+                    if sessions > 0 || invites > 0 {
+                        tracing::info!(
+                            "Ephemeral cleanup: {} sessions, {} invites expired",
+                            sessions,
+                            invites
+                        );
+                    }
+                }
             });
 
             Ok(())
@@ -161,33 +239,28 @@ fn main() {
             commands::edge_proxy::get_backend_health,
             commands::edge_proxy::get_routing_decisions,
             commands::edge_proxy::simulate_edge_proxy_activity,
-            // Scheduler commands (SLAI GPU scheduling)
-            commands::scheduler::scheduler_detect_gpus,
-            commands::scheduler::scheduler_list_gpus,
-            commands::scheduler::submit_scheduler_job,
-            commands::scheduler::get_scheduler_job,
-            commands::scheduler::list_scheduler_jobs,
-            commands::scheduler::list_jobs_by_tenant,
-            commands::scheduler::cancel_scheduler_job,
-            commands::scheduler::create_tenant,
-            commands::scheduler::get_tenant,
-            commands::scheduler::list_tenants,
-            commands::scheduler::suspend_tenant,
-            commands::scheduler::resume_tenant,
-            commands::scheduler::get_scheduler_summary,
-            commands::scheduler::get_fair_share,
-            // Ephemeral session commands
-            commands::ephemeral::create_ephemeral_session,
-            commands::ephemeral::get_invite_url,
-            commands::ephemeral::join_ephemeral_session,
-            commands::ephemeral::get_ephemeral_presence,
-            commands::ephemeral::get_ephemeral_session,
+            // Ephemeral commands (Time-limited collaboration)
             commands::ephemeral::list_ephemeral_sessions,
+            commands::ephemeral::get_ephemeral_session,
+            commands::ephemeral::create_ephemeral_session,
             commands::ephemeral::end_ephemeral_session,
-            commands::ephemeral::leave_ephemeral_session,
-            commands::ephemeral::update_ephemeral_activity,
+            commands::ephemeral::create_ephemeral_invite,
+            commands::ephemeral::revoke_ephemeral_invite,
+            commands::ephemeral::get_ephemeral_invite,
+            commands::ephemeral::get_ephemeral_presence,
+            commands::ephemeral::update_ephemeral_cursor,
             commands::ephemeral::get_ephemeral_stats,
-            commands::ephemeral::cleanup_expired_sessions,
+            commands::ephemeral::cleanup_expired_ephemeral,
+            // SLAI commands (GPU scheduler and job management)
+            commands::slai::get_slai_stats,
+            commands::slai::get_slai_gpus,
+            commands::slai::get_slai_fair_share,
+            commands::slai::list_slai_tenants,
+            commands::slai::create_slai_tenant,
+            commands::slai::list_slai_jobs,
+            commands::slai::submit_slai_job,
+            commands::slai::cancel_slai_job,
+            commands::slai::schedule_slai_next,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");

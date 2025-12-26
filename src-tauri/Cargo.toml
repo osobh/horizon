@@ -21,6 +21,7 @@ tauri-build.workspace = true
 [dependencies]
 tauri.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -37,17 +38,20 @@ rand = "0.8"  # Random number generation for ephemeral tokens
 
 # Internal crate dependencies
 hpc-channels.workspace = true
-stratoswarm-cluster-mesh = { path = "../crates/cluster-mesh", optional = true }
+stratoswarm-cluster-mesh = { path = "../../06-stratoswarm/crates/cluster-mesh", optional = true }
 rtx-distributed = { path = "../../08-rustytorch/crates/training/rtx-distributed", optional = true, default-features = false }
 warp-core = { path = "../../05-warp/crates/warp-core", optional = true }
 warp-format = { path = "../../05-warp/crates/warp-format", optional = true }
+warp-ipc = { workspace = true, optional = true }
+warp-dashboard = { workspace = true, optional = true }
 # vortex-core = { path = "../../09-vortex/crates/vortex-core", optional = true }
 
 # GPU-accelerated Rust compilation (10x faster)
 # Works on macOS (Metal) and Linux/Windows (CUDA)
 rustg = { path = "../../00-rust/rustg", optional = true, default-features = false }
 
-# SLAI GPU scheduling and multi-tenant job management
+# SLAI - GPU cluster scheduler with multi-vendor support
+# Includes 'metal' feature for macOS GPU detection
 slai = { path = "../../04-slai", optional = true }
 
 [features]
@@ -67,6 +71,10 @@ embedded-training = ["rtx-distributed"]
 # Works on all platforms - local and remote transfers
 embedded-storage = ["warp-core", "warp-format"]
 
+# Embed warp-dashboard for real-time transfer monitoring
+# Provides IPC integration for WARP transfer state
+embedded-warp-dashboard = ["warp-ipc", "warp-dashboard"]
+
 # Embed vortex for protocol transmutation (when available)
 # embedded-vortex = ["vortex-core"]
 
@@ -76,8 +84,9 @@ embedded-storage = ["warp-core", "warp-format"]
 # Linux/Windows: Uses CUDA GPU acceleration
 gpu-compiler = ["rustg"]
 
-# Embed SLAI for real GPU scheduling and multi-tenant job management
-# Provides FairShareScheduler, GpuDetector, and Tenant management
+# SLAI embedded runtime for real GPU detection and job scheduling
+# Provides multi-vendor GPU support (Metal, CUDA, ROCm)
+# Includes fair-share scheduler with tenant management
 embedded-slai = ["slai"]
 
 # Embed nebula for RDMA transport and ZK proofs
@@ -86,7 +95,7 @@ embedded-slai = ["slai"]
 # embedded-nebula = ["nebula-rdma", "nebula-zk", "nebula-relay"]
 
 # Embed all optional crates for full functionality
-full = ["embedded-cluster", "embedded-training", "embedded-storage", "embedded-slai", "gpu-compiler"]
+full = ["embedded-cluster", "embedded-training", "embedded-storage", "embedded-warp-dashboard", "gpu-compiler", "embedded-slai"]
 
 # Minimal build without embedded crates (uses mocks)
 minimal = []

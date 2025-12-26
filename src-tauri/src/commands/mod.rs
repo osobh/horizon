@@ -10,7 +10,7 @@ pub mod evolution;
 pub mod gpu_compiler;
 pub mod nebula;
 pub mod notebook;
-pub mod scheduler;
+pub mod slai;
 pub mod storage;
 pub mod system;
 pub mod tensor_mesh;

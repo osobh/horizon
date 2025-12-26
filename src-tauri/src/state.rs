@@ -44,10 +44,10 @@ pub struct AppState {
     pub data_pipeline: Arc<DataPipelineBridge>,
     /// Edge proxy bridge for Vortex + SLAI routing (Synergy 5)
     pub edge_proxy: Arc<EdgeProxyBridge>,
-    /// SLAI bridge for GPU scheduling and multi-tenant job management
-    pub slai: Arc<SlaiBridge>,
-    /// Ephemeral bridge for time-bounded collaboration sessions
+    /// Ephemeral bridge for time-limited external collaboration
     pub ephemeral: Arc<EphemeralBridge>,
+    /// SLAI bridge for GPU scheduler and job management
+    pub slai: Arc<SlaiBridge>,
 }
 
 impl AppState {
@@ -65,8 +65,8 @@ impl AppState {
             tensor_mesh: Arc::new(TensorMeshBridge::new()),
             data_pipeline: Arc::new(DataPipelineBridge::new()),
             edge_proxy: Arc::new(EdgeProxyBridge::new()),
-            slai: Arc::new(SlaiBridge::new()),
             ephemeral: Arc::new(EphemeralBridge::new()),
+            slai: Arc::new(SlaiBridge::new()),
         }
     }
 
