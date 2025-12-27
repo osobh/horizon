@@ -1,7 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    # Tauri Desktop App (temporarily excluded for clippy)
+    # Tauri Desktop App - excluded by default
+    # Requires sibling projects: 08-rustytorch, 05-warp, 04-slai, 00-rust
+    # To include, uncomment below and ensure all sibling projects exist:
     # "src-tauri",
 
     # Core Runtime

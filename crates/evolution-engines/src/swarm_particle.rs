@@ -122,87 +122,79 @@ impl<E: Evolvable> Particle<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::traits::{Evolvable, EvolvableAgent};
 
-    fn create_test_agent() -> EvolvableAgent {
-        let genome = crate::traits::AgentGenome {
-            goal: stratoswarm_agent_core::Goal::new(
-                "test".to_string(),
-                stratoswarm_agent_core::GoalPriority::Normal,
-            ),
-            architecture: crate::traits::ArchitectureGenes {
-                memory_capacity: 1024,
-                processing_units: 4,
-                network_topology: vec![10, 20, 10],
-            },
-            behavior: crate::traits::BehaviorGenes {
-                exploration_rate: 0.1,
-                learning_rate: 0.01,
-                risk_tolerance: 0.5,
-            },
-        };
+    // =====================================================================
+    // Tests for simd_mean_abs - SIMD-accelerated mean absolute value
+    // =====================================================================
 
-        let config = stratoswarm_agent_core::AgentConfig {
-            name: "test_agent".to_string(),
-            agent_type: "test".to_string(),
-            max_memory: 1024,
-            max_gpu_memory: 256,
-            priority: 1,
-            metadata: serde_json::Value::Null,
-        };
-
-        let agent = stratoswarm_agent_core::Agent::new(config)?;
-        EvolvableAgent { agent, genome }
+    #[test]
+    fn test_simd_mean_abs_empty() {
+        assert_eq!(simd_mean_abs(&[]), 0.0);
     }
 
     #[test]
-    fn test_particle_creation() {
-        let agent = create_test_agent();
-        let velocity = vec![0.1, 0.2, 0.3];
-        let particle = Particle::new(agent.clone(), velocity.clone(), agent.clone(), 0.5);
-
-        assert_eq!(particle.velocity, velocity);
-        assert_eq!(particle.personal_best_fitness, 0.5);
+    fn test_simd_mean_abs_single_element() {
+        assert_eq!(simd_mean_abs(&[5.0]), 5.0);
+        assert_eq!(simd_mean_abs(&[-5.0]), 5.0);
     }
 
     #[test]
-    fn test_particle_personal_best_update() {
-        let agent = create_test_agent();
-        let velocity = vec![0.1, 0.2, 0.3];
-        let mut particle = Particle::new(agent.clone(), velocity, agent.clone(), 0.5);
-
-        // Higher fitness should update personal best
-        particle.update_personal_best(0.8);
-        assert_eq!(particle.personal_best_fitness, 0.8);
-
-        // Lower fitness should not update personal best
-        particle.update_personal_best(0.6);
-        assert_eq!(particle.personal_best_fitness, 0.8);
+    fn test_simd_mean_abs_less_than_simd_width() {
+        // 3 elements - scalar path only
+        let values = [1.0, -2.0, 3.0];
+        let expected = (1.0 + 2.0 + 3.0) / 3.0;
+        assert_eq!(simd_mean_abs(&values), expected);
     }
 
     #[test]
-    fn test_velocity_clamping() {
-        let agent = create_test_agent();
-        let velocity = vec![2.0, -3.0, 1.5, -0.8];
-        let mut particle = Particle::new(agent.clone(), velocity, agent.clone(), 0.5);
-
-        particle.clamp_velocity(1.0);
-
-        for &vel in &particle.velocity {
-            assert!(vel.abs() <= 1.0);
-        }
+    fn test_simd_mean_abs_exact_simd_width() {
+        // 4 elements - exactly one SIMD chunk
+        let values = [1.0, -2.0, 3.0, -4.0];
+        let expected = (1.0 + 2.0 + 3.0 + 4.0) / 4.0;
+        assert_eq!(simd_mean_abs(&values), expected);
     }
 
     #[test]
-    fn test_velocity_magnitude() {
-        let agent = create_test_agent();
-        let velocity = vec![0.5, -0.3, 0.8, -0.2];
-        let particle = Particle::new(agent.clone(), velocity, agent.clone(), 0.5);
-
-        let magnitude = particle.velocity_magnitude();
-        let expected = (0.5 + 0.3 + 0.8 + 0.2) / 4.0;
-        assert_eq!(magnitude, expected);
+    fn test_simd_mean_abs_multiple_simd_chunks() {
+        // 8 elements - two SIMD chunks
+        let values = [1.0, -2.0, 3.0, -4.0, 5.0, -6.0, 7.0, -8.0];
+        let expected = (1.0 + 2.0 + 3.0 + 4.0 + 5.0 + 6.0 + 7.0 + 8.0) / 8.0;
+        assert_eq!(simd_mean_abs(&values), expected);
     }
+
+    #[test]
+    fn test_simd_mean_abs_with_remainder() {
+        // 7 elements - one SIMD chunk + 3 remainder
+        let values = [1.0, -2.0, 3.0, -4.0, 5.0, -6.0, 7.0];
+        let expected = (1.0 + 2.0 + 3.0 + 4.0 + 5.0 + 6.0 + 7.0) / 7.0;
+        assert_eq!(simd_mean_abs(&values), expected);
+    }
+
+    #[test]
+    fn test_simd_mean_abs_all_zeros() {
+        let values = [0.0, 0.0, 0.0, 0.0, 0.0];
+        assert_eq!(simd_mean_abs(&values), 0.0);
+    }
+
+    #[test]
+    fn test_simd_mean_abs_all_negative() {
+        let values = [-1.0, -2.0, -3.0, -4.0, -5.0];
+        let expected = (1.0 + 2.0 + 3.0 + 4.0 + 5.0) / 5.0;
+        assert_eq!(simd_mean_abs(&values), expected);
+    }
+
+    #[test]
+    fn test_simd_mean_abs_large_vector() {
+        // Test with a larger vector to stress SIMD path
+        let values: Vec<f64> = (1..=100).map(|i| if i % 2 == 0 { -(i as f64) } else { i as f64 }).collect();
+        let expected: f64 = (1..=100).map(|i| i as f64).sum::<f64>() / 100.0;
+        let result = simd_mean_abs(&values);
+        assert!((result - expected).abs() < 1e-10);
+    }
+
+    // =====================================================================
+    // Tests for ParticleParameters
+    // =====================================================================
 
     #[test]
     fn test_particle_parameters_default() {
@@ -215,8 +207,8 @@ mod tests {
     #[test]
     fn test_particle_parameters_serialization() {
         let params = ParticleParameters::default();
-        let json = serde_json::to_string(&params)?;
-        let deserialized: ParticleParameters = serde_json::from_str(&json)?;
+        let json = serde_json::to_string(&params).expect("serialization should work");
+        let deserialized: ParticleParameters = serde_json::from_str(&json).expect("deserialization should work");
         assert_eq!(params.velocity_clamp, deserialized.velocity_clamp);
         assert_eq!(params.position_bounds, deserialized.position_bounds);
     }

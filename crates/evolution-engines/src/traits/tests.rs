@@ -18,7 +18,7 @@ struct TestGenome {
     value: f64,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Evolvable for TestEntity {
     type Genome = TestGenome;
     type Fitness = f64;
@@ -65,7 +65,7 @@ async fn test_evolvable_trait() {
     assert_eq!(fitness, 5.0);
 
     // Test mutation
-    let mutated = entity.mutate(1.0).await?;
+    let mutated = entity.mutate(1.0).await.unwrap();
     assert_eq!(mutated.value, 6.0);
 
     // Test crossover
