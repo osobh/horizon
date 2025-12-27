@@ -179,7 +179,7 @@ impl MemorySnapshot {
 
     /// Check if snapshot has a specific tag
     pub fn has_tag(&self, key: &str, value: &str) -> bool {
-        self.metadata.tags.get(key).map_or(false, |v| v == value)
+        self.metadata.tags.get(key).is_some_and(|v| v == value)
     }
 }
 
@@ -214,9 +214,8 @@ impl ExecutionContext {
     }
 }
 
-impl KernelParameters {
-    /// Create default kernel parameters
-    pub fn default() -> Self {
+impl Default for KernelParameters {
+    fn default() -> Self {
         Self {
             grid_size: (1, 1, 1),
             block_size: (256, 1, 1),
@@ -225,7 +224,9 @@ impl KernelParameters {
             stream_id: None,
         }
     }
+}
 
+impl KernelParameters {
     /// Create kernel parameters with specific grid and block sizes
     pub fn new(grid_size: (u32, u32, u32), block_size: (u32, u32, u32)) -> Self {
         Self {

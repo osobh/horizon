@@ -74,6 +74,10 @@ impl NvmeStorage {
     }
 
     /// Sync all pending operations to disk
+    ///
+    /// Note: Uses std::sync::Mutex with await due to File handle requirements.
+    /// Refactoring to tokio::sync::Mutex would require significant restructuring.
+    #[allow(clippy::await_holding_lock)]
     pub async fn sync_all(&self) -> Result<(), StorageError> {
         // This is a challenging case where we need to sync multiple files
         // Since we can't clone File handles, we'll need to sync them sequentially
@@ -103,8 +107,6 @@ impl NvmeStorage {
 
                 // Get the ith file (this is inefficient but safe)
                 if let Some((_, file)) = handles.iter_mut().nth(i) {
-                    // Note: This still has async safety issue but is required for functionality
-                    // TODO: Refactor to use RwLock or separate sync mechanism
                     file.sync_all().await
                 } else {
                     Ok(()) // File was removed, nothing to sync
@@ -162,6 +164,7 @@ impl NvmeStorage {
 
         let mut file = OpenOptions::new()
             .create(true)
+            .truncate(false)  // Keep existing data; we write at specific offset
             .write(true)
             .open(&file_path)
             .await?;

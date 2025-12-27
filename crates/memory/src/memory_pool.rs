@@ -3,6 +3,9 @@
 //! Provides efficient memory pool management with block reuse,
 //! fragmentation reduction, and pool-specific allocation strategies.
 
+// Allow Arc<Mutex<T>> where T contains raw pointers - we have explicit unsafe impl Send/Sync
+#![allow(clippy::arc_with_non_send_sync)]
+
 use std::collections::{HashMap, VecDeque};
 use std::ptr::NonNull;
 use std::sync::{Arc, Mutex};
@@ -101,9 +104,7 @@ impl MemoryPool {
             }
         }
 
-        let block_index = block_index.ok_or_else(|| {
-            GpuMemoryError::AllocationFailed { size }
-        })?;
+        let block_index = block_index.ok_or(GpuMemoryError::AllocationFailed { size })?;
 
         let mut block = free_blocks.remove(block_index).unwrap();
         
@@ -295,6 +296,11 @@ impl PoolAllocation {
     }
 
     /// Get the raw pointer (unsafe)
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the pointer is used within its allocation lifetime
+    /// and that proper synchronization is maintained for concurrent access.
     #[inline]
     pub unsafe fn as_ptr(&self) -> *mut u8 {
         self.ptr.as_ptr()

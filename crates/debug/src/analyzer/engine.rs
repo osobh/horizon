@@ -2,8 +2,6 @@
 
 use super::analysis_impl::AnalysisImpl;
 use super::types::*;
-use crate::replay::{KernelMetrics, ReplayResults};
-use crate::snapshot::MemorySnapshot;
 use crate::DebugError;
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -59,6 +57,7 @@ impl DefaultAnalysisEngine {
     }
 
     /// Calculate anomaly score
+    #[allow(dead_code)]
     fn calculate_anomaly_score(&self, value: f64, baseline: &BaselineMetric) -> f64 {
         if baseline.std_dev == 0.0 {
             return 0.0;
@@ -82,32 +81,32 @@ impl AnalysisEngine for DefaultAnalysisEngine {
 
         // Analyze based on target type
         let (findings, data_points) = match target.clone() {
-            AnalysisTarget::SingleReplay { session_id } => {
+            AnalysisTarget::SingleReplay { session_id: _ } => {
                 // In a real implementation, we would fetch the replay data
                 // For now, we'll create empty findings
                 (Vec::new(), 0)
             }
-            AnalysisTarget::SingleSnapshot { snapshot_id } => {
+            AnalysisTarget::SingleSnapshot { snapshot_id: _ } => {
                 // In a real implementation, we would fetch the snapshot data
                 (Vec::new(), 0)
             }
             AnalysisTarget::CompareReplays {
-                baseline,
-                comparison,
+                baseline: _,
+                comparison: _,
             } => {
                 // Compare two replay sessions
                 (Vec::new(), 0)
             }
             AnalysisTarget::CompareSnapshots {
-                baseline,
-                comparison,
+                baseline: _,
+                comparison: _,
             } => {
                 // Compare two snapshots
                 (Vec::new(), 0)
             }
             AnalysisTarget::Timeline {
-                start_time,
-                end_time,
+                start_time: _,
+                end_time: _,
             } => {
                 // Analyze timeline data
                 (Vec::new(), 0)
@@ -150,7 +149,7 @@ impl AnalysisEngine for DefaultAnalysisEngine {
 
     async fn detect_anomalies(
         &self,
-        target: AnalysisTarget,
+        _target: AnalysisTarget,
         baseline: Option<BaselineData>,
     ) -> Result<Vec<AnomalyResult>, DebugError> {
         let anomalies = Vec::new();
@@ -172,8 +171,8 @@ impl AnalysisEngine for DefaultAnalysisEngine {
 
     async fn compare_analysis(
         &self,
-        baseline: AnalysisTarget,
-        comparison: AnalysisTarget,
+        _baseline: AnalysisTarget,
+        _comparison: AnalysisTarget,
     ) -> Result<AnalysisReport, DebugError> {
         let start_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -211,7 +210,7 @@ impl AnalysisEngine for DefaultAnalysisEngine {
     async fn analyze_trends(
         &self,
         metrics: Vec<String>,
-        time_range: (u64, u64),
+        _time_range: (u64, u64),
     ) -> Result<Vec<TrendAnalysis>, DebugError> {
         let mut trends = Vec::new();
 

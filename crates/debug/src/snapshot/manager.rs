@@ -172,10 +172,7 @@ impl SnapshotManager {
             let session = entry.value_mut();
             session.active_snapshots.retain(|&snapshot_id| {
                 // Check if snapshot still exists
-                matches!(
-                    futures::executor::block_on(self.storage.get_snapshot(snapshot_id)),
-                    Ok(_)
-                )
+                futures::executor::block_on(self.storage.get_snapshot(snapshot_id)).is_ok()
             });
         }
 

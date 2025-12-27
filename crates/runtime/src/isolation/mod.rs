@@ -32,7 +32,7 @@ pub enum IsolationResult {
 }
 
 /// Signature for kernel verification
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct KernelSignature {
     /// Hash of the prompt that generated the kernel
     pub prompt_hash: String,
@@ -46,20 +46,8 @@ pub struct KernelSignature {
     pub created_at: u64,
 }
 
-impl Default for KernelSignature {
-    fn default() -> Self {
-        Self {
-            prompt_hash: String::new(),
-            ptx_hash: String::new(),
-            agent_id: None,
-            signature: None,
-            created_at: 0,
-        }
-    }
-}
-
 /// Statistics for a container's isolation context
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct IsolationStats {
     /// Container ID this stats belong to
     pub container_id: String,
@@ -75,20 +63,6 @@ pub struct IsolationStats {
     pub is_active: bool,
     /// Timestamp of last activity
     pub last_activity: Option<u64>,
-}
-
-impl Default for IsolationStats {
-    fn default() -> Self {
-        Self {
-            container_id: String::new(),
-            memory_allocated: 0,
-            memory_quota: 0,
-            kernels_launched: 0,
-            security_violations: 0,
-            is_active: false,
-            last_activity: None,
-        }
-    }
 }
 
 /// Internal isolation context for a container

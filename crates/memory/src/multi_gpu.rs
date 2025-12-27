@@ -3,6 +3,9 @@
 //! Provides support for multiple GPU memory management, peer-to-peer
 //! memory transfers, and cross-GPU memory allocation strategies.
 
+// Allow Arc<Mutex<T>> where T contains NonNull - we have explicit unsafe impl Send/Sync
+#![allow(clippy::arc_with_non_send_sync)]
+
 use std::collections::HashMap;
 use std::ptr::NonNull;
 use std::sync::{Arc, Mutex};
@@ -100,6 +103,7 @@ pub struct P2PManager {
 
 /// Information about a GPU-specific allocation
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct GpuAllocationInfo {
     ptr: NonNull<u8>,
     size: u64,
@@ -109,6 +113,7 @@ struct GpuAllocationInfo {
 }
 
 /// Load balancer for distributing allocations across GPUs
+#[allow(dead_code)]
 struct LoadBalancer {
     gpu_utilization: Vec<f32>,
     allocation_strategy: AllocationStrategy,
@@ -116,6 +121,7 @@ struct LoadBalancer {
 
 /// Multi-GPU allocation strategy
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 enum AllocationStrategy {
     RoundRobin,
     LeastUtilized,
@@ -125,11 +131,15 @@ enum AllocationStrategy {
 
 /// P2P transfer statistics
 #[derive(Debug, Clone)]
-struct TransferStats {
-    total_transfers: u64,
-    total_bytes_transferred: u64,
-    average_bandwidth_gbps: f32,
-    last_transfer_time: Option<Instant>,
+pub struct TransferStats {
+    /// Total number of P2P transfers
+    pub total_transfers: u64,
+    /// Total bytes transferred across GPUs
+    pub total_bytes_transferred: u64,
+    /// Average bandwidth in GB/s
+    pub average_bandwidth_gbps: f32,
+    /// Time of last transfer
+    pub last_transfer_time: Option<Instant>,
 }
 
 impl MultiGpuManager {
@@ -197,7 +207,7 @@ impl MultiGpuManager {
                 .map_err(|_| GpuMemoryError::AllocationFailed { size })?;
             let raw_ptr = unsafe { std::alloc::alloc(layout) };
             NonNull::new(raw_ptr)
-                .ok_or_else(|| GpuMemoryError::AllocationFailed { size })?
+                .ok_or(GpuMemoryError::AllocationFailed { size })?
         };
 
         // Track the allocation

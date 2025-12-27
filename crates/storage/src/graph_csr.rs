@@ -71,7 +71,7 @@ impl GraphCSR {
     }
 
     /// Get all edges from a specific node
-    pub fn get_edges(&self, from: usize) -> Result<EdgeIterator, StorageError> {
+    pub fn get_edges(&self, from: usize) -> Result<EdgeIterator<'_>, StorageError> {
         if from >= self.row_offsets.len() - 1 {
             return Err(StorageError::InvalidNode {
                 id: from as u64,

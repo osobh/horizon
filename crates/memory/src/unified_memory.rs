@@ -3,6 +3,9 @@
 //! Provides CUDA Unified Memory support with automatic migration,
 //! memory hints, and zero-copy access from both CPU and GPU.
 
+// Allow Arc<Mutex<T>> where T contains NonNull - we have explicit unsafe impl Send/Sync
+#![allow(clippy::arc_with_non_send_sync)]
+
 use std::ptr::NonNull;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -24,6 +27,7 @@ pub struct UnifiedMemoryManager {
 
 /// Information about a unified memory allocation
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct UnifiedAllocationInfo {
     id: u64,
     ptr: NonNull<u8>,
@@ -36,14 +40,18 @@ struct UnifiedAllocationInfo {
 
 /// Current memory location for unified allocation
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum MemoryLocation {
+pub enum MemoryLocation {
+    /// Memory is on GPU
     Gpu,
+    /// Memory is on CPU
     Cpu,
+    /// Memory location is unknown
     Unknown,
 }
 
 /// Memory access pattern for optimization
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 enum AccessPattern {
     CpuMostly,
     GpuMostly,
@@ -108,7 +116,7 @@ impl UnifiedMemoryManager {
                 .map_err(|_| GpuMemoryError::AllocationFailed { size })?;
             let raw_ptr = unsafe { std::alloc::alloc(layout) };
             NonNull::new(raw_ptr)
-                .ok_or_else(|| GpuMemoryError::AllocationFailed { size })?
+                .ok_or(GpuMemoryError::AllocationFailed { size })?
         };
 
         // Track the allocation

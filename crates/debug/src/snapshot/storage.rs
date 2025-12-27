@@ -87,7 +87,7 @@ impl SnapshotStorage for RingBufferStorage {
         // Update container tracking
         self.container_snapshots
             .entry(container_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(snapshot_id);
 
         Ok(())
@@ -224,7 +224,7 @@ impl SnapshotStorage for FileStorage {
 
         self.container_snapshots
             .entry(container_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(snapshot_id);
 
         Ok(())

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::ptr::NonNull;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use thiserror::Error;
 
 #[cfg(feature = "cuda")]
@@ -106,6 +106,7 @@ pub struct ZeroCopyBuffer {
 
 /// Pinned memory allocation for fast DMA transfers
 pub struct PinnedAllocation {
+    #[allow(dead_code)]
     ptr: NonNull<u8>,
     size: u64,
     #[cfg(feature = "cuda")]
@@ -121,6 +122,7 @@ pub struct GpuMemoryTier {
     multi_gpu_manager: Option<MultiGpuManager>,
     memory_pools: Arc<Mutex<HashMap<String, Arc<MemoryPool>>>>,
     metrics: Arc<Mutex<MemoryMetrics>>,
+    #[allow(dead_code)]
     gpu_allocations: Arc<Mutex<Vec<MemoryAllocation>>>,
     cpu_allocations: Arc<Mutex<Vec<MemoryAllocation>>>,
 }
@@ -268,6 +270,11 @@ impl GpuView {
     pub fn len(&self) -> usize {
         self.size
     }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.size == 0
+    }
 }
 
 // Implementation of pinned allocation methods
@@ -341,14 +348,15 @@ impl GpuMemoryTier {
         })
     }
 
+    #[allow(unused_mut, unused_variables)]
     pub fn new_multi_gpu(config: MemoryConfig, gpu_count: u32) -> Result<Self> {
         let mut tier = Self::new(config)?;
-        
+
         #[cfg(feature = "cuda")]
         {
             tier.multi_gpu_manager = Some(MultiGpuManager::new(gpu_count)?);
         }
-        
+
         Ok(tier)
     }
 

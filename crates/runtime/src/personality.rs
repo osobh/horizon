@@ -74,7 +74,7 @@ impl AgentPersonality {
 
     /// Validate trait value is in valid range [0.0, 1.0]
     fn is_valid_trait(value: f32) -> bool {
-        value >= 0.0 && value <= 1.0 && !value.is_nan()
+        (0.0..=1.0).contains(&value) && !value.is_nan()
     }
 
     /// Create a personality from a predefined type

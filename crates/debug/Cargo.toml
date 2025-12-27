@@ -19,6 +19,7 @@ uuid = { workspace = true }
 # Debug and introspection
 backtrace = "0.3"
 futures = "0.3"
+dashmap = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"

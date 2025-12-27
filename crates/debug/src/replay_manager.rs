@@ -7,7 +7,6 @@ use super::types::*;
 use crate::snapshot::MemorySnapshot;
 use crate::DebugError;
 use dashmap::DashMap;
-use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 

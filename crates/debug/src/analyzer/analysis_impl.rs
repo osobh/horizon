@@ -10,6 +10,7 @@ pub struct AnalysisImpl<'a> {
     config: &'a super::engine::AnalysisConfig,
 }
 
+#[allow(dead_code)]
 impl<'a> AnalysisImpl<'a> {
     pub fn new(config: &'a super::engine::AnalysisConfig) -> Self {
         Self { config }
