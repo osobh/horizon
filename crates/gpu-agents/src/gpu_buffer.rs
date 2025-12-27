@@ -66,21 +66,25 @@ impl<T: cudarc::driver::DeviceRepr> GpuBuffer<T> {
     }
 
     /// Get the number of elements in the buffer
+    #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
     /// Check if the buffer is empty
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     /// Get a reference to the underlying CudaSlice
+    #[inline]
     pub fn as_slice(&self) -> &CudaSlice<T> {
         &self.slice
     }
 
     /// Get a mutable reference to the underlying CudaSlice
+    #[inline]
     pub fn as_slice_mut(&mut self) -> &mut CudaSlice<T> {
         &mut self.slice
     }

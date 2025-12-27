@@ -264,6 +264,7 @@ pub struct GpuView {
 }
 
 impl GpuView {
+    #[inline]
     pub fn len(&self) -> usize {
         self.size
     }
@@ -271,14 +272,17 @@ impl GpuView {
 
 // Implementation of pinned allocation methods
 impl PinnedAllocation {
+    #[inline]
     pub fn is_pinned(&self) -> bool {
         true
     }
 
+    #[inline]
     pub fn is_dma_capable(&self) -> bool {
         true
     }
 
+    #[inline]
     pub fn size(&self) -> u64 {
         self.size
     }
@@ -570,12 +574,14 @@ impl GpuMemoryTier {
         }
     }
 
+    #[inline]
     pub fn gpu_utilization(&self) -> f32 {
         let gpu_allocated = self.metrics.lock().unwrap().gpu_allocated_bytes;
         let total_gpu_memory = (self.config.gpu_memory_gb as u64) * 1024 * 1024 * 1024;
         (gpu_allocated as f32) / (total_gpu_memory as f32)
     }
 
+    #[inline]
     pub fn cpu_utilization(&self) -> f32 {
         let cpu_allocated = self.metrics.lock().unwrap().cpu_allocated_bytes;
         let total_cpu_memory = (self.config.cpu_memory_gb as u64) * 1024 * 1024 * 1024;

@@ -27,11 +27,13 @@ impl MigrationController {
     }
 
     /// Get migration count
+    #[inline]
     pub fn get_migration_count(&self) -> usize {
         self.migration_count
     }
 
     /// Get migration history
+    #[inline]
     pub fn get_migration_history(&self) -> &[PopulationMigration] {
         &self.migration_history
     }

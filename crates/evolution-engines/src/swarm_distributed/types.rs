@@ -121,6 +121,7 @@ impl SwarmNode {
     }
 
     /// Check if node is healthy based on heartbeat
+    #[inline]
     pub fn is_healthy(&self, timeout_ms: u64) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -164,6 +165,7 @@ impl DiscoveryProtocol {
     }
 
     /// Get known nodes
+    #[inline]
     pub fn get_known_nodes(&self) -> Vec<SwarmNode> {
         self.known_nodes.values().cloned().collect()
     }

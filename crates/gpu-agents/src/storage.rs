@@ -169,10 +169,12 @@ pub struct GpuMemoryHandle {
 }
 
 impl GpuMemoryHandle {
+    #[inline]
     pub fn is_mapped(&self) -> bool {
         self.mapped
     }
 
+    #[inline]
     pub fn size_bytes(&self) -> usize {
         self.size
     }
@@ -266,6 +268,7 @@ impl GpuAgentStorage {
     }
 
     /// Check if storage is initialized
+    #[inline]
     pub fn is_initialized(&self) -> bool {
         self.initialized
     }

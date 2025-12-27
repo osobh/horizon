@@ -182,11 +182,13 @@ impl UnifiedMemoryManager {
     }
 
     /// Get total allocated unified memory
+    #[inline]
     pub fn total_allocated(&self) -> u64 {
         *self.total_allocated.lock().unwrap()
     }
 
     /// Get number of active allocations
+    #[inline]
     pub fn allocation_count(&self) -> usize {
         self.allocations.lock().unwrap().len()
     }
@@ -194,31 +196,37 @@ impl UnifiedMemoryManager {
 
 impl UnifiedAllocation {
     /// Check if the allocation is accessible from CPU
+    #[inline]
     pub fn cpu_accessible(&self) -> bool {
         true // Unified memory is always CPU accessible
     }
 
     /// Check if the allocation is accessible from GPU
+    #[inline]
     pub fn gpu_accessible(&self) -> bool {
         true // Unified memory is always GPU accessible
     }
 
     /// Get the unified pointer that can be used by both CPU and GPU
+    #[inline]
     pub fn unified_ptr(&self) -> *mut u8 {
         self.ptr.as_ptr()
     }
 
     /// Get the size of the allocation
+    #[inline]
     pub fn size(&self) -> u64 {
         self.size
     }
 
     /// Check if memory is currently resident on GPU
+    #[inline]
     pub fn is_gpu_resident(&self) -> bool {
         matches!(*self.location.lock().unwrap(), MemoryLocation::Gpu)
     }
 
     /// Check if memory is currently resident on CPU
+    #[inline]
     pub fn is_cpu_resident(&self) -> bool {
         matches!(*self.location.lock().unwrap(), MemoryLocation::Cpu)
     }

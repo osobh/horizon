@@ -52,14 +52,17 @@ impl MemoryAllocation {
         }
     }
     
+    #[inline]
     pub fn gpu_id(&self) -> u32 {
         self.gpu_id.unwrap_or(0)
     }
-    
+
+    #[inline]
     pub fn size(&self) -> u64 {
         self.size
     }
-    
+
+    #[inline]
     pub fn is_gpu_resident(&self) -> bool {
         matches!(self.location, MemoryLocation::Gpu | MemoryLocation::Unified)
     }

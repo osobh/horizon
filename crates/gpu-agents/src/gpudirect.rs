@@ -61,6 +61,7 @@ impl GdsAvailabilityChecker {
     }
 
     /// Check if GDS is available on the system
+    #[inline]
     pub fn is_available(&self) -> bool {
         // In a real implementation, this would check:
         // 1. NVIDIA driver version >= 470
@@ -150,18 +151,22 @@ impl GpuIoBuffer {
         })
     }
 
+    #[inline]
     pub fn size(&self) -> usize {
         self.size
     }
 
+    #[inline]
     pub fn is_aligned(&self) -> bool {
         self.aligned
     }
 
+    #[inline]
     pub fn is_pinned(&self) -> bool {
         self.pinned
     }
 
+    #[inline]
     pub fn device_ptr(&self) -> Option<*mut u8> {
         Some(*self.buffer.device_ptr() as *mut u8)
     }
@@ -240,10 +245,12 @@ impl GpuDirectManager {
         Ok(())
     }
 
+    #[inline]
     pub fn is_initialized(&self) -> bool {
         self.is_initialized.load(Ordering::Relaxed)
     }
 
+    #[inline]
     pub fn get_num_io_queues(&self) -> usize {
         self.io_queues.len()
     }

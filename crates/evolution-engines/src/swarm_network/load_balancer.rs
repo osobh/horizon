@@ -167,6 +167,7 @@ impl LoadBalancer {
     }
 
     /// Get current load for a node
+    #[inline]
     pub fn get_node_load(&self, node_id: &str) -> f64 {
         self.load_distribution.get(node_id).copied().unwrap_or(0.0)
     }
@@ -189,11 +190,13 @@ impl LoadBalancer {
     }
 
     /// Get all node capacities
+    #[inline]
     pub fn get_node_capacities(&self) -> &HashMap<String, NodeCapacity> {
         &self.node_capacities
     }
 
     /// Get load distribution
+    #[inline]
     pub fn get_load_distribution(&self) -> &HashMap<String, f64> {
         &self.load_distribution
     }

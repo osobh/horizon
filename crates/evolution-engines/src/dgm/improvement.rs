@@ -43,6 +43,7 @@ impl GrowthPattern {
     }
 
     /// Calculate success rate
+    #[inline]
     pub fn success_rate(&self) -> f64 {
         let total = self.success_count + self.failure_count;
         if total == 0 {
@@ -53,6 +54,7 @@ impl GrowthPattern {
     }
 
     /// Check if pattern is still relevant
+    #[inline]
     pub fn is_relevant(&self, current_generation: u32, max_age: u32) -> bool {
         current_generation - self.last_used <= max_age
     }
