@@ -310,11 +310,13 @@ impl UnifiedAllocation {
     }
 
     /// Get allocation timestamp
+    #[inline]
     pub fn allocated_at(&self) -> Instant {
         self.allocated_at
     }
 
     /// Get allocation ID
+    #[inline]
     pub fn id(&self) -> u64 {
         self.id
     }

@@ -57,6 +57,7 @@ impl PartitionManager {
     }
 
     /// Get particles assigned to a node
+    #[inline]
     pub fn get_particles_on_node(&self, node_id: &str) -> Vec<String> {
         self.assignments.get(node_id).cloned().unwrap_or_default()
     }
@@ -93,11 +94,13 @@ impl PartitionManager {
     }
 
     /// Get all current assignments
+    #[inline]
     pub fn get_assignments(&self) -> &HashMap<String, Vec<String>> {
         &self.assignments
     }
 
     /// Get particle metadata
+    #[inline]
     pub fn get_particle_metadata(&self, particle_id: &str) -> Option<&ParticleMetadata> {
         self.particle_metadata.get(particle_id)
     }

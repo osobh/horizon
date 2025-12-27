@@ -38,6 +38,7 @@ impl Individual {
     }
 
     /// Get fitness score
+    #[inline]
     pub fn fitness(&self) -> Option<f64> {
         self.fitness
     }
@@ -108,11 +109,13 @@ impl Population {
     }
 
     /// Get population size
+    #[inline]
     pub fn size(&self) -> usize {
         self.individuals.len()
     }
 
     /// Check if population is empty
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.individuals.is_empty()
     }

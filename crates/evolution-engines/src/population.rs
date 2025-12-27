@@ -69,6 +69,7 @@ impl<E: Evolvable> Population<E> {
     }
 
     /// Get population size
+    #[inline]
     pub fn size(&self) -> usize {
         self.individuals.len()
     }

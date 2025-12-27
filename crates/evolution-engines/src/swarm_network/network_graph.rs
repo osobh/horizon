@@ -94,16 +94,19 @@ impl NetworkGraph {
     }
 
     /// Get all nodes in the graph
+    #[inline]
     pub fn get_nodes(&self) -> &HashMap<String, SwarmNode> {
         &self.nodes
     }
 
     /// Get adjacency list
+    #[inline]
     pub fn get_adjacency(&self) -> &HashMap<String, Vec<String>> {
         &self.adjacency
     }
 
     /// Get edge weight between two nodes
+    #[inline]
     pub fn get_edge_weight(&self, from_node: &str, to_node: &str) -> Option<&EdgeWeight> {
         self.edge_weights
             .get(&(from_node.to_string(), to_node.to_string()))

@@ -246,6 +246,7 @@ impl MultiGpuManager {
     }
 
     /// Get GPU utilization statistics
+    #[inline]
     pub fn get_gpu_utilization(&self, gpu_id: u32) -> f32 {
         self.load_balancer.lock().unwrap()
             .gpu_utilization.get(gpu_id as usize)
@@ -254,6 +255,7 @@ impl MultiGpuManager {
     }
 
     /// Get P2P connectivity matrix
+    #[inline]
     pub fn get_p2p_matrix(&self) -> Vec<Vec<bool>> {
         self.p2p_manager.get_connectivity_matrix()
     }
@@ -264,6 +266,7 @@ impl MultiGpuManager {
     }
 
     /// Get transfer statistics between two GPUs
+    #[inline]
     pub fn get_transfer_stats(&self, gpu_src: u32, gpu_dst: u32) -> Option<TransferStats> {
         self.p2p_manager.get_stats(gpu_src, gpu_dst)
     }
@@ -382,11 +385,13 @@ impl P2PManager {
     }
 
     /// Get P2P connectivity matrix
+    #[inline]
     pub fn get_connectivity_matrix(&self) -> Vec<Vec<bool>> {
         self.p2p_matrix.lock().unwrap().clone()
     }
 
     /// Get transfer statistics between two GPUs
+    #[inline]
     pub fn get_stats(&self, gpu_src: u32, gpu_dst: u32) -> Option<TransferStats> {
         self.transfer_stats.lock().unwrap()
             .get(&(gpu_src, gpu_dst))
