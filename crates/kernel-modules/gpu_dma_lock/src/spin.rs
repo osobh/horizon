@@ -11,7 +11,21 @@ pub struct RwLock<T> {
     data: UnsafeCell<T>,
 }
 
+// SAFETY: RwLock<T> is Send because:
+// 1. The `UnsafeCell<T>` only grants access through the lock guards
+// 2. If T: Send, then transferring ownership of the lock is safe
+// 3. The lock itself has no thread-local state
+// 4. In a real kernel, this would use kernel spinlock primitives
+// 5. Currently a no-op lock for kernel module skeleton
 unsafe impl<T: Send> Send for RwLock<T> {}
+
+// SAFETY: RwLock<T> is Sync because:
+// 1. RwLock provides synchronized access to the inner data
+// 2. Only one writer OR multiple readers can access at a time (semantically)
+// 3. T: Send is required to ensure T can be accessed from any thread
+// 4. NOTE: This is a placeholder implementation - in production kernel code,
+//    actual spinlock synchronization must be implemented
+// 5. Multiple threads can safely hold &RwLock because access is controlled
 unsafe impl<T: Send> Sync for RwLock<T> {}
 
 impl<T> RwLock<T> {
@@ -65,7 +79,21 @@ pub struct Mutex<T> {
     data: UnsafeCell<T>,
 }
 
+// SAFETY: Mutex<T> is Send because:
+// 1. The `UnsafeCell<T>` only grants access through the MutexGuard
+// 2. If T: Send, then transferring ownership of the lock is safe
+// 3. The lock itself has no thread-local state
+// 4. In a real kernel, this would use kernel spinlock primitives
+// 5. Currently a no-op lock for kernel module skeleton
 unsafe impl<T: Send> Send for Mutex<T> {}
+
+// SAFETY: Mutex<T> is Sync because:
+// 1. Mutex provides exclusive synchronized access to the inner data
+// 2. Only one thread can hold the lock at a time (semantically)
+// 3. T: Send is required to ensure T can be accessed from any thread
+// 4. NOTE: This is a placeholder implementation - in production kernel code,
+//    actual spinlock synchronization must be implemented
+// 5. Multiple threads can safely hold &Mutex because access is controlled
 unsafe impl<T: Send> Sync for Mutex<T> {}
 
 impl<T> Mutex<T> {

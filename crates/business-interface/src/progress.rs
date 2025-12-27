@@ -133,6 +133,10 @@ pub enum ProgressEventType {
 }
 
 /// Progress tracking metrics
+///
+/// Cache-line aligned (64 bytes) to prevent false sharing when
+/// multiple goal tracking threads update counters concurrently.
+#[repr(C, align(64))]
 #[derive(Debug, Default)]
 pub struct ProgressMetrics {
     /// Total goals tracked
@@ -145,6 +149,8 @@ pub struct ProgressMetrics {
     pub failed_goals: std::sync::atomic::AtomicU64,
     /// Total progress events
     pub total_events: std::sync::atomic::AtomicU64,
+    // Padding to fill cache line (5 * 8 = 40 bytes, need 24 more)
+    _padding: [u8; 24],
 }
 
 impl ProgressTracker {

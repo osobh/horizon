@@ -32,12 +32,18 @@ pub struct NetworkStreamSource {
 }
 
 /// Thread-safe statistics for network source
+///
+/// Cache-line aligned (64 bytes) to prevent false sharing when
+/// multiple network threads update counters concurrently.
+#[repr(C, align(64))]
 #[derive(Debug, Default)]
 struct NetworkSourceStats {
     chunks_received: AtomicU64,
     bytes_received: AtomicU64,
     network_time_ns: AtomicU64,
     connection_errors: AtomicU64,
+    // Padding to fill cache line (4 * 8 = 32 bytes, need 32 more)
+    _padding: [u8; 32],
 }
 
 impl NetworkStreamSource {

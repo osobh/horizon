@@ -49,36 +49,43 @@ impl ManagedPopulation {
     }
 
     /// Get population ID
+    #[inline]
     pub fn id(&self) -> &str {
         &self.id
     }
 
     /// Get population size
+    #[inline]
     pub fn size(&self) -> usize {
         self.agents.len()
     }
 
     /// Get current generation
+    #[inline]
     pub fn generation(&self) -> u32 {
         self.generation
     }
 
     /// Check if population has converged
+    #[inline]
     pub fn is_converged(&self) -> bool {
         self.converged
     }
 
     /// Get agents
+    #[inline]
     pub fn get_agents(&self) -> &[EvolvableAgent] {
         &self.agents
     }
 
     /// Get best fitness
+    #[inline]
     pub fn get_best_fitness(&self) -> f64 {
         self.best_fitness
     }
 
     /// Get average fitness
+    #[inline]
     pub fn get_average_fitness(&self) -> f64 {
         self.average_fitness
     }

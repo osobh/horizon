@@ -33,6 +33,62 @@ pub enum MemoryTier {
     HDD = 4,
 }
 
+impl MemoryTier {
+    /// Returns the next higher performance tier, if one exists.
+    /// GPU is the highest tier, so it returns None.
+    #[inline]
+    pub fn higher_tier(self) -> Option<Self> {
+        match self {
+            Self::GPU => None,
+            Self::CPU => Some(Self::GPU),
+            Self::NVMe => Some(Self::CPU),
+            Self::SSD => Some(Self::NVMe),
+            Self::HDD => Some(Self::SSD),
+        }
+    }
+
+    /// Returns the next lower performance tier, if one exists.
+    /// HDD is the lowest tier, so it returns None.
+    #[inline]
+    pub fn lower_tier(self) -> Option<Self> {
+        match self {
+            Self::GPU => Some(Self::CPU),
+            Self::CPU => Some(Self::NVMe),
+            Self::NVMe => Some(Self::SSD),
+            Self::SSD => Some(Self::HDD),
+            Self::HDD => None,
+        }
+    }
+
+    /// Safely converts a u8 to a MemoryTier, returning None for invalid values.
+    #[inline]
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::GPU),
+            1 => Some(Self::CPU),
+            2 => Some(Self::NVMe),
+            3 => Some(Self::SSD),
+            4 => Some(Self::HDD),
+            _ => None,
+        }
+    }
+
+    /// Returns all tiers from highest to lowest performance.
+    pub const ALL_TIERS: [Self; 5] = [Self::GPU, Self::CPU, Self::NVMe, Self::SSD, Self::HDD];
+
+    /// Iterates through tiers higher than self (better performance).
+    pub fn higher_tiers(self) -> impl Iterator<Item = Self> {
+        let start = self as u8;
+        (0..start).rev().filter_map(Self::from_u8)
+    }
+
+    /// Iterates through tiers lower than self (worse performance).
+    pub fn lower_tiers(self) -> impl Iterator<Item = Self> {
+        let start = self as u8;
+        ((start + 1)..=4).filter_map(Self::from_u8)
+    }
+}
+
 // Placeholder TierManager
 pub struct TierManager {
     device: Arc<CudaDevice>,

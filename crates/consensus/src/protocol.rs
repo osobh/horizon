@@ -160,6 +160,7 @@ pub struct GpuComputeTask {
 
 impl ConsensusProtocol {
     /// Create new consensus protocol instance
+    #[must_use = "ignoring the Result may hide initialization errors"]
     pub fn new(
         config: ConsensusConfig,
         validator_address: std::net::SocketAddr,

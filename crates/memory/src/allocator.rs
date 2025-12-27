@@ -31,6 +31,7 @@ struct AllocationInfo {
 
 impl GpuMemoryAllocator {
     /// Create new GPU memory allocator
+    #[must_use = "ignoring the Result may hide allocator creation errors"]
     pub fn new(total_memory: usize) -> Result<Self, MemoryError> {
         Ok(Self {
             allocations: Arc::new(Mutex::new(HashMap::new())),

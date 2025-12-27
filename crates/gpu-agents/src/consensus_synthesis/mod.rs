@@ -76,13 +76,13 @@ impl ConsensusSynthesisEngine {
 
     /// Initialize voting engine
     pub fn init_voting(&mut self, num_agents: usize) -> Result<()> {
-        self.voting_engine = Some(GpuVoting::new(self.device.clone(), num_agents)?);
+        self.voting_engine = Some(GpuVoting::new(Arc::clone(&self.device), num_agents)?);
         Ok(())
     }
 
     /// Initialize pattern matcher
     pub fn init_synthesis(&mut self) -> Result<()> {
-        self.pattern_matcher = Some(GpuPatternMatcher::new(self.device.clone(), 1024)?);
+        self.pattern_matcher = Some(GpuPatternMatcher::new(Arc::clone(&self.device), 1024)?);
         Ok(())
     }
 

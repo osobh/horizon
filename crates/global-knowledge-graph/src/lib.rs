@@ -9,8 +9,10 @@
 
 #![warn(missing_docs)]
 
+pub mod cache_actor;
 pub mod cache_layer;
 pub mod compliance_handler;
+pub mod consistency_actor;
 pub mod consistency_manager;
 pub mod error;
 pub mod graph_manager;
@@ -23,6 +25,12 @@ pub mod sync_protocol;
 
 pub use error::{GlobalKnowledgeGraphError, GlobalKnowledgeGraphResult};
 pub use graph_manager::{GraphConfig, GraphManager};
+
+// Re-export actor types for new code
+pub use cache_actor::{create_cache_actor, CacheActor, CacheHandle, CacheRequest};
+pub use consistency_actor::{
+    create_consistency_actor, ConsistencyActor, ConsistencyHandle, ConsistencyRequest,
+};
 
 // Export new global synchronization components
 pub use sync_protocol::{

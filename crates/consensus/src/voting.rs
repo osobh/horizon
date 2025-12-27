@@ -196,6 +196,7 @@ impl VotingRound {
     }
 
     /// Add vote to the round
+    #[must_use = "ignoring the Result may hide vote validation failures"]
     pub fn add_vote(&mut self, vote: Vote, validator_info: &ValidatorInfo) -> ConsensusResult<()> {
         // Validate vote belongs to this round
         if vote.round_id != self.round_id {

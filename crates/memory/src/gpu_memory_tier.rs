@@ -127,30 +127,37 @@ pub struct GpuMemoryTier {
 
 // Implementation of memory allocation methods
 impl MemoryAllocation {
+    #[inline]
     pub fn is_gpu_resident(&self) -> bool {
         matches!(self.location, MemoryLocation::Gpu | MemoryLocation::Unified)
     }
 
+    #[inline]
     pub fn is_cpu_resident(&self) -> bool {
         matches!(self.location, MemoryLocation::Cpu | MemoryLocation::Unified)
     }
 
+    #[inline]
     pub fn size(&self) -> u64 {
         self.size
     }
 
+    #[inline]
     pub fn gpu_id(&self) -> u32 {
         self.gpu_id.unwrap_or(0)
     }
 
+    #[inline]
     pub fn from_pool(&self) -> bool {
         self.from_pool
     }
 
+    #[inline]
     pub fn cpu_accessible(&self) -> bool {
         !matches!(self.location, MemoryLocation::Gpu)
     }
 
+    #[inline]
     pub fn gpu_accessible(&self) -> bool {
         !matches!(self.location, MemoryLocation::Cpu)
     }
@@ -583,12 +590,51 @@ impl GpuMemoryTier {
     }
 }
 
-// Safety: MemoryAllocation contains raw pointers but manages them safely
+// SAFETY: MemoryAllocation is Send because:
+// 1. `ptr: NonNull<u8>` points to memory that is either:
+//    - GPU memory managed by CUDA (thread-safe by design)
+//    - CPU memory allocated via std::alloc (ownership transfer is safe)
+// 2. All metadata fields (size, location, gpu_id, etc.) are trivially Send
+// 3. The allocation represents exclusive ownership of the pointed-to memory
+// 4. Memory is freed via corresponding deallocation APIs that are thread-safe
+// 5. The Instant timestamp is Send
 unsafe impl Send for MemoryAllocation {}
+
+// SAFETY: MemoryAllocation is Sync because:
+// 1. All fields are either primitive types or pointers that are only read
+// 2. Methods taking &self only read metadata or call thread-safe CUDA APIs
+// 3. Actual memory access requires unsafe code with proper synchronization
+// 4. No interior mutability is used - mutations require &mut self
 unsafe impl Sync for MemoryAllocation {}
+
+// SAFETY: ZeroCopyBuffer is Send because:
+// 1. `ptr: NonNull<u8>` points to page-locked host memory allocated for DMA
+// 2. `cuda_ptr: u64` is just a pointer value (not a reference)
+// 3. CUDA page-locked memory is designed for concurrent CPU/GPU access
+// 4. The buffer represents exclusive ownership that can be transferred
+// 5. Size is a trivially Send primitive type
 unsafe impl Send for ZeroCopyBuffer {}
+
+// SAFETY: ZeroCopyBuffer is Sync because:
+// 1. Read operations (read_cpu, gpu_view) don't modify shared state
+// 2. Write operations (write_cpu) are synchronized by CUDA driver
+// 3. The buffer is designed for CPU/GPU data sharing (thread-safe by design)
+// 4. No interior mutability - writing requires &mut self or is explicitly unsafe
 unsafe impl Sync for ZeroCopyBuffer {}
+
+// SAFETY: PinnedAllocation is Send because:
+// 1. `ptr: NonNull<u8>` points to CUDA pinned memory (cudaMallocHost)
+// 2. `cuda_ptr: u64` is just a pointer value for device access
+// 3. Pinned memory is designed for efficient DMA transfers (thread-safe)
+// 4. The allocation can be safely transferred between threads
+// 5. Size is a trivially Send primitive type
 unsafe impl Send for PinnedAllocation {}
+
+// SAFETY: PinnedAllocation is Sync because:
+// 1. Pinned memory access is synchronized by CUDA driver during transfers
+// 2. Methods only read metadata or perform DMA operations
+// 3. DMA transfers are serialized by CUDA stream ordering
+// 4. No interior mutability - actual memory access requires proper sync
 unsafe impl Sync for PinnedAllocation {}
 
 // Clone implementation for MemoryAllocation (shallow copy of metadata)

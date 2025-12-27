@@ -57,7 +57,22 @@ impl RealGpuMetricsCollector {
             .device_by_index(device_index)
             .context("Failed to get NVML device")?;
 
-        // Leak the device to get 'static lifetime (safe because we hold Arc<Nvml>)
+        // SAFETY: This transmute extends the lifetime of `nvml_device` from the
+        // borrowed lifetime of `nvml` to `'static`. This is safe because:
+        //
+        // 1. We store `Arc<Nvml>` in `self.nvml` alongside the device handle
+        // 2. The `nvml_device` field cannot outlive the struct since both are
+        //    dropped together when `RealGpuMetricsCollector` is dropped
+        // 3. Rust drops struct fields in declaration order, but since both live
+        //    for the struct's entire lifetime, the order doesn't matter
+        // 4. The `Arc<Nvml>` ensures the NVML context remains valid for all
+        //    clones of this collector
+        // 5. NVML device handles are thread-safe (NVML is thread-safe per docs)
+        //
+        // Alternative approaches considered:
+        // - `ouroboros` crate: Would add complexity for self-referential struct
+        // - Passing `&nvml` to each method: Would require lifetime annotations everywhere
+        // - Storing `Arc<Nvml>` in Device: Not supported by nvml_wrapper API
         let nvml_device: nvml_wrapper::Device<'static> =
             unsafe { std::mem::transmute(nvml_device) };
 

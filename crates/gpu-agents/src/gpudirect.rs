@@ -522,6 +522,10 @@ pub struct IoResult {
 }
 
 /// GDS statistics
+///
+/// Cache-line aligned (64 bytes) to prevent false sharing when
+/// multiple GPU I/O threads update counters concurrently.
+#[repr(C, align(64))]
 #[derive(Default)]
 struct GdsStatistics {
     total_reads: AtomicU64,
@@ -530,6 +534,8 @@ struct GdsStatistics {
     bytes_written: AtomicU64,
     total_read_time: AtomicU64,
     total_write_time: AtomicU64,
+    // Padding to fill cache line (6 * 8 = 48 bytes, need 16 more)
+    _padding: [u8; 16],
 }
 
 impl GdsStatistics {

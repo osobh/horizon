@@ -118,8 +118,23 @@ impl MetalBuffer for Metal4Buffer {
     }
 }
 
-// Safety: Metal buffers with shared storage mode can be accessed from any thread
+// SAFETY: Metal4Buffer is Send because:
+// 1. `Retained<ProtocolObject<dyn MTLBuffer>>` wraps an Objective-C MTLBuffer which is
+//    thread-safe per Apple's Metal documentation (GPU resources are thread-safe)
+// 2. The buffer uses `StorageModeShared` which provides coherent unified memory access
+//    from any thread on Apple Silicon's unified memory architecture
+// 3. The `size` field is a trivially Send primitive
+// 4. Ownership of the buffer can safely be transferred between threads
+// 5. Metal's reference counting (via `Retained`) is thread-safe
 unsafe impl Send for Metal4Buffer {}
+
+// SAFETY: Metal4Buffer is Sync because:
+// 1. MTLBuffer objects are thread-safe for concurrent read access per Metal documentation
+// 2. Shared storage mode buffers have coherent memory views from all threads
+// 3. The `contents()` method returns a raw pointer that can be safely read concurrently
+// 4. Mutation through `contents_mut()` requires `&mut self`, preventing data races
+// 5. GPU operations on the buffer are synchronized through Metal command encoders
+// 6. Metal 4 residency management (when implemented) is thread-safe
 unsafe impl Sync for Metal4Buffer {}
 
 #[cfg(test)]

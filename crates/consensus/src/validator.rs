@@ -89,6 +89,7 @@ pub struct Validator {
 
 impl Validator {
     /// Create new validator
+    #[must_use = "ignoring the Result may hide validator creation errors"]
     pub fn new(
         address: SocketAddr,
         stake: u64,

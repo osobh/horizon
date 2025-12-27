@@ -4,6 +4,7 @@
 //! easily join existing clusters.
 
 pub mod agent;
+pub mod agent_actor;
 pub mod command;
 pub mod config;
 pub mod discovery;
@@ -19,6 +20,11 @@ pub mod hpc_bridge;
 
 // Re-export main types
 pub use agent::SwarmletAgent;
+
+// Re-export actor types for new code
+pub use agent_actor::{
+    create_swarmlet_actor, SwarmletAgentActor, SwarmletAgentHandle, SwarmletRequest,
+};
 pub use command::{CommandExecutor, CommandRequest, CommandResult, CommandStatus};
 pub use config::Config;
 pub use discovery::{ClusterDiscovery, ClusterInfo};

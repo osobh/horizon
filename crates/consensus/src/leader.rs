@@ -150,6 +150,7 @@ impl LeaderElection {
     }
 
     /// Start election as candidate
+    #[must_use = "ignoring the Result may hide election start failures"]
     pub fn start_election(&mut self) -> ConsensusResult<ElectionMessage> {
         self.current_term += 1;
         self.voted_for = Some(self.validator_id.clone());
@@ -177,6 +178,7 @@ impl LeaderElection {
     }
 
     /// Handle incoming election message
+    #[must_use = "ignoring the Result may hide message handling errors"]
     pub fn handle_message(
         &mut self,
         message: ElectionMessage,

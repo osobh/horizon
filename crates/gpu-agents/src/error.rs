@@ -24,6 +24,7 @@ impl fmt::Display for GpuAgentError {
 impl std::error::Error for GpuAgentError {}
 
 impl From<cudarc::driver::DriverError> for GpuAgentError {
+    #[cold]
     fn from(e: cudarc::driver::DriverError) -> Self {
         Self::CudaError(e)
     }

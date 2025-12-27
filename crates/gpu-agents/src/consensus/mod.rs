@@ -86,12 +86,12 @@ pub struct GpuConsensusModule {
 impl GpuConsensusModule {
     /// Create a new GPU consensus module
     pub fn new(device: Arc<CudaDevice>, num_agents: usize) -> Result<Self> {
-        let voting = voting::GpuVoting::new(device.clone(), num_agents)?;
-        let leader = leader::GpuLeaderElection::new(device.clone(), num_agents)?;
+        let voting = voting::GpuVoting::new(Arc::clone(&device), num_agents)?;
+        let leader = leader::GpuLeaderElection::new(Arc::clone(&device), num_agents)?;
 
         // Use default path for persistence
         let persistence = persistence::GpuConsensusPersistence::new(
-            device.clone(),
+            Arc::clone(&device),
             "/tmp/gpu_consensus", // Will be /magikdev/gpu/consensus/ in production
             10 * 1024 * 1024,     // 10MB log
         )?;

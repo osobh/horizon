@@ -210,10 +210,8 @@ impl AdvancedTierPredictor {
     ) -> Vec<AlternativeTier> {
         let mut alternatives = Vec::new();
 
-        // Consider adjacent tiers
-        if primary as u8 > 0 {
-            let higher_tier = unsafe { std::mem::transmute((primary as u8) - 1) };
-
+        // Consider adjacent tiers using safe tier navigation methods
+        if let Some(higher_tier) = primary.higher_tier() {
             if self
                 .capacity_monitor
                 .has_capacity(higher_tier, system_state)
@@ -226,9 +224,7 @@ impl AdvancedTierPredictor {
             }
         }
 
-        if (primary as u8) < 4 {
-            let lower_tier = unsafe { std::mem::transmute((primary as u8) + 1) };
-
+        if let Some(lower_tier) = primary.lower_tier() {
             alternatives.push(AlternativeTier {
                 tier: lower_tier,
                 condition: TierCondition::IfAccessRateDecreases(score * 0.5),
@@ -549,24 +545,18 @@ impl TierCapacityMonitor {
             return preferred;
         }
 
-        // Try higher tiers
-        let mut tier_idx = preferred as i8 - 1;
-        while tier_idx >= 0 {
-            let tier = unsafe { std::mem::transmute(tier_idx as u8) };
+        // Try higher performance tiers (using safe iterator)
+        for tier in preferred.higher_tiers() {
             if self.can_accommodate(tier, size, system_state) {
                 return tier;
             }
-            tier_idx -= 1;
         }
 
-        // Try lower tiers
-        tier_idx = preferred as i8 + 1;
-        while tier_idx <= 4 {
-            let tier = unsafe { std::mem::transmute(tier_idx as u8) };
+        // Try lower performance tiers (using safe iterator)
+        for tier in preferred.lower_tiers() {
             if self.can_accommodate(tier, size, system_state) {
                 return tier;
             }
-            tier_idx += 1;
         }
 
         // Default to lowest tier

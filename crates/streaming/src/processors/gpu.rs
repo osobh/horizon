@@ -33,6 +33,10 @@ pub struct GpuStreamProcessor {
 }
 
 /// Thread-safe statistics for GPU processor
+///
+/// Cache-line aligned (64 bytes) to prevent false sharing when
+/// multiple GPU threads update counters concurrently.
+#[repr(C, align(64))]
 #[derive(Debug, Default)]
 struct GpuProcessorStats {
     chunks_processed: AtomicU64,
@@ -40,6 +44,8 @@ struct GpuProcessorStats {
     gpu_time_ns: AtomicU64,
     batch_operations: AtomicU64,
     errors: AtomicU64,
+    // Padding to fill cache line (5 * 8 = 40 bytes, need 24 more)
+    _padding: [u8; 24],
 }
 
 impl GpuStreamProcessor {

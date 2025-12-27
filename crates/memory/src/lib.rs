@@ -55,8 +55,22 @@ pub struct GpuMemoryHandle {
     pub id: uuid::Uuid,
 }
 
-// Make GpuMemoryHandle Send and Sync for development mode
+// SAFETY: GpuMemoryHandle is Send because:
+// 1. When cuda feature is enabled: `DevicePointer<u8>` represents a GPU memory
+//    address that can be safely transferred between threads (CUDA is thread-safe)
+// 2. When cuda feature is disabled: `ptr: usize` is just a numeric value
+// 3. `size: usize` is a trivially Send primitive type
+// 4. `id: uuid::Uuid` is Send (just bytes, no references)
+// 5. The handle represents ownership of a GPU allocation that can be moved
 unsafe impl Send for GpuMemoryHandle {}
+
+// SAFETY: GpuMemoryHandle is Sync because:
+// 1. All fields are either primitive types or thread-safe wrappers
+// 2. DevicePointer (when cuda enabled) is just an address value
+// 3. Reading the handle's fields from multiple threads is safe
+// 4. Actual GPU memory operations require going through CUDA APIs
+//    which provide their own synchronization
+// 5. No interior mutability - the handle is immutable after creation
 unsafe impl Sync for GpuMemoryHandle {}
 
 /// Memory usage statistics

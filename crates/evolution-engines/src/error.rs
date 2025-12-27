@@ -118,6 +118,7 @@ pub enum EvolutionEngineError {
 }
 
 impl<T> From<std::sync::PoisonError<T>> for EvolutionEngineError {
+    #[cold]
     fn from(err: std::sync::PoisonError<T>) -> Self {
         EvolutionEngineError::LockPoisoned {
             message: err.to_string(),
@@ -126,6 +127,7 @@ impl<T> From<std::sync::PoisonError<T>> for EvolutionEngineError {
 }
 
 impl From<std::time::SystemTimeError> for EvolutionEngineError {
+    #[cold]
     fn from(err: std::time::SystemTimeError) -> Self {
         EvolutionEngineError::SystemTimeError {
             message: err.to_string(),

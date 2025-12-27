@@ -5,6 +5,7 @@
 
 mod config;
 mod engine;
+mod engine_actor;
 mod message_bus;
 mod messages;
 mod network;
@@ -19,6 +20,11 @@ pub use config::{
     NetworkConfig, RecoveryStrategy,
 };
 pub use engine::DistributedSwarmEngine;
+// Re-export actor types for new code
+pub use engine_actor::{
+    create_distributed_swarm_actor, DistributedSwarmActor, DistributedSwarmHandle,
+    SwarmEngineRequest,
+};
 pub use message_bus::{MessageBus, MessageHandler};
 pub use messages::{CheckpointData, DistributedMessage, MigrationParticle};
 pub use network::{Connection, ConnectionPool, ConnectionStatus, NetworkTransport};

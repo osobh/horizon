@@ -27,6 +27,10 @@ pub struct GpuBatchEvaluator {
 }
 
 /// Thread-safe statistics for evaluation
+///
+/// Cache-line aligned (64 bytes) to prevent false sharing when
+/// multiple evaluation threads update counters concurrently.
+#[repr(C, align(64))]
 #[derive(Debug, Default)]
 struct EvaluationStats {
     agents_evaluated: AtomicU64,
@@ -35,6 +39,8 @@ struct EvaluationStats {
     gpu_time_ns: AtomicU64,
     compilation_failures: AtomicU64,
     execution_failures: AtomicU64,
+    // Padding to fill cache line (6 * 8 = 48 bytes, need 16 more)
+    _padding: [u8; 16],
 }
 
 /// Evaluation configuration

@@ -68,6 +68,7 @@ impl<E: Evolvable> Particle<E> {
     }
 
     /// Apply velocity constraints
+    #[inline]
     pub fn clamp_velocity(&mut self, clamp_value: f64) {
         for velocity in &mut self.velocity {
             *velocity = velocity.clamp(-clamp_value, clamp_value);
@@ -75,6 +76,7 @@ impl<E: Evolvable> Particle<E> {
     }
 
     /// Calculate velocity magnitude
+    #[inline]
     pub fn velocity_magnitude(&self) -> f64 {
         self.velocity.iter().map(|v| v.abs()).sum::<f64>() / self.velocity.len() as f64
     }

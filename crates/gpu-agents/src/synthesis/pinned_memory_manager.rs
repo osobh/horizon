@@ -62,7 +62,21 @@ struct PinnedBuffer {
     in_use: bool,
 }
 
+// SAFETY: PinnedBuffer is Send because:
+// 1. `host_ptr: *mut u8` points to pinned memory allocated with page-aligned alloc
+//    which is thread-safe for ownership transfer (no other references exist)
+// 2. `device_buffer: Option<CudaSlice<u8>>` is Send (cudarc CudaSlice is Send)
+// 3. `size: usize` and `in_use: bool` are trivially Send primitive types
+// 4. Pinned memory allocated via host allocator is safe to access from any thread
+// 5. The buffer is only accessed through PinnedMemoryManager which serializes access
 unsafe impl Send for PinnedBuffer {}
+
+// SAFETY: PinnedBuffer is Sync because:
+// 1. PinnedBuffer is only accessed through &mut self methods in PinnedMemoryManager
+// 2. PinnedMemoryManager does not share PinnedBuffer references across threads
+// 3. The raw pointer is never dereferenced without proper synchronization
+// 4. CudaSlice provides its own thread-safety guarantees
+// 5. In practice, buffers are accessed sequentially via get_buffer/return_buffer
 unsafe impl Sync for PinnedBuffer {}
 
 impl PinnedMemoryManager {

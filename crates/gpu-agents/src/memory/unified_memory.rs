@@ -42,16 +42,19 @@ impl<T> UnifiedMemory<T> {
     }
 
     /// Get size in elements
+    #[inline]
     pub fn size(&self) -> usize {
         self.size
     }
 
     /// Get size in bytes
+    #[inline]
     pub fn size_bytes(&self) -> usize {
         self.size * std::mem::size_of::<T>()
     }
 
     /// Get device pointer
+    #[inline]
     pub fn device_ptr(&self) -> DevicePtr {
         // In real implementation, would return actual device pointer
         DevicePtr {
@@ -60,11 +63,13 @@ impl<T> UnifiedMemory<T> {
     }
 
     /// Get host pointer
+    #[inline]
     pub fn host_ptr(&self) -> *mut T {
         self.ptr.as_ptr()
     }
 
     /// Check if pointer is valid
+    #[inline]
     pub fn is_valid(&self) -> bool {
         !self.ptr.as_ptr().is_null()
     }
@@ -113,8 +118,21 @@ impl<T> Drop for UnifiedMemory<T> {
     }
 }
 
-// Safety: UnifiedMemory can be sent between threads
+// SAFETY: UnifiedMemory<T> is Send because:
+// 1. The underlying CUDA unified memory is allocated with cudaMallocManaged which
+//    provides coherent access from any thread on any CPU or GPU
+// 2. The `device: Arc<CudaDevice>` is Send and ensures the CUDA context outlives allocations
+// 3. The `ptr: NonNull<T>` points to thread-safe unified memory managed by CUDA driver
+// 4. `PhantomData<T>` only requires T: Send for the whole struct to be Send
+// 5. Drop is implemented to deallocate memory, which is safe from any thread
 unsafe impl<T: Send> Send for UnifiedMemory<T> {}
+
+// SAFETY: UnifiedMemory<T> is Sync because:
+// 1. CUDA unified memory provides hardware-level coherency across threads
+// 2. All methods taking `&self` only perform read operations or call thread-safe CUDA APIs
+// 3. The `device: Arc<CudaDevice>` provides synchronized access to CUDA operations
+// 4. `PhantomData<T>` only requires T: Sync for the whole struct to be Sync
+// 5. No interior mutability is used - all mutations require &mut self
 unsafe impl<T: Sync> Sync for UnifiedMemory<T> {}
 
 /// Memory location preference
@@ -161,6 +179,7 @@ impl PageFaultHandler {
     }
 
     /// Get fault statistics
+    #[inline]
     pub fn get_stats(&self) -> PageFaultStats {
         PageFaultStats {
             total_faults: self.fault_count,

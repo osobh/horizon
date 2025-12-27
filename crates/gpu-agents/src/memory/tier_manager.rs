@@ -100,7 +100,7 @@ impl TierManager {
         let cpu_pages = config.cpu_capacity_mb * 1024 / config.page_size_kb;
 
         Ok(Self {
-            device: device.clone(),
+            device: Arc::clone(&device),
             gpu_allocator: Arc::new(Mutex::new(GpuAllocator::new(device, gpu_pages)?)),
             cpu_allocator: Arc::new(Mutex::new(CpuAllocator::new(cpu_pages)?)),
             nvme_path: config.nvme_path.clone(),

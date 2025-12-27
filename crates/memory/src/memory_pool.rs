@@ -199,21 +199,25 @@ impl MemoryPool {
     }
 
     /// Get the total size of the pool
+    #[inline]
     pub fn total_size(&self) -> u64 {
         self.total_size
     }
 
     /// Get the number of used bytes in the pool
+    #[inline]
     pub fn used_bytes(&self) -> u64 {
         *self.used_size.lock().unwrap()
     }
 
     /// Get the number of available bytes in the pool
+    #[inline]
     pub fn available_bytes(&self) -> u64 {
         self.total_size - self.used_bytes()
     }
 
     /// Get fragmentation percentage (0.0 to 100.0)
+    #[inline]
     pub fn fragmentation_percent(&self) -> f32 {
         let free_blocks = self.free_blocks.lock().unwrap();
         if free_blocks.is_empty() {
@@ -250,6 +254,7 @@ impl MemoryPool {
     }
 
     /// Get the pool name
+    #[inline]
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -272,26 +277,31 @@ pub struct PoolStats {
 
 impl PoolAllocation {
     /// Check if this allocation came from a pool
+    #[inline]
     pub fn from_pool(&self) -> bool {
         self.from_pool
     }
 
     /// Get the size of the allocation
+    #[inline]
     pub fn size(&self) -> u64 {
         self.size
     }
 
     /// Get the pool name this allocation came from
+    #[inline]
     pub fn pool_name(&self) -> &str {
         &self.pool_name
     }
 
     /// Get the raw pointer (unsafe)
+    #[inline]
     pub unsafe fn as_ptr(&self) -> *mut u8 {
         self.ptr.as_ptr()
     }
 
     /// Get allocation timestamp
+    #[inline]
     pub fn allocated_at(&self) -> Instant {
         self.allocated_at
     }
@@ -310,12 +320,47 @@ impl PoolAllocation {
     }
 }
 
-// Safety implementations
+// SAFETY: MemoryPool is Send because:
+// 1. All fields use Arc<Mutex<...>> which is Send when inner type is Send
+// 2. The underlying memory pointer in PoolBlock is only accessed through Mutex
+// 3. `name: String` and `total_size: u64` are trivially Send
+// 4. `created_at: Instant` is Send
+// 5. Ownership can be safely transferred between threads
 unsafe impl Send for MemoryPool {}
+
+// SAFETY: MemoryPool is Sync because:
+// 1. All mutable state is protected by Mutex (free_blocks, allocated_blocks, etc.)
+// 2. Concurrent access is serialized through Mutex locks
+// 3. No data races are possible because all shared state uses Arc<Mutex<...>>
+// 4. The pool's base memory pointer is immutable after construction
 unsafe impl Sync for MemoryPool {}
+
+// SAFETY: PoolAllocation is Send because:
+// 1. `ptr: NonNull<u8>` points to memory owned by the parent MemoryPool
+// 2. The allocation represents exclusive access to the pointed-to region
+// 3. All other fields (size, pool_name, etc.) are trivially Send
+// 4. Transferring ownership between threads is safe as the memory is stable
 unsafe impl Send for PoolAllocation {}
+
+// SAFETY: PoolAllocation is Sync because:
+// 1. PoolAllocation represents exclusive ownership of a memory region
+// 2. Multiple threads reading the pointer value is safe (no mutation)
+// 3. Actual memory access requires unsafe code and proper synchronization
+// 4. The allocation metadata (size, pool_name) is immutable
 unsafe impl Sync for PoolAllocation {}
+
+// SAFETY: PoolBlock is Send because:
+// 1. `ptr: NonNull<u8>` is just a pointer value (Send when properly managed)
+// 2. All other fields (size, allocated_at, last_used) are trivially Send
+// 3. PoolBlock is only used within Mutex<VecDeque<PoolBlock>> in MemoryPool
+// 4. Block ownership is tracked by the parent pool
 unsafe impl Send for PoolBlock {}
+
+// SAFETY: PoolBlock is Sync because:
+// 1. PoolBlock is only accessed through Mutex guards in MemoryPool
+// 2. Concurrent access to the same block is prevented by the Mutex
+// 3. The pointer value itself is safe to read from multiple threads
+// 4. Metadata fields are only modified while holding the Mutex lock
 unsafe impl Sync for PoolBlock {}
 
 impl Drop for MemoryPool {
