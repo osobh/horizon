@@ -120,6 +120,10 @@ pub struct InterfaceEvent {
 }
 
 /// Interface metrics
+///
+/// Cache-line aligned (64 bytes) to prevent false sharing when
+/// multiple threads update these counters concurrently.
+#[repr(C, align(64))]
 #[derive(Debug, Default)]
 pub struct InterfaceMetrics {
     /// Total goals submitted
@@ -134,6 +138,8 @@ pub struct InterfaceMetrics {
     pub total_failed: std::sync::atomic::AtomicU64,
     /// Average processing time
     pub avg_processing_time: std::sync::atomic::AtomicU64,
+    // Padding to fill cache line (6 * 8 = 48 bytes, need 16 more)
+    _padding: [u8; 16],
 }
 
 // Enums

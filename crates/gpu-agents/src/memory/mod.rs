@@ -166,8 +166,8 @@ impl MemoryManager {
     /// Create new memory manager with default configuration
     pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
         let config = TierConfig::default();
-        let tier_manager = TierManager::new(device.clone(), config)?;
-        let migration_engine = MigrationEngine::new(device.clone())?;
+        let tier_manager = TierManager::new(Arc::clone(&device), config)?;
+        let migration_engine = MigrationEngine::new(Arc::clone(&device))?;
 
         Ok(Self {
             device,

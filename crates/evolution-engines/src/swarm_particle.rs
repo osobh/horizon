@@ -5,6 +5,43 @@
 
 use crate::traits::Evolvable;
 use serde::{Deserialize, Serialize};
+use wide::f64x4;
+
+/// Compute mean absolute value of a slice using SIMD
+///
+/// This is useful for computing velocity magnitudes and similar metrics.
+#[inline]
+pub fn simd_mean_abs(values: &[f64]) -> f64 {
+    let len = values.len();
+    if len == 0 {
+        return 0.0;
+    }
+
+    let chunks = len / 4;
+    let remainder = len % 4;
+
+    // SIMD accumulator for sum of absolute values
+    let mut sum_simd = f64x4::ZERO;
+
+    // Process 4 elements at a time with SIMD
+    for chunk in 0..chunks {
+        let i = chunk * 4;
+        let val = f64x4::new([values[i], values[i + 1], values[i + 2], values[i + 3]]);
+        sum_simd += val.abs();
+    }
+
+    // Horizontal sum of SIMD lanes
+    let sum_arr: [f64; 4] = sum_simd.into();
+    let mut total = sum_arr[0] + sum_arr[1] + sum_arr[2] + sum_arr[3];
+
+    // Handle remainder with scalar operations
+    let base = chunks * 4;
+    for i in 0..remainder {
+        total += values[base + i].abs();
+    }
+
+    total / len as f64
+}
 
 /// Particle parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,10 +112,10 @@ impl<E: Evolvable> Particle<E> {
         }
     }
 
-    /// Calculate velocity magnitude
+    /// Calculate velocity magnitude using SIMD for improved performance
     #[inline]
     pub fn velocity_magnitude(&self) -> f64 {
-        self.velocity.iter().map(|v| v.abs()).sum::<f64>() / self.velocity.len() as f64
+        simd_mean_abs(&self.velocity)
     }
 }
 

@@ -118,7 +118,7 @@ impl ConsensusTests {
     async fn implement_multi_region_consensus(&self) -> Result<DistributedRuntimeMetrics> {
         // Create basic multi-region consensus engine
         let config = TestConfigFactory::create_test_multi_region_config().await?;
-        let base_engine = ConsensusEngineFactory::create_test_consensus_engine(self.harness.device.clone()).await?;
+        let base_engine = ConsensusEngineFactory::create_test_consensus_engine(Arc::clone(&self.harness.device)).await?;
         let mut consensus_engine = MultiRegionConsensusEngine::new(base_engine, config).await?;
         
         // Execute basic consensus test
@@ -150,7 +150,7 @@ impl ConsensusTests {
     async fn optimize_multi_region_consensus(&self) -> Result<DistributedRuntimeMetrics> {
         // Create optimized multi-region consensus with all features
         let config = TestConfigFactory::create_production_multi_region_config().await?;
-        let base_engine = ConsensusEngineFactory::create_optimized_consensus_engine(self.harness.device.clone()).await?;
+        let base_engine = ConsensusEngineFactory::create_optimized_consensus_engine(Arc::clone(&self.harness.device)).await?;
         let mut consensus_engine = MultiRegionConsensusEngine::new(base_engine, config).await?;
         
         // Execute high-performance consensus

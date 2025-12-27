@@ -14,16 +14,19 @@ pub struct RoundId(pub Uuid);
 
 impl RoundId {
     /// Create new round ID
+    #[must_use = "RoundId must be stored for round tracking"]
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
 
     /// Create from UUID
+    #[must_use = "RoundId must be stored for round tracking"]
     pub fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
 
     /// Get underlying UUID
+    #[must_use]
     pub fn as_uuid(&self) -> Uuid {
         self.0
     }

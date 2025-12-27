@@ -67,6 +67,7 @@ pub struct StateSync {
 
 impl SyncManager {
     /// Create new sync manager
+    #[must_use = "SyncManager must be stored to manage state synchronization"]
     pub fn new(validator_id: ValidatorId) -> Self {
         Self {
             validator_id,
@@ -90,6 +91,7 @@ impl SyncManager {
     }
 
     /// Get current sync status
+    #[must_use = "sync status indicates whether node needs synchronization"]
     pub fn sync_status(&self) -> SyncStatus {
         let max_peer_height = self.peer_heights.values().max().copied().unwrap_or(0);
 
@@ -127,12 +129,14 @@ impl SyncManager {
     }
 
     /// Check if synchronization is needed
+    #[must_use = "ignoring sync requirement can cause node to fall behind"]
     pub fn needs_sync(&self) -> bool {
         let max_peer_height = self.peer_heights.values().max().copied().unwrap_or(0);
         max_peer_height > self.local_height
     }
 
     /// Start synchronization process
+    #[must_use = "sync requests must be processed to complete synchronization"]
     pub fn start_sync(&mut self) -> ConsensusResult<Vec<SyncRequest>> {
         if !self.needs_sync() {
             return Ok(vec![]);

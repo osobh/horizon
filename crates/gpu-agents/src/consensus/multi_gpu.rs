@@ -35,7 +35,7 @@ impl MultiGpuConsensus {
             let device_arc = CudaDevice::new(gpu_id)
                 .with_context(|| format!("Failed to initialize GPU {}", gpu_id))?;
 
-            let voting = GpuVoting::new(device_arc.clone(), agents_per_gpu)?;
+            let voting = GpuVoting::new(Arc::clone(&device_arc), agents_per_gpu)?;
 
             devices.push(device_arc);
             voting_systems.push(voting);

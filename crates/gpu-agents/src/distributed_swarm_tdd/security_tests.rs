@@ -156,9 +156,9 @@ impl SecurityTests {
     async fn implement_disaster_recovery(&self) -> Result<DistributedRuntimeMetrics> {
         // Create multi-region config with disaster recovery
         let config = TestConfigFactory::create_disaster_recovery_config().await?;
-        let base_engine = ConsensusEngineFactory::create_test_consensus_engine(self.harness.device.clone()).await?;
+        let base_engine = ConsensusEngineFactory::create_test_consensus_engine(Arc::clone(&self.harness.device)).await?;
         let mut consensus_engine = MultiRegionConsensusEngine::new(base_engine, config).await?;
-        
+
         // Simulate region failure and recovery
         let failover_start = Instant::now();
         consensus_engine.simulate_region_failure("us-east-1").await?;
@@ -184,9 +184,9 @@ impl SecurityTests {
     async fn implement_zero_trust_security(&self) -> Result<DistributedRuntimeMetrics> {
         // Create config with zero-trust validation
         let config = TestConfigFactory::create_zero_trust_config().await?;
-        let base_engine = ConsensusEngineFactory::create_test_consensus_engine(self.harness.device.clone()).await?;
+        let base_engine = ConsensusEngineFactory::create_test_consensus_engine(Arc::clone(&self.harness.device)).await?;
         let mut consensus_engine = MultiRegionConsensusEngine::new(base_engine, config).await?;
-        
+
         // Inject malicious behavior and test detection
         consensus_engine.inject_malicious_behavior(
             "eu-west-1", 
@@ -257,7 +257,7 @@ impl SecurityTests {
     async fn optimize_security_monitoring(&self) -> Result<DistributedRuntimeMetrics> {
         // Create comprehensive security monitoring setup
         let config = TestConfigFactory::create_security_focused_config().await?;
-        let base_engine = ConsensusEngineFactory::create_optimized_consensus_engine(self.harness.device.clone()).await?;
+        let base_engine = ConsensusEngineFactory::create_optimized_consensus_engine(Arc::clone(&self.harness.device)).await?;
         let mut consensus_engine = MultiRegionConsensusEngine::new(base_engine, config).await?;
         
         // Inject multiple malicious behaviors

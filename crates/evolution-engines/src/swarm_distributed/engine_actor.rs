@@ -385,10 +385,14 @@ impl DistributedSwarmActor {
     /// Balance load across nodes (internal implementation)
     async fn balance_load(&mut self) -> EvolutionEngineResult<()> {
         let threshold = self.config.load_balance_config.rebalance_threshold;
-        let (overloaded, underloaded) = self.node_manager.find_rebalance_candidates(threshold);
+        // Clone the results to avoid holding immutable borrow during mutable operations
+        let (overloaded, underloaded): (Vec<String>, Vec<String>) = {
+            let (o, u) = self.node_manager.find_rebalance_candidates(threshold);
+            (o.into_iter().map(String::from).collect(), u.into_iter().map(String::from).collect())
+        };
 
         // If this node is overloaded, migrate some particles
-        if overloaded.contains(&self.config.node_id.as_str()) && !underloaded.is_empty() {
+        if overloaded.iter().any(|n| n == &self.config.node_id) && !underloaded.is_empty() {
             let migration_count = self.config.load_balance_config.migration_batch_size;
             let particle_count = self.local_particles.len();
 
@@ -410,7 +414,7 @@ impl DistributedSwarmActor {
         }
 
         // If this node is underloaded, accept migrated particles
-        if underloaded.contains(&self.config.node_id.as_str()) {
+        if underloaded.iter().any(|n| n == &self.config.node_id) {
             if let Ok(mut pool) = PARTICLE_MIGRATION_POOL.lock() {
                 if !pool.is_empty() {
                     let migration_count = self

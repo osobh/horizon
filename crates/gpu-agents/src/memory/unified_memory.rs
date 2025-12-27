@@ -232,7 +232,7 @@ impl UnifiedMemoryPool {
         }
 
         // Allocate new chunk
-        let unified_mem = UnifiedMemory::<u8>::new(self.device.clone(), self.chunk_size)?;
+        let unified_mem = UnifiedMemory::<u8>::new(Arc::clone(&self.device), self.chunk_size)?;
         let ptr = NonNull::new(unified_mem.host_ptr())?;
 
         // Leak the memory to prevent deallocation

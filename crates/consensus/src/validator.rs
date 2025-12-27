@@ -13,11 +13,13 @@ pub struct ValidatorId(pub Uuid);
 
 impl ValidatorId {
     /// Create new validator ID
+    #[must_use = "ValidatorId must be stored for validator identification"]
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
 
     /// Create from UUID
+    #[must_use = "ValidatorId must be stored for validator identification"]
     pub fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }

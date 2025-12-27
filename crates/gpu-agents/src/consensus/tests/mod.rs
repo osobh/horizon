@@ -33,7 +33,7 @@ mod voting_tests {
         }
 
         // Act - Call the GPU voting aggregation (will fail in RED phase)
-        let gpu_voting = GpuVoting::new(device.clone(), num_agents)?;
+        let gpu_voting = GpuVoting::new(Arc::clone(&device), num_agents)?;
         let vote_counts = gpu_voting.aggregate_votes(&votes, 3)?;
 
         // Assert
@@ -59,7 +59,7 @@ mod voting_tests {
             });
         }
 
-        let gpu_voting = GpuVoting::new(device.clone(), num_agents)?;
+        let gpu_voting = GpuVoting::new(Arc::clone(&device), num_agents)?;
 
         // Warm up
         let _ = gpu_voting.aggregate_votes(&votes, 5)?;
@@ -83,7 +83,7 @@ mod voting_tests {
         let num_agents = 5000;
         let num_proposals = 10;
 
-        let gpu_voting = GpuVoting::new(device.clone(), num_agents)?;
+        let gpu_voting = GpuVoting::new(Arc::clone(&device), num_agents)?;
 
         // Submit votes for multiple proposals concurrently
         let mut all_votes = vec![];
@@ -120,7 +120,7 @@ mod leader_tests {
         let device = CudaDevice::new(0).expect("Failed to create CUDA device");
         let num_agents = 100;
 
-        let gpu_leader = GpuLeaderElection::new(device.clone(), num_agents)?;
+        let gpu_leader = GpuLeaderElection::new(Arc::clone(&device), num_agents)?;
 
         // Initial leader election
         let leader_id = gpu_leader.elect_leader(0)?;
@@ -141,7 +141,7 @@ mod leader_tests {
         let device = CudaDevice::new(0).expect("Failed to create CUDA device");
         let num_agents = 50;
 
-        let gpu_leader = GpuLeaderElection::new(device.clone(), num_agents)?;
+        let gpu_leader = GpuLeaderElection::new(Arc::clone(&device), num_agents)?;
 
         // Set initial heartbeats
         let mut heartbeats = vec![1000u64; num_agents];
@@ -183,7 +183,7 @@ mod persistence_tests {
         std::fs::create_dir_all(test_path)?;
 
         let persistence = GpuConsensusPersistence::new(
-            device.clone(),
+            Arc::clone(&device),
             test_path,
             1024 * 1024, // 1MB log size for testing
         )
@@ -278,7 +278,7 @@ mod integration_tests {
         let num_agents = 1000;
 
         // Initialize consensus module
-        let consensus = GpuConsensusModule::new(device.clone(), num_agents)?;
+        let consensus = GpuConsensusModule::new(Arc::clone(&device), num_agents)?;
 
         // Create a proposal
         let proposal = Proposal {

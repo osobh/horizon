@@ -133,7 +133,7 @@ impl PerformanceTests {
         
         // Create comprehensive multi-region setup
         let config = TestConfigFactory::create_comprehensive_test_config().await?;
-        let base_engine = ConsensusEngineFactory::create_test_consensus_engine(self.harness.device.clone()).await?;
+        let base_engine = ConsensusEngineFactory::create_test_consensus_engine(Arc::clone(&self.harness.device)).await?;
         let mut consensus_engine = MultiRegionConsensusEngine::new(base_engine, config).await?;
         
         // Execute batch consensus for throughput testing
@@ -168,9 +168,9 @@ impl PerformanceTests {
     async fn optimize_auto_scaling_deployment(&self) -> Result<DistributedRuntimeMetrics> {
         // Create production config with cloud integration
         let config = TestConfigFactory::create_production_multi_region_config().await?;
-        let base_engine = ConsensusEngineFactory::create_optimized_consensus_engine(self.harness.device.clone()).await?;
+        let base_engine = ConsensusEngineFactory::create_optimized_consensus_engine(Arc::clone(&self.harness.device)).await?;
         let mut consensus_engine = MultiRegionConsensusEngine::new(base_engine, config).await?;
-        
+
         // Simulate high load scenario for auto-scaling
         let scaling_start = Instant::now();
         consensus_engine.simulate_high_load_scenario(1000).await?;
@@ -203,9 +203,9 @@ impl PerformanceTests {
         
         // Create production-ready configuration
         let config = TestConfigFactory::create_production_multi_region_config().await?;
-        let base_engine = ConsensusEngineFactory::create_optimized_consensus_engine(self.harness.device.clone()).await?;
+        let base_engine = ConsensusEngineFactory::create_optimized_consensus_engine(Arc::clone(&self.harness.device)).await?;
         let mut consensus_engine = MultiRegionConsensusEngine::new(base_engine, config).await?;
-        
+
         // Execute comprehensive test scenarios
         let batch_tasks = SynthesisTaskFactory::create_batch_test_tasks(50);
         let throughput_start = Instant::now();

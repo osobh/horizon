@@ -3,6 +3,7 @@
 use cudarc::driver::CudaDevice;
 use gpu_agents::synthesis::batch_processor::{BatchConfig, BatchProcessor};
 use gpu_agents::synthesis::{AstNode, Match, NodeType, Pattern};
+use std::sync::Arc;
 use std::time::Instant;
 
 fn create_patterns(count: usize) -> Vec<Pattern> {
@@ -35,7 +36,7 @@ fn main() -> anyhow::Result<()> {
     println!("\n1. Testing single batch with exact matches...");
     {
         let config = BatchConfig::default();
-        let processor = BatchProcessor::new(device.clone(), config)?;
+        let processor = BatchProcessor::new(Arc::clone(&device), config)?;
 
         let patterns = vec![
             Pattern {
@@ -89,7 +90,7 @@ fn main() -> anyhow::Result<()> {
             max_nodes_per_batch: 100,
             num_streams: 2,
         };
-        let processor = BatchProcessor::new(device.clone(), config)?;
+        let processor = BatchProcessor::new(Arc::clone(&device), config)?;
 
         let patterns = create_patterns(25); // Exceeds limit of 10
         let asts = create_asts(50);
@@ -108,7 +109,7 @@ fn main() -> anyhow::Result<()> {
     println!("\n3. Testing multiple batch processing...");
     {
         let config = BatchConfig::default();
-        let processor = BatchProcessor::new(device.clone(), config)?;
+        let processor = BatchProcessor::new(Arc::clone(&device), config)?;
 
         let pattern_batches = vec![create_patterns(5), create_patterns(10), create_patterns(3)];
 
@@ -149,7 +150,7 @@ fn main() -> anyhow::Result<()> {
             max_nodes_per_batch: 1000,
             num_streams: 4,
         };
-        let processor1 = BatchProcessor::new(device.clone(), config1)?;
+        let processor1 = BatchProcessor::new(Arc::clone(&device), config1)?;
 
         let start1 = Instant::now();
         let _ = processor1.process_single_batch(&patterns, &asts)?;
@@ -161,7 +162,7 @@ fn main() -> anyhow::Result<()> {
             max_nodes_per_batch: 10000,
             num_streams: 4,
         };
-        let processor2 = BatchProcessor::new(device.clone(), config2)?;
+        let processor2 = BatchProcessor::new(Arc::clone(&device), config2)?;
 
         let start2 = Instant::now();
         let _ = processor2.process_single_batch(&patterns, &asts)?;

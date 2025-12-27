@@ -1,6 +1,6 @@
 //! Velocity update operations for particle swarm optimization
 
-use crate::swarm_particle::{Particle, ParticleParameters};
+use crate::swarm_particle::{simd_mean_abs, Particle, ParticleParameters};
 use crate::traits::{Evolvable, EvolvableAgent};
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, Rng};
@@ -150,8 +150,7 @@ impl VelocityUpdater {
         position: &EvolvableAgent,
         velocity: &[f64],
     ) -> crate::error::EvolutionEngineResult<EvolvableAgent> {
-        let velocity_magnitude: f64 =
-            velocity.iter().map(|v| v.abs()).sum::<f64>() / velocity.len() as f64;
+        let velocity_magnitude = simd_mean_abs(velocity);
         position.mutate(velocity_magnitude * 0.1).await
     }
 }

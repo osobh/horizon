@@ -83,6 +83,10 @@ pub enum EvolutionEngineError {
         message: String,
     },
 
+    /// Distributed computing error
+    #[error("Distributed error: {0}")]
+    DistributedError(String),
+
     /// Search error
     #[error("Search error: {message}")]
     SearchError {

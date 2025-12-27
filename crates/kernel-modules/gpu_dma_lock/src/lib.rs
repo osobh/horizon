@@ -268,6 +268,10 @@ pub enum KernelError {
 }
 
 /// Global GPU DMA lock statistics
+///
+/// Cache-line aligned (64 bytes) to prevent false sharing when
+/// multiple threads update these counters concurrently.
+#[repr(C, align(64))]
 pub struct GpuDmaLockStats {
     /// Total allocations
     pub total_allocations: AtomicU64,
@@ -281,6 +285,8 @@ pub struct GpuDmaLockStats {
     pub dma_denials: AtomicU64,
     /// Context switches
     pub context_switches: AtomicU64,
+    // Padding to fill cache line (6 * 8 = 48 bytes, need 16 more)
+    _padding: [u8; 16],
 }
 
 impl GpuDmaLockStats {
@@ -292,6 +298,7 @@ impl GpuDmaLockStats {
             dma_checks: AtomicU64::new(0),
             dma_denials: AtomicU64::new(0),
             context_switches: AtomicU64::new(0),
+            _padding: [0; 16],
         }
     }
 

@@ -100,10 +100,10 @@ impl ConsensusSynthesisEngine {
     /// Create new integration engine
     pub fn new(device: Arc<CudaDevice>, config: IntegrationConfig) -> Result<Self> {
         // Initialize voting engine
-        let voting_engine = GpuVoting::new(device.clone(), 1000)?;
+        let voting_engine = GpuVoting::new(Arc::clone(&device), 1000)?;
 
         // Initialize synthesis module
-        let synthesis_module = GpuSynthesisModule::new(device.clone(), 10000)?;
+        let synthesis_module = GpuSynthesisModule::new(Arc::clone(&device), 10000)?;
 
         // Allocate GPU buffers
         let vote_buffer = unsafe { device.alloc::<u32>(1000) }.ok();
@@ -370,18 +370,18 @@ impl ConsensusSynthesisEngine {
     /// Initialize cross-crate integration adapters
     pub async fn initialize_cross_crate_integration(&mut self) -> Result<()> {
         // Initialize synthesis adapter
-        let synthesis_adapter = SynthesisCrateAdapter::new(self.device.clone())
+        let synthesis_adapter = SynthesisCrateAdapter::new(Arc::clone(&self.device))
             .context("Failed to initialize synthesis adapter")?;
         self.synthesis_adapter = Some(synthesis_adapter);
 
         // Initialize evolution adapter
-        let evolution_adapter = EvolutionEngineAdapter::new(self.device.clone())
+        let evolution_adapter = EvolutionEngineAdapter::new(Arc::clone(&self.device))
             .await
             .context("Failed to initialize evolution adapter")?;
         self.evolution_adapter = Some(evolution_adapter);
 
         // Initialize knowledge graph adapter
-        let knowledge_adapter = KnowledgeGraphAdapter::new(self.device.clone())
+        let knowledge_adapter = KnowledgeGraphAdapter::new(Arc::clone(&self.device))
             .await
             .context("Failed to initialize knowledge graph adapter")?;
         self.knowledge_adapter = Some(knowledge_adapter);
@@ -423,7 +423,7 @@ impl ConsensusSynthesisEngine {
     /// Use evolution engines to optimize consensus weights
     pub async fn optimize_consensus_with_evolution(&mut self) -> Result<ConsensusWeights> {
         // Extract needed data before borrowing evolution_adapter mutably
-        let device = self.device.clone();
+        let device = Arc::clone(&self.device);
         let config = self.config.clone();
 
         let evolution_adapter = self
@@ -548,14 +548,14 @@ impl ConsensusSynthesisEngine {
     pub async fn initialize_cross_crate_integrations(&mut self) -> Result<()> {
         // Initialize synthesis adapter
         if self.synthesis_adapter.is_none() {
-            let adapter = SynthesisCrateAdapter::new(self.device.clone())
+            let adapter = SynthesisCrateAdapter::new(Arc::clone(&self.device))
                 .context("Failed to create synthesis adapter")?;
             self.synthesis_adapter = Some(adapter);
         }
 
         // Initialize evolution adapter
         if self.evolution_adapter.is_none() {
-            let adapter = EvolutionEngineAdapter::new(self.device.clone())
+            let adapter = EvolutionEngineAdapter::new(Arc::clone(&self.device))
                 .await
                 .context("Failed to create evolution adapter")?;
             self.evolution_adapter = Some(adapter);
@@ -563,7 +563,7 @@ impl ConsensusSynthesisEngine {
 
         // Initialize knowledge graph adapter
         if self.knowledge_adapter.is_none() {
-            let adapter = KnowledgeGraphAdapter::new(self.device.clone())
+            let adapter = KnowledgeGraphAdapter::new(Arc::clone(&self.device))
                 .await
                 .context("Failed to create knowledge graph adapter")?;
             self.knowledge_adapter = Some(adapter);

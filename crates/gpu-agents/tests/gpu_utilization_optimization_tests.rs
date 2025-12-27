@@ -72,13 +72,13 @@ impl GpuUtilizationOptimizer {
         target_throughput: f64,
     ) -> Result<GpuUtilizationMetrics> {
         // Create utilization manager and controller
-        let utilization_manager = Arc::new(UtilizationManager::new(self.device.clone())?);
+        let utilization_manager = Arc::new(UtilizationManager::new(Arc::clone(&self.device))?);
         let controller_config = ControllerConfig {
             target_utilization: self.config.target_compute_utilization as f32 / 100.0,
             aggressive_mode: true,
             ..Default::default()
         };
-        let controller = UtilizationController::new(self.device.clone(), controller_config).await?;
+        let controller = UtilizationController::new(Arc::clone(&self.device), controller_config).await?;
 
         // Start optimization
         controller.start().await?;
@@ -124,7 +124,7 @@ impl GpuUtilizationOptimizer {
     /// Measure current GPU utilization baseline  
     pub fn measure_current_utilization(&self) -> Result<GpuUtilizationMetrics> {
         // Create metrics collector
-        let collector = GpuMetricsCollector::new(self.device.clone());
+        let collector = GpuMetricsCollector::new(Arc::clone(&self.device));
 
         // Try to collect real metrics, fallback to baseline simulation
         let baseline_compute = 73.7; // Current identified baseline
@@ -173,7 +173,7 @@ impl GpuUtilizationOptimizer {
     /// Enable concurrent kernel execution across multiple streams
     pub async fn enable_concurrent_execution(&self) -> Result<()> {
         // Enable concurrent execution through utilization system
-        let utilization_manager = Arc::new(UtilizationManager::new(self.device.clone())?);
+        let utilization_manager = Arc::new(UtilizationManager::new(Arc::clone(&self.device))?);
 
         // Start monitoring to enable concurrent stream management
         utilization_manager.start_monitoring().await?;
@@ -191,14 +191,14 @@ impl GpuUtilizationOptimizer {
         workloads: Vec<WorkloadBatch>,
     ) -> Result<GpuUtilizationMetrics> {
         // Create utilization controller for dynamic balancing
-        let utilization_manager = Arc::new(UtilizationManager::new(self.device.clone())?);
+        let utilization_manager = Arc::new(UtilizationManager::new(Arc::clone(&self.device))?);
         let controller_config = ControllerConfig {
             target_utilization: self.config.target_compute_utilization as f32 / 100.0,
             aggressive_mode: false, // Conservative for mixed workloads
             predictive_mode: true,
             ..Default::default()
         };
-        let controller = UtilizationController::new(self.device.clone(), controller_config).await?;
+        let controller = UtilizationController::new(Arc::clone(&self.device), controller_config).await?;
 
         // Start dynamic balancing
         controller.start().await?;

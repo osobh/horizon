@@ -161,6 +161,7 @@ tauri-build = "2.0"
 
 # Async runtime
 tokio = { version = "1.42", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 async-trait = "0.1"
 
 # Serialization
@@ -286,6 +287,10 @@ dispatch2 = "0.2"
 # - rkyv-codec: Zero-copy serialization
 # - wireguard: Tier 3 cross-site encrypted tunnels (optional, requires base64)
 hpc-channels = { path = "../01-hpc-channels", features = ["shared-memory", "rkyv-codec"] }
+
+# WARP file transfer crates
+warp-ipc = { path = "../05-warp/crates/warp-ipc" }
+warp-dashboard = { path = "../05-warp/crates/warp-dashboard" }
 
 # Workspace-wide lints for code quality enforcement
 [workspace.lints.rust]

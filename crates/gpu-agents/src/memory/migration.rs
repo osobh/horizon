@@ -94,8 +94,8 @@ impl MigrationEngine {
     pub fn start(&mut self) -> Result<()> {
         for i in 0..self.policy.max_concurrent {
             let receiver = self.request_receiver.clone();
-            let stats = self.stats.clone();
-            let device = self.device.clone();
+            let stats = Arc::clone(&self.stats);
+            let device = Arc::clone(&self.device);
 
             let handle = thread::Builder::new()
                 .name(format!("migration-worker-{}", i))
