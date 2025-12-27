@@ -107,6 +107,8 @@ mod tests {
     use super::*;
     use rand::SeedableRng;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     fn create_topology_manager() -> TopologyManager {
         let rng = Arc::new(RwLock::new(StdRng::seed_from_u64(42)));
         TopologyManager::new(rng)
@@ -160,7 +162,7 @@ mod tests {
     }
 
     #[test]
-    fn test_topology_serialization() {
+    fn test_topology_serialization() -> TestResult {
         let topologies = vec![
             SwarmTopology::Global,
             SwarmTopology::Local,
@@ -173,6 +175,7 @@ mod tests {
             let json = serde_json::to_string(&topology)?;
             let _deserialized: SwarmTopology = serde_json::from_str(&json)?;
         }
+        Ok(())
     }
 
     #[test]

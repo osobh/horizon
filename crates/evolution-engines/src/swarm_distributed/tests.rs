@@ -4,6 +4,8 @@ use super::*;
 use crate::traits::{AgentGenome, ArchitectureGenes, BehaviorGenes};
 use std::collections::HashMap;
 
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 #[test]
 fn test_swarm_node_creation() {
     let node = SwarmNode::new("test_node".to_string(), "127.0.0.1:8000".to_string());
@@ -153,7 +155,7 @@ async fn test_message_bus_messaging() {
 }
 
 #[test]
-fn test_message_serialization() {
+fn test_message_serialization() -> TestResult {
     let message = DistributedMessage::Heartbeat {
         node_id: "test_node".to_string(),
         timestamp: 123456789,
@@ -175,6 +177,7 @@ fn test_message_serialization() {
         }
         _ => panic!("Wrong message type"),
     }
+    Ok(())
 }
 
 #[test]
@@ -213,7 +216,7 @@ fn test_migration_particle_serialization() {
 }
 
 #[test]
-fn test_checkpoint_data_serialization() {
+fn test_checkpoint_data_serialization() -> TestResult {
     let checkpoint = CheckpointData {
         generation: 42,
         global_best: None,
@@ -228,6 +231,7 @@ fn test_checkpoint_data_serialization() {
     assert_eq!(deserialized.generation, 42);
     assert_eq!(deserialized.global_best_fitness, Some(0.95));
     assert_eq!(deserialized.timestamp, 123456789);
+    Ok(())
 }
 
 #[tokio::test]
@@ -274,7 +278,7 @@ fn test_connection_pool_operations() {
 }
 
 #[test]
-fn test_load_balance_strategy_serialization() {
+fn test_load_balance_strategy_serialization() -> TestResult {
     let strategies = vec![
         LoadBalanceStrategy::EvenDistribution,
         LoadBalanceStrategy::LoadBased,
@@ -286,10 +290,11 @@ fn test_load_balance_strategy_serialization() {
         let serialized = serde_json::to_string(&strategy)?;
         let _deserialized: LoadBalanceStrategy = serde_json::from_str(&serialized)?;
     }
+    Ok(())
 }
 
 #[test]
-fn test_recovery_strategy_serialization() {
+fn test_recovery_strategy_serialization() -> TestResult {
     let strategies = vec![
         RecoveryStrategy::Redistribute,
         RecoveryStrategy::Checkpoint,
@@ -300,4 +305,5 @@ fn test_recovery_strategy_serialization() {
         let serialized = serde_json::to_string(&strategy)?;
         let _deserialized: RecoveryStrategy = serde_json::from_str(&serialized)?;
     }
+    Ok(())
 }

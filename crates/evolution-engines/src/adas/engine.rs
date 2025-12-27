@@ -199,7 +199,7 @@ impl AdasEngine {
     }
 
     /// Calculate population diversity using parallel pairwise comparisons
-    fn calculate_diversity(&self, population: &[EvolvableAgent]) -> f64 {
+    pub(crate) fn calculate_diversity(&self, population: &[EvolvableAgent]) -> f64 {
         if population.len() < 2 {
             return 0.0;
         }

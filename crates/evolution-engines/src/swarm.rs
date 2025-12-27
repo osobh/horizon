@@ -366,6 +366,8 @@ impl EvolutionEngine for SwarmEngine {
 mod tests {
     use super::*;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     #[test]
     fn test_swarm_config_default() {
         let config = SwarmConfig::default();
@@ -400,22 +402,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_initial_population_generation() {
+    async fn test_initial_population_generation() -> TestResult {
         let config = SwarmConfig::default();
         let engine = SwarmEngine::new(config)?;
 
         let population = engine.generate_initial_population(20).await?;
         assert_eq!(population.size(), 20);
         assert_eq!(population.generation, 0);
+        Ok(())
     }
 
     #[test]
-    fn test_swarm_config_serialization() {
+    fn test_swarm_config_serialization() -> TestResult {
         let config = SwarmConfig::default();
         let json = serde_json::to_string(&config)?;
         let deserialized: SwarmConfig = serde_json::from_str(&json)?;
         assert_eq!(config.social_influence, deserialized.social_influence);
         assert_eq!(config.cognitive_influence, deserialized.cognitive_influence);
+        Ok(())
     }
 
     #[test]
@@ -425,7 +429,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_evolution_step_basic() {
+    async fn test_evolution_step_basic() -> TestResult {
         let mut config = SwarmConfig::default();
         config.base.population_size = 5;
         config.base.mutation_rate = 0.1;
@@ -436,10 +440,11 @@ mod tests {
         let evolved_pop = engine.evolve_step(initial_pop).await?;
         assert_eq!(evolved_pop.size(), 5);
         assert_eq!(evolved_pop.generation, 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_termination_conditions() {
+    async fn test_termination_conditions() -> TestResult {
         let mut config = SwarmConfig::default();
         config.base.max_generations = 10;
         config.base.target_fitness = Some(0.9);
@@ -467,10 +472,11 @@ mod tests {
         metrics.best_fitness = 0.5;
         metrics.convergence_rate = 0.5;
         assert!(!engine.should_terminate(&metrics).await);
+        Ok(())
     }
 
     #[test]
-    fn test_parameter_adaptation() {
+    fn test_parameter_adaptation() -> TestResult {
         let mut config = SwarmConfig::default();
         config.base.adaptive_parameters = true;
         let mut engine = SwarmEngine::new(config)?;
@@ -486,10 +492,11 @@ mod tests {
 
         assert!(engine.config.cognitive_influence > initial_cognitive);
         assert!(engine.config.social_influence < initial_social);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_global_best_update() {
+    async fn test_global_best_update() -> TestResult {
         let config = SwarmConfig::default();
         let mut engine = SwarmEngine::new(config)?;
 
@@ -503,5 +510,6 @@ mod tests {
         // Should now have global best
         assert!(engine.global_best.read().is_some());
         assert!(engine.global_best_fitness.read().is_some());
+        Ok(())
     }
 }

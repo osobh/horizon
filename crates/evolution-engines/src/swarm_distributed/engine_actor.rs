@@ -679,14 +679,7 @@ mod tests {
     use crate::swarm_distributed::config::LoadBalanceConfig;
 
     fn create_test_config() -> DistributedSwarmConfig {
-        DistributedSwarmConfig {
-            node_id: "test-node-1".to_string(),
-            cluster_name: "test-cluster".to_string(),
-            listen_addr: "127.0.0.1:0".to_string(),
-            peer_addrs: vec![],
-            heartbeat_interval: Duration::from_secs(5),
-            load_balance_config: LoadBalanceConfig::default(),
-        }
+        DistributedSwarmConfig::new("test-node-1".to_string())
     }
 
     #[tokio::test]

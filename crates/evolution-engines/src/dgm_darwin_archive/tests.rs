@@ -3,6 +3,8 @@
 use super::*;
 use crate::traits::{AgentGenome, ArchitectureGenes, BehaviorGenes, EvolvableAgent};
 
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 fn create_test_agent(id: &str) -> EvolvableAgent {
     let genome = AgentGenome {
         goal: stratoswarm_agent_core::Goal::new(
@@ -54,7 +56,7 @@ fn test_archive_initialization() {
 }
 
 #[test]
-fn test_add_discovered_agents() {
+fn test_add_discovered_agents() -> TestResult {
     let config = DarwinArchiveConfig::default();
     let archive = DarwinArchive::new(config);
 
@@ -98,10 +100,11 @@ fn test_add_discovered_agents() {
     let stored2 = archive.get_agent(&id2).unwrap();
     assert_eq!(stored2.performance_score, 0.3);
     assert!(!stored2.has_editing_capability);
+    Ok(())
 }
 
 #[test]
-fn test_stepping_stone_tracking() {
+fn test_stepping_stone_tracking() -> TestResult {
     let config = DarwinArchiveConfig::default();
     let archive = DarwinArchive::new(config);
 
@@ -142,10 +145,11 @@ fn test_stepping_stone_tracking() {
     // Check that low_id is in stepping stones
     let has_low_as_stone = stepping_stones.iter().any(|(id, _)| id == &low_id);
     assert!(has_low_as_stone);
+    Ok(())
 }
 
 #[test]
-fn test_parent_selection_algorithm() {
+fn test_parent_selection_algorithm() -> TestResult {
     let mut config = DarwinArchiveConfig::default();
     config.performance_weight = 0.5;
     config.children_weight = 0.3;
@@ -202,10 +206,11 @@ fn test_parent_selection_algorithm() {
 
     // Should have selected some parents
     assert!(selected_count > 0);
+    Ok(())
 }
 
 #[test]
-fn test_diversity_metrics_calculation() {
+fn test_diversity_metrics_calculation() -> TestResult {
     let config = DarwinArchiveConfig::default();
     let archive = DarwinArchive::new(config);
 
@@ -242,10 +247,11 @@ fn test_diversity_metrics_calculation() {
     assert!(diversity.performance_variance > 0.0);
     assert!(diversity.genome_diversity > 0.0);
     assert_eq!(diversity.lineage_count, 1); // All from initial
+    Ok(())
 }
 
 #[test]
-fn test_archive_persistence() {
+fn test_archive_persistence() -> TestResult {
     let config = DarwinArchiveConfig::default();
     let archive = DarwinArchive::new(config.clone());
 
@@ -292,10 +298,11 @@ fn test_archive_persistence() {
 
     // Cleanup
     std::fs::remove_file(path).ok();
+    Ok(())
 }
 
 #[test]
-fn test_archive_pruning() {
+fn test_archive_pruning() -> TestResult {
     let mut config = DarwinArchiveConfig::default();
     config.max_size = 5;
 
@@ -335,6 +342,7 @@ fn test_archive_pruning() {
 
     // Lowest performer in archive should be reasonably high
     assert!(min_performance >= 0.6);
+    Ok(())
 }
 
 #[test]
@@ -410,13 +418,14 @@ fn test_concurrent_access() {
 }
 
 #[test]
-fn test_empty_archive_selection() {
+fn test_empty_archive_selection() -> TestResult {
     let config = DarwinArchiveConfig::default();
     let archive = DarwinArchive::new(config);
 
     // Selection from empty archive should return None
     let result = archive.select_parent()?;
     assert!(result.is_none());
+    Ok(())
 }
 
 #[test]

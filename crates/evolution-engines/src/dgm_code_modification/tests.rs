@@ -4,6 +4,8 @@ use super::types::*;
 use super::*;
 use std::collections::HashMap;
 
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 // Helper function to create test code analysis
 fn create_test_analysis() -> CodeAnalysis {
     let mut existing_tools = HashMap::new();
@@ -100,7 +102,7 @@ fn create_test_feedback() -> PerformanceFeedback {
 }
 
 #[test]
-fn test_code_analyzer_analyze_codebase() {
+fn test_code_analyzer_analyze_codebase() -> TestResult {
     let analyzer = CodeAnalyzer::new();
     let code_path = "/test/agent/code";
     let feedback = create_test_feedback();
@@ -110,6 +112,7 @@ fn test_code_analyzer_analyze_codebase() {
     assert!(!analysis.opportunities.is_empty());
     assert!(!analysis.existing_tools.is_empty());
     assert!(!analysis.workflow_patterns.is_empty());
+    Ok(())
 }
 
 #[test]
@@ -126,14 +129,12 @@ fn test_code_analyzer_identify_bottlenecks() {
 }
 
 #[test]
-fn test_code_modifier_propose_modifications() {
+fn test_code_modifier_propose_modifications() -> TestResult {
     let modifier = CodeModifier::new();
     let analysis = create_test_analysis();
     let feedback = create_test_feedback();
 
-    let proposals = modifier
-        .propose_modifications(&analysis, &feedback)
-        ?;
+    let proposals = modifier.propose_modifications(&analysis, &feedback)?;
 
     assert!(!proposals.is_empty());
     assert!(proposals
@@ -142,6 +143,7 @@ fn test_code_modifier_propose_modifications() {
     assert!(proposals
         .iter()
         .all(|p| p.priority >= 0.0 && p.priority <= 1.0));
+    Ok(())
 }
 
 #[test]
@@ -307,7 +309,7 @@ fn test_code_modifier_prioritize_modifications() {
 }
 
 #[test]
-fn test_end_to_end_modification_workflow() {
+fn test_end_to_end_modification_workflow() -> TestResult {
     // Test complete workflow from analysis to modification
     let analyzer = CodeAnalyzer::new();
     let modifier = CodeModifier::new();
@@ -318,9 +320,7 @@ fn test_end_to_end_modification_workflow() {
     let analysis = analyzer.analyze_codebase("/test/code", &feedback)?;
 
     // Propose
-    let proposals = modifier
-        .propose_modifications(&analysis, &feedback)
-        .unwrap();
+    let proposals = modifier.propose_modifications(&analysis, &feedback)?;
     assert!(!proposals.is_empty());
 
     // Select highest priority
@@ -337,13 +337,14 @@ class EditTool:
             f.write(content)
 "#;
 
-    let result = modifier.apply_modification(&selected, test_code).unwrap();
+    let result = modifier.apply_modification(&selected, test_code)?;
     assert!(result.success);
 
     // Validate
     let modified_code = result.modified_code.unwrap();
-    assert!(validator.validate_syntax(&modified_code, "python").unwrap());
-    assert!(validator.validate_safety(&modified_code).unwrap());
+    assert!(validator.validate_syntax(&modified_code, "python")?);
+    assert!(validator.validate_safety(&modified_code)?);
+    Ok(())
 }
 
 #[test]

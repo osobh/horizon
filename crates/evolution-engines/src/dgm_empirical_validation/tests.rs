@@ -7,6 +7,8 @@ use super::types::*;
 use std::collections::HashMap;
 use std::time::Duration;
 
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 // Helper function to create test benchmark tasks
 fn create_test_tasks() -> Vec<BenchmarkTask> {
     vec![
@@ -112,7 +114,7 @@ fn create_test_results() -> Vec<TaskResult> {
 }
 
 #[test]
-fn test_benchmark_suite_creation() {
+fn test_benchmark_suite_creation() -> TestResult {
     let suite = BenchmarkSuite::new("SWE-bench".to_string());
     let tasks = create_test_tasks();
 
@@ -120,7 +122,8 @@ fn test_benchmark_suite_creation() {
 
     assert_eq!(loaded_suite.name(), "SWE-bench");
     assert_eq!(loaded_suite.task_count(), 3);
-    assert_eq!(loaded_suite.get_task("task_001")?.id, "task_001");
+    assert_eq!(loaded_suite.get_task("task_001").unwrap().id, "task_001");
+    Ok(())
 }
 
 #[test]
@@ -148,17 +151,17 @@ fn test_benchmark_suite_filter_by_difficulty() {
 }
 
 #[test]
-fn test_task_executor_execute() {
+fn test_task_executor_execute() -> TestResult {
     let executor = TaskExecutor::new();
     let task = create_test_tasks()[0].clone();
     let agent_code = "def solve(): pass";
 
     let result = executor
-        .execute(&task, agent_code, Duration::from_secs(60))
-        ?;
+        .execute(&task, agent_code, Duration::from_secs(60))?;
 
     assert_eq!(result.task_id, task.id);
     assert!(result.execution_time <= Duration::from_secs(60));
+    Ok(())
 }
 
 #[test]
@@ -221,19 +224,19 @@ fn test_empirical_evaluator_staged_evaluation() {
 }
 
 #[test]
-fn test_statistical_significance() {
+fn test_statistical_significance() -> TestResult {
     let evaluator = EmpiricalEvaluator::new(ValidationConfig::default());
 
     let results = create_test_results();
     let baseline_success_rate = 0.5;
 
     let significance = evaluator
-        .calculate_statistical_significance(&results, baseline_success_rate)
-        ?;
+        .calculate_statistical_significance(&results, baseline_success_rate)?;
 
     assert!(significance.p_value >= 0.0 && significance.p_value <= 1.0);
     assert!(significance.confidence_interval.0 <= significance.confidence_interval.1);
     assert_eq!(significance.is_significant, significance.p_value < 0.05);
+    Ok(())
 }
 
 #[test]
@@ -251,7 +254,7 @@ fn test_baseline_comparison() {
 }
 
 #[test]
-fn test_validation_report_generation() {
+fn test_validation_report_generation() -> TestResult {
     let config = ValidationConfig::default();
     let evaluator = EmpiricalEvaluator::new(config.clone());
 
@@ -259,8 +262,7 @@ fn test_validation_report_generation() {
         agent_id: "agent_123".to_string(),
         success_rate: 0.7,
         metrics: MetricsCalculator::new()
-            .calculate(&create_test_results())
-            ?,
+            .calculate(&create_test_results())?,
         task_results: create_test_results(),
         statistical_significance: StatisticalSignificance {
             p_value: 0.03,
@@ -281,6 +283,7 @@ fn test_validation_report_generation() {
     assert_eq!(report.results.agent_id, "agent_123");
     assert!(report.shows_improvement);
     assert!(!report.recommendations.is_empty());
+    Ok(())
 }
 
 #[test]

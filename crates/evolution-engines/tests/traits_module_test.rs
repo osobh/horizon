@@ -5,6 +5,8 @@ use stratoswarm_evolution_engines::traits::{
     EvolvableAgent, MockEvolvableAgent,
 };
 
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 #[test]
 fn test_traits_module_imports() {
     // Test that we can import all types
@@ -48,7 +50,7 @@ fn test_agent_genome() {
 }
 
 #[tokio::test]
-async fn test_mock_evolvable_agent() {
+async fn test_mock_evolvable_agent() -> TestResult {
     let mock = MockEvolvableAgent::new("test_agent".to_string());
 
     // Test Evolvable trait methods
@@ -61,4 +63,5 @@ async fn test_mock_evolvable_agent() {
     let other = MockEvolvableAgent::new("other".to_string());
     let (child1, child2) = mock.crossover(&other).await.unwrap();
     assert_ne!(child1.id, child2.id);
+    Ok(())
 }

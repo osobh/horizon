@@ -1,10 +1,8 @@
 //! Integration test to verify ADAS meta agent module structure works correctly
 
 use stratoswarm_evolution_engines::adas_meta_agent::{
-    AgentRole, ArchiveEntry, ComparisonOperator, CoordinationStrategy, CoordinationStructure,
-    DiscoveredWorkflow, InformationFlow, MetaAgent, MutationType, PerformanceMetrics,
-    RewriteCondition, RewriteStrategy, RewriteTarget, RewritingPolicy, SeedAgentTemplate,
-    WorkflowArchive,
+    CoordinationStrategy, MetaAgent, MutationType, PerformanceMetrics,
+    RewriteStrategy, RewriteTarget, WorkflowArchive,
 };
 
 #[test]
@@ -16,7 +14,7 @@ fn test_adas_meta_agent_module_imports() {
     assert_eq!(meta_agent.current_iteration, 0);
 
     // Test archive functionality
-    let mut archive = WorkflowArchive::new();
+    let archive = WorkflowArchive::new();
     assert!(archive.workflows.is_empty());
     assert!(archive.best_workflow_id.is_none());
 
@@ -66,7 +64,7 @@ fn test_rewrite_targets_and_strategies() {
 
 #[tokio::test]
 async fn test_meta_agent_workflow_operations() {
-    let mut meta_agent = MetaAgent::new(5);
+    let meta_agent = MetaAgent::new(5);
 
     // Test seed agents creation
     let seed_agents = meta_agent.seed_agents.clone();

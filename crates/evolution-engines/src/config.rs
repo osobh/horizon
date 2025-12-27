@@ -173,6 +173,8 @@ impl EvolutionEngineConfigBuilder {
 mod tests {
     use super::*;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     #[test]
     fn test_config_default() {
         let config = EvolutionEngineConfig::default();
@@ -195,19 +197,19 @@ mod tests {
     }
 
     #[test]
-    fn test_config_builder() {
+    fn test_config_builder() -> TestResult {
         let config = EvolutionEngineConfig::builder()
             .max_generations(200)
             .population_size(50)
             .target_fitness(0.95)
             .seed(12345)
-            .build()
-            ?;
+            .build()?;
 
         assert_eq!(config.max_generations, 200);
         assert_eq!(config.population_size, 50);
         assert_eq!(config.target_fitness, Some(0.95));
         assert_eq!(config.seed, Some(12345));
+        Ok(())
     }
 
     #[test]

@@ -11,6 +11,8 @@ use crate::dgm_empirical_validation::{
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 // Helper function to create test context metrics
 fn create_test_context() -> ContextMetrics {
     ContextMetrics {
@@ -115,9 +117,9 @@ fn test_context_analyzer_creation() {
 }
 
 #[test]
-fn test_mode_recommendation() {
+fn test_mode_recommendation() -> TestResult {
     let config = IntegrationConfig::default();
-    let analyzer = ContextAnalyzer::new(config).unwrap();
+    let analyzer = ContextAnalyzer::new(config)?;
     let context = create_test_context();
 
     let decision = analyzer.recommend_mode(&context)?;
@@ -129,12 +131,13 @@ fn test_mode_recommendation() {
     assert!(decision.confidence >= 0.0 && decision.confidence <= 1.0);
     assert!(!decision.rationale.is_empty());
     assert!(!decision.expected_benefits.is_empty());
+    Ok(())
 }
 
 #[test]
-fn test_resource_constraint_detection() {
+fn test_resource_constraint_detection() -> TestResult {
     let config = IntegrationConfig::default();
-    let analyzer = ContextAnalyzer::new(config).unwrap();
+    let analyzer = ContextAnalyzer::new(config)?;
 
     let mut high_load_context = create_test_context();
     high_load_context.system_load = 0.95;
@@ -152,12 +155,13 @@ fn test_resource_constraint_detection() {
             || decision.rationale.contains("memory")
             || decision.rationale.contains("load")
     );
+    Ok(())
 }
 
 #[test]
-fn test_complexity_based_mode_selection() {
+fn test_complexity_based_mode_selection() -> TestResult {
     let config = IntegrationConfig::default();
-    let analyzer = ContextAnalyzer::new(config).unwrap();
+    let analyzer = ContextAnalyzer::new(config)?;
 
     let mut complex_context = create_test_context();
     complex_context.complexity_estimate = 2000; // High complexity
@@ -168,12 +172,13 @@ fn test_complexity_based_mode_selection() {
     assert!(decision.confidence > 0.0);
     // The rationale should mention something relevant to the decision
     assert!(!decision.rationale.is_empty());
+    Ok(())
 }
 
 #[test]
-fn test_time_pressure_handling() {
+fn test_time_pressure_handling() -> TestResult {
     let config = IntegrationConfig::default();
-    let analyzer = ContextAnalyzer::new(config).unwrap();
+    let analyzer = ContextAnalyzer::new(config)?;
 
     let mut urgent_context = create_test_context();
     urgent_context.time_pressure = 0.9; // High time pressure
@@ -184,12 +189,13 @@ fn test_time_pressure_handling() {
     // Should prefer faster validation approaches under time pressure
     // Allow any reasonable mode but verify rationale is present
     assert!(!decision.rationale.is_empty());
+    Ok(())
 }
 
 #[test]
-fn test_validation_request_processing() {
+fn test_validation_request_processing() -> TestResult {
     let config = IntegrationConfig::default();
-    let mut controller = DarwinGodelController::new(config).unwrap();
+    let mut controller = DarwinGodelController::new(config)?;
     let request = create_test_request();
 
     let response = controller.process_validation_request(request)?;
@@ -201,6 +207,7 @@ fn test_validation_request_processing() {
         response.mode_used,
         ValidationMode::Empirical | ValidationMode::Hybrid | ValidationMode::FormalProof
     ));
+    Ok(())
 }
 
 #[test]
@@ -227,11 +234,11 @@ fn test_mode_switching() {
 }
 
 #[test]
-fn test_hybrid_validation_mode() {
+fn test_hybrid_validation_mode() -> TestResult {
     let mut config = IntegrationConfig::default();
     config.default_mode = ValidationMode::Hybrid;
 
-    let mut controller = DarwinGodelController::new(config).unwrap();
+    let mut controller = DarwinGodelController::new(config)?;
     let request = create_test_request();
 
     let response = controller.process_validation_request(request)?;
@@ -242,19 +249,18 @@ fn test_hybrid_validation_mode() {
         ValidationMode::Hybrid | ValidationMode::Empirical | ValidationMode::FormalProof
     ));
     assert!(response.confidence >= 0.0);
+    Ok(())
 }
 
 #[test]
-fn test_criticality_level_impact() {
+fn test_criticality_level_impact() -> TestResult {
     let config = IntegrationConfig::default();
-    let analyzer = ContextAnalyzer::new(config).unwrap();
+    let analyzer = ContextAnalyzer::new(config)?;
 
     let mut critical_request = create_test_request();
     critical_request.criticality = CriticalityLevel::Critical;
 
-    let decision = analyzer
-        .recommend_mode_for_request(&critical_request)
-        ?;
+    let decision = analyzer.recommend_mode_for_request(&critical_request)?;
 
     // Critical modifications might prefer more thorough validation
     assert!(decision.confidence > 0.6);
@@ -263,26 +269,28 @@ fn test_criticality_level_impact() {
         decision.recommended_mode,
         ValidationMode::FormalProof | ValidationMode::Hybrid
     ));
+    Ok(())
 }
 
 #[test]
-fn test_validation_history_analysis() {
+fn test_validation_history_analysis() -> TestResult {
     let config = IntegrationConfig::default();
-    let analyzer = ContextAnalyzer::new(config).unwrap();
+    let analyzer = ContextAnalyzer::new(config)?;
 
     let context = create_test_context();
     let analysis = analyzer.analyze_performance_trends(&context)?;
 
     assert!(!analysis.is_empty());
     assert!(analysis.contains("Empirical") || analysis.contains("performance"));
+    Ok(())
 }
 
 #[test]
-fn test_adaptive_mode_behavior() {
+fn test_adaptive_mode_behavior() -> TestResult {
     let mut config = IntegrationConfig::default();
     config.default_mode = ValidationMode::Adaptive;
 
-    let mut controller = DarwinGodelController::new(config).unwrap();
+    let mut controller = DarwinGodelController::new(config)?;
     let request = create_test_request();
 
     let response = controller.process_validation_request(request)?;
@@ -293,12 +301,13 @@ fn test_adaptive_mode_behavior() {
         ValidationMode::Empirical | ValidationMode::FormalProof | ValidationMode::Hybrid
     ));
     assert!(!response.recommendations.is_empty());
+    Ok(())
 }
 
 #[test]
-fn test_resource_usage_tracking() {
+fn test_resource_usage_tracking() -> TestResult {
     let config = IntegrationConfig::default();
-    let mut controller = DarwinGodelController::new(config).unwrap();
+    let mut controller = DarwinGodelController::new(config)?;
     let request = create_test_request();
 
     let response = controller.process_validation_request(request)?;
@@ -319,12 +328,13 @@ fn test_resource_usage_tracking() {
             assert!(response.resource_usage.cpu_time > Duration::from_nanos(0));
         }
     }
+    Ok(())
 }
 
 #[test]
-fn test_integration_metrics_collection() {
+fn test_integration_metrics_collection() -> TestResult {
     let config = IntegrationConfig::default();
-    let mut controller = DarwinGodelController::new(config).unwrap();
+    let mut controller = DarwinGodelController::new(config)?;
 
     // Process several requests
     for i in 0..3 {
@@ -333,17 +343,18 @@ fn test_integration_metrics_collection() {
         let _response = controller.process_validation_request(request)?;
     }
 
-    let metrics = controller.get_integration_metrics().unwrap();
+    let metrics = controller.get_integration_metrics()?;
 
     assert_eq!(metrics.total_validations, 3);
     assert!(!metrics.validations_by_mode.is_empty());
     assert!(!metrics.success_rates_by_mode.is_empty());
+    Ok(())
 }
 
 #[test]
-fn test_validation_bridge_mode_switching() {
+fn test_validation_bridge_mode_switching() -> TestResult {
     let config = IntegrationConfig::default();
-    let bridge = ValidationBridge::new(config).unwrap();
+    let bridge = ValidationBridge::new(config)?;
 
     let request = create_test_request();
 
@@ -354,6 +365,7 @@ fn test_validation_bridge_mode_switching() {
     // Test formal validation (may timeout/fail but should not panic)
     let formal_result = bridge.validate_formal(&request);
     assert!(formal_result.is_ok() || formal_result.is_err()); // Either works or fails gracefully
+    Ok(())
 }
 
 #[test]

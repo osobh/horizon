@@ -3,6 +3,8 @@
 use super::*;
 use crate::swarm_distributed::{DistributedSwarmConfig, NodeStatus};
 
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 #[tokio::test]
 async fn test_network_topology_creation() {
     let config = DistributedSwarmConfig::new("test_node".to_string());
@@ -11,9 +13,9 @@ async fn test_network_topology_creation() {
 }
 
 #[tokio::test]
-async fn test_add_remove_node() {
+async fn test_add_remove_node() -> TestResult {
     let config = DistributedSwarmConfig::new("test_node".to_string());
-    let topology = NetworkTopology::new(config).await.unwrap();
+    let topology = NetworkTopology::new(config).await?;
 
     let node =
         crate::swarm_distributed::SwarmNode::new("node1".to_string(), "127.0.0.1:8001".to_string());
@@ -21,6 +23,7 @@ async fn test_add_remove_node() {
 
     let migration_plan = topology.remove_node("node1").await?;
     assert_eq!(migration_plan.migrations.len(), 0); // No particles to migrate
+    Ok(())
 }
 
 #[tokio::test]
@@ -45,15 +48,14 @@ async fn test_partition_manager_assignment() {
 }
 
 #[tokio::test]
-async fn test_particle_migration() {
+async fn test_particle_migration() -> TestResult {
     let config = DistributedSwarmConfig::new("test_node".to_string());
-    let mut manager = PartitionManager::new(config).await.unwrap();
+    let mut manager = PartitionManager::new(config).await?;
 
     // Assign particle to node1
     manager
         .assign_particle("particle1".to_string(), "node1".to_string())
-        .await
-        ?;
+        .await?;
 
     // Migrate to node2
     assert!(manager
@@ -64,6 +66,7 @@ async fn test_particle_migration() {
     // Verify migration
     assert_eq!(manager.get_particles_on_node("node1").len(), 0);
     assert_eq!(manager.get_particles_on_node("node2"), vec!["particle1"]);
+    Ok(())
 }
 
 #[tokio::test]
@@ -87,23 +90,22 @@ async fn test_load_balancer_node_management() {
 }
 
 #[tokio::test]
-async fn test_load_balance_metrics() {
+async fn test_load_balance_metrics() -> TestResult {
     let config = DistributedSwarmConfig::new("test_node".to_string());
-    let mut balancer = LoadBalancer::new(config).await.unwrap();
+    let mut balancer = LoadBalancer::new(config).await?;
 
     // Add some nodes
     let capacity = NodeCapacity::default();
     balancer
         .add_node_capacity("node1".to_string(), capacity.clone())
-        .await
-        ?;
+        .await?;
     balancer
         .add_node_capacity("node2".to_string(), capacity)
-        .await
-        .unwrap();
+        .await?;
 
-    let metrics = balancer.get_metrics().await.unwrap();
+    let metrics = balancer.get_metrics().await?;
     assert_eq!(metrics.active_nodes, 2);
+    Ok(())
 }
 
 #[tokio::test]
@@ -144,7 +146,7 @@ fn test_partition_strategies() {
 }
 
 #[test]
-fn test_node_capacity() {
+fn test_node_capacity() -> TestResult {
     let capacity = NodeCapacity::default();
     assert_eq!(capacity.max_particles, 100);
     assert_eq!(capacity.compute_capacity, 1.0);
@@ -153,10 +155,11 @@ fn test_node_capacity() {
     let serialized = serde_json::to_string(&capacity)?;
     let deserialized: NodeCapacity = serde_json::from_str(&serialized)?;
     assert_eq!(deserialized.max_particles, capacity.max_particles);
+    Ok(())
 }
 
 #[test]
-fn test_edge_weight() {
+fn test_edge_weight() -> TestResult {
     let weight = EdgeWeight::default();
     assert_eq!(weight.latency, 10.0);
     assert_eq!(weight.bandwidth, 100.0);
@@ -165,6 +168,7 @@ fn test_edge_weight() {
     // Test serialization
     let serialized = serde_json::to_string(&weight)?;
     let _deserialized: EdgeWeight = serde_json::from_str(&serialized)?;
+    Ok(())
 }
 
 #[test]

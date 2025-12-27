@@ -137,6 +137,8 @@ mod tests {
     use crate::traits::Evolvable;
     use async_trait::async_trait;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     #[derive(Debug, Clone)]
     struct TestEntity {
         value: f64,
@@ -196,7 +198,7 @@ mod tests {
         assert_eq!(pop.size(), 3);
 
         // Test best individual
-        let best = pop.best()?;
+        let best = pop.best().unwrap();
         assert_eq!(best.fitness, Some(3.0));
 
         // Test selection
@@ -242,7 +244,7 @@ mod tests {
         assert_eq!(pop.size(), 3);
         assert_eq!(pop.generation, 0);
 
-        let best = pop.best()?;
+        let best = pop.best().unwrap();
         assert_eq!(best.fitness, Some(3.0));
     }
 
@@ -287,7 +289,7 @@ mod tests {
         assert_eq!(pop.size(), 4);
 
         // Best should be from fitted individuals only
-        let best = pop.best()?;
+        let best = pop.best().unwrap();
         assert_eq!(best.fitness, Some(4.0));
 
         // Selection should only include fitted individuals
@@ -335,7 +337,7 @@ mod tests {
         pop.add(Individual::with_fitness(TestEntity { value: 4.0 }, 3.0));
 
         // Best should be one of the 5.0 fitness individuals
-        let best = pop.best()?;
+        let best = pop.best().unwrap();
         assert_eq!(best.fitness, Some(5.0));
 
         // Top selection should handle ties gracefully
@@ -379,7 +381,7 @@ mod tests {
         assert_eq!(pop.size(), 1000);
 
         // Test best with large population
-        let best = pop.best()?;
+        let best = pop.best().unwrap();
         assert_eq!(best.fitness, Some(1000.0));
 
         // Test selection with large population
@@ -457,7 +459,7 @@ mod tests {
         pop.add(Individual::with_fitness(TestEntity { value: 5.0 }, 1.0));
 
         // Best should handle extreme values correctly
-        let best = pop.best()?;
+        let best = pop.best().unwrap();
         assert_eq!(best.fitness, Some(f64::MAX));
 
         // Selection should handle extreme values
@@ -524,7 +526,7 @@ mod tests {
         // Verify operations work with larger dataset
         assert_eq!(pop.size(), 100);
 
-        let best = pop.best()?;
+        let best = pop.best().unwrap();
         assert_eq!(best.fitness, Some(99.0));
 
         let top10 = pop.select_top(10);

@@ -4,16 +4,17 @@
 //! and its self-assessment system, following TDD methodology.
 
 use stratoswarm_evolution_engines::{
-    dgm::{config::DgmConfig, engine::DgmEngine},
+    dgm::{DgmConfig, DgmEngine},
     dgm_self_assessment::{
-        config::SelfAssessmentConfig,
-        types::{DgmSelfAssessment, ModificationType, SelfModification},
+        DgmSelfAssessment, ModificationType, SelfAssessmentConfig, SelfModification,
     },
     error::EvolutionEngineResult,
     population::{Individual, Population},
     traits::{AgentGenome, ArchitectureGenes, BehaviorGenes, EvolutionEngine, EvolvableAgent},
 };
 use tokio;
+
+type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// Create a test DGM configuration
 fn create_test_dgm_config() -> DgmConfig {
@@ -28,7 +29,7 @@ fn create_test_population(size: usize) -> Vec<EvolvableAgent> {
         let genome = AgentGenome {
             goal: stratoswarm_agent_core::Goal::new(
                 format!("Test goal {}", i),
-                stratoswarm_agent_core::GoalPriority::Medium,
+                stratoswarm_agent_core::GoalPriority::Normal,
             ),
             architecture: ArchitectureGenes {
                 memory_capacity: 1024 * (i + 1),
@@ -60,7 +61,7 @@ fn create_test_population(size: usize) -> Vec<EvolvableAgent> {
 }
 
 #[tokio::test]
-async fn test_dgm_self_assessment_initialization() {
+async fn test_dgm_self_assessment_initialization() -> TestResult {
     // RED phase expectation: DGM engine should initialize with self-assessment
     let config = create_test_dgm_config();
 
@@ -75,6 +76,7 @@ async fn test_dgm_self_assessment_initialization() {
     let report = engine.get_self_assessment_report();
     // Initial state should have no report yet
     assert!(report.is_none(), "Initial self-assessment should be None");
+    Ok(())
 }
 
 #[tokio::test]

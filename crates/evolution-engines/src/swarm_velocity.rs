@@ -161,6 +161,8 @@ mod tests {
     use crate::swarm_particle::Particle;
     use rand::SeedableRng;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     fn create_test_agent() -> EvolvableAgent {
         let genome = crate::traits::AgentGenome {
             goal: stratoswarm_agent_core::Goal::new(
@@ -188,7 +190,7 @@ mod tests {
             metadata: serde_json::Value::Null,
         };
 
-        let agent = stratoswarm_agent_core::Agent::new(config)?;
+        let agent = stratoswarm_agent_core::Agent::new(config).unwrap();
         EvolvableAgent { agent, genome }
     }
 
@@ -257,7 +259,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_apply_velocity_to_position() {
+    async fn test_apply_velocity_to_position() -> TestResult {
         let updater = create_velocity_updater();
         let agent = create_test_agent();
         let velocity = vec![0.1, 0.2, 0.3];
@@ -272,6 +274,7 @@ mod tests {
             mutated.genome.goal.description,
             agent.genome.goal.description
         );
+        Ok(())
     }
 
     #[test]

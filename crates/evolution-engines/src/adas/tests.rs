@@ -1,7 +1,8 @@
 //! Tests for ADAS module
 
 use super::*;
-use crate::traits::EngineConfig;
+use crate::population::Population;
+use crate::traits::{EngineConfig, EvolutionEngine, EvolvableAgent};
 use stratoswarm_agent_core::{Goal, GoalPriority};
 
 #[test]
@@ -37,7 +38,8 @@ async fn test_initial_population_generation() {
     let config = AdasConfig::default();
     let engine = AdasEngine::new(config).unwrap();
 
-    let population = engine.generate_initial_population(10).await.unwrap();
+    let population: Population<EvolvableAgent> =
+        engine.generate_initial_population(10).await.unwrap();
     assert_eq!(population.size(), 10);
 }
 

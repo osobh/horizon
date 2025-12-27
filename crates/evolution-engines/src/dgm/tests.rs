@@ -1,6 +1,8 @@
 //! Tests for DGM evolution engine
 
 use super::*;
+
+type TestResult = Result<(), Box<dyn std::error::Error>>;
 use crate::dgm::{config::*, engine::*, improvement::*, patterns::*};
 use crate::population::Population;
 use crate::traits::{
@@ -327,7 +329,7 @@ async fn test_pattern_application() {
 }
 
 #[tokio::test]
-async fn test_evolution_step_basic() {
+async fn test_evolution_step_basic() -> TestResult {
     let mut config = DgmConfig::default();
     config.base.population_size = 5;
     config.base.mutation_rate = 0.1;
@@ -338,10 +340,11 @@ async fn test_evolution_step_basic() {
     let evolved_pop = engine.evolve_step(initial_pop).await?;
     assert_eq!(evolved_pop.size(), 5);
     assert_eq!(evolved_pop.generation, 1);
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_termination_conditions() {
+async fn test_termination_conditions() -> TestResult {
     let mut config = DgmConfig::default();
     config.base.max_generations = 10;
     config.base.target_fitness = Some(0.9);
@@ -370,10 +373,11 @@ async fn test_termination_conditions() {
     metrics.generation = 5;
     metrics.best_fitness = 0.5;
     assert!(!engine.should_terminate(&metrics).await);
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_parameter_adaptation() {
+async fn test_parameter_adaptation() -> TestResult {
     let mut config = DgmConfig::default();
     config.base.adaptive_parameters = true;
     config.improvement_params.improvement_threshold = 0.1;
@@ -385,20 +389,21 @@ async fn test_parameter_adaptation() {
     // Test adaptation with low velocity (should increase exploration)
     *engine.improvement_velocity.write() = 0.05;
     let metrics = crate::metrics::EvolutionMetrics::default();
-    engine.adapt_parameters(&metrics).await.unwrap();
+    engine.adapt_parameters(&metrics).await?;
 
     // Test adaptation with high velocity (should increase exploitation)
     *engine.improvement_velocity.write() = 0.2;
-    engine.adapt_parameters(&metrics).await.unwrap();
+    engine.adapt_parameters(&metrics).await?;
 
     // Just verify the call succeeds - can't check private fields
+    Ok(())
 }
 
 #[test]
-fn test_seeded_random_generation() {
+fn test_seeded_random_generation() -> TestResult {
     let mut config1 = DgmConfig::default();
     config1.base.seed = Some(42);
-    let engine1 = DgmEngine::new(config1).unwrap();
+    let engine1 = DgmEngine::new(config1)?;
 
     let mut config2 = DgmConfig::default();
     config2.base.seed = Some(42);
@@ -416,4 +421,5 @@ fn test_seeded_random_generation() {
         genome1.architecture.processing_units,
         genome2.architecture.processing_units
     );
+    Ok(())
 }

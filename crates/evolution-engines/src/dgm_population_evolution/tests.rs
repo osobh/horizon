@@ -5,6 +5,8 @@ use crate::traits::{AgentGenome, ArchitectureGenes, BehaviorGenes, EvolvableAgen
 use stratoswarm_agent_core::{Agent, AgentConfig, Goal};
 use std::time::Duration;
 
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 // Helper function to create test agents
 fn create_test_agents(count: usize) -> Vec<EvolvableAgent> {
     (0..count)
@@ -85,7 +87,7 @@ fn test_managed_population_creation() {
 }
 
 #[test]
-fn test_population_evolution_step() {
+fn test_population_evolution_step() -> TestResult {
     let agents = create_test_agents(10);
     let mut population = ManagedPopulation::new("test_pop".to_string(), agents).unwrap();
 
@@ -94,22 +96,21 @@ fn test_population_evolution_step() {
         .evolve_generation(
             &SelectionStrategy::Tournament { size: 3 },
             &CrossoverStrategy::Uniform { rate: 0.7 },
-        )
-        ?;
+        )?;
 
     assert_eq!(population.generation(), initial_generation + 1);
     assert_eq!(population.size(), 10); // Population size should remain constant
+    Ok(())
 }
 
 #[test]
-fn test_selection_strategies() {
+fn test_selection_strategies() -> TestResult {
     let agents = create_test_agents(10);
     let population = ManagedPopulation::new("test_pop".to_string(), agents).unwrap();
 
     // Test tournament selection
     let selected = population
-        .select_parents(&SelectionStrategy::Tournament { size: 3 }, 5)
-        ?;
+        .select_parents(&SelectionStrategy::Tournament { size: 3 }, 5)?;
     assert_eq!(selected.len(), 5);
 
     // Test elite selection
@@ -122,10 +123,11 @@ fn test_selection_strategies() {
     for agent in &selected {
         assert!(agent.genome.behavior.exploration_rate >= 0.7); // Should be high exploration rate
     }
+    Ok(())
 }
 
 #[test]
-fn test_crossover_strategies() {
+fn test_crossover_strategies() -> TestResult {
     let agents = create_test_agents(4);
     let population = ManagedPopulation::new("test_pop".to_string(), agents).unwrap();
     let parent1 = &population.get_agents()[0];
@@ -133,8 +135,7 @@ fn test_crossover_strategies() {
 
     // Test uniform crossover
     let offspring = population
-        .crossover(parent1, parent2, &CrossoverStrategy::Uniform { rate: 0.5 })
-        ?;
+        .crossover(parent1, parent2, &CrossoverStrategy::Uniform { rate: 0.5 })?;
     assert_eq!(offspring.len(), 2);
     assert_ne!(offspring[0].agent.id(), parent1.agent.id());
     assert_ne!(offspring[1].agent.id(), parent2.agent.id());
@@ -144,6 +145,7 @@ fn test_crossover_strategies() {
         .crossover(parent1, parent2, &CrossoverStrategy::SinglePoint)
         .unwrap();
     assert_eq!(offspring.len(), 2);
+    Ok(())
 }
 
 #[test]
@@ -155,7 +157,7 @@ fn test_migration_controller_creation() {
 }
 
 #[test]
-fn test_migration_between_populations() {
+fn test_migration_between_populations() -> TestResult {
     let config = create_test_config();
     let controller = MigrationController::new(config.migration_policy.clone()).unwrap();
 
@@ -170,6 +172,7 @@ fn test_migration_between_populations() {
     assert_eq!(migration.target_population, "pop2");
     assert!(migration.agents.len() <= 2); // Based on 0.2 rate and size 10
     assert_eq!(migration.generation, 5);
+    Ok(())
 }
 
 #[test]
@@ -233,7 +236,7 @@ fn test_diversity_calculation() {
 }
 
 #[test]
-fn test_convergence_detection() {
+fn test_convergence_detection() -> TestResult {
     let mut agents = create_test_agents(5);
     // Make all agents have similar behavior (converged)
     for agent in &mut agents {
@@ -244,10 +247,11 @@ fn test_convergence_detection() {
     let converged = population.check_convergence(0.05); // 5% threshold
 
     assert!(converged);
+    Ok(())
 }
 
 #[test]
-fn test_parallel_evolution() {
+fn test_parallel_evolution() -> TestResult {
     let config = create_test_config();
     let mut manager = PopulationEvolutionManager::new(config).unwrap();
 
@@ -264,10 +268,11 @@ fn test_parallel_evolution() {
     // Check that all populations evolved
     let metrics = manager.calculate_metrics().unwrap();
     assert!(metrics.total_populations > 0);
+    Ok(())
 }
 
 #[test]
-fn test_migration_policy_best_agent() {
+fn test_migration_policy_best_agent() -> TestResult {
     let policy = MigrationPolicy::BestAgent { rate: 0.2 };
     let controller = MigrationController::new(policy).unwrap();
 
@@ -284,6 +289,7 @@ fn test_migration_policy_best_agent() {
     for agent in &migration.agents {
         assert!(agent.genome.behavior.exploration_rate >= 0.8);
     }
+    Ok(())
 }
 
 #[test]
@@ -380,7 +386,7 @@ fn test_population_health_monitoring() {
 }
 
 #[test]
-fn test_migration_history_tracking() {
+fn test_migration_history_tracking() -> TestResult {
     let config = create_test_config();
     let mut controller = MigrationController::new(config.migration_policy).unwrap();
 
@@ -403,4 +409,5 @@ fn test_migration_history_tracking() {
     for (i, migration) in history.iter().enumerate() {
         assert_eq!(migration.generation, (i + 1) as u32);
     }
+    Ok(())
 }
