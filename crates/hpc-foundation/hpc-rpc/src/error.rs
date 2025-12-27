@@ -54,6 +54,7 @@ pub enum RpcError {
 pub type Result<T> = std::result::Result<T, RpcError>;
 
 impl From<tonic::Status> for RpcError {
+    #[cold]
     fn from(status: tonic::Status) -> Self {
         RpcError::GrpcStatus(Box::new(status))
     }

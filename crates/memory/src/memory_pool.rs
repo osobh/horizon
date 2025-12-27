@@ -90,6 +90,7 @@ impl MemoryPool {
     }
 
     /// Allocate memory from the pool
+    #[must_use = "PoolAllocation must be stored to free the memory later"]
     pub fn allocate(&self, size: u64) -> Result<PoolAllocation> {
         let mut free_blocks = self.free_blocks.lock().unwrap();
         let mut allocated_blocks = self.allocated_blocks.lock().unwrap();

@@ -113,12 +113,14 @@ pub enum Error {
 }
 
 impl From<ipnet::PrefixLenError> for Error {
+    #[cold]
     fn from(e: ipnet::PrefixLenError) -> Self {
         Error::InvalidCidr(e.to_string())
     }
 }
 
 impl From<std::net::AddrParseError> for Error {
+    #[cold]
     fn from(e: std::net::AddrParseError) -> Self {
         Error::InvalidCidr(e.to_string())
     }
@@ -126,6 +128,7 @@ impl From<std::net::AddrParseError> for Error {
 
 #[cfg(feature = "postgres")]
 impl From<sqlx::Error> for Error {
+    #[cold]
     fn from(e: sqlx::Error) -> Self {
         Error::Database(e.to_string())
     }

@@ -63,12 +63,14 @@ pub enum AgentError {
 }
 
 impl From<std::io::Error> for AgentError {
+    #[cold]
     fn from(err: std::io::Error) -> Self {
         AgentError::IoError(err.to_string())
     }
 }
 
 impl From<serde_json::Error> for AgentError {
+    #[cold]
     fn from(err: serde_json::Error) -> Self {
         AgentError::SerializationError(err.to_string())
     }

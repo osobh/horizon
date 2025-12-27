@@ -58,18 +58,21 @@ pub enum BusinessError {
 }
 
 impl From<std::io::Error> for BusinessError {
+    #[cold]
     fn from(err: std::io::Error) -> Self {
         BusinessError::ConfigurationError(format!("IO error: {}", err))
     }
 }
 
 impl From<serde_json::Error> for BusinessError {
+    #[cold]
     fn from(err: serde_json::Error) -> Self {
         BusinessError::ConfigurationError(format!("JSON error: {}", err))
     }
 }
 
 impl From<async_openai::error::OpenAIError> for BusinessError {
+    #[cold]
     fn from(err: async_openai::error::OpenAIError) -> Self {
         BusinessError::LlmIntegrationError {
             service: "OpenAI".to_string(),

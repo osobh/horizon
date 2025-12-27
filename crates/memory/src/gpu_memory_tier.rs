@@ -360,6 +360,7 @@ impl GpuMemoryTier {
         Ok(tier)
     }
 
+    #[must_use = "MemoryAllocation must be stored to free the memory later"]
     pub fn allocate(&self, size: u64, strategy: AllocationStrategy) -> Result<MemoryAllocation> {
         let should_use_gpu = match strategy {
             AllocationStrategy::GpuPrimary => {
@@ -461,6 +462,7 @@ impl GpuMemoryTier {
         Ok(allocation)
     }
 
+    #[must_use = "UnifiedAllocation must be stored to free the memory later"]
     pub fn allocate_unified(&self, size: u64, _strategy: AllocationStrategy) -> Result<UnifiedAllocation> {
         if let Some(ref manager) = self.unified_manager {
             manager.allocate(size)
@@ -469,6 +471,7 @@ impl GpuMemoryTier {
         }
     }
 
+    #[must_use = "ZeroCopyBuffer must be stored to free the memory later"]
     pub fn create_zero_copy_buffer(&self, size: usize) -> Result<ZeroCopyBuffer> {
         #[cfg(feature = "cuda")]
         {
@@ -504,6 +507,7 @@ impl GpuMemoryTier {
         }
     }
 
+    #[must_use = "PinnedAllocation must be stored to free the memory later"]
     pub fn allocate_pinned(&self, size: u64) -> Result<PinnedAllocation> {
         #[cfg(feature = "cuda")]
         {
@@ -545,6 +549,7 @@ impl GpuMemoryTier {
         Ok(pool)
     }
 
+    #[must_use = "MemoryAllocation must be stored to free the memory later"]
     pub fn allocate_on_gpu(&self, size: u64, gpu_id: u32) -> Result<MemoryAllocation> {
         if let Some(ref manager) = self.multi_gpu_manager {
             // Convert from multi_gpu MemoryAllocation to gpu_memory_tier MemoryAllocation

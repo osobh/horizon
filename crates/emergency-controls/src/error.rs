@@ -57,12 +57,14 @@ pub enum EmergencyError {
 }
 
 impl From<std::io::Error> for EmergencyError {
+    #[cold]
     fn from(err: std::io::Error) -> Self {
         EmergencyError::ConfigurationError(format!("IO error: {err}"))
     }
 }
 
 impl From<serde_json::Error> for EmergencyError {
+    #[cold]
     fn from(err: serde_json::Error) -> Self {
         EmergencyError::ConfigurationError(format!("JSON error: {err}"))
     }

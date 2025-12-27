@@ -91,6 +91,7 @@ impl UnifiedMemoryManager {
     }
 
     /// Allocate unified memory
+    #[must_use = "UnifiedAllocation must be stored to free the memory later"]
     pub fn allocate(&self, size: u64) -> Result<UnifiedAllocation> {
         let mut counter = self.allocation_counter.lock().unwrap();
         let id = *counter;

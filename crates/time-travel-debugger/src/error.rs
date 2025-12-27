@@ -45,6 +45,7 @@ pub enum TimeDebuggerError {
 }
 
 impl From<serde_json::Error> for TimeDebuggerError {
+    #[cold]
     fn from(err: serde_json::Error) -> Self {
         // Syntax errors, EOF errors, and data errors occur during deserialization
         if err.is_data() || err.is_syntax() || err.is_eof() {
@@ -62,6 +63,7 @@ impl From<serde_json::Error> for TimeDebuggerError {
 }
 
 impl From<std::io::Error> for TimeDebuggerError {
+    #[cold]
     fn from(err: std::io::Error) -> Self {
         TimeDebuggerError::IoError {
             message: err.to_string(),

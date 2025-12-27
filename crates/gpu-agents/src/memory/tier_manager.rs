@@ -85,6 +85,7 @@ pub struct TierManager {
 
 impl TierManager {
     /// Create new tier manager
+    #[must_use = "ignoring the Result may hide tier manager initialization errors"]
     pub fn new(device: Arc<CudaDevice>, config: TierConfig) -> Result<Self> {
         // Ensure storage directories exist
         fs::create_dir_all(&config.nvme_path)?;
@@ -126,6 +127,7 @@ impl TierManager {
     }
 
     /// Allocate a page in specified tier
+    #[must_use = "PageId must be stored to free the allocated memory later"]
     pub fn allocate_page(&mut self, tier: TierLevel) -> Result<PageId> {
         let page_id = {
             let mut next_id = self.next_page_id.lock()?;
