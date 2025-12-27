@@ -7,11 +7,19 @@ use std::sync::{Arc, Mutex};
 use crate::{GpuMemoryHandle, MemoryError, MemoryManager};
 
 /// Memory pool for reusing allocations of the same size
+///
+/// Cache-line aligned (64 bytes) with mutex-guarded fields grouped
+/// to reduce contention during concurrent acquire/release operations.
+#[repr(C, align(64))]
 pub struct MemoryPool {
-    block_size: usize,
-    pool: Arc<Mutex<VecDeque<GpuMemoryHandle>>>,
-    max_blocks: usize,
+    // Immutable configuration fields (rarely accessed after init)
     allocator: Arc<dyn MemoryManager>,
+    max_blocks: usize,
+    block_size: usize,
+    // Padding to separate config from hot mutexes
+    _config_padding: [u8; 40],
+    // Hot mutex fields - second cache line
+    pool: Arc<Mutex<VecDeque<GpuMemoryHandle>>>,
     total_allocated: Arc<Mutex<usize>>, // Track total blocks ever allocated
 }
 
@@ -19,10 +27,13 @@ impl MemoryPool {
     /// Create new memory pool
     pub fn new(block_size: usize, max_blocks: usize, allocator: Arc<dyn MemoryManager>) -> Self {
         Self {
-            block_size,
-            pool: Arc::new(Mutex::new(VecDeque::new())),
-            max_blocks,
+            // Immutable config fields
             allocator,
+            max_blocks,
+            block_size,
+            _config_padding: [0; 40],
+            // Hot mutex fields
+            pool: Arc::new(Mutex::new(VecDeque::new())),
             total_allocated: Arc::new(Mutex::new(0)),
         }
     }

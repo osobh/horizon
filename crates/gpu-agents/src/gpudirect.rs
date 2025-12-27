@@ -448,18 +448,28 @@ impl GpuDirectManager {
 }
 
 /// I/O queue for managing concurrent operations
+///
+/// Cache-line aligned (64 bytes) to prevent false sharing when
+/// multiple I/O threads update the pending counter concurrently.
+#[repr(C, align(64))]
 struct IoQueue {
-    id: usize,
-    capacity: usize,
+    /// Pending operations counter (hot field - isolated on cache line)
     pending: AtomicU64,
+    /// Queue identifier
+    id: usize,
+    /// Maximum capacity
+    capacity: usize,
+    // Padding to fill cache line (8 + 8 + 8 = 24 bytes, need 40 more)
+    _padding: [u8; 40],
 }
 
 impl IoQueue {
     fn new(id: usize, capacity: usize) -> Self {
         Self {
+            pending: AtomicU64::new(0),
             id,
             capacity,
-            pending: AtomicU64::new(0),
+            _padding: [0; 40],
         }
     }
 }

@@ -87,13 +87,22 @@ pub trait GpuDevice: Send + Sync {
 /// This implementation simulates GPU behavior without requiring actual hardware.
 /// It tracks memory allocations, simulates kernel execution timing, and maintains
 /// realistic utilization metrics.
+///
+/// Cache-line aligned (64 bytes) with atomic fields grouped first to prevent
+/// false sharing when multiple threads update device state concurrently.
+#[repr(C, align(64))]
 #[derive(Debug)]
 pub struct MockDevice {
-    device_id: u32,
-    total_memory: u64,
+    // Hot atomic fields - grouped on first cache line
     used_memory: AtomicU64,
     utilization: AtomicU64, // Stored as fixed-point (value * 100)
     kernel_count: AtomicUsize,
+    // Padding to isolate atomics (8 + 8 + 8 = 24 bytes, pad to 64)
+    _atomic_padding: [u8; 40],
+    // Cold fields - second cache line
+    device_id: u32,
+    _field_padding: u32, // Align total_memory to 8 bytes
+    total_memory: u64,
     buffers: Arc<DashMap<String, BufferInfo>>,
 }
 
@@ -108,11 +117,15 @@ impl MockDevice {
     #[must_use]
     pub fn new(device_id: u32, total_memory: u64) -> Self {
         Self {
-            device_id,
-            total_memory,
+            // Hot atomic fields first
             used_memory: AtomicU64::new(0),
             utilization: AtomicU64::new(0),
             kernel_count: AtomicUsize::new(0),
+            _atomic_padding: [0; 40],
+            // Cold fields
+            device_id,
+            _field_padding: 0,
+            total_memory,
             buffers: Arc::new(DashMap::new()),
         }
     }

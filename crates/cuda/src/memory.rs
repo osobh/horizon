@@ -66,13 +66,20 @@ impl Drop for DeviceMemory {
 }
 
 /// Memory pool for efficient allocation
+///
+/// Cache-line aligned (64 bytes) with the hot atomic `used` counter isolated
+/// to prevent false sharing during concurrent allocations.
+#[repr(C, align(64))]
 pub struct MemoryPool {
-    /// Pool name
-    pub name: String,
+    /// Used memory (hot atomic field - isolated on first cache line)
+    used: AtomicUsize,
+    // Padding to isolate atomic from other fields (8 bytes used, 56 to pad)
+    _atomic_padding: [u8; 56],
+    // Cold fields on second cache line
     /// Total pool size
     total_size: usize,
-    /// Used memory
-    used: AtomicUsize,
+    /// Pool name
+    pub name: String,
     /// Free blocks
     free_blocks: Arc<RwLock<Vec<FreeBlock>>>,
     /// Allocated blocks
@@ -97,9 +104,12 @@ impl MemoryPool {
     pub fn new(name: String, size: usize) -> CudaResult<Self> {
         // Would allocate large chunk from CUDA in real implementation
         let pool = Self {
-            name,
-            total_size: size,
+            // Hot atomic field first (isolated on cache line)
             used: AtomicUsize::new(0),
+            _atomic_padding: [0; 56],
+            // Cold fields
+            total_size: size,
+            name,
             free_blocks: Arc::new(RwLock::new(vec![FreeBlock { offset: 0, size }])),
             allocations: Arc::new(RwLock::new(HashMap::new())),
         };
