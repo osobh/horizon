@@ -272,11 +272,11 @@ impl RealKernelScheduler {
         );
 
         // Launch kernel asynchronously
-        let active_kernels = self.active_kernels.clone();
-        let stream_available = self.stream_available.clone();
-        let stats = self.stats.clone();
-        let device = self.device.clone();
-        let stream = stream.clone();
+        let active_kernels = Arc::clone(&self.active_kernels);
+        let stream_available = Arc::clone(&self.stream_available);
+        let stats = Arc::clone(&self.stats);
+        let device = Arc::clone(&self.device);
+        let stream = Arc::clone(&stream);
 
         tokio::spawn(async move {
             let kernel_start = Instant::now();

@@ -244,7 +244,7 @@ impl HybridCoordinator {
             match &instance.strategy_type {
                 EvolutionStrategy::Adas(config) => {
                     let mut adas = AdasPopulation::new(
-                        self.device.clone(),
+                        Arc::clone(&self.device),
                         config.population_size,
                         config.max_code_size,
                     )?;
@@ -253,7 +253,7 @@ impl HybridCoordinator {
                 }
                 EvolutionStrategy::Dgm(config) => {
                     let mut dgm = DgmEngine::new(
-                        self.device.clone(),
+                        Arc::clone(&self.device),
                         config.population_size,
                         config.max_code_size,
                         config.archive_size,
@@ -263,7 +263,7 @@ impl HybridCoordinator {
                 }
                 EvolutionStrategy::Swarm(config) => {
                     let mut swarm = SwarmEngine::new(
-                        self.device.clone(),
+                        Arc::clone(&self.device),
                         config.population_size,
                         config.dimensions,
                         config.params.clone(),

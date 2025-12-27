@@ -1001,13 +1001,13 @@ impl ConsensusCompressionEngine {
         // In production, this would be a more efficient shallow clone
         Self {
             config: self.config.clone(),
-            stats: self.stats.clone(),
-            compression_cache: self.compression_cache.clone(),
-            pattern_analyzer: self.pattern_analyzer.clone(),
-            gpu_compressor: self.gpu_compressor.clone(),
-            algorithm_selector: self.algorithm_selector.clone(),
-            dictionary_manager: self.dictionary_manager.clone(),
-            performance_monitor: self.performance_monitor.clone(),
+            stats: Arc::clone(&self.stats),
+            compression_cache: Arc::clone(&self.compression_cache),
+            pattern_analyzer: Arc::clone(&self.pattern_analyzer),
+            gpu_compressor: self.gpu_compressor.as_ref().map(Arc::clone),
+            algorithm_selector: Arc::clone(&self.algorithm_selector),
+            dictionary_manager: Arc::clone(&self.dictionary_manager),
+            performance_monitor: Arc::clone(&self.performance_monitor),
         }
     }
 }

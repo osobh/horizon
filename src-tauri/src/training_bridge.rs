@@ -162,7 +162,7 @@ impl TrainingBridge {
         };
 
         // Add mock jobs for demo (same as mock implementation)
-        Self::add_demo_jobs(bridge.jobs.clone());
+        Self::add_demo_jobs(Arc::clone(&bridge.jobs));
         bridge
     }
 
@@ -176,7 +176,7 @@ impl TrainingBridge {
         };
 
         // Add mock jobs for demo
-        Self::add_demo_jobs(bridge.jobs.clone());
+        Self::add_demo_jobs(Arc::clone(&bridge.jobs));
         bridge
     }
 

@@ -38,7 +38,7 @@ impl GpuWorkloadGenerator {
         };
 
         let scheduler = Arc::new(RwLock::new(RealKernelScheduler::new(
-            device.clone(),
+            Arc::clone(&device),
             scheduler_config,
         )?));
 
@@ -335,7 +335,7 @@ impl GpuWorkloadGenerator {
 
     /// Get the scheduler for external access
     pub fn scheduler(&self) -> Arc<RwLock<RealKernelScheduler>> {
-        self.scheduler.clone()
+        Arc::clone(&self.scheduler)
     }
 }
 

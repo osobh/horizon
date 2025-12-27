@@ -308,7 +308,7 @@ impl GpuDirectManager {
             // Create a temporary buffer reference for the async operation
             // In real implementation, this would use cuFile async APIs
             let temp_buffer = GpuIoBuffer {
-                device: manager.device.clone(),
+                device: Arc::clone(&manager.device),
                 buffer: unsafe {
                     // This is a simplified approach - real implementation would handle lifetime properly
                     CudaSlice::from_raw_parts(

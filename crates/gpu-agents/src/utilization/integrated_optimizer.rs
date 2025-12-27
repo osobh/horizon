@@ -70,9 +70,9 @@ impl IntegratedGpuOptimizer {
     /// Create new integrated optimizer
     pub async fn new(device: Arc<CudaDevice>) -> Result<Self> {
         // Initialize components
-        let utilization_manager = Arc::new(UtilizationManager::new(device.clone())?);
-        let auto_tuner = Arc::new(AutoTuningController::new(utilization_manager.clone()));
-        let kernel_optimizer = Arc::new(KernelOptimizer::new(device.clone()));
+        let utilization_manager = Arc::new(UtilizationManager::new(Arc::clone(&device))?);
+        let auto_tuner = Arc::new(AutoTuningController::new(Arc::clone(&utilization_manager)));
+        let kernel_optimizer = Arc::new(KernelOptimizer::new(Arc::clone(&device)));
 
         let scheduler_config = SchedulerConfig {
             num_streams: 4,
@@ -82,13 +82,13 @@ impl IntegratedGpuOptimizer {
             target_stream_utilization: 0.95,
         };
         let kernel_scheduler = Arc::new(RwLock::new(AdvancedKernelScheduler::new(
-            device.clone(),
+            Arc::clone(&device),
             scheduler_config,
         )?));
 
-        let metrics_collector = Arc::new(GpuMetricsCollector::new(device.clone()));
+        let metrics_collector = Arc::new(GpuMetricsCollector::new(Arc::clone(&device)));
         let memory_optimizer =
-            Arc::new(RwLock::new(MemoryCoalescingOptimizer::new(device.clone())));
+            Arc::new(RwLock::new(MemoryCoalescingOptimizer::new(Arc::clone(&device))));
 
         let state = Arc::new(RwLock::new(OptimizationState {
             current_utilization: 0.0,
@@ -517,14 +517,14 @@ impl IntegratedGpuOptimizer {
 impl Clone for IntegratedGpuOptimizer {
     fn clone(&self) -> Self {
         Self {
-            device: self.device.clone(),
-            utilization_manager: self.utilization_manager.clone(),
-            auto_tuner: self.auto_tuner.clone(),
-            kernel_optimizer: self.kernel_optimizer.clone(),
-            kernel_scheduler: self.kernel_scheduler.clone(),
-            metrics_collector: self.metrics_collector.clone(),
-            memory_optimizer: self.memory_optimizer.clone(),
-            state: self.state.clone(),
+            device: Arc::clone(&self.device),
+            utilization_manager: Arc::clone(&self.utilization_manager),
+            auto_tuner: Arc::clone(&self.auto_tuner),
+            kernel_optimizer: Arc::clone(&self.kernel_optimizer),
+            kernel_scheduler: Arc::clone(&self.kernel_scheduler),
+            metrics_collector: Arc::clone(&self.metrics_collector),
+            memory_optimizer: Arc::clone(&self.memory_optimizer),
+            state: Arc::clone(&self.state),
         }
     }
 }

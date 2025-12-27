@@ -125,10 +125,10 @@ impl ResourceMonitor {
             return Ok(()); // Already monitoring
         }
 
-        let device = self.device.clone();
-        let measurements = self.measurements.clone();
-        let alerts = self.alerts.clone();
-        let is_monitoring = self.is_monitoring.clone();
+        let device = Arc::clone(&self.device);
+        let measurements = Arc::clone(&self.measurements);
+        let alerts = Arc::clone(&self.alerts);
+        let is_monitoring = Arc::clone(&self.is_monitoring);
         let interval = self.measurement_interval;
         let limits = self.limits.clone();
 

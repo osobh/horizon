@@ -22,7 +22,7 @@ impl FusionCompiler {
     /// Create new fusion compiler
     pub fn new(device: Arc<CudaDevice>, config: KernelFusionConfig) -> Self {
         Self {
-            device: device.clone(),
+            device: Arc::clone(&device),
             config: config.clone(),
             code_generator: CodeGenerator::new(config.clone()),
             optimizer: KernelOptimizer::new(config.clone()),

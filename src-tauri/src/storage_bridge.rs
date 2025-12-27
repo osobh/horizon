@@ -183,7 +183,7 @@ impl StorageBridge {
         };
 
         // Add some mock transfers for demo
-        let transfers = bridge.transfers.clone();
+        let transfers = Arc::clone(&bridge.transfers);
         tokio::spawn(async move {
             // Add a completed upload
             transfers.insert("transfer-001".to_string(), Transfer {
@@ -300,11 +300,11 @@ impl StorageBridge {
 
         // Use real warp-core TransferEngine
         let source_path = std::path::Path::new(&source);
-        let transfers = self.transfers.clone();
+        let transfers = Arc::clone(&self.transfers);
         let tid = transfer_id.clone();
 
         // Spawn async task to perform the transfer
-        let engine = self.engine.clone();
+        let engine = Arc::clone(&self.engine);
         tokio::spawn(async move {
             match engine.send(source_path, &destination).await {
                 Ok(session) => {
@@ -427,11 +427,11 @@ impl StorageBridge {
 
         // Use real warp-core TransferEngine
         let dest_path = std::path::Path::new(&destination).to_path_buf();
-        let transfers = self.transfers.clone();
+        let transfers = Arc::clone(&self.transfers);
         let tid = transfer_id.clone();
 
         // Spawn async task to perform the transfer
-        let engine = self.engine.clone();
+        let engine = Arc::clone(&self.engine);
         tokio::spawn(async move {
             match engine.fetch(&source, &dest_path).await {
                 Ok(session) => {

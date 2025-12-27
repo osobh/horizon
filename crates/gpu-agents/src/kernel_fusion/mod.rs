@@ -250,7 +250,7 @@ impl KernelFusionEngine {
         operations: &[KernelOperation],
     ) -> Result<Vec<FusionOpportunity>> {
         let analyzer =
-            fusion_analyzer::FusionAnalyzer::new(self.device.clone(), self.config.clone());
+            fusion_analyzer::FusionAnalyzer::new(Arc::clone(&self.device), self.config.clone());
 
         analyzer.analyze_operations(operations).await
     }
@@ -270,7 +270,7 @@ impl KernelFusionEngine {
 
         // Compile new fused kernel
         let compiler =
-            fusion_compiler::FusionCompiler::new(self.device.clone(), self.config.clone());
+            fusion_compiler::FusionCompiler::new(Arc::clone(&self.device), self.config.clone());
 
         let fused_kernel = compiler.compile(opportunity).await?;
 
@@ -289,7 +289,7 @@ impl KernelFusionEngine {
         outputs: &mut [CudaSlice<f32>],
         stream: &CudaStream,
     ) -> Result<FusionExecutionResult> {
-        let runtime = fusion_runtime::FusionRuntime::new(self.device.clone(), self.config.clone());
+        let runtime = fusion_runtime::FusionRuntime::new(Arc::clone(&self.device), self.config.clone());
 
         let start_time = Instant::now();
 

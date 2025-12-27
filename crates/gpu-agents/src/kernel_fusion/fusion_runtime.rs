@@ -23,9 +23,9 @@ pub struct FusionRuntime {
 impl FusionRuntime {
     /// Create new fusion runtime
     pub fn new(device: Arc<CudaDevice>, config: KernelFusionConfig) -> Self {
-        let stream_pool = StreamPool::new(device.clone(), 8);
+        let stream_pool = StreamPool::new(Arc::clone(&device), 8);
         let profiler = RuntimeProfiler::new(config.enable_runtime_analysis);
-        let resource_manager = ResourceManager::new(device.clone());
+        let resource_manager = ResourceManager::new(Arc::clone(&device));
 
         Self {
             device,
@@ -423,7 +423,7 @@ struct ResourceManager {
 
 impl ResourceManager {
     fn new(device: Arc<CudaDevice>) -> Self {
-        let memory_pool = MemoryPool::new(device.clone());
+        let memory_pool = MemoryPool::new(Arc::clone(&device));
         Self {
             device,
             memory_pool,

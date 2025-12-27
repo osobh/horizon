@@ -256,7 +256,7 @@ impl AtomicKnowledgeGraph {
         let embedding_versions = device.alloc_zeros::<u64>(max_nodes)?;
         let adjacency_lists = device.alloc_zeros::<u32>(max_nodes * 64)?; // Max 64 edges per node
 
-        let update_queue = AtomicUpdateQueue::new(device.clone(), 10000)?;
+        let update_queue = AtomicUpdateQueue::new(Arc::clone(&device), 10000)?;
 
         Ok(Self {
             device,
