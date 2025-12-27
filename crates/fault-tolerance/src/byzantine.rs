@@ -4,7 +4,6 @@
 //! consensus protocols through voting pattern analysis and trust scoring.
 
 use crate::error::{FaultToleranceError, FtResult};
-use crate::coordinator::NodeId;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

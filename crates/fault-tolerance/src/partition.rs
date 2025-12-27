@@ -3,13 +3,12 @@
 //! Handles detection and resolution of network partitions in distributed systems.
 //! Implements quorum-based recovery and split-brain resolution.
 
-use crate::error::{FaultToleranceError, FtResult, HealthStatus};
-use crate::coordinator::{NodeId, NodeStatus};
+use crate::error::FtResult;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Network partition recovery system
 ///

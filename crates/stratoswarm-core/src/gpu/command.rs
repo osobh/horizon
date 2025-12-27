@@ -138,7 +138,6 @@ impl MockDevice {
 
     /// Calculate simulated kernel execution time.
     fn simulate_kernel_time(
-        &self,
         grid_dim: (u32, u32, u32),
         block_dim: (u32, u32, u32),
     ) -> u64 {
@@ -301,7 +300,7 @@ impl GpuDevice for MockDevice {
         block_dim: (u32, u32, u32),
         _params: Bytes,
     ) -> GpuResult<u64> {
-        let duration_us = self.simulate_kernel_time(grid_dim, block_dim);
+        let duration_us = Self::simulate_kernel_time(grid_dim, block_dim);
 
         // Simulate kernel execution
         sleep(Duration::from_micros(duration_us.min(1000))).await;

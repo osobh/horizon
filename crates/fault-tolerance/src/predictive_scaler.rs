@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 /// Machine learning model for predictive scaling
 #[derive(Clone)]
+#[allow(dead_code)] // resource_predictions reserved for caching predictions
 pub struct PredictiveScaler {
     device: Device,
     lstm_model: LSTMPredictor,
@@ -47,6 +48,7 @@ impl SimpleSeq {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)] // Config fields reserved for model training/inference
 pub struct LSTMPredictor {
     device: Device,
     hidden_size: usize,
@@ -322,7 +324,7 @@ impl PredictiveScaler {
         let lstm_prediction = self.lstm_model.predict(&features).await?;
         
         // Apply decision tree for action classification
-        let scaling_actions = self.decision_tree.classify(&lstm_prediction);
+        let _scaling_actions = self.decision_tree.classify(&lstm_prediction);
         
         // Generate predictions for each resource type
         let mut predictions = Vec::new();
@@ -421,7 +423,7 @@ impl PredictiveScaler {
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 *factor > 1.0 && *target_instances > 0
             },
-            ScalingAction::ScaleDown { factor, target_instances } => {
+            ScalingAction::ScaleDown { factor, target_instances: _ } => {
                 // Simulate scale down
                 tokio::time::sleep(Duration::from_millis(80)).await;
                 *factor < 1.0 && *factor > 0.0
@@ -477,7 +479,7 @@ impl PredictiveScaler {
             .collect();
         
         // Calculate normalization parameters
-        let feature_dim = feature_vectors[0].len();
+        let _feature_dim = feature_vectors[0].len();
         let mut normalization_params = HashMap::new();
         
         let feature_names = [
@@ -663,7 +665,7 @@ impl ScalingDecisionTree {
         // Simplified decision tree logic
         let mut actions = Vec::new();
         
-        for (i, &feature_value) in features.iter().enumerate() {
+        for (_i, &feature_value) in features.iter().enumerate() {
             if feature_value > 0.8 {
                 actions.push(ScalingAction::ScaleUp { factor: 1.5, target_instances: 5 });
             } else if feature_value < 0.3 {

@@ -108,6 +108,7 @@ pub enum Priority {
 }
 
 /// Distributed coordinator manages fault tolerance across nodes
+#[allow(dead_code)] // heartbeat_interval reserved for async heartbeat loop
 pub struct DistributedCoordinator {
     node_id: NodeId,
     node_info: NodeInfo,
@@ -401,13 +402,13 @@ impl DistributedCoordinator {
                 };
                 // Would send response back to initiator
             }
-            CoordinationMessage::LeaderElection { candidate, term } => {
+            CoordinationMessage::LeaderElection { candidate: _, term } => {
                 // Handle leader election
                 if term > self.election_term {
                     self.election_term = term;
                     self.is_leader = false;
                     self.node_info.role = NodeRole::Follower;
-                    // Would vote for candidate
+                    // Would vote for candidate in full implementation
                 }
             }
             CoordinationMessage::HealthCheck { requester: _ } => {

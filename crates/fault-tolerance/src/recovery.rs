@@ -90,7 +90,7 @@ impl RecoveryManager {
 
     /// Restore full system from checkpoint
     pub async fn restore_full_system(&self, checkpoint_id: CheckpointId) -> FtResult<()> {
-        let start_time = Instant::now();
+        let _start_time = Instant::now();
 
         let recovery_future = self.perform_recovery(checkpoint_id, RecoveryStrategy::Full);
 
