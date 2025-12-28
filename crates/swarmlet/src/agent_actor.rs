@@ -104,7 +104,7 @@ impl SwarmletAgentActor {
         let config = Arc::new(config);
 
         let node_certificate = NodeCertificate::from_pem(&join_result.node_certificate)?;
-        let workload_manager = Arc::new(WorkloadManager::new(config.clone()).await?);
+        let workload_manager = Arc::new(WorkloadManager::new(config.clone(), join_result.node_id).await?);
         let command_executor = Arc::new(CommandExecutor::new(config.data_dir.clone()));
 
         let health_status = HealthStatus {
@@ -594,9 +594,13 @@ KHHIgKwA4jAKHHIgKwA4jAKHHIgKwA4jA=
         // Give actor time to process
         tokio::time::sleep(Duration::from_millis(10)).await;
 
-        // Actor should still be responsive
+        // Actor should still be responsive - status can be Healthy or Degraded based on system metrics
         let health = handle.get_health().await.unwrap();
-        assert_eq!(health.status, NodeStatus::Healthy);
+        assert!(
+            matches!(health.status, NodeStatus::Healthy | NodeStatus::Degraded),
+            "Expected Healthy or Degraded status, got {:?}",
+            health.status
+        );
 
         handle.shutdown().await.unwrap();
     }

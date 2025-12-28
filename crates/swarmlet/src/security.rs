@@ -1,6 +1,8 @@
 //! Security utilities for swarmlet
 
 use crate::{Result, SwarmletError};
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,6 +19,7 @@ pub struct ParsedToken {
     pub cluster_id: String,
     pub expires_at: u64, // Unix timestamp
     pub capabilities: Vec<String>,
+    #[serde(default)]
     pub signature: String,
 }
 
@@ -128,8 +131,8 @@ impl JoinToken {
         let payload_b64 = parts[0];
         let signature = parts[1];
 
-        // Decode base64 payload (simplified - in reality would use proper base64)
-        let payload_json = Self::decode_base64_simple(payload_b64)?;
+        // Decode base64 payload
+        let payload_json = Self::decode_base64(payload_b64)?;
 
         let mut parsed: ParsedToken = serde_json::from_str(&payload_json)?;
         parsed.signature = signature.to_string();
@@ -137,54 +140,78 @@ impl JoinToken {
         Ok(parsed)
     }
 
-    /// Verify the token signature (simplified implementation)
+    /// Verify the token signature
     fn verify_signature(&self, parsed: &ParsedToken) -> Result<()> {
-        // In a real implementation, this would:
-        // 1. Use the cluster's public key to verify the signature
-        // 2. Verify the signature covers the token payload
-        // 3. Check against a revocation list
-
-        // For now, just check that signature is not empty and has reasonable length
+        // Basic format validation
         if parsed.signature.len() < 32 {
             return Err(SwarmletError::InvalidToken(
                 "Invalid signature length".to_string(),
             ));
         }
 
-        // Simplified signature verification (not cryptographically secure)
-        if !parsed.signature.chars().all(|c| c.is_ascii_alphanumeric()) {
+        // For basic validation when no public key is available,
+        // just check signature is valid base64
+        if let Err(_) = Self::decode_base64_bytes(&parsed.signature) {
             return Err(SwarmletError::InvalidToken(
-                "Invalid signature format".to_string(),
+                "Invalid signature encoding".to_string(),
             ));
         }
 
         Ok(())
     }
 
-    /// Simplified base64 decoding (for testing - use proper base64 in production)
-    fn decode_base64_simple(input: &str) -> Result<String> {
-        // This is a placeholder - in real implementation would use base64 crate
-        // For now, assume the input is a simple JSON string for testing
-        if input.starts_with("eyJ") {
-            // Looks like base64, return a mock JSON
-            Ok(format!(
-                r#"{{
-                    "cluster_id": "test-cluster-{}", 
-                    "expires_at": {}, 
-                    "capabilities": ["basic", "workload_execution"]
-                }}"#,
-                input.len() % 1000, // Simple way to vary cluster ID
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs()
-                    + 86400  // Expires in 24 hours
-            ))
-        } else {
-            Err(SwarmletError::InvalidToken(
-                "Invalid base64 encoding".to_string(),
-            ))
+    /// Verify the token signature with a known cluster public key
+    pub fn verify_signature_with_key(
+        &self,
+        cluster_public_key: &[u8; 32],
+    ) -> Result<()> {
+        let parsed = self.parsed_token.as_ref()
+            .ok_or_else(|| SwarmletError::InvalidToken("Token not parsed".to_string()))?;
+
+        // Reconstruct the payload that was signed
+        let payload = format!(
+            "{}:{}:{}",
+            parsed.cluster_id,
+            parsed.expires_at,
+            parsed.capabilities.join(",")
+        );
+
+        // Decode the signature from base64
+        let signature_bytes = Self::decode_base64_bytes(&parsed.signature)?;
+        if signature_bytes.len() != 64 {
+            return Err(SwarmletError::InvalidToken(
+                format!("Invalid signature length: expected 64, got {}", signature_bytes.len()),
+            ));
         }
+
+        let signature_array: [u8; 64] = signature_bytes.try_into()
+            .map_err(|_| SwarmletError::InvalidToken("Invalid signature format".to_string()))?;
+
+        let signature = Signature::from_bytes(&signature_array);
+
+        // Verify using the cluster's public key
+        let verifying_key = VerifyingKey::from_bytes(cluster_public_key)
+            .map_err(|e| SwarmletError::InvalidToken(format!("Invalid public key: {}", e)))?;
+
+        verifying_key.verify(payload.as_bytes(), &signature)
+            .map_err(|_| SwarmletError::InvalidToken("Signature verification failed".to_string()))
+    }
+
+    /// Decode base64-encoded string
+    fn decode_base64(input: &str) -> Result<String> {
+        let bytes = BASE64_STANDARD
+            .decode(input)
+            .map_err(|e| SwarmletError::InvalidToken(format!("Invalid base64 encoding: {}", e)))?;
+
+        String::from_utf8(bytes)
+            .map_err(|e| SwarmletError::InvalidToken(format!("Invalid UTF-8 in token: {}", e)))
+    }
+
+    /// Decode base64 to raw bytes
+    fn decode_base64_bytes(input: &str) -> Result<Vec<u8>> {
+        BASE64_STANDARD
+            .decode(input)
+            .map_err(|e| SwarmletError::InvalidToken(format!("Invalid base64 encoding: {}", e)))
     }
 }
 
@@ -243,10 +270,11 @@ impl NodeCertificate {
 
     /// Export certificate to PEM format
     pub fn to_pem(&self) -> String {
-        // In a real implementation, would generate proper PEM format
+        let json = serde_json::to_string(self).unwrap_or_default();
+        let encoded = BASE64_STANDARD.encode(json.as_bytes());
         format!(
             "-----BEGIN SWARMLET CERTIFICATE-----\n{}\n-----END SWARMLET CERTIFICATE-----",
-            base64::encode(serde_json::to_string(self).unwrap_or_default())
+            encoded
         )
     }
 }
@@ -280,26 +308,49 @@ pub fn hash_data(data: &str) -> String {
     format!("{:x}", hasher.finish())
 }
 
-// For base64 operations - in real implementation would use the base64 crate
-mod base64 {
-    pub fn encode(data: String) -> String {
-        // Simplified base64 encoding for testing
-        format!("b64_{}", data.len())
-    }
+/// Encode data to base64
+pub fn base64_encode(data: &[u8]) -> String {
+    BASE64_STANDARD.encode(data)
+}
+
+/// Decode base64 to bytes
+pub fn base64_decode(input: &str) -> Result<Vec<u8>> {
+    BASE64_STANDARD
+        .decode(input)
+        .map_err(|e| SwarmletError::Crypto(format!("Invalid base64: {}", e)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Create a valid test token with proper base64 encoding
+    fn create_test_token() -> String {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let expires_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 86400; // 24 hours from now
+
+        let payload = format!(
+            r#"{{"cluster_id":"test-cluster","expires_at":{},"capabilities":["basic","workload_execution"]}}"#,
+            expires_at
+        );
+
+        let payload_b64 = BASE64_STANDARD.encode(payload.as_bytes());
+        // Create a fake signature (64 bytes of zeros, base64 encoded)
+        let fake_sig = BASE64_STANDARD.encode(&[0u8; 64]);
+
+        format!("swarm_join_{}.{}", payload_b64, fake_sig)
+    }
+
     #[test]
     fn test_join_token_creation() {
-        let token =
-            JoinToken::new("swarm_join_eyJjbHVzdGVyX2lkIjoidGVzdCJ9.abc123def456".to_string());
-        assert_eq!(
-            token.raw_token(),
-            "swarm_join_eyJjbHVzdGVyX2lkIjoidGVzdCJ9.abc123def456"
-        );
+        let token_str = create_test_token();
+        let token = JoinToken::new(token_str.clone());
+        assert_eq!(token.raw_token(), token_str);
     }
 
     #[test]
@@ -310,11 +361,16 @@ mod tests {
 
     #[test]
     fn test_valid_token_format() {
-        let token = JoinToken::new(
-            "swarm_join_eyJjbHVzdGVyX2lkIjoidGVzdCJ9.abcdefghijklmnopqrstuvwxyz123456".to_string(),
-        );
-        // This might fail due to simplified implementation, but tests the structure
-        let _ = token.validate();
+        let token = JoinToken::new(create_test_token());
+        // Should parse successfully and pass basic validation
+        assert!(token.parsed().is_some(), "Token should be parsed");
+        assert!(token.validate().is_ok());
+    }
+
+    #[test]
+    fn test_token_not_expired() {
+        let token = JoinToken::new(create_test_token());
+        assert!(!token.is_expired());
     }
 
     #[test]
@@ -355,5 +411,19 @@ mod tests {
         let pem = cert.to_pem();
         assert!(pem.contains("BEGIN SWARMLET CERTIFICATE"));
         assert!(pem.contains("END SWARMLET CERTIFICATE"));
+    }
+
+    #[test]
+    fn test_base64_encode_decode_roundtrip() {
+        let original = b"Hello, World!";
+        let encoded = base64_encode(original);
+        let decoded = base64_decode(&encoded).unwrap();
+        assert_eq!(original.to_vec(), decoded);
+    }
+
+    #[test]
+    fn test_base64_decode_invalid() {
+        let result = base64_decode("not valid base64 !!!");
+        assert!(result.is_err());
     }
 }

@@ -5,7 +5,7 @@ use swarmlet::{
     agent::SwarmletAgent, discovery::ClusterDiscovery, error::SwarmletError, join::JoinProtocol,
     profile::HardwareProfiler,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 #[derive(Parser)]
 #[command(name = "swarmlet")]
@@ -160,7 +160,7 @@ async fn join_cluster(
     Ok(())
 }
 
-async fn discover_and_join(timeout: u64, _name: Option<String>) -> Result<(), SwarmletError> {
+async fn discover_and_join(timeout: u64, name: Option<String>) -> Result<(), SwarmletError> {
     info!("Discovering StratoSwarm clusters on local network...");
 
     let discovery = ClusterDiscovery::new();
@@ -173,23 +173,122 @@ async fn discover_and_join(timeout: u64, _name: Option<String>) -> Result<(), Sw
 
     info!("Found {} cluster(s):", clusters.len());
     for (i, cluster) in clusters.iter().enumerate() {
-        println!("  {}. {} ({})", i + 1, cluster.name, cluster.address);
+        let caps = cluster.capabilities.join(", ");
+        println!(
+            "  {}. {} ({}) - {} nodes, capabilities: [{}]",
+            i + 1,
+            cluster.name,
+            cluster.address,
+            cluster.nodes_count,
+            caps
+        );
     }
 
-    // For now, auto-join the first cluster found (in a real implementation,
-    // this might prompt the user or use additional selection criteria)
-    let cluster = &clusters[0];
+    // Find a cluster that supports auto-join (has "open_join" capability)
+    let joinable_cluster = clusters
+        .iter()
+        .find(|c| c.capabilities.iter().any(|cap| cap == "open_join" || cap == "auto_join"));
+
+    let cluster = match joinable_cluster {
+        Some(c) => c,
+        None => {
+            // If no cluster has open_join, try the first cluster anyway
+            warn!("No clusters with 'open_join' capability found, attempting first cluster");
+            &clusters[0]
+        }
+    };
+
     info!(
-        "Auto-joining cluster: {} at {}",
+        "Attempting to auto-join cluster: {} at {}",
         cluster.name, cluster.address
     );
 
-    // This would need a token from the cluster's join service
-    // For now, return an error indicating manual join is required
-    error!("Auto-join not yet implemented. Please use 'join' command with a token.");
-    Err(SwarmletError::NotImplemented(
-        "Auto-join with discovered clusters".to_string(),
-    ))
+    // Request an auto-join token from the cluster
+    let token = request_auto_join_token(&cluster.address).await?;
+    info!("Received auto-join token from cluster");
+
+    // Use the default data directory
+    let data_dir = swarmlet::defaults::DATA_DIR.to_string();
+
+    // Perform the join using the received token
+    join_cluster(token, cluster.address.clone(), name, data_dir).await
+}
+
+/// Request an auto-join token from a cluster's API
+async fn request_auto_join_token(cluster_address: &str) -> Result<String, SwarmletError> {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize)]
+    struct AutoJoinRequest {
+        node_type: String,
+        capabilities_requested: Vec<String>,
+    }
+
+    #[derive(Deserialize)]
+    struct AutoJoinResponse {
+        token: String,
+        expires_in_seconds: u64,
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| SwarmletError::Network(e))?;
+
+    let url = format!("http://{}/api/v1/cluster/auto-join", cluster_address);
+
+    let request_body = AutoJoinRequest {
+        node_type: "swarmlet".to_string(),
+        capabilities_requested: vec!["basic".to_string(), "workload_execution".to_string()],
+    };
+
+    debug!("Requesting auto-join token from {}", url);
+
+    let response = client
+        .post(&url)
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_timeout() {
+                SwarmletError::Timeout
+            } else if e.is_connect() {
+                SwarmletError::Discovery(format!("Cannot connect to cluster: {}", e))
+            } else {
+                SwarmletError::Network(e)
+            }
+        })?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+
+        if status.as_u16() == 403 {
+            return Err(SwarmletError::ClusterRejection(
+                "Cluster does not allow auto-join. Use 'join' command with a valid token.".to_string()
+            ));
+        } else if status.as_u16() == 404 {
+            return Err(SwarmletError::Discovery(
+                "Cluster does not support auto-join API. Use 'join' command with a valid token.".to_string()
+            ));
+        }
+
+        return Err(SwarmletError::JoinProtocol(format!(
+            "Auto-join request failed ({}): {}",
+            status, body
+        )));
+    }
+
+    let auto_join_response: AutoJoinResponse = response.json().await.map_err(|e| {
+        SwarmletError::JoinProtocol(format!("Invalid auto-join response: {}", e))
+    })?;
+
+    info!(
+        "Received auto-join token (expires in {} seconds)",
+        auto_join_response.expires_in_seconds
+    );
+
+    Ok(auto_join_response.token)
 }
 
 async fn profile_hardware() -> Result<(), SwarmletError> {

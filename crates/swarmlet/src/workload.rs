@@ -14,12 +14,14 @@ use uuid::Uuid;
 pub struct WorkloadManager {
     config: Arc<Config>,
     active_workloads: Arc<RwLock<HashMap<Uuid, ActiveWorkload>>>,
+    /// Node ID for this swarmlet (passed to workloads as environment variable)
+    node_id: Uuid,
     #[cfg(feature = "docker")]
     docker: Arc<bollard::Docker>,
 }
 
 /// An active workload running on this swarmlet
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ActiveWorkload {
     pub id: Uuid,
     pub assignment: WorkAssignment,
@@ -42,7 +44,7 @@ pub enum WorkloadStatus {
 }
 
 /// Resource usage statistics for a workload
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct ResourceUsage {
     pub cpu_usage_percent: f32,
     pub memory_usage_mb: f32,
@@ -54,7 +56,7 @@ pub struct ResourceUsage {
 
 impl WorkloadManager {
     /// Create a new workload manager
-    pub async fn new(config: Arc<Config>) -> Result<Self> {
+    pub async fn new(config: Arc<Config>, node_id: Uuid) -> Result<Self> {
         let active_workloads = Arc::new(RwLock::new(HashMap::new()));
 
         #[cfg(feature = "docker")]
@@ -68,9 +70,15 @@ impl WorkloadManager {
         Ok(Self {
             config,
             active_workloads,
+            node_id,
             #[cfg(feature = "docker")]
             docker,
         })
+    }
+
+    /// Get the node ID
+    pub fn node_id(&self) -> Uuid {
+        self.node_id
     }
 
     /// Start a new workload from assignment
@@ -229,7 +237,7 @@ impl WorkloadManager {
 
         // Add swarmlet-specific environment variables
         env.push(format!("SWARMLET_WORKLOAD_ID={}", assignment.id));
-        env.push(format!("SWARMLET_NODE_ID={}", "TODO")); // Would get from join result
+        env.push(format!("SWARMLET_NODE_ID={}", self.node_id));
 
         let host_config = HostConfig {
             memory: assignment
@@ -565,8 +573,9 @@ mod tests {
     async fn test_workload_manager_creation() {
         let temp_dir = TempDir::new().unwrap();
         let config = Arc::new(Config::default_with_data_dir(temp_dir.path().to_path_buf()));
+        let node_id = Uuid::new_v4();
 
-        let manager = WorkloadManager::new(config).await;
+        let manager = WorkloadManager::new(config, node_id).await;
         assert!(manager.is_ok());
     }
 
@@ -574,7 +583,8 @@ mod tests {
     async fn test_active_workload_count() {
         let temp_dir = TempDir::new().unwrap();
         let config = Arc::new(Config::default_with_data_dir(temp_dir.path().to_path_buf()));
-        let manager = WorkloadManager::new(config).await.unwrap();
+        let node_id = Uuid::new_v4();
+        let manager = WorkloadManager::new(config, node_id).await.unwrap();
 
         let count = manager.active_workload_count().await;
         assert_eq!(count, 0);
@@ -584,7 +594,8 @@ mod tests {
     async fn test_process_workload_start() {
         let temp_dir = TempDir::new().unwrap();
         let config = Arc::new(Config::default_with_data_dir(temp_dir.path().to_path_buf()));
-        let manager = WorkloadManager::new(config).await.unwrap();
+        let node_id = Uuid::new_v4();
+        let manager = WorkloadManager::new(config, node_id).await.unwrap();
 
         let assignment = create_test_assignment();
 

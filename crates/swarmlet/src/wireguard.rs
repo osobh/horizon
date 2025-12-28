@@ -8,10 +8,14 @@
 //! - Status reporting
 //! - Automatic key generation on join
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use crate::{Result, SwarmletError};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+use x25519_dalek::{PublicKey, StaticSecret};
+use rand_core::OsRng;
 
 /// WireGuard interface configuration received from coordinator
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,6 +140,8 @@ pub struct WireGuardManager {
     config_version: RwLock<Option<String>>,
     /// Node's WireGuard keypair (generated on first join)
     keypair: RwLock<Option<WireGuardKeypair>>,
+    /// Cluster's public key for verifying config signatures
+    cluster_public_key: RwLock<Option<[u8; 32]>>,
 }
 
 /// WireGuard keypair
@@ -154,38 +160,100 @@ impl WireGuardManager {
             interface_name: RwLock::new(None),
             config_version: RwLock::new(None),
             keypair: RwLock::new(None),
+            cluster_public_key: RwLock::new(None),
         }
+    }
+
+    /// Set the cluster's public key for signature verification
+    pub async fn set_cluster_public_key(&self, public_key: [u8; 32]) {
+        *self.cluster_public_key.write().await = Some(public_key);
+        info!("Cluster public key set for config signature verification");
+    }
+
+    /// Set the cluster's public key from base64-encoded string
+    pub async fn set_cluster_public_key_b64(&self, public_key_b64: &str) -> Result<()> {
+        let bytes = BASE64_STANDARD
+            .decode(public_key_b64)
+            .map_err(|e| SwarmletError::WireGuard(format!("Invalid public key encoding: {}", e)))?;
+
+        if bytes.len() != 32 {
+            return Err(SwarmletError::WireGuard(format!(
+                "Invalid public key length: expected 32, got {}",
+                bytes.len()
+            )));
+        }
+
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&bytes);
+        self.set_cluster_public_key(key).await;
+        Ok(())
+    }
+
+    /// Verify a WireGuard configuration signature
+    ///
+    /// The signature should cover: interface_name + config_version + address + peers_hash
+    fn verify_config_signature(&self, config: &WireGuardConfigRequest, cluster_key: &[u8; 32]) -> Result<()> {
+        let signature_b64 = config.signature.as_ref().ok_or_else(|| {
+            SwarmletError::WireGuard("No signature provided for verification".to_string())
+        })?;
+
+        // Decode signature from base64
+        let signature_bytes = BASE64_STANDARD
+            .decode(signature_b64)
+            .map_err(|e| SwarmletError::WireGuard(format!("Invalid signature encoding: {}", e)))?;
+
+        if signature_bytes.len() != 64 {
+            return Err(SwarmletError::WireGuard(format!(
+                "Invalid signature length: expected 64, got {}",
+                signature_bytes.len()
+            )));
+        }
+
+        let signature_array: [u8; 64] = signature_bytes.try_into()
+            .map_err(|_| SwarmletError::WireGuard("Invalid signature format".to_string()))?;
+
+        // Reconstruct the message that was signed
+        // Format: interface_name:config_version:address:peer_public_keys_sorted
+        let mut peer_keys: Vec<&str> = config.peers.iter().map(|p| p.public_key.as_str()).collect();
+        peer_keys.sort();
+        let peers_str = peer_keys.join(",");
+
+        let message = format!(
+            "{}:{}:{}:{}",
+            config.interface_name,
+            config.config_version,
+            config.address,
+            peers_str
+        );
+
+        // Create signature and verifying key
+        let signature = Signature::from_bytes(&signature_array);
+        let verifying_key = VerifyingKey::from_bytes(cluster_key)
+            .map_err(|e| SwarmletError::WireGuard(format!("Invalid cluster public key: {}", e)))?;
+
+        // Verify the signature
+        verifying_key.verify(message.as_bytes(), &signature)
+            .map_err(|_| SwarmletError::WireGuard("Config signature verification failed".to_string()))?;
+
+        debug!("Config signature verified successfully");
+        Ok(())
     }
 
     /// Generate a new WireGuard keypair for this node
     ///
-    /// Uses x25519 key generation. The keypair is stored and the
-    /// public key can be sent to the coordinator during join.
+    /// Uses x25519 (Curve25519) key generation via x25519-dalek.
+    /// The keypair is stored and the public key can be sent to
+    /// the coordinator during join.
     pub async fn generate_keypair(&self) -> Result<String> {
-        use rand::RngCore;
+        // Generate a new X25519 secret key using cryptographically secure RNG
+        let secret = StaticSecret::random_from_rng(OsRng);
 
-        // Generate random 32-byte private key
-        let mut private_key = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut private_key);
+        // Derive the public key from the secret
+        let public = PublicKey::from(&secret);
 
-        // Clamp for Curve25519
-        private_key[0] &= 248;
-        private_key[31] &= 127;
-        private_key[31] |= 64;
-
-        // For proper key derivation, we'd use x25519-dalek here
-        // For now, use ed25519-dalek which is already a dependency
-        // In production, this should use the proper x25519 implementation
-        let private_key_b64 = base64_encode(&private_key);
-
-        // Derive public key (simplified - should use x25519)
-        // This is a placeholder that generates a deterministic "public key"
-        // In production, use x25519_dalek::PublicKey::from(&secret)
-        let mut public_key = [0u8; 32];
-        for i in 0..32 {
-            public_key[i] = private_key[i].wrapping_add(9); // Simplified derivation
-        }
-        let public_key_b64 = base64_encode(&public_key);
+        // Encode both keys as base64 (WireGuard format)
+        let private_key_b64 = BASE64_STANDARD.encode(secret.as_bytes());
+        let public_key_b64 = BASE64_STANDARD.encode(public.as_bytes());
 
         let keypair = WireGuardKeypair {
             private_key: private_key_b64,
@@ -216,6 +284,18 @@ impl WireGuardManager {
             .map(|kp| kp.private_key.clone())
     }
 
+    /// Restore a keypair from saved state
+    ///
+    /// Used when loading agent state from disk after a restart.
+    pub async fn restore_keypair(&self, private_key: String, public_key: String) {
+        let keypair = WireGuardKeypair {
+            private_key,
+            public_key,
+        };
+        *self.keypair.write().await = Some(keypair);
+        info!("Restored WireGuard keypair from saved state");
+    }
+
     /// Apply WireGuard configuration from coordinator
     pub async fn apply_config(&self, config: WireGuardConfigRequest) -> Result<WireGuardConfigResponse> {
         info!(
@@ -223,10 +303,27 @@ impl WireGuardManager {
             config.config_version, config.interface_name
         );
 
-        // Verify signature if provided (placeholder)
-        if let Some(_signature) = &config.signature {
-            // TODO: Verify signature from coordinator
-            debug!("Config signature verification (placeholder)");
+        // Verify signature if cluster public key is set and signature is provided
+        if config.signature.is_some() {
+            if let Some(cluster_key) = *self.cluster_public_key.read().await {
+                // Verify the config signature using ed25519
+                if let Err(e) = self.verify_config_signature(&config, &cluster_key) {
+                    error!("Config signature verification failed: {}", e);
+                    return Ok(WireGuardConfigResponse {
+                        success: false,
+                        error: Some(format!("Signature verification failed: {}", e)),
+                        config_version: config.config_version,
+                        status: WireGuardStatus::default(),
+                    });
+                }
+                debug!("Config signature verified successfully");
+            } else {
+                // No cluster key set - log warning but continue (for backwards compatibility)
+                warn!("Config has signature but no cluster public key set for verification");
+            }
+        } else {
+            // No signature provided - log for auditing
+            debug!("Config received without signature");
         }
 
         // Get private key - either from config or from our keypair
@@ -722,44 +819,15 @@ impl Default for WireGuardManager {
     }
 }
 
-/// Base64 encode helper
-fn base64_encode(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut result = String::with_capacity(bytes.len() * 4 / 3 + 4);
-
-    for chunk in bytes.chunks(3) {
-        let b0 = chunk[0] as usize;
-        let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
-        let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
-
-        result.push(ALPHABET[b0 >> 2] as char);
-        result.push(ALPHABET[((b0 & 0x03) << 4) | (b1 >> 4)] as char);
-
-        if chunk.len() > 1 {
-            result.push(ALPHABET[((b1 & 0x0f) << 2) | (b2 >> 6)] as char);
-        } else {
-            result.push('=');
-        }
-
-        if chunk.len() > 2 {
-            result.push(ALPHABET[b2 & 0x3f] as char);
-        } else {
-            result.push('=');
-        }
-    }
-
-    result
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_base64_encode() {
-        assert_eq!(base64_encode(b"hello"), "aGVsbG8=");
-        assert_eq!(base64_encode(b""), "");
-        assert_eq!(base64_encode(b"a"), "YQ==");
+        assert_eq!(BASE64_STANDARD.encode(b"hello"), "aGVsbG8=");
+        assert_eq!(BASE64_STANDARD.encode(b""), "");
+        assert_eq!(BASE64_STANDARD.encode(b"a"), "YQ==");
     }
 
     #[tokio::test]
@@ -775,5 +843,166 @@ mod tests {
         assert!(!public_key.is_empty());
         assert!(manager.get_public_key().await.is_some());
         assert!(manager.get_private_key().await.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_keypair_produces_valid_x25519_keys() {
+        let manager = WireGuardManager::new();
+        let public_key_b64 = manager.generate_keypair().await.unwrap();
+
+        // Decode and verify the public key is 32 bytes
+        let public_key_bytes = BASE64_STANDARD.decode(&public_key_b64).unwrap();
+        assert_eq!(public_key_bytes.len(), 32);
+
+        // Verify private key is also 32 bytes
+        let private_key_b64 = manager.get_private_key().await.unwrap();
+        let private_key_bytes = BASE64_STANDARD.decode(&private_key_b64).unwrap();
+        assert_eq!(private_key_bytes.len(), 32);
+    }
+
+    #[tokio::test]
+    async fn test_set_cluster_public_key() {
+        let manager = WireGuardManager::new();
+
+        // Set a valid 32-byte key
+        let test_key = [42u8; 32];
+        manager.set_cluster_public_key(test_key).await;
+
+        // Verify it's set
+        let stored_key = manager.cluster_public_key.read().await;
+        assert!(stored_key.is_some());
+        assert_eq!(stored_key.unwrap(), test_key);
+    }
+
+    #[tokio::test]
+    async fn test_set_cluster_public_key_b64() {
+        let manager = WireGuardManager::new();
+
+        // Create a valid base64-encoded 32-byte key
+        let test_key = [42u8; 32];
+        let test_key_b64 = BASE64_STANDARD.encode(&test_key);
+
+        manager.set_cluster_public_key_b64(&test_key_b64).await.unwrap();
+
+        // Verify it's set correctly
+        let stored_key = manager.cluster_public_key.read().await;
+        assert!(stored_key.is_some());
+        assert_eq!(stored_key.unwrap(), test_key);
+    }
+
+    #[tokio::test]
+    async fn test_set_cluster_public_key_b64_invalid_length() {
+        let manager = WireGuardManager::new();
+
+        // Try to set an invalid length key (16 bytes instead of 32)
+        let invalid_key = [42u8; 16];
+        let invalid_key_b64 = BASE64_STANDARD.encode(&invalid_key);
+
+        let result = manager.set_cluster_public_key_b64(&invalid_key_b64).await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_signature_verification() {
+        use ed25519_dalek::{SigningKey, Signer};
+        use rand_core::RngCore;
+
+        // Generate a signing keypair for testing using random bytes
+        let mut secret_bytes = [0u8; 32];
+        rand_core::OsRng.fill_bytes(&mut secret_bytes);
+        let signing_key = SigningKey::from_bytes(&secret_bytes);
+        let verifying_key = signing_key.verifying_key();
+
+        // Create a test config
+        let config = WireGuardConfigRequest {
+            interface_name: "wg-test".to_string(),
+            private_key: None,
+            listen_port: 51820,
+            address: "10.0.0.1/24".to_string(),
+            mtu: None,
+            peers: vec![
+                WireGuardPeerConfig {
+                    public_key: "peer1key".to_string(),
+                    preshared_key: None,
+                    allowed_ips: vec!["10.0.0.2/32".to_string()],
+                    endpoint: None,
+                    persistent_keepalive: None,
+                },
+            ],
+            config_version: "v1".to_string(),
+            signature: None, // We'll set this after signing
+        };
+
+        // Construct the message to sign (same format as verify_config_signature)
+        let mut peer_keys: Vec<&str> = config.peers.iter().map(|p| p.public_key.as_str()).collect();
+        peer_keys.sort();
+        let peers_str = peer_keys.join(",");
+        let message = format!(
+            "{}:{}:{}:{}",
+            config.interface_name,
+            config.config_version,
+            config.address,
+            peers_str
+        );
+
+        // Sign the message
+        let signature = signing_key.sign(message.as_bytes());
+        let signature_b64 = BASE64_STANDARD.encode(signature.to_bytes());
+
+        // Create config with signature
+        let signed_config = WireGuardConfigRequest {
+            signature: Some(signature_b64),
+            ..config
+        };
+
+        // Verify the signature
+        let manager = WireGuardManager::new();
+        let cluster_key: [u8; 32] = verifying_key.to_bytes();
+        let result = manager.verify_config_signature(&signed_config, &cluster_key);
+        assert!(result.is_ok(), "Signature verification should succeed");
+    }
+
+    #[test]
+    fn test_config_signature_verification_fails_with_wrong_key() {
+        use ed25519_dalek::{SigningKey, Signer};
+        use rand_core::RngCore;
+
+        // Generate a signing keypair for testing
+        let mut secret_bytes = [0u8; 32];
+        rand_core::OsRng.fill_bytes(&mut secret_bytes);
+        let signing_key = SigningKey::from_bytes(&secret_bytes);
+
+        // Generate a different key for verification (should fail)
+        let mut wrong_secret_bytes = [0u8; 32];
+        rand_core::OsRng.fill_bytes(&mut wrong_secret_bytes);
+        let wrong_verifying_key = SigningKey::from_bytes(&wrong_secret_bytes).verifying_key();
+
+        // Create a test config
+        let config = WireGuardConfigRequest {
+            interface_name: "wg-test".to_string(),
+            private_key: None,
+            listen_port: 51820,
+            address: "10.0.0.1/24".to_string(),
+            mtu: None,
+            peers: vec![],
+            config_version: "v1".to_string(),
+            signature: None,
+        };
+
+        // Sign with one key
+        let message = format!("{}:{}:{}:", config.interface_name, config.config_version, config.address);
+        let signature = signing_key.sign(message.as_bytes());
+        let signature_b64 = BASE64_STANDARD.encode(signature.to_bytes());
+
+        let signed_config = WireGuardConfigRequest {
+            signature: Some(signature_b64),
+            ..config
+        };
+
+        // Try to verify with wrong key
+        let manager = WireGuardManager::new();
+        let wrong_key: [u8; 32] = wrong_verifying_key.to_bytes();
+        let result = manager.verify_config_signature(&signed_config, &wrong_key);
+        assert!(result.is_err(), "Signature verification should fail with wrong key");
     }
 }

@@ -345,17 +345,19 @@ KHHIgKwA4jAKHHIgKwA4jAKHHIgKwA4jA=
     }
 
     #[tokio::test]
-    async fn test_agent_from_config_not_implemented() {
-        let config = Config::default();
-        
+    async fn test_agent_from_config_no_saved_state() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = Config::default_with_data_dir(temp_dir.path().to_path_buf());
+
+        // Should fail because there's no saved state
         match SwarmletAgent::from_config(config).await {
-            Ok(_) => panic!("Should return not implemented error"),
+            Ok(_) => panic!("Should return error when no saved state exists"),
             Err(e) => {
                 match e {
-                    crate::SwarmletError::NotImplemented(msg) => {
-                        assert!(msg.contains("not yet implemented"));
+                    crate::SwarmletError::Configuration(msg) => {
+                        assert!(msg.contains("No saved state found"));
                     }
-                    _ => panic!("Expected NotImplemented error, got: {:?}", e),
+                    _ => panic!("Expected Config error, got: {:?}", e),
                 }
             }
         }

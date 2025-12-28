@@ -1,12 +1,13 @@
 //! Swarmlet agent runtime
 
 use crate::{
-    command::CommandExecutor, config::Config, join::JoinResult, security::NodeCertificate,
+    command::CommandExecutor, config::Config, join::JoinResult, profile::HardwareProfiler,
+    security::NodeCertificate,
     wireguard::{WireGuardManager, WireGuardConfigRequest, AddPeerRequest, RemovePeerRequest},
     workload::WorkloadManager, Result, SwarmletError,
 };
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -14,6 +15,98 @@ use tokio::time::interval;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use warp::Filter;
+
+/// Saved agent state for persistence across restarts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedAgentState {
+    /// The join result containing cluster membership info
+    pub join_result: JoinResult,
+    /// WireGuard private key (base64 encoded)
+    pub wireguard_private_key: String,
+    /// WireGuard public key (base64 encoded)
+    pub wireguard_public_key: String,
+    /// Cluster's public key for signature verification (base64, optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cluster_public_key: Option<String>,
+    /// Timestamp when state was saved
+    pub saved_at: chrono::DateTime<chrono::Utc>,
+    /// State file format version for migration
+    pub version: u32,
+}
+
+impl SavedAgentState {
+    /// Current state file format version
+    pub const CURRENT_VERSION: u32 = 1;
+
+    /// State file name
+    pub const STATE_FILE: &'static str = "swarmlet_state.json";
+
+    /// Get the state file path for a given data directory
+    pub fn state_path(data_dir: &Path) -> PathBuf {
+        data_dir.join(Self::STATE_FILE)
+    }
+
+    /// Load saved state from disk
+    pub async fn load(data_dir: &Path) -> Result<Self> {
+        let state_path = Self::state_path(data_dir);
+
+        if !state_path.exists() {
+            return Err(SwarmletError::Configuration(format!(
+                "No saved state found at {}",
+                state_path.display()
+            )));
+        }
+
+        let content = tokio::fs::read_to_string(&state_path)
+            .await
+            .map_err(|e| SwarmletError::Configuration(format!("Failed to read state file: {}", e)))?;
+
+        let state: SavedAgentState = serde_json::from_str(&content)
+            .map_err(|e| SwarmletError::Configuration(format!("Failed to parse state file: {}", e)))?;
+
+        // Check version and migrate if needed
+        if state.version > Self::CURRENT_VERSION {
+            return Err(SwarmletError::Configuration(format!(
+                "State file version {} is newer than supported version {}",
+                state.version,
+                Self::CURRENT_VERSION
+            )));
+        }
+
+        info!("Loaded saved agent state from {}", state_path.display());
+        Ok(state)
+    }
+
+    /// Save state to disk atomically
+    pub async fn save(&self, data_dir: &Path) -> Result<()> {
+        let state_path = Self::state_path(data_dir);
+        let temp_path = state_path.with_extension("json.tmp");
+
+        // Ensure data directory exists
+        if !data_dir.exists() {
+            tokio::fs::create_dir_all(data_dir)
+                .await
+                .map_err(|e| SwarmletError::Configuration(format!("Failed to create data directory: {}", e)))?;
+        }
+
+        // Serialize state
+        let content = serde_json::to_string_pretty(&self)
+            .map_err(|e| SwarmletError::Configuration(format!("Failed to serialize state: {}", e)))?;
+
+        // Write to temp file
+        tokio::fs::write(&temp_path, content)
+            .await
+            .map_err(|e| SwarmletError::Configuration(format!("Failed to write temp state file: {}", e)))?;
+
+        // Atomically rename to final path
+        tokio::fs::rename(&temp_path, &state_path)
+            .await
+            .map_err(|e| SwarmletError::Configuration(format!("Failed to rename state file: {}", e)))?;
+
+        debug!("Saved agent state to {}", state_path.display());
+        Ok(())
+    }
+}
 
 #[cfg(feature = "hpc-channels")]
 use crate::hpc_bridge::{SharedAgentChannelBridge, shared_channel_bridge};
@@ -68,7 +161,7 @@ impl SwarmletAgent {
         let config = Arc::new(config);
 
         let node_certificate = NodeCertificate::from_pem(&join_result.node_certificate)?;
-        let workload_manager = Arc::new(WorkloadManager::new(config.clone()).await?);
+        let workload_manager = Arc::new(WorkloadManager::new(config.clone(), join_result.node_id).await?);
         let command_executor = Arc::new(CommandExecutor::new(config.data_dir.clone()));
         let wireguard_manager = Arc::new(WireGuardManager::new());
 
@@ -110,12 +203,92 @@ impl SwarmletAgent {
     }
 
     /// Create a swarmlet agent from configuration
-    pub async fn from_config(_config: Config) -> Result<Self> {
-        // This would load join result and certificate from saved state
-        // For now, return an error as this needs implementation
-        Err(SwarmletError::NotImplemented(
-            "Creating agent from config not yet implemented".to_string(),
-        ))
+    ///
+    /// This loads previously saved state from the data directory, allowing
+    /// the agent to resume after a restart without re-joining the cluster.
+    pub async fn from_config(config: Config) -> Result<Self> {
+        // Load saved state from disk
+        let saved_state = SavedAgentState::load(&config.data_dir).await?;
+
+        // Recreate the agent from saved state
+        let config = Arc::new(config);
+        let node_certificate = NodeCertificate::from_pem(&saved_state.join_result.node_certificate)?;
+        let workload_manager = Arc::new(WorkloadManager::new(config.clone(), saved_state.join_result.node_id).await?);
+        let command_executor = Arc::new(CommandExecutor::new(config.data_dir.clone()));
+
+        // Create WireGuard manager and restore keys
+        let wireguard_manager = Arc::new(WireGuardManager::new());
+        wireguard_manager.restore_keypair(
+            saved_state.wireguard_private_key.clone(),
+            saved_state.wireguard_public_key.clone(),
+        ).await;
+
+        // Restore cluster public key if available
+        if let Some(ref cluster_key_b64) = saved_state.cluster_public_key {
+            if let Err(e) = wireguard_manager.set_cluster_public_key_b64(cluster_key_b64).await {
+                warn!("Failed to restore cluster public key: {}", e);
+            }
+        }
+
+        let health_status = Arc::new(RwLock::new(HealthStatus {
+            node_id: saved_state.join_result.node_id,
+            status: NodeStatus::Starting,
+            uptime_seconds: 0,
+            workloads_active: 0,
+            cpu_usage_percent: 0.0,
+            memory_usage_gb: 0.0,
+            disk_usage_gb: 0.0,
+            network_rx_bytes: 0,
+            network_tx_bytes: 0,
+            last_heartbeat: chrono::Utc::now(),
+            errors_count: 0,
+        }));
+
+        let (shutdown_sender, shutdown_signal) = tokio::sync::watch::channel(false);
+
+        info!(
+            "Agent restored from saved state for cluster '{}' (node {})",
+            saved_state.join_result.cluster_name,
+            saved_state.join_result.node_id
+        );
+
+        Ok(Self {
+            config,
+            join_result: saved_state.join_result,
+            node_certificate,
+            workload_manager,
+            command_executor,
+            wireguard_manager,
+            health_status,
+            shutdown_signal,
+            shutdown_sender,
+            #[cfg(feature = "hpc-channels")]
+            event_bridge: shared_channel_bridge(),
+        })
+    }
+
+    /// Save the current agent state for later restoration
+    pub async fn save_state(&self) -> Result<()> {
+        let wireguard_private_key = self.wireguard_manager.get_private_key().await
+            .ok_or_else(|| SwarmletError::Configuration("No WireGuard private key available".to_string()))?;
+        let wireguard_public_key = self.wireguard_manager.get_public_key().await
+            .ok_or_else(|| SwarmletError::Configuration("No WireGuard public key available".to_string()))?;
+
+        let state = SavedAgentState {
+            join_result: self.join_result.clone(),
+            wireguard_private_key,
+            wireguard_public_key,
+            cluster_public_key: None, // TODO: Get from wireguard_manager if needed
+            saved_at: chrono::Utc::now(),
+            version: SavedAgentState::CURRENT_VERSION,
+        };
+
+        state.save(&self.config.data_dir).await
+    }
+
+    /// Check if saved state exists for a data directory
+    pub async fn has_saved_state(data_dir: &Path) -> bool {
+        SavedAgentState::state_path(data_dir).exists()
     }
 
     /// Run the swarmlet agent (main event loop)
@@ -568,6 +741,151 @@ impl SwarmletAgent {
                 }
             });
 
+        // Workload routes
+        let workload_manager_list = self.workload_manager.clone();
+        let workloads_list_route = warp::path!("api" / "v1" / "workloads")
+            .and(warp::get())
+            .and_then(move || {
+                let wm = workload_manager_list.clone();
+                async move {
+                    let workloads = wm.get_active_workloads().await;
+                    let json = serde_json::to_string(&workloads).unwrap_or_else(|_| {
+                        r#"{"error": "serialization_failed"}"#.to_string()
+                    });
+                    Ok::<_, Infallible>(warp::reply::with_header(
+                        warp::reply::with_status(json, warp::http::StatusCode::OK),
+                        "content-type",
+                        "application/json",
+                    ))
+                }
+            });
+
+        let workload_manager_stop = self.workload_manager.clone();
+        let workloads_stop_route = warp::path!("api" / "v1" / "workloads" / String / "stop")
+            .and(warp::post())
+            .and_then(move |workload_id: String| {
+                let wm = workload_manager_stop.clone();
+                async move {
+                    match Uuid::parse_str(&workload_id) {
+                        Ok(id) => match wm.stop_workload(id).await {
+                            Ok(()) => {
+                                let json = r#"{"success": true}"#.to_string();
+                                Ok::<_, Infallible>(warp::reply::with_header(
+                                    warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                    "content-type",
+                                    "application/json",
+                                ))
+                            }
+                            Err(e) => {
+                                let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                                Ok::<_, Infallible>(warp::reply::with_header(
+                                    warp::reply::with_status(
+                                        error_response,
+                                        warp::http::StatusCode::NOT_FOUND,
+                                    ),
+                                    "content-type",
+                                    "application/json",
+                                ))
+                            }
+                        },
+                        Err(_) => {
+                            let error_response = r#"{"error": "invalid_workload_id"}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::BAD_REQUEST,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        // Detailed metrics route (Prometheus format)
+        let health_status_detailed = self.health_status.clone();
+        let workload_manager_metrics = self.workload_manager.clone();
+        let detailed_metrics_route = warp::path!("api" / "v1" / "metrics" / "detailed")
+            .and(warp::get())
+            .and_then(move || {
+                let health = health_status_detailed.clone();
+                let wm = workload_manager_metrics.clone();
+                async move {
+                    let h = health.read().await;
+                    let workload_count = wm.active_workload_count().await;
+
+                    let metrics = format!(
+                        "# HELP swarmlet_cpu_usage_percent CPU usage percentage\n\
+                         # TYPE swarmlet_cpu_usage_percent gauge\n\
+                         swarmlet_cpu_usage_percent {}\n\
+                         # HELP swarmlet_memory_usage_gb Memory usage in GB\n\
+                         # TYPE swarmlet_memory_usage_gb gauge\n\
+                         swarmlet_memory_usage_gb {}\n\
+                         # HELP swarmlet_disk_usage_gb Disk usage in GB\n\
+                         # TYPE swarmlet_disk_usage_gb gauge\n\
+                         swarmlet_disk_usage_gb {}\n\
+                         # HELP swarmlet_workloads_active Number of active workloads\n\
+                         # TYPE swarmlet_workloads_active gauge\n\
+                         swarmlet_workloads_active {}\n\
+                         # HELP swarmlet_uptime_seconds Uptime in seconds\n\
+                         # TYPE swarmlet_uptime_seconds counter\n\
+                         swarmlet_uptime_seconds {}\n\
+                         # HELP swarmlet_errors_total Total error count\n\
+                         # TYPE swarmlet_errors_total counter\n\
+                         swarmlet_errors_total {}\n",
+                        h.cpu_usage_percent,
+                        h.memory_usage_gb,
+                        h.disk_usage_gb,
+                        workload_count,
+                        h.uptime_seconds,
+                        h.errors_count
+                    );
+
+                    Ok::<_, Infallible>(warp::reply::with_header(
+                        warp::reply::with_status(metrics, warp::http::StatusCode::OK),
+                        "content-type",
+                        "text/plain; version=0.0.4; charset=utf-8",
+                    ))
+                }
+            });
+
+        // Hardware profile route
+        let node_id_hardware = self.join_result.node_id;
+        let hardware_route = warp::path!("api" / "v1" / "hardware")
+            .and(warp::get())
+            .and_then(move || {
+                let node_id = node_id_hardware;
+                async move {
+                    let mut profiler = HardwareProfiler::new();
+                    match profiler.profile().await {
+                        Ok(mut profile) => {
+                            // Use the actual node_id instead of randomly generated one
+                            profile.node_id = node_id;
+                            let json = serde_json::to_string(&profile).unwrap_or_else(|_| {
+                                r#"{"error": "serialization_failed"}"#.to_string()
+                            });
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Err(e) => {
+                            let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
         let routes = health_route
             .or(metrics_route)
             .or(execute_command_route)
@@ -576,7 +894,11 @@ impl SwarmletAgent {
             .or(wireguard_status_route)
             .or(wireguard_add_peer_route)
             .or(wireguard_remove_peer_route)
-            .or(wireguard_list_peers_route);
+            .or(wireguard_list_peers_route)
+            .or(workloads_list_route)
+            .or(workloads_stop_route)
+            .or(detailed_metrics_route)
+            .or(hardware_route);
 
         // Start server
         let port = self.config.api_port.unwrap_or(8080);
@@ -714,17 +1036,50 @@ impl SwarmletAgent {
         Ok(())
     }
 
-    /// Get disk usage for data directory
+    /// Get disk usage for data directory's mount point
     async fn get_disk_usage(&self) -> Result<f32> {
-        use std::fs;
+        use sysinfo::Disks;
+        use std::path::Path;
 
-        match fs::metadata(&self.config.data_dir) {
-            Ok(metadata) => {
-                // This is a simplified implementation
-                // In reality, you'd calculate actual disk usage
-                Ok(metadata.len() as f32 / (1024.0 * 1024.0 * 1024.0))
+        let data_path = Path::new(&self.config.data_dir).canonicalize().unwrap_or_else(|_| {
+            Path::new(&self.config.data_dir).to_path_buf()
+        });
+
+        let disks = Disks::new_with_refreshed_list();
+
+        // Find the disk with the longest mount point that is a prefix of data_path
+        let mut best_disk: Option<&sysinfo::Disk> = None;
+        let mut best_mount_len = 0;
+
+        for disk in disks.list() {
+            let mount_point = disk.mount_point();
+            if data_path.starts_with(mount_point) {
+                let mount_len = mount_point.as_os_str().len();
+                if mount_len > best_mount_len {
+                    best_mount_len = mount_len;
+                    best_disk = Some(disk);
+                }
             }
-            Err(_) => Ok(0.0),
+        }
+
+        match best_disk {
+            Some(disk) => {
+                let total = disk.total_space();
+                let available = disk.available_space();
+                let used = total.saturating_sub(available);
+                Ok(used as f32 / (1024.0 * 1024.0 * 1024.0))
+            }
+            None => {
+                // Fallback: if no disk found, try to get the first disk's usage
+                if let Some(disk) = disks.list().first() {
+                    let total = disk.total_space();
+                    let available = disk.available_space();
+                    let used = total.saturating_sub(available);
+                    Ok(used as f32 / (1024.0 * 1024.0 * 1024.0))
+                } else {
+                    Ok(0.0)
+                }
+            }
         }
     }
 }
@@ -1118,18 +1473,98 @@ KHHIgKwA4jAKHHIgKwA4jAKHHIgKwA4jA=
     }
 
     #[tokio::test]
-    async fn test_agent_from_config_not_implemented() {
-        let config = Config::default();
+    async fn test_agent_from_config_no_saved_state() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = Config::default_with_data_dir(temp_dir.path().to_path_buf());
 
+        // Should fail because there's no saved state
         match SwarmletAgent::from_config(config).await {
-            Ok(_) => panic!("Should return not implemented error"),
+            Ok(_) => panic!("Should return error when no saved state exists"),
             Err(e) => match e {
-                crate::SwarmletError::NotImplemented(msg) => {
-                    assert!(msg.contains("not yet implemented"));
+                crate::SwarmletError::Configuration(msg) => {
+                    assert!(msg.contains("No saved state found"));
                 }
-                _ => panic!("Expected NotImplemented error, got: {:?}", e),
+                _ => panic!("Expected Config error, got: {:?}", e),
             },
         }
+    }
+
+    #[tokio::test]
+    async fn test_agent_from_config_with_saved_state() {
+        let temp_dir = TempDir::new().unwrap();
+        let data_dir = temp_dir.path().to_path_buf();
+
+        // Create and save agent state
+        let join_result = create_test_join_result();
+        let saved_state = SavedAgentState {
+            join_result: join_result.clone(),
+            wireguard_private_key: "test_private_key_base64".to_string(),
+            wireguard_public_key: "test_public_key_base64".to_string(),
+            cluster_public_key: None,
+            saved_at: chrono::Utc::now(),
+            version: SavedAgentState::CURRENT_VERSION,
+        };
+        saved_state.save(&data_dir).await.expect("Should save state");
+
+        // Now from_config should work
+        let config = Config::default_with_data_dir(data_dir);
+        let agent = SwarmletAgent::from_config(config).await
+            .expect("Should create agent from saved state");
+
+        assert_eq!(agent.join_result.cluster_name, join_result.cluster_name);
+        assert_eq!(agent.join_result.node_id, join_result.node_id);
+    }
+
+    #[tokio::test]
+    async fn test_saved_agent_state_roundtrip() {
+        let temp_dir = TempDir::new().unwrap();
+        let data_dir = temp_dir.path().to_path_buf();
+
+        let join_result = create_test_join_result();
+        let original_state = SavedAgentState {
+            join_result: join_result.clone(),
+            wireguard_private_key: "private_key_b64".to_string(),
+            wireguard_public_key: "public_key_b64".to_string(),
+            cluster_public_key: Some("cluster_key_b64".to_string()),
+            saved_at: chrono::Utc::now(),
+            version: SavedAgentState::CURRENT_VERSION,
+        };
+
+        // Save state
+        original_state.save(&data_dir).await.expect("Should save state");
+
+        // Load state
+        let loaded_state = SavedAgentState::load(&data_dir).await.expect("Should load state");
+
+        assert_eq!(loaded_state.join_result.node_id, original_state.join_result.node_id);
+        assert_eq!(loaded_state.wireguard_private_key, original_state.wireguard_private_key);
+        assert_eq!(loaded_state.wireguard_public_key, original_state.wireguard_public_key);
+        assert_eq!(loaded_state.cluster_public_key, original_state.cluster_public_key);
+        assert_eq!(loaded_state.version, original_state.version);
+    }
+
+    #[tokio::test]
+    async fn test_has_saved_state() {
+        let temp_dir = TempDir::new().unwrap();
+        let data_dir = temp_dir.path();
+
+        // Initially no saved state
+        assert!(!SwarmletAgent::has_saved_state(data_dir).await);
+
+        // Create saved state
+        let join_result = create_test_join_result();
+        let state = SavedAgentState {
+            join_result,
+            wireguard_private_key: "key".to_string(),
+            wireguard_public_key: "key".to_string(),
+            cluster_public_key: None,
+            saved_at: chrono::Utc::now(),
+            version: SavedAgentState::CURRENT_VERSION,
+        };
+        state.save(data_dir).await.expect("Should save state");
+
+        // Now has saved state
+        assert!(SwarmletAgent::has_saved_state(data_dir).await);
     }
 
     #[tokio::test]
@@ -1138,19 +1573,21 @@ KHHIgKwA4jAKHHIgKwA4jAKHHIgKwA4jA=
         let temp_dir = TempDir::new().unwrap();
         let data_dir = temp_dir.path().to_str().unwrap().to_string();
 
-        // Create a test file in the data directory
-        let test_file_path = temp_dir.path().join("test_file.dat");
-        std::fs::write(&test_file_path, vec![0u8; 1024]).expect("Should write test file");
-
         let agent = SwarmletAgent::new(join_result, data_dir)
             .await
             .expect("Should create agent");
 
-        // Get disk usage
+        // Get disk usage - now returns actual disk usage of the mount point
         let disk_usage = agent.get_disk_usage().await.expect("Should get disk usage");
 
-        // Should be greater than 0 but very small (1KB file)
-        assert!(disk_usage >= 0.0);
-        assert!(disk_usage < 0.001); // Less than 1MB
+        // Should return actual disk usage in GB (realistic values on any system)
+        assert!(disk_usage >= 0.0, "Disk usage should be non-negative");
+        // A typical system will have at least some disk usage, but we can't be too specific
+        // Just verify we get a reasonable value (less than 100 TB)
+        assert!(
+            disk_usage < 100_000.0,
+            "Disk usage {} GB seems unreasonably high",
+            disk_usage
+        );
     }
 }
