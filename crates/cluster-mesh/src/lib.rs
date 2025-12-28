@@ -6,6 +6,7 @@
 pub mod classification;
 pub mod discovery;
 pub mod distribution;
+pub mod install_script;
 pub mod mesh;
 // pub mod laptop;
 // pub mod edge;
@@ -22,6 +23,7 @@ mod error_tests;
 pub use classification::{NodeClass, NodeClassifier};
 pub use discovery::{HardwareProfile, NetworkCharacteristics, NodeDiscovery};
 pub use distribution::{JobRequirements, SchedulingPolicy, WorkDistributor};
+pub use install_script::{generate_install_script, BinaryChecksums, InstallScriptConfig};
 pub use mesh::{MeshManager, MeshTopology, NodeConnection};
 // pub use laptop::{LaptopNode, PowerManagement, ThermalPolicy};
 // pub use edge::{EdgeDevice, EdgeType, ResourceConstraints};

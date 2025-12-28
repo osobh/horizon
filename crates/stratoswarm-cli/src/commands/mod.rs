@@ -7,6 +7,7 @@ pub mod quickstart;
 pub mod registry;
 pub mod scale;
 pub mod status;
+pub mod token;
 
 use crate::Result;
 use clap::Subcommand;
@@ -34,6 +35,9 @@ pub enum Commands {
     /// Manage container images and registry
     Registry(registry::RegistryArgs),
 
+    /// Manage join tokens for node onboarding
+    Token(token::TokenArgs),
+
     /// Enter interactive shell
     Shell,
 }
@@ -48,6 +52,7 @@ impl Commands {
             Commands::Evolve(args) => evolve::execute(args).await,
             Commands::Quickstart(args) => quickstart::execute(args).await,
             Commands::Registry(args) => registry::execute(args).await,
+            Commands::Token(args) => token::execute(args).await,
             Commands::Shell => Box::pin(crate::shell::run_shell()).await,
         }
     }

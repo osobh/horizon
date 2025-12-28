@@ -52,6 +52,8 @@ humansize = "2.1"
 
 # Utils
 rand = { workspace = true }
+uuid = { workspace = true }
+base64 = "0.22"
 
 # Project dependencies
 stratoswarm-dsl = { path = "../swarm-dsl" }
