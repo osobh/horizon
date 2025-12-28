@@ -7,7 +7,7 @@
 # Token expires: {{TOKEN_EXPIRY}}
 #
 # Usage:
-#   curl -sSL "https://your-cluster/api/v1/install?token=TOKEN" | bash
+#   curl -sSL "https://coordinator.stratoswarm.com/api/v1/install?token=TOKEN" | bash
 #
 
 set -euo pipefail
@@ -313,7 +313,7 @@ install_systemd_service() {
     $SUDO tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null << EOF
 [Unit]
 Description=StratoSwarm Swarmlet Agent
-Documentation=https://docs.stratoswarm.io
+Documentation=https://docs.stratoswarm.com
 After=network-online.target
 Wants=network-online.target
 

@@ -58,6 +58,9 @@ hyper = { workspace = true }
 rand = { workspace = true }
 base64 = "0.22"
 
+# Environment configuration
+dotenvy = "0.15"
+
 # Internal dependencies
 stratoswarm-core = { path = "../stratoswarm-core" }
 # stratoswarm-agent-core = { path = "../agent-core" }

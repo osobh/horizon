@@ -53,7 +53,7 @@ impl InstallScriptConfig {
             token_expiry: Utc::now() + chrono::Duration::hours(24),
             swarmlet_version: env!("CARGO_PKG_VERSION").to_string(),
             docker_image: "stratoswarm/swarmlet".to_string(),
-            releases_base_url: "https://releases.stratoswarm.io/swarmlet".to_string(),
+            releases_base_url: "https://releases.stratoswarm.com/swarmlet".to_string(),
             checksums: BinaryChecksums::default(),
         }
     }

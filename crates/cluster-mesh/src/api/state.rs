@@ -79,6 +79,46 @@ impl Default for AppStateConfig {
     }
 }
 
+impl AppStateConfig {
+    /// Load configuration from environment variables.
+    ///
+    /// Reads from .env file if present, then checks environment variables:
+    /// - `CLUSTER_COORDINATOR_HOST` (default: coordinator.stratoswarm.com)
+    /// - `CLUSTER_COORDINATOR_PORT` (default: 7946)
+    /// - `SWARMLET_VERSION` (default: crate version)
+    /// - `SWARMLET_DOCKER_IMAGE` (default: stratoswarm/swarmlet)
+    /// - `SWARMLET_RELEASES_URL` (default: https://releases.stratoswarm.com/swarmlet)
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use stratoswarm_cluster_mesh::api::AppStateConfig;
+    ///
+    /// // Set environment or create .env file
+    /// std::env::set_var("CLUSTER_COORDINATOR_HOST", "my-cluster.local");
+    ///
+    /// let config = AppStateConfig::from_env();
+    /// assert_eq!(config.cluster_host, "my-cluster.local");
+    /// ```
+    pub fn from_env() -> Self {
+        // Load .env file if present (silently ignore if missing)
+        let _ = dotenvy::dotenv();
+
+        Self {
+            cluster_host: std::env::var("CLUSTER_COORDINATOR_HOST")
+                .unwrap_or_else(|_| "coordinator.stratoswarm.com".to_string()),
+            cluster_port: std::env::var("CLUSTER_COORDINATOR_PORT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(7946),
+            swarmlet_version: std::env::var("SWARMLET_VERSION").ok(),
+            docker_image: std::env::var("SWARMLET_DOCKER_IMAGE").ok(),
+            releases_base_url: std::env::var("SWARMLET_RELEASES_URL").ok(),
+            binary_checksums: None,
+        }
+    }
+}
+
 impl AppState {
     /// Create a new AppState with the given configuration.
     pub fn new(config: AppStateConfig) -> Self {
@@ -93,7 +133,7 @@ impl AppState {
                 .unwrap_or_else(|| "stratoswarm/swarmlet".to_string()),
             releases_base_url: config
                 .releases_base_url
-                .unwrap_or_else(|| "https://releases.stratoswarm.io/swarmlet".to_string()),
+                .unwrap_or_else(|| "https://releases.stratoswarm.com/swarmlet".to_string()),
             binary_checksums: config.binary_checksums.unwrap_or_default(),
             tokens: DashMap::new(),
             ready: AtomicBool::new(true),
