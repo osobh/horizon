@@ -8,6 +8,7 @@ pub struct Config {
     pub checkpoint: CheckpointConfig,
     pub inventory: InventoryConfig,
     pub server: ServerConfig,
+    pub pricing: PricingConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +47,36 @@ pub struct InventoryConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+}
+
+/// Pricing configuration for cost estimates
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PricingConfig {
+    /// GPU hourly rates by type (e.g., "H100" -> 4.0)
+    pub gpu_hourly_rates: std::collections::HashMap<String, f64>,
+    /// CPU cost per core per hour
+    pub cpu_per_core_hour: f64,
+    /// Memory cost per GB per hour
+    pub memory_per_gb_hour: f64,
+    /// Storage cost per GB per hour
+    pub storage_per_gb_hour: f64,
+}
+
+impl Default for PricingConfig {
+    fn default() -> Self {
+        let mut gpu_rates = std::collections::HashMap::new();
+        gpu_rates.insert("H100".to_string(), 4.0);
+        gpu_rates.insert("A100".to_string(), 2.5);
+        gpu_rates.insert("V100".to_string(), 1.5);
+        gpu_rates.insert("RTX4090".to_string(), 1.0);
+
+        Self {
+            gpu_hourly_rates: gpu_rates,
+            cpu_per_core_hour: 0.05,
+            memory_per_gb_hour: 0.01,
+            storage_per_gb_hour: 0.0001,
+        }
+    }
 }
 
 impl Config {
@@ -91,6 +122,7 @@ impl Config {
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(8082),
             },
+            pricing: PricingConfig::default(),
         })
     }
 

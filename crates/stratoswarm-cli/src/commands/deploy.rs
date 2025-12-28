@@ -130,17 +130,62 @@ async fn deploy_swarm_file(path: &PathBuf) -> Result<Vec<AgentSpec>> {
     Ok(specs)
 }
 
-async fn deploy_with_zero_config(_path: &PathBuf) -> Result<Vec<AgentSpec>> {
-    // TODO: Uncomment when stratoswarm_zero_config is available
-    // use stratoswarm_zero_config::ZeroConfigEngine;
+async fn deploy_with_zero_config(path: &PathBuf) -> Result<Vec<AgentSpec>> {
+    use crate::config::CliConfig;
+    use reqwest::Client;
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct AnalyzeRequest {
+        path: String,
+    }
 
     output::info("Analyzing codebase with zero-config intelligence...");
 
-    // Mock implementation for testing
-    output::info(&format!("Detected project type: Web Application"));
-    output::info(&format!("Found 3 services to deploy"));
+    // Try to use cluster's zero-config analysis
+    let config = CliConfig::load().unwrap_or_default();
+    let client = Client::new();
+    let url = format!("{}/api/v1/zero-config/analyze", config.api_endpoint);
 
-    // Return mock specs
+    let request = AnalyzeRequest {
+        path: path.to_string_lossy().to_string(),
+    };
+
+    let mut req = client.post(&url).json(&request);
+    if let Some(ref auth) = config.auth_token {
+        req = req.header("Authorization", format!("Bearer {}", auth));
+    }
+
+    match req.send().await {
+        Ok(response) if response.status().is_success() => {
+            match response.json::<Vec<AgentSpec>>().await {
+                Ok(specs) => {
+                    output::success(&format!("Cluster analyzed codebase: found {} services", specs.len()));
+                    return Ok(specs);
+                }
+                Err(e) => {
+                    output::warn(&format!("Invalid response from cluster: {}", e));
+                }
+            }
+        }
+        Ok(response) => {
+            output::warn(&format!(
+                "Cluster returned {}: Using local analysis.",
+                response.status()
+            ));
+        }
+        Err(e) => {
+            output::warn(&format!(
+                "Could not connect to cluster ({}): Using local analysis.",
+                e
+            ));
+        }
+    }
+
+    // Fallback to local mock analysis
+    output::info("Detected project type: Web Application");
+    output::info("Found 2 services to deploy");
+
     Ok(vec![
         AgentSpec {
             name: "frontend".to_string(),
@@ -161,18 +206,59 @@ async fn deploy_with_zero_config(_path: &PathBuf) -> Result<Vec<AgentSpec>> {
     ])
 }
 
-async fn deploy_specs(specs: Vec<AgentSpec>, _args: &DeployArgs) -> Result<()> {
-    // TODO: Uncomment when stratoswarm_runtime is available
-    // use stratoswarm_runtime::Runtime;
+async fn deploy_specs(specs: Vec<AgentSpec>, args: &DeployArgs) -> Result<()> {
+    use crate::config::CliConfig;
+    use reqwest::Client;
+    use serde::Serialize;
 
-    // Mock implementation for testing
+    #[derive(Serialize)]
+    struct DeployRequest {
+        specs: Vec<AgentSpec>,
+        namespace: String,
+    }
+
+    let config = CliConfig::load().unwrap_or_default();
+    let client = Client::new();
+    let url = format!("{}/api/v1/deployments", config.api_endpoint);
+
+    let request = DeployRequest {
+        specs: specs.clone(),
+        namespace: args.namespace.clone(),
+    };
+
+    let mut req = client.post(&url).json(&request);
+    if let Some(ref auth) = config.auth_token {
+        req = req.header("Authorization", format!("Bearer {}", auth));
+    }
+
+    match req.send().await {
+        Ok(response) if response.status().is_success() => {
+            output::success("Deployment submitted to cluster successfully!");
+            for spec in &specs {
+                output::success(&format!("  ✓ {} scheduled", spec.name));
+            }
+            return Ok(());
+        }
+        Ok(response) => {
+            let status = response.status();
+            output::warn(&format!(
+                "Cluster returned {}: Simulating local deployment.",
+                status
+            ));
+        }
+        Err(e) => {
+            output::warn(&format!(
+                "Could not connect to cluster ({}): Simulating local deployment.",
+                e
+            ));
+        }
+    }
+
+    // Fallback to local simulation
     for spec in specs {
         output::info(&format!("Deploying agent: {}", spec.name));
-
-        // Simulate deployment delay
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-        output::success(&format!("✓ {} deployed", spec.name));
+        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+        output::success(&format!("✓ {} deployed (simulated)", spec.name));
     }
 
     Ok(())

@@ -103,14 +103,73 @@ pub async fn execute(args: EvolveArgs) -> Result<()> {
 }
 
 async fn run_evolution(args: &EvolveArgs) -> Result<()> {
-    // TODO: Uncomment when stratoswarm_runtime is available
-    // use stratoswarm_runtime::Runtime;
+    use crate::config::CliConfig;
+    use reqwest::Client;
+    use serde::Serialize;
 
-    // Mock implementation for testing
+    #[derive(Serialize)]
+    struct EvolveRequest {
+        agent: String,
+        namespace: String,
+        generations: u32,
+        population_size: u32,
+        mutation_rate: f32,
+        strategy: String,
+    }
+
     output::info(&format!(
-        "Checking agent '{}' in namespace '{}'",
+        "Starting evolution for agent '{}' in namespace '{}'",
         args.agent, args.namespace
     ));
+
+    // Try to start evolution on the cluster
+    let config = CliConfig::load().unwrap_or_default();
+    let client = Client::new();
+    let url = format!("{}/api/v1/agents/{}/evolve", config.api_endpoint, args.agent);
+
+    let request = EvolveRequest {
+        agent: args.agent.clone(),
+        namespace: args.namespace.clone(),
+        generations: args.generations,
+        population_size: args.population,
+        mutation_rate: args.mutation_rate,
+        strategy: format!("{:?}", args.strategy).to_lowercase(),
+    };
+
+    let mut req = client.post(&url).json(&request);
+    if let Some(ref auth) = config.auth_token {
+        req = req.header("Authorization", format!("Bearer {}", auth));
+    }
+
+    let cluster_available = match req.send().await {
+        Ok(response) if response.status().is_success() => {
+            output::success("Evolution job submitted to cluster successfully.");
+            true
+        }
+        Ok(response) => {
+            let status = response.status();
+            output::warn(&format!(
+                "Cluster returned {}: Running local simulation instead.",
+                status
+            ));
+            false
+        }
+        Err(e) => {
+            output::warn(&format!(
+                "Could not connect to cluster ({}): Running local simulation.",
+                e
+            ));
+            false
+        }
+    };
+
+    // Run local simulation if cluster not available
+    if !cluster_available {
+        output::info(&format!(
+            "Simulating evolution for agent '{}'",
+            args.agent
+        ));
+    }
 
     let pb = create_progress_bar(args.generations);
 

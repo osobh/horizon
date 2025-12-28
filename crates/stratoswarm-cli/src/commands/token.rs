@@ -7,9 +7,10 @@
 //! stratoswarm token generate --ttl 24h --uses 10
 //! ```
 
-use crate::{output, Result};
+use crate::{config::CliConfig, output, Result};
 use chrono::{Duration, Utc};
 use clap::{Args, Subcommand};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -135,6 +136,126 @@ impl JoinToken {
     }
 }
 
+/// API request to store a token
+#[derive(Debug, Serialize)]
+struct StoreTokenRequest {
+    token: JoinToken,
+}
+
+/// API response for token operations
+#[derive(Debug, Deserialize)]
+struct TokenResponse {
+    success: bool,
+    #[serde(default)]
+    message: Option<String>,
+}
+
+/// API response for listing tokens
+#[derive(Debug, Deserialize)]
+struct ListTokensResponse {
+    tokens: Vec<JoinToken>,
+}
+
+/// Client for token API operations
+struct TokenClient {
+    client: Client,
+    base_url: String,
+    auth_token: Option<String>,
+}
+
+impl TokenClient {
+    fn new(config: &CliConfig) -> Self {
+        Self {
+            client: Client::new(),
+            base_url: config.api_endpoint.clone(),
+            auth_token: config.auth_token.clone(),
+        }
+    }
+
+    async fn store_token(&self, token: &JoinToken) -> Result<()> {
+        let url = format!("{}/api/v1/tokens", self.base_url);
+
+        let mut request = self.client.post(&url).json(&StoreTokenRequest {
+            token: token.clone(),
+        });
+
+        if let Some(ref auth) = self.auth_token {
+            request = request.header("Authorization", format!("Bearer {}", auth));
+        }
+
+        let response = request.send().await.map_err(|e| {
+            crate::CliError::Command(format!("Failed to connect to cluster: {}", e))
+        })?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            Err(crate::CliError::Command(format!(
+                "Failed to store token ({}): {}",
+                status, body
+            )))
+        }
+    }
+
+    async fn list_tokens(&self, include_expired: bool) -> Result<Vec<JoinToken>> {
+        let url = format!(
+            "{}/api/v1/tokens?include_expired={}",
+            self.base_url, include_expired
+        );
+
+        let mut request = self.client.get(&url);
+
+        if let Some(ref auth) = self.auth_token {
+            request = request.header("Authorization", format!("Bearer {}", auth));
+        }
+
+        let response = request.send().await.map_err(|e| {
+            crate::CliError::Command(format!("Failed to connect to cluster: {}", e))
+        })?;
+
+        if response.status().is_success() {
+            let list_response: ListTokensResponse = response.json().await.map_err(|e| {
+                crate::CliError::Command(format!("Invalid response from cluster: {}", e))
+            })?;
+            Ok(list_response.tokens)
+        } else {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            Err(crate::CliError::Command(format!(
+                "Failed to list tokens ({}): {}",
+                status, body
+            )))
+        }
+    }
+
+    async fn revoke_token(&self, token_id: &str) -> Result<()> {
+        let url = format!("{}/api/v1/tokens/{}", self.base_url, token_id);
+
+        let mut request = self.client.delete(&url);
+
+        if let Some(ref auth) = self.auth_token {
+            request = request.header("Authorization", format!("Bearer {}", auth));
+        }
+
+        let response = request.send().await.map_err(|e| {
+            crate::CliError::Command(format!("Failed to connect to cluster: {}", e))
+        })?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            Err(crate::CliError::Command(format!(
+                "Failed to revoke token ({}): {}",
+                status, body
+            )))
+        }
+    }
+}
+
 /// Parse a duration string like "24h", "7d", "1h30m" into a chrono Duration.
 fn parse_duration(s: &str) -> Result<Duration> {
     let mut total_seconds: i64 = 0;
@@ -237,20 +358,85 @@ async fn generate_token(args: GenerateArgs) -> Result<()> {
         token.install_url(&cluster_host)
     );
 
-    // TODO: Store token in cluster's token store
-    // For now, just print the token and advise manual storage
+    // Try to store token in cluster's token store
+    let config = CliConfig::load().unwrap_or_default();
+    let client = TokenClient::new(&config);
 
     println!();
-    output::warn("Note: Token storage is not yet implemented. Save this token securely.");
+    match client.store_token(&token).await {
+        Ok(()) => {
+            output::success("Token stored in cluster successfully.");
+        }
+        Err(e) => {
+            output::warn(&format!(
+                "Could not store token in cluster: {}. Save this token securely.",
+                e
+            ));
+        }
+    }
 
     Ok(())
 }
 
-async fn list_tokens(_args: ListArgs) -> Result<()> {
-    output::info("Fetching tokens...");
+async fn list_tokens(args: ListArgs) -> Result<()> {
+    output::info("Fetching tokens from cluster...");
 
-    // TODO: Fetch tokens from cluster's token store
-    output::warn("Token listing not yet implemented - requires cluster connection.");
+    let config = CliConfig::load().unwrap_or_default();
+    let client = TokenClient::new(&config);
+
+    match client.list_tokens(args.include_expired).await {
+        Ok(tokens) => {
+            if tokens.is_empty() {
+                output::info("No tokens found.");
+                return Ok(());
+            }
+
+            if args.format == "json" {
+                println!("{}", serde_json::to_string_pretty(&tokens).unwrap_or_default());
+            } else {
+                output::header(&format!("Active Tokens ({})", tokens.len()));
+                println!();
+
+                for token in tokens {
+                    let status = if token.is_expired() {
+                        "EXPIRED"
+                    } else if token.is_valid() {
+                        "ACTIVE"
+                    } else {
+                        "EXHAUSTED"
+                    };
+
+                    output::kv("Token ID", &token.id.to_string());
+                    output::kv("Status", status);
+                    output::kv(
+                        "Expires",
+                        &token.expires_at.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+                    );
+                    output::kv(
+                        "Uses",
+                        &format!(
+                            "{}/{}",
+                            token.current_uses,
+                            if token.max_uses == 0 {
+                                "unlimited".to_string()
+                            } else {
+                                token.max_uses.to_string()
+                            }
+                        ),
+                    );
+                    if let Some(ref desc) = token.description {
+                        output::kv("Description", desc);
+                    }
+                    println!();
+                }
+            }
+        }
+        Err(e) => {
+            output::error(&format!("Failed to list tokens: {}", e));
+            output::info("Make sure the cluster is running and you have proper authentication configured.");
+            output::info("Configure with: stratoswarm config set api_endpoint <URL>");
+        }
+    }
 
     Ok(())
 }
@@ -258,8 +444,18 @@ async fn list_tokens(_args: ListArgs) -> Result<()> {
 async fn revoke_token(args: RevokeArgs) -> Result<()> {
     output::info(&format!("Revoking token {}...", args.token_id));
 
-    // TODO: Revoke token in cluster's token store
-    output::warn("Token revocation not yet implemented - requires cluster connection.");
+    let config = CliConfig::load().unwrap_or_default();
+    let client = TokenClient::new(&config);
+
+    match client.revoke_token(&args.token_id).await {
+        Ok(()) => {
+            output::success(&format!("Token {} has been revoked.", args.token_id));
+        }
+        Err(e) => {
+            output::error(&format!("Failed to revoke token: {}", e));
+            output::info("Make sure the cluster is running and you have proper authentication configured.");
+        }
+    }
 
     Ok(())
 }

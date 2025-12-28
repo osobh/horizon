@@ -136,9 +136,10 @@ pub trait MetalComputeEncoder<'a>: Send {
 }
 
 /// Scope for memory barriers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BarrierScope {
     /// Barrier for buffer resources.
+    #[default]
     Buffers,
     /// Barrier for texture resources.
     Textures,

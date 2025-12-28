@@ -1,6 +1,7 @@
 //! GPU Container implementation
 
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use uuid::Uuid;
@@ -54,6 +55,10 @@ pub struct GpuContainer {
     pub memory_handle: Option<stratoswarm_memory::GpuMemoryHandle>,
     pub personality: Arc<Mutex<AgentPersonality>>,
     pub evolution: Arc<Mutex<EvolutionState>>,
+    /// Counter for kernel executions
+    pub kernel_executions: Arc<AtomicU64>,
+    /// Timestamp of last activity
+    pub last_activity: Arc<Mutex<Option<Instant>>>,
 }
 
 /// Evolution state for containers
@@ -149,6 +154,23 @@ impl GpuContainer {
             memory_handle: None,
             personality: Arc::new(Mutex::new(personality)),
             evolution: Arc::new(Mutex::new(evolution_state)),
+            kernel_executions: Arc::new(AtomicU64::new(0)),
+            last_activity: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Record a kernel execution
+    pub fn record_kernel_execution(&self) {
+        self.kernel_executions.fetch_add(1, Ordering::Relaxed);
+        if let Ok(mut last) = self.last_activity.lock() {
+            *last = Some(Instant::now());
+        }
+    }
+
+    /// Record activity without kernel execution
+    pub fn record_activity(&self) {
+        if let Ok(mut last) = self.last_activity.lock() {
+            *last = Some(Instant::now());
         }
     }
 
@@ -197,14 +219,19 @@ impl GpuContainer {
         let state = self.current_state()?;
         let uptime = self.created_at.elapsed();
 
+        // Calculate last activity time
+        let last_activity_seconds = self.last_activity.lock().ok().and_then(|guard| {
+            guard.map(|instant| instant.elapsed().as_secs())
+        });
+
         Ok(ContainerStats {
             container_id: self.id.clone(),
             state: format!("{:?}", state),
             uptime_seconds: uptime.as_secs(),
             memory_usage_bytes: self.memory_handle.as_ref().map(|h| h.size).unwrap_or(0),
-            gpu_utilization_percent: 0.0, // TODO: implement actual GPU utilization
-            kernel_executions: 0,         // TODO: track kernel execution count
-            last_activity_seconds: None,  // TODO: track last activity
+            gpu_utilization_percent: 0.0, // GPU utilization requires driver integration (CUDA/Metal/etc.)
+            kernel_executions: self.kernel_executions.load(Ordering::Relaxed),
+            last_activity_seconds,
         })
     }
 
@@ -633,6 +660,8 @@ mod tests {
             memory_handle: None,
             personality: Arc::new(Mutex::new(AgentPersonality::default())),
             evolution: Arc::new(Mutex::new(EvolutionState::default())),
+            kernel_executions: Arc::new(AtomicU64::new(0)),
+            last_activity: Arc::new(Mutex::new(None)),
         };
 
         let result = container.current_state();
@@ -658,6 +687,8 @@ mod tests {
             memory_handle: None,
             personality: Arc::new(Mutex::new(AgentPersonality::default())),
             evolution: Arc::new(Mutex::new(EvolutionState::default())),
+            kernel_executions: Arc::new(AtomicU64::new(0)),
+            last_activity: Arc::new(Mutex::new(None)),
         };
 
         let result = container.set_state(ContainerState::Starting);

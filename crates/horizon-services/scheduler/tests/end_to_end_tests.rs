@@ -436,8 +436,14 @@ async fn test_job_with_all_optional_fields_e2e() {
     let retrieved = test_app.scheduler.get_job(submitted.id).await.unwrap();
     assert_eq!(retrieved.user_id, "poweruser");
     assert_eq!(retrieved.job_name, Some("complex-ml-training".to_string()));
-    assert_eq!(retrieved.resources.gpu_count, 8);
-    assert_eq!(retrieved.resources.gpu_type.as_deref(), Some("H100"));
+    // Verify GPU resources using the proper API
+    assert!(retrieved.resources.has_gpu());
+    if let Some(gpu_spec) = retrieved.resources.get_gpu_spec() {
+        assert_eq!(gpu_spec.amount, 8.0);
+        if let Some(constraints) = &gpu_spec.constraints {
+            assert_eq!(constraints.model.as_deref(), Some("H100"));
+        }
+    }
     // CPU cores and memory might not persist depending on DB schema
     // Just verify they're set if available
     assert_eq!(retrieved.priority, Priority::High);

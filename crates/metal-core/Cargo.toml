@@ -9,7 +9,8 @@ authors = ["StratoSwarm Team"]
 [features]
 default = ["metal3"]
 metal3 = []
-metal4 = []  # Enable when Xcode 26 / macOS 26 stabilizes
+metal4 = []  # Enable Metal 4 abstractions (works on any macOS via fallbacks)
+metal4_native = ["metal4"]  # Enable with Xcode 26 SDK for native Metal 4 support
 
 [dependencies]
 # Objective-C runtime and Metal bindings

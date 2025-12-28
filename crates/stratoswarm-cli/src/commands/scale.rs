@@ -86,17 +86,59 @@ pub async fn execute(args: ScaleArgs) -> Result<()> {
 }
 
 async fn scale_agent(spec: &ScaleSpec, namespace: &str) -> Result<()> {
-    // TODO: Uncomment when stratoswarm_runtime is available
-    // use stratoswarm_runtime::Runtime;
+    use crate::config::CliConfig;
+    use reqwest::Client;
+    use serde::Serialize;
 
-    // Mock implementation for testing
+    #[derive(Serialize)]
+    struct ScaleRequest {
+        agent: String,
+        replicas: u32,
+        namespace: String,
+    }
+
     output::info(&format!(
         "Scaling agent '{}' in namespace '{}' to {} replicas",
         spec.agent, namespace, spec.replicas
     ));
 
-    // Simulate scaling delay
-    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    let config = CliConfig::load().unwrap_or_default();
+    let client = Client::new();
+    let url = format!("{}/api/v1/agents/{}/scale", config.api_endpoint, spec.agent);
+
+    let request = ScaleRequest {
+        agent: spec.agent.clone(),
+        replicas: spec.replicas,
+        namespace: namespace.to_string(),
+    };
+
+    let mut req = client.post(&url).json(&request);
+    if let Some(ref auth) = config.auth_token {
+        req = req.header("Authorization", format!("Bearer {}", auth));
+    }
+
+    match req.send().await {
+        Ok(response) if response.status().is_success() => {
+            output::success(&format!(
+                "Agent '{}' scaled to {} replicas",
+                spec.agent, spec.replicas
+            ));
+        }
+        Ok(response) => {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            output::warn(&format!(
+                "Scale request returned {}: {}. Cluster may not be available.",
+                status, body
+            ));
+        }
+        Err(e) => {
+            output::warn(&format!(
+                "Could not connect to cluster: {}. Running in offline mode.",
+                e
+            ));
+        }
+    }
 
     Ok(())
 }

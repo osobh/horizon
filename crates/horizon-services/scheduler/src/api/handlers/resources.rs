@@ -135,33 +135,33 @@ pub struct CostBreakdown {
     tag = "resources"
 )]
 pub async fn estimate_job_cost(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(request): Json<CostEstimateRequest>,
 ) -> Result<Json<CostEstimateResponse>, crate::HpcError> {
-    // TODO: Integrate with cost-attributor service for actual pricing
-    // For now, use approximate pricing
+    // Use pricing configuration from app state
+    // In production, this can be updated via config or fetched from cost-attributor service
 
     let duration_hours = request.duration_hours.unwrap_or(1.0);
     let gpu_type = request.gpu_type.as_deref().unwrap_or("A100");
+    let pricing = &state.pricing;
 
-    // Approximate hourly rates (in USD)
-    let gpu_hourly_rate = match gpu_type {
-        "H100" => 4.0,
-        "A100" => 2.5,
-        "V100" => 1.5,
-        "RTX4090" => 1.0,
-        _ => 2.0,
-    };
+    // Get GPU hourly rate from config, with fallback to default rate
+    let gpu_hourly_rate = pricing
+        .gpu_hourly_rates
+        .get(gpu_type)
+        .copied()
+        .unwrap_or(2.0); // Default rate for unknown GPU types
 
     let gpu_cost = gpu_hourly_rate * request.gpu_count as f64 * duration_hours;
 
     let cpu_cores = request.cpu_cores.unwrap_or(0);
-    let cpu_cost = (cpu_cores as f64 * 0.05) * duration_hours;
+    let cpu_cost = (cpu_cores as f64 * pricing.cpu_per_core_hour) * duration_hours;
 
     let memory_gb = request.memory_gb.unwrap_or(0);
-    let memory_cost = (memory_gb as f64 * 0.01) * duration_hours;
+    let memory_cost = (memory_gb as f64 * pricing.memory_per_gb_hour) * duration_hours;
 
-    let storage_cost = 0.0; // Placeholder
+    // Storage cost could be calculated from job spec if storage is requested
+    let storage_cost = 0.0;
 
     let total_cost = gpu_cost + cpu_cost + memory_cost + storage_cost;
 

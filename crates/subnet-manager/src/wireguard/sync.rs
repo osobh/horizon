@@ -208,6 +208,8 @@ pub struct ConfigSyncService {
     max_retries: u32,
     /// Sync timeout in seconds
     sync_timeout_secs: u64,
+    /// Signing key for config signatures (base64 encoded)
+    signing_key: Option<String>,
 }
 
 /// Cached subnet sync configuration
@@ -364,6 +366,7 @@ impl ConfigSyncService {
             config_generator: Arc::new(WireGuardConfigGenerator::new()),
             max_retries: 3,
             sync_timeout_secs: 30,
+            signing_key: None,
         }
     }
 
@@ -379,7 +382,53 @@ impl ConfigSyncService {
             config_generator: Arc::new(WireGuardConfigGenerator::new()),
             max_retries,
             sync_timeout_secs,
+            signing_key: None,
         }
+    }
+
+    /// Set the signing key for config signatures
+    pub fn with_signing_key(mut self, signing_key: String) -> Self {
+        self.signing_key = Some(signing_key);
+        self
+    }
+
+    /// Sign a configuration payload using ed25519
+    fn sign_config(&self, config: &NodeWireGuardConfigRequest) -> Option<String> {
+        use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+        use base64::Engine;
+        use ed25519_dalek::{Signer, SigningKey};
+
+        let signing_key_b64 = self.signing_key.as_ref()?;
+
+        // Decode the signing key
+        let key_bytes = BASE64_STANDARD.decode(signing_key_b64).ok()?;
+        if key_bytes.len() != 32 {
+            warn!("Invalid signing key length: expected 32, got {}", key_bytes.len());
+            return None;
+        }
+
+        let mut key_array = [0u8; 32];
+        key_array.copy_from_slice(&key_bytes);
+        let signing_key = SigningKey::from_bytes(&key_array);
+
+        // Create the message to sign (config version + address + peers info)
+        let mut message = format!(
+            "{}:{}:{}:{}",
+            config.config_version,
+            config.address,
+            config.listen_port,
+            config.interface_name
+        );
+
+        // Add peer public keys to the message
+        for peer in &config.peers {
+            message.push(':');
+            message.push_str(&peer.public_key);
+        }
+
+        // Sign the message
+        let signature = signing_key.sign(message.as_bytes());
+        Some(BASE64_STANDARD.encode(signature.to_bytes()))
     }
 
     /// Register a node for sync tracking
@@ -744,7 +793,7 @@ impl ConfigSyncService {
             subnet_config.subnet.cidr.prefix_len()
         );
 
-        Ok(NodeWireGuardConfigRequest {
+        let mut config = NodeWireGuardConfigRequest {
             interface_name: subnet_config.subnet.wg_interface.clone(),
             private_key,
             listen_port: subnet_config.subnet.wg_listen_port,
@@ -752,8 +801,13 @@ impl ConfigSyncService {
             mtu: Some(1420),
             peers,
             config_version: subnet_config.config_version.clone(),
-            signature: None, // TODO: Add signature support
-        })
+            signature: None,
+        };
+
+        // Sign the configuration if signing key is available
+        config.signature = self.sign_config(&config);
+
+        Ok(config)
     }
 
     /// Push WireGuard config to a single node

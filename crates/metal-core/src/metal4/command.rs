@@ -10,7 +10,7 @@ use crate::metal4::{Metal4Buffer, Metal4Device};
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_metal::{
-    MTLCommandBuffer, MTLCommandBufferStatus, MTLCommandEncoder, MTLCommandQueue,
+    MTLBarrierScope, MTLCommandBuffer, MTLCommandBufferStatus, MTLCommandEncoder, MTLCommandQueue,
     MTLComputeCommandEncoder, MTLDevice, MTLSize,
 };
 
@@ -42,9 +42,30 @@ impl Metal4CommandQueue {
     /// Create a command buffer using Metal 4 command allocator.
     ///
     /// When Metal 4 is available, this will use the more efficient
-    /// command allocator pattern. For now, it falls back to Metal 3 behavior.
-    pub fn create_command_buffer_with_allocator(&self) -> Result<Metal4CommandBuffer> {
-        // TODO: Use MTL4CommandAllocator when available
+    /// command allocator pattern. For now, it falls back to Metal 3 behavior
+    /// and records the buffer creation with the allocator for tracking.
+    ///
+    /// # Arguments
+    ///
+    /// * `allocator` - The command allocator for this frame
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let allocator = Metal4CommandAllocator::new(&device, 3)?;
+    /// allocator.reset(); // Start of frame
+    /// let cmd = queue.create_command_buffer_with_allocator(&allocator)?;
+    /// ```
+    pub fn create_command_buffer_with_allocator(
+        &self,
+        allocator: &super::Metal4CommandAllocator,
+    ) -> Result<Metal4CommandBuffer> {
+        // Record that we're creating a buffer with this allocator
+        allocator.record_buffer_created();
+
+        // When Metal 4 is available:
+        // self.raw.commandBufferWithAllocator(allocator.raw())
+
         // For now, use standard command buffer creation
         self.create_command_buffer()
     }
@@ -61,14 +82,8 @@ impl MetalCommandQueue for Metal4CommandQueue {
         Ok(Metal4CommandBuffer { raw: buffer })
     }
 
-    fn submit(&self, buffer: Self::CommandBuffer) -> Result<()> {
+    fn submit(&self, buffer: &mut Self::CommandBuffer) -> Result<()> {
         buffer.raw.commit();
-        Ok(())
-    }
-
-    fn submit_and_wait(&self, buffer: Self::CommandBuffer) -> Result<()> {
-        buffer.raw.commit();
-        buffer.raw.waitUntilCompleted();
         Ok(())
     }
 
@@ -100,12 +115,37 @@ impl Metal4CommandBuffer {
     /// Add a completion handler.
     ///
     /// The handler will be called when the command buffer completes execution.
+    ///
+    /// Note: Due to block2 API constraints, completion handlers are currently
+    /// not implemented. This is a placeholder for when macOS 26 ships with
+    /// improved block interop.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// cmd_buffer.add_completion_handler(|| {
+    ///     println!("Command buffer completed!");
+    /// });
+    /// ```
     pub fn add_completion_handler<F>(&self, _handler: F)
     where
         F: FnOnce() + Send + 'static,
     {
-        // TODO: Implement using block2 crate
-        // For now, this is a no-op
+        // TODO: Implement when block2 API allows proper MTLCommandBufferHandler creation
+        // The handler signature is: void (^)(id<MTLCommandBuffer>)
+        // For now, users should call wait_until_completed() for synchronous completion
+    }
+
+    /// Add a scheduled handler.
+    ///
+    /// The handler will be called when the command buffer is scheduled for execution.
+    ///
+    /// Note: Currently not implemented due to block2 API constraints.
+    pub fn add_scheduled_handler<F>(&self, _handler: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        // TODO: Implement when block2 API allows proper MTLCommandBufferHandler creation
     }
 
     /// Get GPU execution time (Metal 4 enhanced).
@@ -137,7 +177,7 @@ impl MetalCommandBuffer for Metal4CommandBuffer {
         })
     }
 
-    fn commit(self) -> Result<()> {
+    fn commit(&mut self) -> Result<()> {
         self.raw.commit();
         Ok(())
     }
@@ -292,9 +332,13 @@ impl<'a> MetalComputeEncoder<'a> for Metal4ComputeEncoder<'a> {
     }
 
     fn memory_barrier(&mut self, scope: BarrierScope) -> Result<()> {
-        // TODO: Implement memory barriers properly
-        // For now, just a no-op since we're using shared memory
-        let _ = scope;
+        let mtl_scope = match scope {
+            BarrierScope::Buffers => MTLBarrierScope::Buffers,
+            BarrierScope::Textures => MTLBarrierScope::Textures,
+            BarrierScope::All => MTLBarrierScope::Buffers | MTLBarrierScope::Textures,
+        };
+
+        self.raw.memoryBarrierWithScope(mtl_scope);
         Ok(())
     }
 

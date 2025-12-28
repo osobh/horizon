@@ -67,17 +67,74 @@ pub async fn get_cost_summary(
         }
     }).collect();
 
+    // Get cost breakdown from chargeback reports for this period
+    let reports_db: Vec<ChargebackReportDb> = sqlx::query_as(
+        "SELECT * FROM chargeback_reports WHERE start_date >= DATE_TRUNC('month', CURRENT_DATE) ORDER BY generated_at DESC"
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    // Aggregate costs by resource type from line_items
+    let mut compute_cost = 0.0;
+    let mut storage_cost = 0.0;
+    let mut network_cost = 0.0;
+
+    for report in &reports_db {
+        if let Ok(line_items) = serde_json::from_value::<Vec<ChargebackLineItem>>(report.line_items.clone()) {
+            for item in line_items {
+                match item.resource_type.as_str() {
+                    "compute" => compute_cost += item.total,
+                    "storage" => storage_cost += item.total,
+                    "network" => network_cost += item.total,
+                    _ => compute_cost += item.total, // Default to compute
+                }
+            }
+        }
+    }
+
+    // If no breakdown data, estimate from total
+    if compute_cost == 0.0 && storage_cost == 0.0 && network_cost == 0.0 && total_cost > 0.0 {
+        compute_cost = total_cost * 0.75;
+        storage_cost = total_cost * 0.15;
+        network_cost = total_cost * 0.10;
+    }
+
+    // Get previous period costs for trend calculation
+    let previous_period = match query.period.as_str() {
+        "month" => "DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')",
+        "quarter" => "DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months')",
+        "year" => "DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year')",
+        _ => "DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')",
+    };
+
+    let previous_sql = format!(
+        "SELECT COALESCE(SUM(spent), 0) as total FROM budgets WHERE period = '{}' OR created_at >= {}",
+        query.period, previous_period
+    );
+    let previous_total: (sqlx::types::Decimal,) = sqlx::query_as(&previous_sql)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or((sqlx::types::Decimal::ZERO,));
+    let previous = f64::from_str(&previous_total.0.to_string()).unwrap_or(total_cost * 0.94);
+
+    let change_percent = if previous > 0.0 {
+        ((total_cost - previous) / previous) * 100.0
+    } else {
+        0.0
+    };
+
     Ok(Json(CostSummary {
         period: query.period,
         total_cost,
-        compute_cost: total_cost * 0.75,  // TODO: Calculate from actual resource usage
-        storage_cost: total_cost * 0.15,
-        network_cost: total_cost * 0.10,
+        compute_cost,
+        storage_cost,
+        network_cost,
         by_team,
         trend: CostTrend {
             current: total_cost,
-            previous: total_cost * 0.94,  // TODO: Get from previous period
-            change_percent: 6.0,
+            previous,
+            change_percent,
         },
     }))
 }
@@ -133,28 +190,75 @@ pub async fn get_cost_breakdown(
 
     let total_cost: f64 = reports_db.iter().map(|r| to_f64(r.total_amount.clone())).sum();
 
+    // Aggregate costs by resource type across all reports
+    let mut resource_type_costs: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+
     let by_team: Vec<TeamCostDetail> = reports_db.iter().map(|r| {
         let cost = to_f64(r.total_amount.clone());
+
+        // Parse line_items to get cost breakdown by resource type
+        let mut team_compute = 0.0;
+        let mut team_storage = 0.0;
+        let mut team_network = 0.0;
+
+        if let Ok(line_items) = serde_json::from_value::<Vec<ChargebackLineItem>>(r.line_items.clone()) {
+            for item in &line_items {
+                match item.resource_type.as_str() {
+                    "compute" => {
+                        team_compute += item.total;
+                        *resource_type_costs.entry("compute".to_string()).or_insert(0.0) += item.total;
+                    }
+                    "storage" => {
+                        team_storage += item.total;
+                        *resource_type_costs.entry("storage".to_string()).or_insert(0.0) += item.total;
+                    }
+                    "network" => {
+                        team_network += item.total;
+                        *resource_type_costs.entry("network".to_string()).or_insert(0.0) += item.total;
+                    }
+                    other => {
+                        team_compute += item.total;
+                        *resource_type_costs.entry(other.to_string()).or_insert(0.0) += item.total;
+                    }
+                }
+            }
+        }
+
+        // If no line items parsed, estimate from total
+        if team_compute == 0.0 && team_storage == 0.0 && team_network == 0.0 && cost > 0.0 {
+            team_compute = cost * 0.75;
+            team_storage = cost * 0.15;
+            team_network = cost * 0.10;
+        }
+
         TeamCostDetail {
             team_id: r.team_id.clone(),
             team_name: r.team_name.clone(),
             total_cost: cost,
-            compute_cost: cost * 0.75,  // TODO: Parse from line_items
-            storage_cost: cost * 0.15,
-            network_cost: cost * 0.10,
+            compute_cost: team_compute,
+            storage_cost: team_storage,
+            network_cost: team_network,
         }
     }).collect();
 
-    // TODO: Aggregate by_resource_type, by_provider, by_region from actual data
+    // Build by_resource_type from aggregated data
+    let by_resource_type: Vec<ResourceTypeCost> = resource_type_costs.iter().map(|(resource_type, cost)| {
+        ResourceTypeCost {
+            resource_type: resource_type.clone(),
+            cost: *cost,
+            unit_count: 0.0, // Unit count not tracked in line items
+            percentage: if total_cost > 0.0 { (*cost / total_cost) * 100.0 } else { 0.0 },
+        }
+    }).collect();
 
     Ok(Json(CostBreakdown {
         start_date: query.start_date,
         end_date: query.end_date,
         total_cost,
         by_team,
-        by_resource_type: vec![],  // TODO: Aggregate from line items
-        by_provider: vec![],  // TODO: Aggregate from resource metadata
-        by_region: vec![],  // TODO: Aggregate from resource metadata
+        by_resource_type,
+        by_provider: vec![],  // Requires provider metadata in resource table
+        by_region: vec![],  // Requires region metadata in resource table
     }))
 }
 
