@@ -3,6 +3,7 @@
 //! This crate implements heterogeneous cluster management for StratoSwarm,
 //! supporting diverse hardware from data centers to edge devices.
 
+pub mod api;
 pub mod classification;
 pub mod discovery;
 pub mod distribution;
@@ -20,6 +21,7 @@ mod discovery_tests;
 mod error_tests;
 
 // Re-export main types
+pub use api::{create_router, start_server, AppState, AppStateConfig, ServerConfig};
 pub use classification::{NodeClass, NodeClassifier};
 pub use discovery::{HardwareProfile, NetworkCharacteristics, NodeDiscovery};
 pub use distribution::{JobRequirements, SchedulingPolicy, WorkDistributor};

@@ -247,7 +247,10 @@ impl MeshManager {
             MeshTopology::Hierarchical => {
                 self.establish_hierarchical_connections(node).await?;
             }
-            MeshTopology::Hybrid { core_nodes: _, edge_strategy: _ } => {
+            MeshTopology::Hybrid {
+                core_nodes: _,
+                edge_strategy: _,
+            } => {
                 self.establish_hybrid_connections(node).await?;
             }
         }
@@ -260,7 +263,8 @@ impl MeshManager {
         for entry in self.node_registry.iter() {
             let peer_id = *entry.key();
             if peer_id != node.id {
-                self.connect_to_peer(node.id, peer_id, entry.value()).await?;
+                self.connect_to_peer(node.id, peer_id, entry.value())
+                    .await?;
             }
         }
 
@@ -294,7 +298,8 @@ impl MeshManager {
                 for entry in self.node_registry.iter() {
                     let peer_id = *entry.key();
                     if peer_id != node.id {
-                        self.connect_to_peer(node.id, peer_id, entry.value()).await?;
+                        self.connect_to_peer(node.id, peer_id, entry.value())
+                            .await?;
                     }
                 }
             }
