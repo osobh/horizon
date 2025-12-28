@@ -199,7 +199,7 @@ async fn generate_token(args: GenerateArgs) -> Result<()> {
     // Get cluster host
     let cluster_host = args
         .cluster_host
-        .unwrap_or_else(|| "cluster.stratoswarm.io".to_string());
+        .unwrap_or_else(|| "coordinator.stratoswarm.com".to_string());
 
     // Display token information
     output::success("Token generated successfully!");
