@@ -12,6 +12,7 @@ pub mod error;
 pub mod join;
 pub mod profile;
 pub mod security;
+pub mod wireguard;
 pub mod workload;
 
 // HPC Channels integration
@@ -31,6 +32,10 @@ pub use discovery::{ClusterDiscovery, ClusterInfo};
 pub use error::{Result, SwarmletError};
 pub use join::{JoinProtocol, JoinResult};
 pub use profile::{HardwareProfile, HardwareProfiler, NodeCapabilities};
+pub use wireguard::{
+    WireGuardManager, WireGuardConfigRequest, WireGuardConfigResponse, WireGuardStatus,
+    WireGuardPeerConfig, AddPeerRequest, RemovePeerRequest, PeerStatus,
+};
 
 // HPC Channels bridge exports
 #[cfg(feature = "hpc-channels")]

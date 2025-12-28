@@ -71,6 +71,9 @@ pub enum SwarmletError {
 
     #[error("System error: {0}")]
     System(String),
+
+    #[error("WireGuard error: {0}")]
+    WireGuard(String),
 }
 
 impl SwarmletError {

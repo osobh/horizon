@@ -1,12 +1,14 @@
 //! WireGuard key generation and management
 //!
 //! Provides utilities for generating and managing WireGuard key pairs
-//! using Curve25519 cryptography.
+//! using Curve25519 cryptography via the x25519-dalek library.
 
 use crate::{Error, Result};
 use rand::RngCore;
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use x25519_dalek::{PublicKey, StaticSecret};
 
 /// WireGuard public key (32 bytes, base64 encoded for storage)
 pub const KEY_LENGTH: usize = 32;
@@ -24,32 +26,28 @@ impl KeyPair {
     /// Generate a new random key pair
     ///
     /// Uses the system's cryptographically secure random number generator
-    /// to generate a Curve25519 key pair.
+    /// to generate a Curve25519 key pair via x25519-dalek.
     pub fn generate() -> Self {
-        let mut private_key = [0u8; KEY_LENGTH];
-        rand::thread_rng().fill_bytes(&mut private_key);
-
-        // Clamp the private key for Curve25519
-        // See: https://cr.yp.to/ecdh.html
-        private_key[0] &= 248;
-        private_key[31] &= 127;
-        private_key[31] |= 64;
-
-        // Derive public key from private key using Curve25519
-        let public_key = Self::derive_public_key(&private_key);
+        // Generate a cryptographically secure random private key
+        let secret = StaticSecret::random_from_rng(OsRng);
+        let public = PublicKey::from(&secret);
 
         Self {
-            private_key,
-            public_key,
+            private_key: secret.to_bytes(),
+            public_key: public.to_bytes(),
         }
     }
 
     /// Create a key pair from an existing private key
+    ///
+    /// Derives the public key from the private key using proper
+    /// Curve25519 scalar multiplication via x25519-dalek.
     pub fn from_private_key(private_key: [u8; KEY_LENGTH]) -> Self {
-        let public_key = Self::derive_public_key(&private_key);
+        let secret = StaticSecret::from(private_key);
+        let public = PublicKey::from(&secret);
         Self {
             private_key,
-            public_key,
+            public_key: public.to_bytes(),
         }
     }
 
@@ -67,34 +65,6 @@ impl KeyPair {
         let mut private_key = [0u8; KEY_LENGTH];
         private_key.copy_from_slice(&bytes);
         Ok(Self::from_private_key(private_key))
-    }
-
-    /// Derive public key from private key using Curve25519 basepoint multiplication
-    fn derive_public_key(private_key: &[u8; KEY_LENGTH]) -> [u8; KEY_LENGTH] {
-        // Curve25519 basepoint
-        const BASEPOINT: [u8; KEY_LENGTH] = [
-            9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0,
-        ];
-
-        // Simplified X25519 scalar multiplication
-        // In production, use a proper crypto library like x25519-dalek
-        Self::x25519(private_key, &BASEPOINT)
-    }
-
-    /// X25519 scalar multiplication (simplified implementation)
-    ///
-    /// Note: In production, this should use a battle-tested implementation
-    /// like x25519-dalek. This is a simplified version for demonstration.
-    fn x25519(scalar: &[u8; KEY_LENGTH], point: &[u8; KEY_LENGTH]) -> [u8; KEY_LENGTH] {
-        // For now, use a deterministic derivation based on the private key
-        // This is NOT cryptographically secure - in production use x25519-dalek
-        let mut result = [0u8; KEY_LENGTH];
-        for i in 0..KEY_LENGTH {
-            result[i] = scalar[i] ^ point[i % point.len()];
-            result[i] = result[i].wrapping_add(scalar[(i + 1) % KEY_LENGTH]);
-        }
-        result
     }
 
     /// Get the private key bytes

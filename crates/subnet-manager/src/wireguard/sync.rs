@@ -4,12 +4,17 @@
 //! tracking sync status, and managing configuration updates.
 
 use crate::models::{Subnet, SubnetAssignment};
+use crate::wireguard::{InterfaceConfig, PeerConfig, WireGuardConfigGenerator};
 use crate::{Error, Result};
 use chrono::{DateTime, Utc};
+use ipnet::Ipv4Net;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 /// Sync status for a node's WireGuard configuration
@@ -191,6 +196,14 @@ pub struct ConfigSyncService {
     pending_changes: Arc<RwLock<Vec<ConfigChange>>>,
     /// Subnet configurations cache
     subnet_configs: Arc<RwLock<HashMap<Uuid, SubnetSyncConfig>>>,
+    /// Node private keys (for initial config push)
+    node_private_keys: Arc<RwLock<HashMap<Uuid, String>>>,
+    /// Node endpoints cache
+    node_endpoints: Arc<RwLock<HashMap<Uuid, SocketAddr>>>,
+    /// HTTP client for node communication
+    http_client: Arc<NodeHttpClient>,
+    /// Config generator
+    config_generator: Arc<WireGuardConfigGenerator>,
     /// Maximum retry attempts
     max_retries: u32,
     /// Sync timeout in seconds
@@ -210,6 +223,134 @@ pub struct SubnetSyncConfig {
     pub assignments: Vec<SubnetAssignment>,
 }
 
+/// WireGuard configuration request sent to swarmlet nodes
+/// This matches the swarmlet's WireGuardConfigRequest
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeWireGuardConfigRequest {
+    /// Interface name (e.g., "wg-swarm0")
+    pub interface_name: String,
+    /// Private key (base64 encoded) - only sent during initial setup
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_key: Option<String>,
+    /// Listen port for WireGuard
+    pub listen_port: u16,
+    /// Assigned IP address with CIDR (e.g., "10.0.1.5/24")
+    pub address: String,
+    /// MTU (optional, defaults to 1420)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mtu: Option<u16>,
+    /// Peers to configure
+    pub peers: Vec<NodePeerConfig>,
+    /// Configuration version (for change tracking)
+    pub config_version: String,
+    /// Signature from coordinator (for verification)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+}
+
+/// Peer configuration sent to nodes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodePeerConfig {
+    /// Peer public key (base64)
+    pub public_key: String,
+    /// Preshared key (optional, base64)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preshared_key: Option<String>,
+    /// Allowed IPs for this peer
+    pub allowed_ips: Vec<String>,
+    /// Endpoint (host:port)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
+    /// Persistent keepalive interval in seconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub persistent_keepalive: Option<u16>,
+}
+
+/// Response from swarmlet after config application
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeConfigResponse {
+    /// Whether the configuration was applied successfully
+    pub success: bool,
+    /// Error message if failed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Current configuration version
+    pub config_version: String,
+}
+
+/// HTTP client wrapper for node communication
+pub struct NodeHttpClient {
+    client: reqwest::Client,
+    timeout: Duration,
+}
+
+impl NodeHttpClient {
+    /// Create a new HTTP client for node communication
+    pub fn new(timeout_secs: u64) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(timeout_secs))
+            .build()
+            .unwrap_or_default();
+
+        Self {
+            client,
+            timeout: Duration::from_secs(timeout_secs),
+        }
+    }
+
+    /// Push WireGuard configuration to a node
+    pub async fn push_config(
+        &self,
+        endpoint: &str,
+        config: &NodeWireGuardConfigRequest,
+    ) -> Result<NodeConfigResponse> {
+        let url = format!("{}/api/v1/wireguard/configure", endpoint.trim_end_matches('/'));
+
+        debug!("Pushing WireGuard config to {}", url);
+
+        let response = self
+            .client
+            .post(&url)
+            .json(config)
+            .send()
+            .await
+            .map_err(|e| Error::WireGuardSync(format!("Failed to connect to node: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::WireGuardSync(format!(
+                "Node returned error {}: {}",
+                status, body
+            )));
+        }
+
+        response
+            .json::<NodeConfigResponse>()
+            .await
+            .map_err(|e| Error::WireGuardSync(format!("Failed to parse response: {}", e)))
+    }
+
+    /// Check if a node is reachable
+    pub async fn health_check(&self, endpoint: &str) -> bool {
+        let url = format!("{}/health", endpoint.trim_end_matches('/'));
+
+        self.client
+            .get(&url)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+            .map(|r| r.status().is_success())
+            .unwrap_or(false)
+    }
+}
+
+impl Default for NodeHttpClient {
+    fn default() -> Self {
+        Self::new(30)
+    }
+}
+
 impl ConfigSyncService {
     /// Create a new configuration sync service
     pub fn new() -> Self {
@@ -217,6 +358,10 @@ impl ConfigSyncService {
             node_states: Arc::new(RwLock::new(HashMap::new())),
             pending_changes: Arc::new(RwLock::new(Vec::new())),
             subnet_configs: Arc::new(RwLock::new(HashMap::new())),
+            node_private_keys: Arc::new(RwLock::new(HashMap::new())),
+            node_endpoints: Arc::new(RwLock::new(HashMap::new())),
+            http_client: Arc::new(NodeHttpClient::new(30)),
+            config_generator: Arc::new(WireGuardConfigGenerator::new()),
             max_retries: 3,
             sync_timeout_secs: 30,
         }
@@ -228,6 +373,10 @@ impl ConfigSyncService {
             node_states: Arc::new(RwLock::new(HashMap::new())),
             pending_changes: Arc::new(RwLock::new(Vec::new())),
             subnet_configs: Arc::new(RwLock::new(HashMap::new())),
+            node_private_keys: Arc::new(RwLock::new(HashMap::new())),
+            node_endpoints: Arc::new(RwLock::new(HashMap::new())),
+            http_client: Arc::new(NodeHttpClient::new(sync_timeout_secs)),
+            config_generator: Arc::new(WireGuardConfigGenerator::new()),
             max_retries,
             sync_timeout_secs,
         }
@@ -518,6 +667,356 @@ impl ConfigSyncService {
                 .unwrap_or(false)
         })
     }
+
+    // ============== Config Push Methods ==============
+
+    /// Register a node's private key for config push
+    pub fn register_node_private_key(&self, node_id: Uuid, private_key: String) {
+        self.node_private_keys.write().insert(node_id, private_key);
+    }
+
+    /// Register a node's WireGuard endpoint
+    pub fn register_node_wg_endpoint(&self, node_id: Uuid, endpoint: SocketAddr) {
+        self.node_endpoints.write().insert(node_id, endpoint);
+    }
+
+    /// Generate WireGuard config for a specific node
+    pub fn generate_node_config(
+        &self,
+        node_id: Uuid,
+        subnet_id: Uuid,
+    ) -> Result<NodeWireGuardConfigRequest> {
+        let configs = self.subnet_configs.read();
+        let subnet_config = configs
+            .get(&subnet_id)
+            .ok_or_else(|| Error::SubnetNotFound(subnet_id))?;
+
+        // Find the node's assignment
+        let assignment = subnet_config
+            .assignments
+            .iter()
+            .find(|a| a.node_id == node_id)
+            .ok_or_else(|| Error::WireGuardSync(format!("Node {} not assigned to subnet", node_id)))?;
+
+        // Get node's private key (optional - node may already have one)
+        let private_key = self.node_private_keys.read().get(&node_id).cloned();
+
+        // Build peer list (all other nodes in subnet + subnet gateway)
+        let mut peers = Vec::new();
+
+        // Add subnet gateway as peer (if it has a public key)
+        if let Some(ref gateway_pubkey) = subnet_config.subnet.wg_public_key {
+            if subnet_config.subnet.gateway_ip().is_some() {
+                peers.push(NodePeerConfig {
+                    public_key: gateway_pubkey.clone(),
+                    preshared_key: None,
+                    allowed_ips: vec![subnet_config.subnet.cidr.to_string()],
+                    endpoint: None, // Gateway endpoint would be configured separately
+                    persistent_keepalive: Some(25),
+                });
+            }
+        }
+
+        // Add other nodes in subnet as peers
+        let node_endpoints = self.node_endpoints.read();
+        for other_assignment in &subnet_config.assignments {
+            if other_assignment.node_id == node_id {
+                continue; // Skip self
+            }
+
+            let endpoint = node_endpoints
+                .get(&other_assignment.node_id)
+                .map(|e| e.to_string());
+
+            peers.push(NodePeerConfig {
+                public_key: other_assignment.wg_public_key.clone(),
+                preshared_key: None,
+                allowed_ips: vec![format!("{}/32", other_assignment.assigned_ip)],
+                endpoint,
+                persistent_keepalive: Some(25),
+            });
+        }
+
+        // Build the config request
+        let address = format!(
+            "{}/{}",
+            assignment.assigned_ip,
+            subnet_config.subnet.cidr.prefix_len()
+        );
+
+        Ok(NodeWireGuardConfigRequest {
+            interface_name: subnet_config.subnet.wg_interface.clone(),
+            private_key,
+            listen_port: subnet_config.subnet.wg_listen_port,
+            address,
+            mtu: Some(1420),
+            peers,
+            config_version: subnet_config.config_version.clone(),
+            signature: None, // TODO: Add signature support
+        })
+    }
+
+    /// Push WireGuard config to a single node
+    pub async fn push_config_to_node(&self, node_id: Uuid, subnet_id: Uuid) -> Result<()> {
+        // Get node endpoint
+        let endpoint = {
+            let states = self.node_states.read();
+            states
+                .get(&node_id)
+                .and_then(|s| s.endpoint.clone())
+                .ok_or_else(|| Error::WireGuardSync(format!("No endpoint for node {}", node_id)))?
+        };
+
+        // Mark as syncing
+        {
+            let mut states = self.node_states.write();
+            if let Some(state) = states.get_mut(&node_id) {
+                state.status = SyncStatus::Syncing;
+                state.last_attempt = Some(Utc::now());
+            }
+        }
+
+        // Generate config
+        let config = match self.generate_node_config(node_id, subnet_id) {
+            Ok(c) => c,
+            Err(e) => {
+                self.mark_node_failed(node_id, e.to_string());
+                return Err(e);
+            }
+        };
+
+        let config_version = config.config_version.clone();
+
+        // Push to node
+        info!(
+            "Pushing WireGuard config v{} to node {} at {}",
+            config_version, node_id, endpoint
+        );
+
+        match self.http_client.push_config(&endpoint, &config).await {
+            Ok(response) => {
+                if response.success {
+                    info!("Successfully synced node {}", node_id);
+                    self.mark_node_synced(node_id, config_version);
+                    Ok(())
+                } else {
+                    let error = response.error.unwrap_or_else(|| "Unknown error".to_string());
+                    warn!("Node {} rejected config: {}", node_id, error);
+                    self.mark_node_failed(node_id, error.clone());
+                    Err(Error::WireGuardSync(error))
+                }
+            }
+            Err(e) => {
+                warn!("Failed to push config to node {}: {}", node_id, e);
+                self.mark_node_failed(node_id, e.to_string());
+                Err(e)
+            }
+        }
+    }
+
+    /// Sync all nodes that need syncing in a subnet
+    pub async fn sync_subnet(&self, subnet_id: Uuid) -> SyncResult {
+        let configs = self.subnet_configs.read();
+        let Some(config) = configs.get(&subnet_id) else {
+            return SyncResult {
+                total: 0,
+                succeeded: 0,
+                failed: 0,
+                skipped: 0,
+                errors: vec![format!("Subnet {} not found", subnet_id)],
+            };
+        };
+
+        let node_ids: Vec<Uuid> = config.assignments.iter().map(|a| a.node_id).collect();
+        drop(configs);
+
+        self.sync_nodes(&node_ids, subnet_id).await
+    }
+
+    /// Sync specific nodes
+    pub async fn sync_nodes(&self, node_ids: &[Uuid], subnet_id: Uuid) -> SyncResult {
+        let mut result = SyncResult::default();
+        result.total = node_ids.len();
+
+        for node_id in node_ids {
+            // Check if node needs sync
+            let needs_sync = {
+                let states = self.node_states.read();
+                states.get(node_id).map(|s| {
+                    s.status == SyncStatus::Pending
+                        || s.status == SyncStatus::Stale
+                        || (s.status == SyncStatus::Failed && s.should_retry(self.max_retries))
+                }).unwrap_or(false)
+            };
+
+            if !needs_sync {
+                result.skipped += 1;
+                continue;
+            }
+
+            match self.push_config_to_node(*node_id, subnet_id).await {
+                Ok(()) => result.succeeded += 1,
+                Err(e) => {
+                    result.failed += 1;
+                    result.errors.push(format!("Node {}: {}", node_id, e));
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Sync all pending nodes across all subnets
+    pub async fn sync_all_pending(&self) -> SyncResult {
+        let nodes_needing_sync = self.get_nodes_needing_sync();
+        let mut result = SyncResult::default();
+        result.total = nodes_needing_sync.len();
+
+        // Group nodes by subnet
+        let mut nodes_by_subnet: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+        {
+            let configs = self.subnet_configs.read();
+            for node_state in &nodes_needing_sync {
+                // Find which subnet this node belongs to
+                for (subnet_id, config) in configs.iter() {
+                    if config.assignments.iter().any(|a| a.node_id == node_state.node_id) {
+                        nodes_by_subnet
+                            .entry(*subnet_id)
+                            .or_default()
+                            .push(node_state.node_id);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Sync each subnet's nodes
+        for (subnet_id, node_ids) in nodes_by_subnet {
+            let subnet_result = self.sync_nodes(&node_ids, subnet_id).await;
+            result.succeeded += subnet_result.succeeded;
+            result.failed += subnet_result.failed;
+            result.skipped += subnet_result.skipped;
+            result.errors.extend(subnet_result.errors);
+        }
+
+        result
+    }
+
+    /// Propagate a new peer to all existing nodes in a subnet
+    pub async fn propagate_peer_added(&self, new_node_id: Uuid, subnet_id: Uuid) -> Result<()> {
+        info!("Propagating new peer {} to subnet {}", new_node_id, subnet_id);
+
+        // Queue change for all existing nodes (except the new one)
+        let affected_nodes: Vec<Uuid> = {
+            let configs = self.subnet_configs.read();
+            configs
+                .get(&subnet_id)
+                .map(|c| {
+                    c.assignments
+                        .iter()
+                        .filter(|a| a.node_id != new_node_id)
+                        .map(|a| a.node_id)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+
+        if !affected_nodes.is_empty() {
+            self.queue_change(
+                SyncEvent::NodeAdded {
+                    node_id: new_node_id,
+                    subnet_id,
+                    timestamp: Utc::now(),
+                },
+                affected_nodes,
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Propagate peer removal to all nodes in a subnet
+    pub async fn propagate_peer_removed(&self, removed_node_id: Uuid, subnet_id: Uuid) -> Result<()> {
+        info!("Propagating peer removal {} from subnet {}", removed_node_id, subnet_id);
+
+        // Queue change for all remaining nodes
+        let affected_nodes: Vec<Uuid> = {
+            let configs = self.subnet_configs.read();
+            configs
+                .get(&subnet_id)
+                .map(|c| {
+                    c.assignments
+                        .iter()
+                        .filter(|a| a.node_id != removed_node_id)
+                        .map(|a| a.node_id)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+
+        if !affected_nodes.is_empty() {
+            self.queue_change(
+                SyncEvent::NodeRemoved {
+                    node_id: removed_node_id,
+                    subnet_id,
+                    timestamp: Utc::now(),
+                },
+                affected_nodes,
+            );
+        }
+
+        // Remove the node from tracking
+        self.unregister_node(removed_node_id);
+
+        Ok(())
+    }
+
+    /// Run the sync loop (for background task)
+    pub async fn run_sync_loop(
+        self: Arc<Self>,
+        mut shutdown: tokio::sync::watch::Receiver<bool>,
+        sync_interval: Duration,
+    ) {
+        info!("Starting WireGuard config sync loop");
+        let mut interval = tokio::time::interval(sync_interval);
+
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    // Sync pending nodes
+                    let result = self.sync_all_pending().await;
+                    if result.total > 0 {
+                        info!(
+                            "Sync cycle complete: {}/{} succeeded, {} failed, {} skipped",
+                            result.succeeded, result.total, result.failed, result.skipped
+                        );
+                    }
+
+                    // Cleanup old changes
+                    self.cleanup_propagated_changes(3600); // Keep for 1 hour
+                }
+                _ = shutdown.changed() => {
+                    info!("Sync loop shutting down");
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/// Result of a sync operation
+#[derive(Debug, Clone, Default)]
+pub struct SyncResult {
+    /// Total nodes attempted
+    pub total: usize,
+    /// Successfully synced
+    pub succeeded: usize,
+    /// Failed to sync
+    pub failed: usize,
+    /// Skipped (already synced)
+    pub skipped: usize,
+    /// Error messages
+    pub errors: Vec<String>,
 }
 
 impl Default for ConfigSyncService {

@@ -1,7 +1,13 @@
 //! Join protocol for connecting to StratoSwarm clusters
 
-use crate::{profile::HardwareProfile, security::JoinToken, Result, SwarmletError};
+use crate::{
+    profile::HardwareProfile,
+    security::JoinToken,
+    wireguard::{WireGuardConfigRequest, WireGuardManager, WireGuardPeerConfig},
+    Result, SwarmletError,
+};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -16,6 +22,46 @@ pub struct JoinResult {
     pub assigned_capabilities: Vec<String>,
     pub heartbeat_interval: Duration,
     pub api_endpoints: ClusterApiEndpoints,
+    /// WireGuard configuration received from coordinator
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wireguard_config: Option<WireGuardJoinConfig>,
+    /// Subnet assignment information
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subnet_info: Option<SubnetAssignment>,
+}
+
+/// WireGuard configuration returned during join
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WireGuardJoinConfig {
+    /// Interface name to use
+    pub interface_name: String,
+    /// Listen port for WireGuard
+    pub listen_port: u16,
+    /// Node's assigned address with CIDR
+    pub address: String,
+    /// MTU to use
+    pub mtu: u16,
+    /// Initial peers to configure
+    pub peers: Vec<WireGuardPeerInfo>,
+}
+
+/// Peer information from coordinator
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WireGuardPeerInfo {
+    pub node_id: Uuid,
+    pub hostname: String,
+    pub public_key: String,
+    pub allowed_ips: Vec<String>,
+    pub endpoint: Option<String>,
+    pub persistent_keepalive: u16,
+}
+
+/// Subnet assignment information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubnetAssignment {
+    pub subnet_id: Uuid,
+    pub subnet_name: String,
+    pub assigned_ip: String,
 }
 
 /// Cluster API endpoints for the joined node
@@ -34,6 +80,10 @@ pub struct JoinProtocol {
     hardware_profile: HardwareProfile,
     node_name: Option<String>,
     client: reqwest::Client,
+    /// WireGuard manager for key generation and config application
+    wireguard_manager: Option<Arc<WireGuardManager>>,
+    /// WireGuard public key (generated before join)
+    wg_public_key: Option<String>,
 }
 
 impl JoinProtocol {
@@ -52,12 +102,35 @@ impl JoinProtocol {
             hardware_profile,
             node_name: None,
             client,
+            wireguard_manager: None,
+            wg_public_key: None,
         }
     }
 
     /// Set the node name for this swarmlet
     pub fn set_node_name(&mut self, name: String) {
         self.node_name = Some(name);
+    }
+
+    /// Set the WireGuard manager for mesh networking
+    pub fn set_wireguard_manager(&mut self, manager: Arc<WireGuardManager>) {
+        self.wireguard_manager = Some(manager);
+    }
+
+    /// Generate WireGuard keypair for this node
+    ///
+    /// This should be called before `join()` to include the public key
+    /// in the join request.
+    pub async fn generate_wireguard_keypair(&mut self) -> Result<String> {
+        let manager = self.wireguard_manager.as_ref().ok_or_else(|| {
+            SwarmletError::WireGuard("WireGuard manager not set".to_string())
+        })?;
+
+        let public_key = manager.generate_keypair().await?;
+        self.wg_public_key = Some(public_key.clone());
+
+        info!("Generated WireGuard keypair for cluster join");
+        Ok(public_key)
     }
 
     /// Perform the join handshake with the cluster
@@ -70,18 +143,76 @@ impl JoinProtocol {
         // Step 1: Validate token with cluster
         self.validate_token().await?;
 
-        // Step 2: Submit join request with hardware profile
+        // Step 2: Submit join request with hardware profile and WireGuard key
         let join_request = self.create_join_request();
         let join_response = self.submit_join_request(join_request).await?;
 
         // Step 3: Verify cluster response and certificate
         self.verify_join_response(&join_response).await?;
 
+        // Step 4: Apply WireGuard configuration if provided
+        if let Some(wg_config) = &join_response.wireguard_config {
+            if let Some(manager) = &self.wireguard_manager {
+                self.apply_wireguard_config(manager, wg_config).await?;
+                info!(
+                    "WireGuard mesh configured on interface {} with {} peers",
+                    wg_config.interface_name,
+                    wg_config.peers.len()
+                );
+            }
+        }
+
         info!(
             "Successfully joined cluster! Node ID: {}",
             join_response.node_id
         );
         Ok(join_response)
+    }
+
+    /// Apply WireGuard configuration received from coordinator
+    async fn apply_wireguard_config(
+        &self,
+        manager: &WireGuardManager,
+        config: &WireGuardJoinConfig,
+    ) -> Result<()> {
+        debug!(
+            "Applying WireGuard config: interface={}, address={}",
+            config.interface_name, config.address
+        );
+
+        // Convert peers to WireGuardPeerConfig
+        let peers: Vec<WireGuardPeerConfig> = config
+            .peers
+            .iter()
+            .map(|p| WireGuardPeerConfig {
+                public_key: p.public_key.clone(),
+                preshared_key: None,
+                allowed_ips: p.allowed_ips.clone(),
+                endpoint: p.endpoint.clone(),
+                persistent_keepalive: Some(p.persistent_keepalive),
+            })
+            .collect();
+
+        let wg_config = WireGuardConfigRequest {
+            interface_name: config.interface_name.clone(),
+            private_key: None, // Manager already has the key
+            listen_port: config.listen_port,
+            address: config.address.clone(),
+            mtu: Some(config.mtu),
+            peers,
+            config_version: "initial".to_string(),
+            signature: None,
+        };
+
+        let response = manager.apply_config(wg_config).await?;
+
+        if response.success {
+            Ok(())
+        } else {
+            Err(SwarmletError::WireGuard(
+                response.error.unwrap_or_else(|| "Unknown error".to_string()),
+            ))
+        }
     }
 
     /// Validate the join token with the cluster
@@ -133,6 +264,8 @@ impl JoinProtocol {
             swarmlet_version: crate::VERSION.to_string(),
             requested_capabilities: self.determine_requested_capabilities(),
             timestamp: chrono::Utc::now(),
+            wg_public_key: self.wg_public_key.clone(),
+            wg_listen_port: Some(51820), // Default WireGuard port
         }
     }
 
@@ -158,6 +291,8 @@ impl JoinProtocol {
                     assigned_capabilities: join_response.assigned_capabilities,
                     heartbeat_interval: Duration::from_secs(join_response.heartbeat_interval_secs),
                     api_endpoints: join_response.api_endpoints,
+                    wireguard_config: join_response.wireguard_config,
+                    subnet_info: join_response.subnet,
                 })
             } else {
                 Err(SwarmletError::ClusterRejection(
@@ -289,6 +424,12 @@ struct JoinRequest {
     swarmlet_version: String,
     requested_capabilities: Vec<String>,
     timestamp: chrono::DateTime<chrono::Utc>,
+    /// WireGuard public key for mesh networking
+    #[serde(skip_serializing_if = "Option::is_none")]
+    wg_public_key: Option<String>,
+    /// Preferred WireGuard listen port
+    #[serde(skip_serializing_if = "Option::is_none")]
+    wg_listen_port: Option<u16>,
 }
 
 /// Join response from cluster
@@ -303,6 +444,12 @@ struct JoinResponse {
     heartbeat_interval_secs: u64,
     api_endpoints: ClusterApiEndpoints,
     rejection_reason: Option<String>,
+    /// WireGuard configuration (if mesh networking is enabled)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    wireguard_config: Option<WireGuardJoinConfig>,
+    /// Subnet assignment information
+    #[serde(skip_serializing_if = "Option::is_none")]
+    subnet: Option<SubnetAssignment>,
 }
 
 #[cfg(test)]
@@ -423,6 +570,8 @@ mod tests {
                 logs_api: "http://logs.api".to_string(),
                 health_check: "http://health.api".to_string(),
             },
+            wireguard_config: None,
+            subnet_info: None,
         };
 
         // Test serialization

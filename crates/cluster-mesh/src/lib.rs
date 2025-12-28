@@ -335,6 +335,8 @@ mod tests {
                 thermal_constraints: None,
             },
             last_heartbeat: chrono::Utc::now(),
+            wg_public_key: None,
+            subnet_info: None,
         };
 
         // Add node
@@ -388,6 +390,8 @@ mod tests {
                 thermal_constraints: None,
             },
             last_heartbeat: chrono::Utc::now(),
+            wg_public_key: None,
+            subnet_info: None,
         };
 
         let laptop_node = ClusterNode {
@@ -429,6 +433,8 @@ mod tests {
                 }),
             },
             last_heartbeat: chrono::Utc::now(),
+            wg_public_key: None,
+            subnet_info: None,
         };
 
         mesh.add_node(datacenter_node).await.unwrap();

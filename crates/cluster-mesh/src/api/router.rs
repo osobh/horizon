@@ -3,7 +3,7 @@
 //! This module defines the API routes for the cluster coordinator service,
 //! including the install script endpoint for curl-based node bootstrapping.
 
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 
@@ -20,6 +20,7 @@ use super::{handlers, state::AppState};
 /// ## Install & Join
 /// - `GET /api/v1/install` - Generate install script (requires `token` query param)
 /// - `GET /api/v1/join/validate` - Validate a join token
+/// - `POST /api/v1/join/request` - Node join request with WireGuard key exchange
 ///
 /// # Example
 ///
@@ -43,6 +44,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     let api_v1 = Router::new()
         .route("/install", get(handlers::install_handler))
         .route("/join/validate", get(handlers::validate_token_handler))
+        .route("/join/request", post(handlers::join_request_handler))
         .with_state(state.clone());
 
     // Build the complete router
@@ -110,7 +112,7 @@ mod tests {
         body::Body,
         http::{Request, StatusCode},
     };
-    use tower::ServiceExt;
+    use tower::util::ServiceExt;
 
     fn create_test_state() -> Arc<AppState> {
         use super::super::state::AppStateConfig;
@@ -224,5 +226,74 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_join_request_endpoint() {
+        let state = create_test_state();
+
+        // Generate a valid token
+        let (token, _) = state.generate_token(chrono::Duration::hours(1), 0, vec![]);
+
+        let app = create_router(state);
+
+        // Create a join request with WireGuard public key
+        let join_request = serde_json::json!({
+            "token": token,
+            "wg_public_key": "dGVzdC1wdWJsaWMta2V5LWJhc2U2NC1lbmNvZGVk",
+            "hostname": "test-node-1",
+            "wg_listen_port": 51820
+        });
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/join/request")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&join_request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Verify the response contains expected fields
+        let body = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert!(response_json.get("node_id").is_some());
+        assert!(response_json.get("subnet").is_some());
+        assert!(response_json.get("wireguard_config").is_some());
+        assert!(response_json.get("api_token").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_join_request_requires_valid_token() {
+        let state = create_test_state();
+        let app = create_router(state);
+
+        // Create a join request with invalid token
+        let join_request = serde_json::json!({
+            "token": "invalid-token",
+            "wg_public_key": "dGVzdC1wdWJsaWMta2V5LWJhc2U2NC1lbmNvZGVk",
+            "hostname": "test-node-1"
+        });
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/join/request")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&join_request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // Should get unauthorized because token is invalid
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }

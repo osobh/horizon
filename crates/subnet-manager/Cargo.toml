@@ -7,12 +7,25 @@ authors = ["HPC-AI Platform"]
 license = "MIT"
 
 [features]
-default = []
+default = ["wg-command"]
 postgres = ["sqlx/postgres"]
 hpc-channels = ["dep:hpc-channels"]
 # Real network probing with quality tracking (RTT, jitter, packet loss)
 quality-probing = []
-full = ["hpc-channels", "quality-probing"]
+# WireGuard backend features
+wg-command = ["dep:tempfile"]
+wg-netlink = [
+    "dep:netlink-packet-core",
+    "dep:netlink-packet-generic",
+    "dep:netlink-packet-route",
+    "dep:netlink-sys",
+    "dep:libc",
+    "dep:nix"
+]  # Linux only
+wg-userspace = ["dep:defguard_boringtun", "dep:tun"]
+all-backends = ["wg-command", "wg-netlink", "wg-userspace"]
+# Full feature set
+full = ["hpc-channels", "quality-probing", "wg-command"]
 
 [dependencies]
 # Core
@@ -30,6 +43,7 @@ parking_lot = "0.12"
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+humantime-serde = "1.1"
 
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio", "uuid", "chrono", "json"], optional = true }
@@ -50,12 +64,23 @@ regex = "1"
 
 # Cryptography
 rand = "0.8"
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+rand_core = "0.6"
+
+# WireGuard backend dependencies
+tempfile = { version = "3", optional = true }
+# Using defguard_boringtun for x25519-dalek 2.0 compatibility
+defguard_boringtun = { version = "0.6.2", optional = true }
+tun = { version = "0.6", optional = true }
 
 # API
 axum = { version = "0.7", features = ["json"] }
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 http = "1.0"
+
+# HTTP client for node communication
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 
 # gRPC (optional)
 tonic = { version = "0.11", optional = true }
@@ -67,6 +92,15 @@ hpc-channels = { path = "../../../01-hpc-channels", optional = true }
 # Note: nebula-traverse has WireGuard deps that conflict with warp-crypto
 # Quality tracking is embedded directly to avoid dependency conflicts
 # nebula-traverse = { path = "../../../10-nebula/crates/nebula-traverse", optional = true }
+
+# Linux-specific netlink dependencies for wg-netlink feature
+[target.'cfg(target_os = "linux")'.dependencies]
+netlink-packet-core = { version = "0.7", optional = true }
+netlink-packet-generic = { version = "0.3", optional = true }
+netlink-packet-route = { version = "0.19", optional = true }
+netlink-sys = { version = "0.8", optional = true }
+libc = { version = "0.2", optional = true }
+nix = { version = "0.29", features = ["net", "ioctl"], optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"

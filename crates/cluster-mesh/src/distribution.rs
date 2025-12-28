@@ -614,9 +614,9 @@ pub struct SchedulingStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::discovery::{HardwareProfile, NatType, NetworkCharacteristics};
+    use crate::discovery::{GpuInfo, HardwareProfile, NatType, NetworkCharacteristics};
     use crate::{
-        classification::{NodeClass, Schedule, GPU},
+        classification::{NodeClass, Schedule},
         JobPriority,
     };
 
@@ -626,10 +626,12 @@ mod tests {
             hostname: format!("node-{}", id),
             class: NodeClass::Workstation {
                 gpu: if gpu_count > 0 {
-                    Some(GPU {
-                        model: "Test GPU".to_string(),
-                        memory_gb: 8.0,
+                    Some(GpuInfo {
+                        index: 0,
+                        name: "Test GPU".to_string(),
+                        memory_mb: 8 * 1024,
                         compute_capability: (7, 5),
+                        pci_bus_id: "0:1:0.0".to_string(),
                     })
                 } else {
                     None
@@ -663,6 +665,8 @@ mod tests {
                 thermal_constraints: None,
             },
             last_heartbeat: Utc::now(),
+            wg_public_key: None,
+            subnet_info: None,
         }
     }
 

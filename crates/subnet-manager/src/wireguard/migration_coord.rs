@@ -1,20 +1,43 @@
 //! Migration coordinator for zero-downtime subnet migrations
 //!
 //! Coordinates node migrations between subnets using dual-stack IP addressing
-//! and gradual peer updates, integrating with nebula-traverse for connectivity
-//! verification.
+//! and gradual peer updates, integrating with quality-aware routing for
+//! connectivity verification.
+//!
+//! # Architecture
+//!
+//! The migration coordinator integrates with:
+//! - **WireGuardBackend** - For actual interface configuration
+//! - **ConfigSyncService** - For pushing config updates to nodes
+//! - **QualityAwareRouter** - For monitoring quality during migration
+//! - **NodeRegistry** - For looking up node public keys
+//!
+//! # Migration Steps
+//!
+//! 1. **Start** - Register migration, allocate target IP
+//! 2. **Enable Dual-Stack** - Add node to target subnet while keeping source
+//! 3. **Notify Peers** - Push updated configs to all affected peers
+//! 4. **Verify Connectivity** - Probe connectivity through new address
+//! 5. **Cutover** - Update routing to use new address
+//! 6. **Complete** - Remove from source subnet, cleanup
 
+use super::backend::WireGuardBackend;
+use super::router::QualityAwareRouter;
 use super::subnet_aware::{SubnetAwareWireGuard, SubnetPeer, SubnetWireGuardError};
+use super::sync::ConfigSyncService;
+use super::{InterfaceConfig, PeerConfig};
 use crate::events::SubnetEventPublisher;
 use crate::migration::{Migration, MigrationStep};
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
 #[cfg(feature = "quality-probing")]
@@ -38,6 +61,18 @@ pub enum MigrationCoordError {
     #[error("Peer update failed: {0}")]
     PeerUpdateFailed(String),
 
+    #[error("Config sync failed: {0}")]
+    SyncFailed(String),
+
+    #[error("Backend error: {0}")]
+    BackendError(String),
+
+    #[error("Node not found in registry: {0}")]
+    NodeNotFound(Uuid),
+
+    #[error("Quality check failed: {0}")]
+    QualityCheckFailed(String),
+
     #[error("Timeout waiting for migration step")]
     Timeout,
 
@@ -46,6 +81,95 @@ pub enum MigrationCoordError {
 
     #[error("WireGuard error: {0}")]
     WireGuardError(#[from] SubnetWireGuardError),
+}
+
+/// Node registry trait for looking up node information
+///
+/// Implementations provide access to node metadata including WireGuard
+/// public keys, endpoints, and subnet assignments.
+#[async_trait]
+pub trait NodeRegistry: Send + Sync {
+    /// Get a node's WireGuard public key
+    async fn get_public_key(&self, node_id: Uuid) -> Option<String>;
+
+    /// Get a node's endpoint (IP:port)
+    async fn get_endpoint(&self, node_id: Uuid) -> Option<std::net::SocketAddr>;
+
+    /// Get all nodes in a subnet
+    async fn get_subnet_nodes(&self, subnet_id: Uuid) -> Vec<Uuid>;
+
+    /// Get a node's current subnet assignment
+    async fn get_node_subnet(&self, node_id: Uuid) -> Option<Uuid>;
+}
+
+/// In-memory node registry for testing and simple deployments
+#[derive(Default)]
+pub struct InMemoryNodeRegistry {
+    nodes: RwLock<HashMap<Uuid, NodeInfo>>,
+}
+
+/// Node information stored in registry
+#[derive(Debug, Clone)]
+pub struct NodeInfo {
+    pub node_id: Uuid,
+    pub public_key: String,
+    pub endpoint: Option<std::net::SocketAddr>,
+    pub subnet_id: Option<Uuid>,
+}
+
+impl InMemoryNodeRegistry {
+    /// Create a new in-memory registry
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Register a node
+    pub fn register(&self, info: NodeInfo) {
+        self.nodes.write().insert(info.node_id, info);
+    }
+
+    /// Unregister a node
+    pub fn unregister(&self, node_id: Uuid) {
+        self.nodes.write().remove(&node_id);
+    }
+
+    /// Update a node's endpoint
+    pub fn update_endpoint(&self, node_id: Uuid, endpoint: std::net::SocketAddr) {
+        if let Some(info) = self.nodes.write().get_mut(&node_id) {
+            info.endpoint = Some(endpoint);
+        }
+    }
+
+    /// Update a node's subnet
+    pub fn update_subnet(&self, node_id: Uuid, subnet_id: Uuid) {
+        if let Some(info) = self.nodes.write().get_mut(&node_id) {
+            info.subnet_id = Some(subnet_id);
+        }
+    }
+}
+
+#[async_trait]
+impl NodeRegistry for InMemoryNodeRegistry {
+    async fn get_public_key(&self, node_id: Uuid) -> Option<String> {
+        self.nodes.read().get(&node_id).map(|n| n.public_key.clone())
+    }
+
+    async fn get_endpoint(&self, node_id: Uuid) -> Option<std::net::SocketAddr> {
+        self.nodes.read().get(&node_id).and_then(|n| n.endpoint)
+    }
+
+    async fn get_subnet_nodes(&self, subnet_id: Uuid) -> Vec<Uuid> {
+        self.nodes
+            .read()
+            .values()
+            .filter(|n| n.subnet_id == Some(subnet_id))
+            .map(|n| n.node_id)
+            .collect()
+    }
+
+    async fn get_node_subnet(&self, node_id: Uuid) -> Option<Uuid> {
+        self.nodes.read().get(&node_id).and_then(|n| n.subnet_id)
+    }
 }
 
 /// Configuration for migration probing
@@ -109,6 +233,18 @@ pub struct MigrationCoordinator {
     probe_config: ProbeConfig,
     /// Maximum concurrent migrations
     max_concurrent: usize,
+    /// WireGuard backend for system operations (optional)
+    backend: Option<Arc<dyn WireGuardBackend>>,
+    /// Config sync service (optional)
+    sync_service: Option<Arc<ConfigSyncService>>,
+    /// Quality-aware router (optional)
+    quality_router: Option<Arc<QualityAwareRouter>>,
+    /// Node registry
+    node_registry: Option<Arc<dyn NodeRegistry>>,
+    /// Orchestration timeout
+    orchestration_timeout: Duration,
+    /// Quality check retries
+    quality_check_retries: u32,
 }
 
 impl MigrationCoordinator {
@@ -124,6 +260,12 @@ impl MigrationCoordinator {
             event_publisher,
             probe_config: ProbeConfig::default(),
             max_concurrent: 10,
+            backend: None,
+            sync_service: None,
+            quality_router: None,
+            node_registry: None,
+            orchestration_timeout: Duration::from_secs(300), // 5 minutes default
+            quality_check_retries: 3,
         }
     }
 
@@ -136,6 +278,42 @@ impl MigrationCoordinator {
     /// Set maximum concurrent migrations
     pub fn with_max_concurrent(mut self, max: usize) -> Self {
         self.max_concurrent = max;
+        self
+    }
+
+    /// Set WireGuard backend for system operations
+    pub fn with_backend(mut self, backend: Arc<dyn WireGuardBackend>) -> Self {
+        self.backend = Some(backend);
+        self
+    }
+
+    /// Set config sync service
+    pub fn with_sync_service(mut self, sync: Arc<ConfigSyncService>) -> Self {
+        self.sync_service = Some(sync);
+        self
+    }
+
+    /// Set quality-aware router
+    pub fn with_quality_router(mut self, router: Arc<QualityAwareRouter>) -> Self {
+        self.quality_router = Some(router);
+        self
+    }
+
+    /// Set node registry
+    pub fn with_node_registry(mut self, registry: Arc<dyn NodeRegistry>) -> Self {
+        self.node_registry = Some(registry);
+        self
+    }
+
+    /// Set orchestration timeout
+    pub fn with_orchestration_timeout(mut self, timeout: Duration) -> Self {
+        self.orchestration_timeout = timeout;
+        self
+    }
+
+    /// Set quality check retries
+    pub fn with_quality_check_retries(mut self, retries: u32) -> Self {
+        self.quality_check_retries = retries;
         self
     }
 
@@ -443,14 +621,226 @@ impl MigrationCoordinator {
     }
 
     // ========================================================================
+    // Orchestration
+    // ========================================================================
+
+    /// Orchestrate a complete migration from start to finish
+    ///
+    /// This method runs the full migration sequence:
+    /// 1. Start migration
+    /// 2. Enable dual-stack
+    /// 3. Notify peers
+    /// 4. Verify connectivity (with retries)
+    /// 5. Complete migration
+    ///
+    /// On failure, automatically rolls back the migration.
+    #[instrument(skip(self, migration), fields(
+        migration_id = %migration.id,
+        node_id = %migration.node_id
+    ))]
+    pub async fn orchestrate_migration(
+        &self,
+        migration: Migration,
+    ) -> Result<MigrationCoordStatus, MigrationCoordError> {
+        let migration_id = migration.id;
+        let node_id = migration.node_id;
+
+        info!("Orchestrating migration for node {}", node_id);
+
+        // Step 1: Start migration
+        self.start_migration(migration.clone()).await?;
+
+        // Wrap the remaining steps in a timeout
+        let result = tokio::time::timeout(
+            self.orchestration_timeout,
+            self.orchestrate_migration_steps(migration_id),
+        )
+        .await;
+
+        match result {
+            Ok(Ok(())) => {
+                info!("Migration orchestration completed successfully");
+                Ok(self.get_status(migration_id).unwrap())
+            }
+            Ok(Err(e)) => {
+                error!("Migration failed: {}", e);
+                let _ = self.rollback_migration(migration_id, &e.to_string()).await;
+                Err(e)
+            }
+            Err(_) => {
+                error!("Migration timed out");
+                let _ = self
+                    .rollback_migration(migration_id, "Orchestration timeout")
+                    .await;
+                Err(MigrationCoordError::Timeout)
+            }
+        }
+    }
+
+    /// Internal: Execute migration steps after start
+    async fn orchestrate_migration_steps(
+        &self,
+        migration_id: Uuid,
+    ) -> Result<(), MigrationCoordError> {
+        // Step 2: Enable dual-stack
+        self.enable_dual_stack(migration_id).await?;
+
+        // Step 3: Notify peers
+        let peers_notified = self.notify_peers(migration_id).await?;
+        debug!("Notified {} peers", peers_notified);
+
+        // Step 4: Sync peers if sync service available
+        if let Some(ref sync) = self.sync_service {
+            self.sync_affected_peers(migration_id, sync).await?;
+        }
+
+        // Step 5: Verify connectivity with retries
+        let mut last_error = None;
+        for attempt in 1..=self.quality_check_retries {
+            debug!("Connectivity verification attempt {}/{}", attempt, self.quality_check_retries);
+
+            match self.verify_connectivity(migration_id).await {
+                Ok(result) if result.success => {
+                    info!("Connectivity verified on attempt {}", attempt);
+                    break;
+                }
+                Ok(result) => {
+                    warn!(
+                        "Connectivity check failed: {}/{} probes succeeded",
+                        result.probes_received, result.probes_sent
+                    );
+                    last_error = Some(MigrationCoordError::ProbeFailed(format!(
+                        "Only {}/{} probes succeeded",
+                        result.probes_received, result.probes_sent
+                    )));
+
+                    if attempt < self.quality_check_retries {
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                }
+                Err(e) => {
+                    warn!("Connectivity verification error: {}", e);
+                    last_error = Some(e);
+
+                    if attempt < self.quality_check_retries {
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                }
+            }
+        }
+
+        // Check if we succeeded
+        let status = self.get_status(migration_id).ok_or(MigrationCoordError::NotFound(migration_id))?;
+        if status.current_step != MigrationStep::CuttingOver {
+            return Err(last_error.unwrap_or(MigrationCoordError::ProbeFailed(
+                "Connectivity verification failed".to_string(),
+            )));
+        }
+
+        // Step 6: Complete migration
+        self.complete_migration(migration_id).await?;
+
+        Ok(())
+    }
+
+    /// Sync affected peers via config sync service
+    async fn sync_affected_peers(
+        &self,
+        migration_id: Uuid,
+        sync: &ConfigSyncService,
+    ) -> Result<(), MigrationCoordError> {
+        let migration = {
+            let migrations = self.active_migrations.read();
+            migrations
+                .get(&migration_id)
+                .ok_or(MigrationCoordError::NotFound(migration_id))?
+                .migration
+                .clone()
+        };
+
+        debug!("Syncing affected peers for migration");
+
+        // Propagate to source subnet peers
+        sync.propagate_peer_added(migration.node_id, migration.source_subnet_id)
+            .await
+            .map_err(|e| MigrationCoordError::SyncFailed(e.to_string()))?;
+
+        // Propagate to target subnet peers
+        sync.propagate_peer_added(migration.node_id, migration.target_subnet_id)
+            .await
+            .map_err(|e| MigrationCoordError::SyncFailed(e.to_string()))?;
+
+        // Wait for sync to complete (with timeout)
+        let sync_timeout = Duration::from_secs(30);
+        let sync_start = std::time::Instant::now();
+
+        while sync_start.elapsed() < sync_timeout {
+            let source_synced = sync.is_subnet_synced(migration.source_subnet_id);
+            let target_synced = sync.is_subnet_synced(migration.target_subnet_id);
+
+            if source_synced && target_synced {
+                debug!("All peers synced successfully");
+                return Ok(());
+            }
+
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+
+        warn!("Sync timed out, proceeding with partial sync");
+        Ok(())
+    }
+
+    /// Check quality of new route using quality-aware router
+    pub async fn check_migration_quality(
+        &self,
+        migration_id: Uuid,
+    ) -> Result<Option<super::quality::QualityMetrics>, MigrationCoordError> {
+        let router = match &self.quality_router {
+            Some(r) => r,
+            None => return Ok(None),
+        };
+
+        let migration = {
+            let migrations = self.active_migrations.read();
+            migrations
+                .get(&migration_id)
+                .ok_or(MigrationCoordError::NotFound(migration_id))?
+                .migration
+                .clone()
+        };
+
+        let target_ip = migration.target_ip.ok_or_else(|| {
+            MigrationCoordError::QualityCheckFailed("No target IP".to_string())
+        })?;
+
+        // Get routes to target IP
+        let routes = router.get_routes(target_ip).await;
+
+        if routes.is_empty() {
+            return Err(MigrationCoordError::QualityCheckFailed(
+                "No routes available".to_string(),
+            ));
+        }
+
+        // Return the quality of the first (best) route
+        Ok(routes.first().and_then(|r| r.quality.clone()))
+    }
+
+    // ========================================================================
     // Internal helpers
     // ========================================================================
 
-    /// Get a node's WireGuard public key (would be from registry in production)
+    /// Get a node's WireGuard public key from the registry
     async fn get_node_public_key(&self, node_id: Uuid) -> Result<String, MigrationCoordError> {
-        // In production, would look up from node registry or assignment
-        // For now, return a placeholder
-        Ok(format!("key-{}", node_id))
+        if let Some(ref registry) = self.node_registry {
+            registry
+                .get_public_key(node_id)
+                .await
+                .ok_or(MigrationCoordError::NodeNotFound(node_id))
+        } else {
+            // Fallback for testing or when registry not configured
+            Ok(format!("key-{}", node_id))
+        }
     }
 
     /// Probe connectivity to an IP using quality tracking
@@ -720,5 +1110,148 @@ mod tests {
             .unwrap();
 
         assert!(!coordinator.has_active_migration(migration.node_id));
+    }
+
+    #[tokio::test]
+    async fn test_builder_methods() {
+        let wireguard = Arc::new(SubnetAwareWireGuard::new());
+        let transport = Arc::new(InMemoryTransport::new());
+        let publisher = Arc::new(SubnetEventPublisher::with_transport(transport));
+        let registry = Arc::new(InMemoryNodeRegistry::new());
+
+        let coordinator = MigrationCoordinator::new(wireguard, publisher)
+            .with_probe_config(ProbeConfig {
+                probe_count: 10,
+                probe_timeout_ms: 2000,
+                required_success_rate: 0.9,
+                probe_interval_ms: 100,
+            })
+            .with_max_concurrent(20)
+            .with_node_registry(registry)
+            .with_orchestration_timeout(Duration::from_secs(600))
+            .with_quality_check_retries(5);
+
+        assert_eq!(coordinator.probe_config.probe_count, 10);
+        assert_eq!(coordinator.max_concurrent, 20);
+        assert!(coordinator.node_registry.is_some());
+        assert_eq!(coordinator.orchestration_timeout, Duration::from_secs(600));
+        assert_eq!(coordinator.quality_check_retries, 5);
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_node_registry() {
+        let registry = InMemoryNodeRegistry::new();
+
+        let node_id = Uuid::new_v4();
+        let subnet_id = Uuid::new_v4();
+        let endpoint: std::net::SocketAddr = "10.0.0.1:51820".parse().unwrap();
+
+        // Register a node
+        registry.register(NodeInfo {
+            node_id,
+            public_key: "test-pubkey-123".to_string(),
+            endpoint: Some(endpoint),
+            subnet_id: Some(subnet_id),
+        });
+
+        // Test lookups
+        assert_eq!(
+            registry.get_public_key(node_id).await,
+            Some("test-pubkey-123".to_string())
+        );
+        assert_eq!(registry.get_endpoint(node_id).await, Some(endpoint));
+        assert_eq!(registry.get_node_subnet(node_id).await, Some(subnet_id));
+
+        // Test subnet nodes
+        let subnet_nodes = registry.get_subnet_nodes(subnet_id).await;
+        assert_eq!(subnet_nodes.len(), 1);
+        assert_eq!(subnet_nodes[0], node_id);
+
+        // Test update endpoint
+        let new_endpoint: std::net::SocketAddr = "10.0.0.2:51820".parse().unwrap();
+        registry.update_endpoint(node_id, new_endpoint);
+        assert_eq!(registry.get_endpoint(node_id).await, Some(new_endpoint));
+
+        // Test update subnet
+        let new_subnet = Uuid::new_v4();
+        registry.update_subnet(node_id, new_subnet);
+        assert_eq!(registry.get_node_subnet(node_id).await, Some(new_subnet));
+
+        // Test unregister
+        registry.unregister(node_id);
+        assert!(registry.get_public_key(node_id).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_node_public_key_with_registry() {
+        let wireguard = Arc::new(SubnetAwareWireGuard::new());
+        let transport = Arc::new(InMemoryTransport::new());
+        let publisher = Arc::new(SubnetEventPublisher::with_transport(transport));
+        let registry = Arc::new(InMemoryNodeRegistry::new());
+
+        let node_id = Uuid::new_v4();
+        registry.register(NodeInfo {
+            node_id,
+            public_key: "real-pubkey".to_string(),
+            endpoint: None,
+            subnet_id: None,
+        });
+
+        let coordinator = MigrationCoordinator::new(wireguard, publisher)
+            .with_node_registry(registry);
+
+        // Should get real public key from registry
+        let result = coordinator.get_node_public_key(node_id).await;
+        assert_eq!(result.unwrap(), "real-pubkey".to_string());
+
+        // Unknown node should error
+        let unknown_id = Uuid::new_v4();
+        let result = coordinator.get_node_public_key(unknown_id).await;
+        assert!(matches!(result, Err(MigrationCoordError::NodeNotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn test_get_node_public_key_fallback() {
+        let coordinator = create_test_coordinator();
+        let node_id = Uuid::new_v4();
+
+        // Without registry, should return placeholder
+        let result = coordinator.get_node_public_key(node_id).await;
+        assert!(result.unwrap().starts_with("key-"));
+    }
+
+    #[tokio::test]
+    async fn test_get_active_migrations() {
+        let coordinator = create_test_coordinator();
+
+        // No active migrations initially
+        assert!(coordinator.get_active_migrations().is_empty());
+
+        // Start some migrations
+        let m1 = create_test_migration();
+        let m2 = create_test_migration();
+
+        coordinator.start_migration(m1.clone()).await.unwrap();
+        coordinator.start_migration(m2.clone()).await.unwrap();
+
+        let active = coordinator.get_active_migrations();
+        assert_eq!(active.len(), 2);
+
+        // Check IDs are present
+        let ids: Vec<Uuid> = active.iter().map(|s| s.migration_id).collect();
+        assert!(ids.contains(&m1.id));
+        assert!(ids.contains(&m2.id));
+    }
+
+    #[tokio::test]
+    async fn test_orchestration_timeout_setting() {
+        let wireguard = Arc::new(SubnetAwareWireGuard::new());
+        let transport = Arc::new(InMemoryTransport::new());
+        let publisher = Arc::new(SubnetEventPublisher::with_transport(transport));
+
+        let coordinator = MigrationCoordinator::new(wireguard, publisher)
+            .with_orchestration_timeout(Duration::from_secs(120));
+
+        assert_eq!(coordinator.orchestration_timeout, Duration::from_secs(120));
     }
 }

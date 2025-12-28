@@ -16,7 +16,7 @@ use crate::{
     command::CommandExecutor, config::Config, join::JoinResult, security::NodeCertificate,
     workload::WorkloadManager, Result, SwarmletError,
 };
-use crate::agent::{HealthStatus, NodeStatus, WorkAssignment, ResourceLimits};
+use crate::agent::{HealthStatus, NodeStatus, WorkAssignment};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -183,7 +183,7 @@ impl SwarmletAgentActor {
                             let _ = reply.send(result);
                         }
                         SwarmletRequest::StartWorkload { assignment, reply } => {
-                            let result = self.workload_manager.start_workload(assignment).await;
+                            let result = self.workload_manager.start_workload(assignment).await.map(|_| ());
                             let _ = reply.send(result);
                         }
                         SwarmletRequest::StopAllWorkloads { reply } => {
@@ -527,6 +527,8 @@ mod tests {
                 logs_api: "http://localhost:8083".to_string(),
                 health_check: "http://localhost:8080".to_string(),
             },
+            wireguard_config: None,
+            subnet_info: None,
         }
     }
 

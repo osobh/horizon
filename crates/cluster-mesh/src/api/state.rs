@@ -4,8 +4,11 @@ use crate::install_script::BinaryChecksums;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::net::Ipv4Addr;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use uuid::Uuid;
+
+use super::handlers::{PeerInfo, SubnetAssignmentInfo};
 
 /// Application state shared across all handlers.
 #[derive(Debug)]
@@ -26,6 +29,46 @@ pub struct AppState {
     tokens: DashMap<String, TokenInfo>,
     /// Whether the service is ready
     ready: AtomicBool,
+    /// Registered nodes (node_id -> NodeRegistration)
+    nodes: DashMap<Uuid, NodeRegistration>,
+    /// Default subnet for new nodes
+    default_subnet: SubnetInfo,
+    /// IP address counter for allocation
+    next_ip_offset: AtomicU32,
+}
+
+/// Information about a registered node.
+#[derive(Debug, Clone)]
+pub struct NodeRegistration {
+    /// Node ID
+    pub node_id: Uuid,
+    /// Node hostname
+    pub hostname: String,
+    /// WireGuard public key
+    pub wg_public_key: String,
+    /// Assigned subnet ID
+    pub subnet_id: Uuid,
+    /// Assigned IP address
+    pub assigned_ip: Ipv4Addr,
+    /// Node's endpoint (if known)
+    pub endpoint: Option<String>,
+    /// When the node registered
+    pub registered_at: DateTime<Utc>,
+    /// Last heartbeat
+    pub last_heartbeat: DateTime<Utc>,
+}
+
+/// Subnet information.
+#[derive(Debug, Clone)]
+pub struct SubnetInfo {
+    /// Subnet ID
+    pub id: Uuid,
+    /// Subnet name
+    pub name: String,
+    /// Subnet CIDR
+    pub cidr: String,
+    /// Gateway public key (optional)
+    pub gateway_public_key: Option<String>,
 }
 
 /// Information about a stored token.
@@ -122,6 +165,14 @@ impl AppStateConfig {
 impl AppState {
     /// Create a new AppState with the given configuration.
     pub fn new(config: AppStateConfig) -> Self {
+        // Create a default subnet for the mesh
+        let default_subnet = SubnetInfo {
+            id: Uuid::new_v4(),
+            name: "default".to_string(),
+            cidr: "10.100.0.0/24".to_string(),
+            gateway_public_key: None, // In production, this would be set
+        };
+
         Self {
             cluster_host: config.cluster_host,
             cluster_port: config.cluster_port,
@@ -137,6 +188,9 @@ impl AppState {
             binary_checksums: config.binary_checksums.unwrap_or_default(),
             tokens: DashMap::new(),
             ready: AtomicBool::new(true),
+            nodes: DashMap::new(),
+            default_subnet,
+            next_ip_offset: AtomicU32::new(10), // Start at .10 to leave room for gateway
         }
     }
 
@@ -261,6 +315,154 @@ impl AppState {
         self.tokens.retain(|_, v| !v.is_expired());
         before - self.tokens.len()
     }
+
+    // ============== Node/Subnet Management ==============
+
+    /// Assign a node to a subnet and allocate an IP address.
+    ///
+    /// In a production environment, this would integrate with the subnet-manager
+    /// crate for proper IP allocation and policy-based subnet selection.
+    pub async fn assign_node_to_subnet(
+        &self,
+        node_id: Uuid,
+        hostname: &str,
+        wg_public_key: &str,
+        endpoint: Option<&str>,
+    ) -> Result<SubnetAssignmentInfo, SubnetError> {
+        // Allocate the next available IP
+        let ip_offset = self.next_ip_offset.fetch_add(1, Ordering::SeqCst);
+
+        // Check for IP exhaustion (simple /24 subnet)
+        if ip_offset > 254 {
+            return Err(SubnetError::IpExhausted);
+        }
+
+        // Calculate IP address (10.100.0.X)
+        let assigned_ip = Ipv4Addr::new(10, 100, 0, ip_offset as u8);
+
+        // Register the node
+        let registration = NodeRegistration {
+            node_id,
+            hostname: hostname.to_string(),
+            wg_public_key: wg_public_key.to_string(),
+            subnet_id: self.default_subnet.id,
+            assigned_ip,
+            endpoint: endpoint.map(|s| s.to_string()),
+            registered_at: Utc::now(),
+            last_heartbeat: Utc::now(),
+        };
+
+        self.nodes.insert(node_id, registration);
+
+        tracing::info!(
+            "Assigned node {} to subnet {} with IP {}",
+            node_id,
+            self.default_subnet.name,
+            assigned_ip
+        );
+
+        Ok(SubnetAssignmentInfo {
+            subnet_id: self.default_subnet.id,
+            subnet_name: self.default_subnet.name.clone(),
+            cidr: self.default_subnet.cidr.clone(),
+            assigned_ip,
+        })
+    }
+
+    /// Get all peers in a subnet (excluding a specific node).
+    pub async fn get_subnet_peers(&self, subnet_id: Uuid, exclude_node_id: Uuid) -> Vec<PeerInfo> {
+        self.nodes
+            .iter()
+            .filter(|entry| {
+                let node = entry.value();
+                node.subnet_id == subnet_id && node.node_id != exclude_node_id
+            })
+            .map(|entry| {
+                let node = entry.value();
+                PeerInfo {
+                    node_id: node.node_id,
+                    hostname: node.hostname.clone(),
+                    public_key: node.wg_public_key.clone(),
+                    allowed_ips: vec![format!("{}/32", node.assigned_ip)],
+                    endpoint: node.endpoint.clone(),
+                    persistent_keepalive: 25,
+                }
+            })
+            .collect()
+    }
+
+    /// Get the gateway public key for a subnet.
+    pub async fn get_subnet_gateway_key(&self, _subnet_id: Uuid) -> Option<String> {
+        // In production, this would look up the gateway key from subnet config
+        self.default_subnet.gateway_public_key.clone()
+    }
+
+    /// Notify existing peers about a new node joining.
+    ///
+    /// In production, this would push configuration updates to all
+    /// existing nodes via the sync service.
+    pub async fn notify_peers_of_new_node(&self, subnet_id: Uuid, new_peer: PeerInfo) {
+        let peer_count = self.nodes
+            .iter()
+            .filter(|e| e.value().subnet_id == subnet_id && e.value().node_id != new_peer.node_id)
+            .count();
+
+        tracing::info!(
+            "Notifying {} existing peers about new node {} in subnet {}",
+            peer_count,
+            new_peer.node_id,
+            subnet_id
+        );
+
+        // In a full implementation, this would:
+        // 1. Use the ConfigSyncService to push updates to all nodes
+        // 2. Or use a pub/sub mechanism to notify nodes
+        // 3. Or rely on nodes polling for peer updates
+
+        // For now, we log the intent - actual push would be:
+        // self.sync_service.propagate_peer_added(new_peer.node_id, subnet_id).await;
+    }
+
+    /// Get node registration by ID.
+    pub fn get_node(&self, node_id: Uuid) -> Option<NodeRegistration> {
+        self.nodes.get(&node_id).map(|e| e.value().clone())
+    }
+
+    /// Update node heartbeat.
+    pub fn update_heartbeat(&self, node_id: Uuid) -> bool {
+        if let Some(mut entry) = self.nodes.get_mut(&node_id) {
+            entry.last_heartbeat = Utc::now();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Remove a node from the registry.
+    pub fn remove_node(&self, node_id: Uuid) -> Option<NodeRegistration> {
+        self.nodes.remove(&node_id).map(|(_, v)| v)
+    }
+
+    /// Get all registered nodes.
+    pub fn get_all_nodes(&self) -> Vec<NodeRegistration> {
+        self.nodes.iter().map(|e| e.value().clone()).collect()
+    }
+
+    /// Get node count.
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+}
+
+/// Subnet-related errors.
+#[derive(Debug, thiserror::Error)]
+pub enum SubnetError {
+    #[error("No available IP addresses in subnet")]
+    IpExhausted,
+    #[error("Subnet not found: {0}")]
+    NotFound(Uuid),
+    #[error("Node already registered: {0}")]
+    NodeAlreadyRegistered(Uuid),
 }
 
 /// Token validation errors.

@@ -2,6 +2,7 @@
 
 use crate::{
     command::CommandExecutor, config::Config, join::JoinResult, security::NodeCertificate,
+    wireguard::{WireGuardManager, WireGuardConfigRequest, AddPeerRequest, RemovePeerRequest},
     workload::WorkloadManager, Result, SwarmletError,
 };
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,7 @@ pub struct SwarmletAgent {
     node_certificate: NodeCertificate,
     workload_manager: Arc<WorkloadManager>,
     command_executor: Arc<CommandExecutor>,
+    wireguard_manager: Arc<WireGuardManager>,
     health_status: Arc<RwLock<HealthStatus>>,
     shutdown_signal: tokio::sync::watch::Receiver<bool>,
     shutdown_sender: tokio::sync::watch::Sender<bool>,
@@ -68,6 +70,7 @@ impl SwarmletAgent {
         let node_certificate = NodeCertificate::from_pem(&join_result.node_certificate)?;
         let workload_manager = Arc::new(WorkloadManager::new(config.clone()).await?);
         let command_executor = Arc::new(CommandExecutor::new(config.data_dir.clone()));
+        let wireguard_manager = Arc::new(WireGuardManager::new());
 
         let health_status = Arc::new(RwLock::new(HealthStatus {
             node_id: join_result.node_id,
@@ -91,6 +94,7 @@ impl SwarmletAgent {
             node_certificate,
             workload_manager,
             command_executor,
+            wireguard_manager,
             health_status,
             shutdown_signal,
             shutdown_sender,
@@ -404,10 +408,175 @@ impl SwarmletAgent {
                 }
             });
 
+        // WireGuard routes
+        let wg_manager_configure = self.wireguard_manager.clone();
+        let wireguard_configure_route = warp::path!("api" / "v1" / "wireguard" / "configure")
+            .and(warp::post())
+            .and(warp::body::json())
+            .and_then(move |request: WireGuardConfigRequest| {
+                let wg_manager = wg_manager_configure.clone();
+                async move {
+                    match wg_manager.apply_config(request).await {
+                        Ok(response) => {
+                            let json = serde_json::to_string(&response).unwrap_or_else(|_| {
+                                r#"{"error": "serialization_failed"}"#.to_string()
+                            });
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Err(e) => {
+                            let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        let wg_manager_status = self.wireguard_manager.clone();
+        let wireguard_status_route = warp::path!("api" / "v1" / "wireguard" / "status" / String)
+            .and(warp::get())
+            .and_then(move |interface_name: String| {
+                let wg_manager = wg_manager_status.clone();
+                async move {
+                    match wg_manager.get_status(&interface_name).await {
+                        Ok(status) => {
+                            let json = serde_json::to_string(&status).unwrap_or_else(|_| {
+                                r#"{"error": "serialization_failed"}"#.to_string()
+                            });
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Err(e) => {
+                            let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        let wg_manager_add_peer = self.wireguard_manager.clone();
+        let wireguard_add_peer_route = warp::path!("api" / "v1" / "wireguard" / "peer")
+            .and(warp::post())
+            .and(warp::body::json())
+            .and_then(move |request: AddPeerRequest| {
+                let wg_manager = wg_manager_add_peer.clone();
+                async move {
+                    match wg_manager.add_peer(request).await {
+                        Ok(()) => {
+                            let json = r#"{"success": true}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Err(e) => {
+                            let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        let wg_manager_remove_peer = self.wireguard_manager.clone();
+        let wireguard_remove_peer_route = warp::path!("api" / "v1" / "wireguard" / "peer")
+            .and(warp::delete())
+            .and(warp::body::json())
+            .and_then(move |request: RemovePeerRequest| {
+                let wg_manager = wg_manager_remove_peer.clone();
+                async move {
+                    match wg_manager.remove_peer(request).await {
+                        Ok(()) => {
+                            let json = r#"{"success": true}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Err(e) => {
+                            let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        let wg_manager_list_peers = self.wireguard_manager.clone();
+        let wireguard_list_peers_route = warp::path!("api" / "v1" / "wireguard" / "peers" / String)
+            .and(warp::get())
+            .and_then(move |interface_name: String| {
+                let wg_manager = wg_manager_list_peers.clone();
+                async move {
+                    match wg_manager.list_peers(&interface_name).await {
+                        Ok(peers) => {
+                            let json = serde_json::to_string(&peers).unwrap_or_else(|_| {
+                                r#"{"error": "serialization_failed"}"#.to_string()
+                            });
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Err(e) => {
+                            let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
         let routes = health_route
             .or(metrics_route)
             .or(execute_command_route)
-            .or(execute_shell_route);
+            .or(execute_shell_route)
+            .or(wireguard_configure_route)
+            .or(wireguard_status_route)
+            .or(wireguard_add_peer_route)
+            .or(wireguard_remove_peer_route)
+            .or(wireguard_list_peers_route);
 
         // Start server
         let port = self.config.api_port.unwrap_or(8080);
@@ -640,6 +809,8 @@ mod tests {
                 logs_api: "http://localhost:8083".to_string(),
                 health_check: "http://localhost:8080".to_string(),
             },
+            wireguard_config: None,
+            subnet_info: None,
         }
     }
 

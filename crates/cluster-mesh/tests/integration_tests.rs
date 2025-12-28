@@ -38,6 +38,8 @@ fn create_test_node(name: &str, class: NodeClass) -> ClusterNode {
             thermal_constraints: None,
         },
         last_heartbeat: chrono::Utc::now(),
+        wg_public_key: None,
+        subnet_info: None,
     }
 }
 
@@ -211,10 +213,12 @@ async fn test_heterogeneous_cluster() {
         create_test_node(
             "dc-gpu-1",
             NodeClass::DataCenter {
-                gpus: vec![classification::GPU {
-                    model: "A100".to_string(),
-                    memory_gb: 40.0,
+                gpus: vec![discovery::GpuInfo {
+                    index: 0,
+                    name: "A100".to_string(),
+                    memory_mb: 40 * 1024,
                     compute_capability: (8, 0),
+                    pci_bus_id: "0:1:0.0".to_string(),
                 }],
                 bandwidth: classification::Bandwidth::HundredGigabit(100.0),
             },

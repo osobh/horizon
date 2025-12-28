@@ -51,6 +51,8 @@ mod distribution_coverage_tests {
             status: NodeStatus::Online,
             capabilities: caps,
             last_heartbeat: Utc::now(),
+            wg_public_key: None,
+            subnet_info: None,
         }
     }
 
