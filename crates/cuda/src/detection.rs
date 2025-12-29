@@ -224,7 +224,7 @@ impl CudaToolkit {
 
 /// Initialize CUDA subsystem
 pub fn initialize_cuda() -> CudaResult<()> {
-    let mut result = Ok(());
+    let result = Ok(());
 
     INIT.call_once(|| {
         #[cfg(cuda_mock)]
