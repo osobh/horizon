@@ -3,6 +3,7 @@
 use crate::{
     build_job::BuildJob,
     build_job_manager::BuildJobManager,
+    build_log_stream::BuildLogStreamer,
     command::CommandExecutor, config::Config, join::JoinResult, profile::HardwareProfiler,
     security::NodeCertificate,
     wireguard::{WireGuardManager, WireGuardConfigRequest, AddPeerRequest, RemovePeerRequest},
@@ -132,6 +133,8 @@ pub struct SwarmletAgent {
     command_executor: Arc<CommandExecutor>,
     wireguard_manager: Arc<WireGuardManager>,
     build_job_manager: Arc<BuildJobManager>,
+    /// WebSocket log streamer for real-time build output
+    log_streamer: Arc<BuildLogStreamer>,
     health_status: Arc<RwLock<HealthStatus>>,
     shutdown_signal: tokio::sync::watch::Receiver<bool>,
     shutdown_sender: tokio::sync::watch::Sender<bool>,
@@ -188,6 +191,7 @@ impl SwarmletAgent {
         let build_job_manager = Arc::new(
             BuildJobManager::new(config.clone(), join_result.node_id, config.data_dir.clone()).await?
         );
+        let log_streamer = Arc::new(BuildLogStreamer::new());
 
         let health_status = Arc::new(RwLock::new(HealthStatus {
             node_id: join_result.node_id,
@@ -216,6 +220,7 @@ impl SwarmletAgent {
             command_executor,
             wireguard_manager,
             build_job_manager,
+            log_streamer,
             health_status,
             shutdown_signal,
             shutdown_sender,
