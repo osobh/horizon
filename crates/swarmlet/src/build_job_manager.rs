@@ -68,8 +68,8 @@ impl BuildJobManager {
         // Create metrics collector
         let metrics = crate::build_metrics::create_metrics_collector(1000);
 
-        // Get max concurrent builds from config or default
-        let max_concurrent_builds = 4; // TODO: get from config
+        // Get max concurrent builds from config
+        let max_concurrent_builds = config.build.max_concurrent_builds as usize;
 
         Ok(Self {
             config,

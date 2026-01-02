@@ -189,6 +189,11 @@ impl WireGuardManager {
         Ok(())
     }
 
+    /// Get the cluster's public key if set
+    pub async fn get_cluster_public_key(&self) -> Option<[u8; 32]> {
+        *self.cluster_public_key.read().await
+    }
+
     /// Verify a WireGuard configuration signature
     ///
     /// The signature should cover: interface_name + config_version + address + peers_hash

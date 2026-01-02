@@ -91,6 +91,15 @@ warp-transfer = ["dep:warp-format", "dep:blake3", "dep:hex", "hpc-channels"]
 
 [dev-dependencies]
 tempfile = "3.8"
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "build_queue_bench"
+harness = false
+
+[[bench]]
+name = "metrics_bench"
+harness = false
 
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 # ARM-specific optimizations can go here

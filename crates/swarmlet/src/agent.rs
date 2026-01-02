@@ -1,5 +1,6 @@
 //! Swarmlet agent runtime
 
+use base64::Engine;
 use crate::{
     build_job::BuildJob,
     build_job_manager::BuildJobManager,
@@ -352,11 +353,14 @@ impl SwarmletAgent {
         let wireguard_public_key = self.wireguard_manager.get_public_key().await
             .ok_or_else(|| SwarmletError::Configuration("No WireGuard public key available".to_string()))?;
 
+        let cluster_public_key = self.wireguard_manager.get_cluster_public_key().await
+            .map(|key| base64::engine::general_purpose::STANDARD.encode(key));
+
         let state = SavedAgentState {
             join_result: self.join_result.clone(),
             wireguard_private_key,
             wireguard_public_key,
-            cluster_public_key: None, // TODO: Get from wireguard_manager if needed
+            cluster_public_key,
             saved_at: chrono::Utc::now(),
             version: SavedAgentState::CURRENT_VERSION,
         };
@@ -1020,9 +1024,21 @@ impl SwarmletAgent {
         // Publish progress: fetching artifact
         self.deploy_bridge.publish_progress(deploy_id, "fetching_artifact", 10);
 
-        // TODO: Fetch artifact from warp storage using artifact_ref
-        // For now, we assume the artifact is already available locally
+        // Check if artifact is available in cache
         info!("Fetching artifact: {}", artifact_ref);
+        if let Some(build_manager) = &self.build_job_manager {
+            let cache_manager = build_manager.cache_manager();
+            if let Some(metadata) = cache_manager.get_artifact_metadata(artifact_ref).await {
+                info!(
+                    "Artifact {} found in cache (size: {} bytes, last used: {:?})",
+                    artifact_ref, metadata.size_bytes, metadata.last_used_at
+                );
+            } else {
+                // Artifact not in cache - would need to fetch from external storage
+                // External storage integration (S3, warp storage) is not yet implemented
+                warn!("Artifact {} not found in local cache", artifact_ref);
+            }
+        }
 
         // Publish progress: preparing deployment
         self.deploy_bridge.publish_progress(deploy_id, "preparing", 30);

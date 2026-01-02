@@ -75,6 +75,9 @@ pub enum SwarmletError {
     #[error("WireGuard error: {0}")]
     WireGuard(String),
 
+    #[error("API error: {0}")]
+    Api(String),
+
     #[error("Build error in phase '{phase}': {message}")]
     Build {
         phase: BuildPhase,
