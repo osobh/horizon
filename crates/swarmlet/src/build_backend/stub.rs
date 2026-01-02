@@ -9,7 +9,6 @@ use crate::build_job::{BuildResult, CargoCommand};
 use crate::{Result, SwarmletError};
 use async_trait::async_trait;
 use std::path::PathBuf;
-use tracing::warn;
 
 /// Stub backend that returns errors for all operations
 pub struct StubBackend {

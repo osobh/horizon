@@ -3,18 +3,17 @@
 //! This backend uses Docker for build isolation, providing cross-platform
 //! support for macOS, Windows, and Linux systems without kernel module.
 
-use super::{BackendCapabilities, BackendType, BuildBackend, BuildContext, CacheMount};
-use crate::build_job::{BuildResourceLimits, BuildResourceUsage, BuildResult, CargoCommand, BuildArtifact};
+use super::{BackendCapabilities, BackendType, BuildBackend, BuildContext};
+use crate::build_job::{BuildResult, CargoCommand};
 use crate::{Result, SwarmletError};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
-use uuid::Uuid;
 
 /// Docker-based build backend
+#[allow(dead_code)] // Fields will be used when Docker implementation is complete
 pub struct DockerBackend {
     #[cfg(feature = "docker")]
     docker: Arc<bollard::Docker>,
@@ -356,6 +355,7 @@ impl BuildBackend for DockerBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::build_backend::CacheMount;
 
     #[test]
     fn test_cache_mount_bind_string() {

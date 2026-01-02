@@ -11,7 +11,7 @@ pub mod docker;
 pub mod linux;
 pub mod stub;
 
-use crate::build_job::{BuildResourceLimits, CargoCommand, BuildResult, CacheConfig};
+use crate::build_job::{BuildResourceLimits, CargoCommand, BuildResult};
 use crate::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -289,12 +289,15 @@ pub async fn detect_backend() -> Result<Box<dyn BuildBackend>> {
 
 /// Get available backends in order of preference
 pub fn available_backends() -> Vec<BackendType> {
-    let mut backends = vec![BackendType::Docker];
-
     #[cfg(target_os = "linux")]
-    backends.insert(0, BackendType::LinuxNative);
+    {
+        vec![BackendType::LinuxNative, BackendType::Docker]
+    }
 
-    backends
+    #[cfg(not(target_os = "linux"))]
+    {
+        vec![BackendType::Docker]
+    }
 }
 
 #[cfg(test)]

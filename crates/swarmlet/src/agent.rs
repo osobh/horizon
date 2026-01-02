@@ -1,7 +1,7 @@
 //! Swarmlet agent runtime
 
 use crate::{
-    build_job::{BuildJob, ActiveBuildJob, BuildJobStatus},
+    build_job::BuildJob,
     build_job_manager::BuildJobManager,
     command::CommandExecutor, config::Config, join::JoinResult, profile::HardwareProfiler,
     security::NodeCertificate,
