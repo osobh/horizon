@@ -27,6 +27,12 @@
 #define SWARM_AGENT_QUERY    _IOWR(SWARM_IOC_MAGIC, 12, struct swarm_agent_query)
 #define SWARM_AGENT_SET_NS   _IOW(SWARM_IOC_MAGIC, 13, struct swarm_namespace_config)
 
+/* Mount Isolation IOCTLs */
+#define SWARM_MOUNT_SETUP    _IOW(SWARM_IOC_MAGIC, 14, struct swarm_mount_ioctl)
+#define SWARM_MOUNT_TEARDOWN _IOW(SWARM_IOC_MAGIC, 15, u64)
+#define SWARM_MOUNT_ADD_BIND _IOW(SWARM_IOC_MAGIC, 16, struct swarm_bind_mount_ioctl)
+#define SWARM_MOUNT_OVERLAYFS _IOW(SWARM_IOC_MAGIC, 17, struct swarm_overlayfs_ioctl)
+
 /* TierWatch IOCTLs */
 #define SWARM_TIER_STATS     _IOR(SWARM_IOC_MAGIC, 20, struct swarm_tier_stats)
 #define SWARM_TIER_PRESSURE  _IOR(SWARM_IOC_MAGIC, 21, struct swarm_memory_pressure)
@@ -128,6 +134,55 @@ struct swarm_migration_request {
     enum swarm_memory_tier from_tier;
     enum swarm_memory_tier to_tier;
     size_t page_count;
+};
+
+/* Mount isolation structures */
+#define SWARM_MOUNT_MAX_PATH 256
+#define SWARM_MOUNT_MAX_BINDS 16
+
+/* Mount flags */
+#define SWARM_MNT_READONLY  0x01
+#define SWARM_MNT_NOSUID    0x02
+#define SWARM_MNT_NOEXEC    0x04
+#define SWARM_MNT_NODEV     0x08
+
+/* Bind mount configuration for ioctl */
+struct swarm_bind_mount_ioctl {
+    u64 agent_id;
+    char source[SWARM_MOUNT_MAX_PATH];
+    char target[SWARM_MOUNT_MAX_PATH];
+    u32 flags;
+};
+
+/* OverlayFS configuration for ioctl */
+struct swarm_overlayfs_ioctl {
+    u64 agent_id;
+    char lower_dir[SWARM_MOUNT_MAX_PATH];
+    char upper_dir[SWARM_MOUNT_MAX_PATH];
+    char work_dir[SWARM_MOUNT_MAX_PATH];
+    char merged_dir[SWARM_MOUNT_MAX_PATH];
+};
+
+/* Complete mount isolation setup for ioctl */
+struct swarm_mount_ioctl {
+    u64 agent_id;
+    /* OverlayFS config */
+    char lower_dir[SWARM_MOUNT_MAX_PATH];
+    char upper_dir[SWARM_MOUNT_MAX_PATH];
+    char work_dir[SWARM_MOUNT_MAX_PATH];
+    char merged_dir[SWARM_MOUNT_MAX_PATH];
+    /* Bind mounts */
+    struct {
+        char source[SWARM_MOUNT_MAX_PATH];
+        char target[SWARM_MOUNT_MAX_PATH];
+        u32 flags;
+    } bind_mounts[SWARM_MOUNT_MAX_BINDS];
+    u32 num_bind_mounts;
+    /* Old root for pivot_root cleanup */
+    char old_root[SWARM_MOUNT_MAX_PATH];
+    /* Flags */
+    u32 use_overlayfs;
+    u32 private_mounts;
 };
 
 #endif /* _SWARM_IOCTL_H */

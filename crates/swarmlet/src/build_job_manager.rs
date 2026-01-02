@@ -8,6 +8,9 @@ use crate::build_job::{
     ActiveBuildJob, BuildJob, BuildJobStatus, BuildLogEntry, BuildSource, LogStream,
 };
 use crate::build_log_stream::BuildLogStreamer;
+use crate::build_metrics::{
+    BuildOutcome, BuildRecord, CommandType, ProfileType, SharedBuildMetrics,
+};
 use crate::cache_manager::CacheManager;
 use crate::config::Config;
 use crate::toolchain_manager::ToolchainManager;
@@ -43,6 +46,8 @@ pub struct BuildJobManager {
     max_concurrent_builds: usize,
     /// Optional log streamer for WebSocket broadcasting
     log_streamer: Arc<RwLock<Option<Arc<BuildLogStreamer>>>>,
+    /// Build metrics collector
+    metrics: SharedBuildMetrics,
 }
 
 impl BuildJobManager {
@@ -60,6 +65,9 @@ impl BuildJobManager {
         let cache_dir = data_dir.join("cache");
         let cache_manager = Arc::new(CacheManager::new(cache_dir).await?);
 
+        // Create metrics collector
+        let metrics = crate::build_metrics::create_metrics_collector(1000);
+
         // Get max concurrent builds from config or default
         let max_concurrent_builds = 4; // TODO: get from config
 
@@ -72,6 +80,7 @@ impl BuildJobManager {
             backend: Arc::from(backend),
             max_concurrent_builds,
             log_streamer: Arc::new(RwLock::new(None)),
+            metrics,
         })
     }
 
@@ -84,6 +93,26 @@ impl BuildJobManager {
     /// Get a reference to the cache manager
     pub fn cache_manager(&self) -> &Arc<CacheManager> {
         &self.cache_manager
+    }
+
+    /// Get a reference to the metrics collector
+    pub fn metrics(&self) -> &SharedBuildMetrics {
+        &self.metrics
+    }
+
+    /// Get current build metrics snapshot
+    pub async fn get_metrics_snapshot(&self) -> crate::build_metrics::MetricsSnapshot {
+        self.metrics.get_snapshot().await
+    }
+
+    /// Get aggregated build statistics
+    pub async fn get_build_stats(&self) -> crate::build_metrics::AggregatedStats {
+        self.metrics.get_stats().await
+    }
+
+    /// Get build summary for a time window (in hours)
+    pub async fn get_build_summary(&self, hours: i64) -> crate::build_metrics::BuildSummary {
+        self.metrics.get_summary(chrono::Duration::hours(hours)).await
     }
 
     /// Submit a new build job
@@ -131,6 +160,7 @@ impl BuildJobManager {
             backend: self.backend.clone(),
             max_concurrent_builds: self.max_concurrent_builds,
             log_streamer: self.log_streamer.clone(),
+            metrics: self.metrics.clone(),
         };
 
         tokio::spawn(async move {
@@ -158,6 +188,9 @@ impl BuildJobManager {
 
     /// Execute a build job
     async fn execute_build(&self, job_id: Uuid, job: BuildJob) -> Result<()> {
+        // Track build start time for metrics
+        let build_started_at = Utc::now();
+
         // Phase 1: Prepare environment
         self.update_status(job_id, BuildJobStatus::PreparingEnvironment)
             .await;
@@ -284,6 +317,10 @@ impl BuildJobManager {
             }
         }
 
+        // Prepare metrics data before moving result
+        let resource_usage = result.resource_usage.clone();
+        let build_succeeded = result.is_success();
+
         // Update resource usage
         {
             let mut jobs = self.active_jobs.write().await;
@@ -292,6 +329,27 @@ impl BuildJobManager {
                 active_job.artifacts = result.artifacts;
             }
         }
+
+        // Record build metrics
+        let build_completed_at = Utc::now();
+        let build_record = BuildRecord {
+            job_id,
+            command: CommandType::from(&job.command),
+            profile: ProfileType::from(&job.profile),
+            status: if build_succeeded {
+                BuildOutcome::Success
+            } else {
+                BuildOutcome::Failed
+            },
+            started_at: build_started_at,
+            completed_at: build_completed_at,
+            duration_seconds: duration_secs,
+            resource_usage,
+            cache_enabled: job.cache_config.use_sccache || job.cache_config.cache_target,
+            source_cache_hit: matches!(&job.source, BuildSource::Cached { .. }),
+            toolchain: job.toolchain.toolchain_string(),
+        };
+        self.metrics.record_build(build_record).await;
 
         // Cleanup workspace
         if let Err(e) = self.backend.cleanup_workspace(&workspace).await {

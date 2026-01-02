@@ -9,12 +9,15 @@ pub mod build_backend;
 pub mod build_job;
 pub mod build_job_manager;
 pub mod build_log_stream;
+pub mod build_metrics;
+pub mod build_queue;
 pub mod cache_manager;
 pub mod command;
 pub mod config;
 pub mod discovery;
 pub mod error;
 pub mod join;
+pub mod kernel_interface;
 pub mod profile;
 pub mod security;
 pub mod toolchain_manager;
@@ -53,6 +56,14 @@ pub use build_job::{
 pub use build_job_manager::BuildJobManager;
 pub use toolchain_manager::{ToolchainManager, ToolchainInfo};
 pub use cache_manager::{CacheManager, ArtifactCacheMetadata, SourceCacheMetadata};
+pub use build_metrics::{
+    BuildMetricsCollector, BuildRecord, BuildSummary, MetricsSnapshot,
+    AggregatedStats, SharedBuildMetrics, create_metrics_collector,
+};
+pub use build_queue::{
+    BuildQueue, BuildPriority, QueuedBuild, QueueConfig, QueueStatus,
+    QueueError, SharedBuildQueue, create_build_queue,
+};
 
 // HPC Channels bridge exports
 #[cfg(feature = "hpc-channels")]

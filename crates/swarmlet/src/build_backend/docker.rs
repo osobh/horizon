@@ -2,11 +2,21 @@
 //!
 //! This backend uses Docker for build isolation, providing cross-platform
 //! support for macOS, Windows, and Linux systems without kernel module.
+//!
+//! ## Isolation Features
+//!
+//! - Network isolation (none, bridge, host modes)
+//! - Read-only root filesystem option
+//! - Seccomp security profiles
+//! - Capability dropping (no NET_RAW, SYS_ADMIN, etc.)
+//! - User namespace remapping
+//! - Resource limits (CPU, memory, PIDs)
 
 use super::{BackendCapabilities, BackendType, BuildBackend, BuildContext};
 use crate::build_job::{BuildResult, CargoCommand};
 use crate::{Result, SwarmletError};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -24,6 +34,224 @@ use uuid::Uuid;
 
 // sha2 is now always available (not feature-gated)
 
+/// Docker container isolation profile
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IsolationProfile {
+    /// Network mode (none, bridge, host)
+    pub network_mode: NetworkMode,
+    /// Make root filesystem read-only
+    pub read_only_rootfs: bool,
+    /// Drop all capabilities and only add those needed
+    pub drop_capabilities: bool,
+    /// Capabilities to add (if drop_capabilities is true)
+    pub add_capabilities: Vec<String>,
+    /// Enable seccomp profile (default Docker profile)
+    pub seccomp_enabled: bool,
+    /// Custom seccomp profile path (if any)
+    pub seccomp_profile: Option<String>,
+    /// Run container as non-root user
+    pub run_as_user: Option<String>,
+    /// Enable user namespace remapping
+    pub userns_mode: Option<String>,
+    /// Disable inter-container communication
+    pub icc_disabled: bool,
+    /// Memory swap limit (-1 for unlimited)
+    pub memory_swap_bytes: Option<i64>,
+    /// OOM kill disable
+    pub oom_kill_disable: bool,
+    /// Ulimit settings
+    pub ulimits: UlimitConfig,
+    /// Tmpfs mounts for /tmp and other ephemeral data
+    pub tmpfs_mounts: Vec<TmpfsMount>,
+}
+
+impl Default for IsolationProfile {
+    fn default() -> Self {
+        Self {
+            network_mode: NetworkMode::None,
+            read_only_rootfs: false, // Many builds need to write to various locations
+            drop_capabilities: true,
+            add_capabilities: vec![],
+            seccomp_enabled: true,
+            seccomp_profile: None,
+            run_as_user: None,
+            userns_mode: None,
+            icc_disabled: true,
+            memory_swap_bytes: None,
+            oom_kill_disable: false,
+            ulimits: UlimitConfig::default(),
+            tmpfs_mounts: vec![
+                TmpfsMount::new("/tmp", 512 * 1024 * 1024), // 512MB /tmp
+            ],
+        }
+    }
+}
+
+impl IsolationProfile {
+    /// Create a minimal security profile (for trusted builds)
+    pub fn minimal() -> Self {
+        Self {
+            network_mode: NetworkMode::Bridge,
+            read_only_rootfs: false,
+            drop_capabilities: false,
+            add_capabilities: vec![],
+            seccomp_enabled: false,
+            seccomp_profile: None,
+            run_as_user: None,
+            userns_mode: None,
+            icc_disabled: false,
+            memory_swap_bytes: None,
+            oom_kill_disable: false,
+            ulimits: UlimitConfig::default(),
+            tmpfs_mounts: vec![],
+        }
+    }
+
+    /// Create a high security profile (for untrusted builds)
+    pub fn high_security() -> Self {
+        Self {
+            network_mode: NetworkMode::None,
+            read_only_rootfs: true,
+            drop_capabilities: true,
+            add_capabilities: vec![],
+            seccomp_enabled: true,
+            seccomp_profile: None,
+            run_as_user: Some("1000:1000".to_string()),
+            userns_mode: Some("host".to_string()),
+            icc_disabled: true,
+            memory_swap_bytes: Some(-1), // No swap
+            oom_kill_disable: false,
+            ulimits: UlimitConfig::strict(),
+            tmpfs_mounts: vec![
+                TmpfsMount::new("/tmp", 256 * 1024 * 1024),
+                TmpfsMount::new("/run", 64 * 1024 * 1024),
+            ],
+        }
+    }
+}
+
+/// Network mode for container
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkMode {
+    /// No network access
+    None,
+    /// Bridge network (isolated with NAT)
+    Bridge,
+    /// Host network (shared with host)
+    Host,
+}
+
+impl NetworkMode {
+    /// Convert to Docker network mode string
+    pub fn to_docker_string(&self) -> String {
+        match self {
+            NetworkMode::None => "none".to_string(),
+            NetworkMode::Bridge => "bridge".to_string(),
+            NetworkMode::Host => "host".to_string(),
+        }
+    }
+}
+
+/// Ulimit configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UlimitConfig {
+    /// Max number of open files
+    pub nofile_soft: i64,
+    pub nofile_hard: i64,
+    /// Max number of processes
+    pub nproc_soft: i64,
+    pub nproc_hard: i64,
+    /// Core dump size (0 = disabled)
+    pub core_soft: i64,
+    pub core_hard: i64,
+}
+
+impl Default for UlimitConfig {
+    fn default() -> Self {
+        Self {
+            nofile_soft: 65536,
+            nofile_hard: 65536,
+            nproc_soft: 4096,
+            nproc_hard: 4096,
+            core_soft: 0,
+            core_hard: 0,
+        }
+    }
+}
+
+impl UlimitConfig {
+    /// Strict ulimits for untrusted builds
+    pub fn strict() -> Self {
+        Self {
+            nofile_soft: 1024,
+            nofile_hard: 2048,
+            nproc_soft: 256,
+            nproc_hard: 512,
+            core_soft: 0,
+            core_hard: 0,
+        }
+    }
+}
+
+/// Tmpfs mount configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TmpfsMount {
+    /// Mount path inside container
+    pub path: String,
+    /// Size in bytes
+    pub size_bytes: u64,
+    /// Mount options
+    pub options: Vec<String>,
+}
+
+impl TmpfsMount {
+    /// Create a new tmpfs mount
+    pub fn new(path: &str, size_bytes: u64) -> Self {
+        Self {
+            path: path.to_string(),
+            size_bytes,
+            options: vec!["noexec".to_string(), "nosuid".to_string()],
+        }
+    }
+
+    /// Convert to Docker tmpfs options string
+    pub fn to_docker_options(&self) -> String {
+        let mut opts = vec![format!("size={}", self.size_bytes)];
+        opts.extend(self.options.iter().cloned());
+        opts.join(",")
+    }
+}
+
+/// Capabilities to drop for security
+#[cfg(feature = "docker")]
+const DROPPED_CAPABILITIES: &[&str] = &[
+    "NET_RAW",      // Prevent raw socket access
+    "SYS_ADMIN",    // Prevent mount/namespace manipulation
+    "SYS_PTRACE",   // Prevent process tracing
+    "SYS_MODULE",   // Prevent kernel module loading
+    "SYS_RAWIO",    // Prevent raw I/O
+    "MKNOD",        // Prevent device creation
+    "SETUID",       // Prevent setuid
+    "SETGID",       // Prevent setgid
+    "NET_BIND_SERVICE", // Prevent binding to low ports
+    "DAC_OVERRIDE", // Prevent bypassing file permissions
+    "FOWNER",       // Prevent bypassing file ownership checks
+    "KILL",         // Prevent killing other processes
+    "SETPCAP",      // Prevent capability manipulation
+    "LINUX_IMMUTABLE", // Prevent immutable file manipulation
+    "IPC_LOCK",     // Prevent memory locking
+    "SYS_CHROOT",   // Prevent chroot
+    "LEASE",        // Prevent file lease manipulation
+    "AUDIT_WRITE",  // Prevent audit log writing
+    "AUDIT_CONTROL", // Prevent audit control
+    "SYS_BOOT",     // Prevent rebooting
+    "WAKE_ALARM",   // Prevent wake alarms
+    "BLOCK_SUSPEND", // Prevent blocking suspend
+    "MAC_ADMIN",    // Prevent MAC administration
+    "MAC_OVERRIDE", // Prevent MAC override
+];
+
 /// Docker-based build backend
 #[allow(dead_code)] // Fields will be used when Docker implementation is complete
 pub struct DockerBackend {
@@ -37,11 +265,18 @@ pub struct DockerBackend {
     default_image: String,
     /// Whether GPU is available
     gpu_available: bool,
+    /// Isolation profile
+    isolation_profile: IsolationProfile,
 }
 
 impl DockerBackend {
-    /// Create a new Docker backend
+    /// Create a new Docker backend with default isolation profile
     pub async fn new() -> Result<Self> {
+        Self::with_isolation_profile(IsolationProfile::default()).await
+    }
+
+    /// Create a new Docker backend with a specific isolation profile
+    pub async fn with_isolation_profile(isolation_profile: IsolationProfile) -> Result<Self> {
         #[cfg(feature = "docker")]
         {
             use bollard::Docker;
@@ -57,21 +292,39 @@ impl DockerBackend {
             // Check for GPU support
             let gpu_available = Self::check_gpu_support(&docker).await;
 
+            info!(
+                "Docker backend initialized with {:?} network mode, capabilities dropped: {}",
+                isolation_profile.network_mode,
+                isolation_profile.drop_capabilities
+            );
+
             Ok(Self {
                 docker: Arc::new(docker),
                 container_prefix: "stratoswarm-build-".to_string(),
                 active_containers: Arc::new(RwLock::new(HashMap::new())),
                 default_image: "rust:latest".to_string(),
                 gpu_available,
+                isolation_profile,
             })
         }
 
         #[cfg(not(feature = "docker"))]
         {
+            let _ = isolation_profile;
             Err(SwarmletError::NotImplemented(
                 "Docker feature not enabled. Compile with --features docker".to_string(),
             ))
         }
+    }
+
+    /// Get the current isolation profile
+    pub fn isolation_profile(&self) -> &IsolationProfile {
+        &self.isolation_profile
+    }
+
+    /// Update the isolation profile
+    pub fn set_isolation_profile(&mut self, profile: IsolationProfile) {
+        self.isolation_profile = profile;
     }
 
     #[cfg(feature = "docker")]
@@ -93,9 +346,10 @@ impl DockerBackend {
         &self,
         context: &BuildContext,
     ) -> bollard::models::HostConfig {
-        use bollard::models::HostConfig;
+        use bollard::models::{HostConfig, ResourcesUlimits};
 
         let limits = &context.resource_limits;
+        let iso = &self.isolation_profile;
 
         // Build bind mounts
         let mut binds = vec![
@@ -108,11 +362,68 @@ impl DockerBackend {
             binds.push(mount.to_docker_bind());
         }
 
+        // Build capability lists
+        let cap_drop = if iso.drop_capabilities {
+            Some(DROPPED_CAPABILITIES.iter().map(|s| s.to_string()).collect())
+        } else {
+            None
+        };
+
+        let cap_add = if !iso.add_capabilities.is_empty() {
+            Some(iso.add_capabilities.clone())
+        } else {
+            None
+        };
+
+        // Build ulimits
+        let ulimits = vec![
+            ResourcesUlimits {
+                name: Some("nofile".to_string()),
+                soft: Some(iso.ulimits.nofile_soft),
+                hard: Some(iso.ulimits.nofile_hard),
+            },
+            ResourcesUlimits {
+                name: Some("nproc".to_string()),
+                soft: Some(iso.ulimits.nproc_soft),
+                hard: Some(iso.ulimits.nproc_hard),
+            },
+            ResourcesUlimits {
+                name: Some("core".to_string()),
+                soft: Some(iso.ulimits.core_soft),
+                hard: Some(iso.ulimits.core_hard),
+            },
+        ];
+
+        // Build tmpfs mounts
+        let tmpfs: HashMap<String, String> = iso
+            .tmpfs_mounts
+            .iter()
+            .map(|m| (m.path.clone(), m.to_docker_options()))
+            .collect();
+
+        // Build security options
+        let mut security_opt = Vec::new();
+        if !iso.seccomp_enabled {
+            security_opt.push("seccomp=unconfined".to_string());
+        } else if let Some(ref profile) = iso.seccomp_profile {
+            security_opt.push(format!("seccomp={}", profile));
+        }
+
         HostConfig {
             binds: Some(binds),
             memory: limits.memory_bytes.map(|b| b as i64),
+            memory_swap: iso.memory_swap_bytes,
             nano_cpus: limits.cpu_cores.map(|c| (c as f64 * 1_000_000_000.0) as i64),
             pids_limit: Some(1000),
+            network_mode: Some(iso.network_mode.to_docker_string()),
+            cap_drop,
+            cap_add,
+            ulimits: Some(ulimits),
+            tmpfs: if tmpfs.is_empty() { None } else { Some(tmpfs) },
+            readonly_rootfs: Some(iso.read_only_rootfs),
+            security_opt: if security_opt.is_empty() { None } else { Some(security_opt) },
+            userns_mode: iso.userns_mode.clone(),
+            oom_kill_disable: Some(iso.oom_kill_disable),
             ..Default::default()
         }
     }
@@ -637,6 +948,89 @@ mod tests {
             let backend = MockDockerBackend::new();
             assert_eq!(backend.get_image_for_toolchain(Some("1.76.0")), "rust:1.76.0");
             assert_eq!(backend.get_image_for_toolchain(Some("1.75")), "rust:1.75");
+        }
+    }
+
+    // Isolation profile tests (no Docker connection needed)
+    mod isolation_tests {
+        use super::*;
+
+        #[test]
+        fn test_isolation_profile_default() {
+            let profile = IsolationProfile::default();
+            assert_eq!(profile.network_mode, NetworkMode::None);
+            assert!(profile.drop_capabilities);
+            assert!(profile.seccomp_enabled);
+            assert!(!profile.read_only_rootfs);
+            assert!(profile.icc_disabled);
+        }
+
+        #[test]
+        fn test_isolation_profile_minimal() {
+            let profile = IsolationProfile::minimal();
+            assert_eq!(profile.network_mode, NetworkMode::Bridge);
+            assert!(!profile.drop_capabilities);
+            assert!(!profile.seccomp_enabled);
+        }
+
+        #[test]
+        fn test_isolation_profile_high_security() {
+            let profile = IsolationProfile::high_security();
+            assert_eq!(profile.network_mode, NetworkMode::None);
+            assert!(profile.drop_capabilities);
+            assert!(profile.seccomp_enabled);
+            assert!(profile.read_only_rootfs);
+            assert!(profile.run_as_user.is_some());
+        }
+
+        #[test]
+        fn test_network_mode_strings() {
+            assert_eq!(NetworkMode::None.to_docker_string(), "none");
+            assert_eq!(NetworkMode::Bridge.to_docker_string(), "bridge");
+            assert_eq!(NetworkMode::Host.to_docker_string(), "host");
+        }
+
+        #[test]
+        fn test_ulimit_config_default() {
+            let config = UlimitConfig::default();
+            assert_eq!(config.nofile_soft, 65536);
+            assert_eq!(config.nproc_soft, 4096);
+            assert_eq!(config.core_soft, 0);
+        }
+
+        #[test]
+        fn test_ulimit_config_strict() {
+            let config = UlimitConfig::strict();
+            assert_eq!(config.nofile_soft, 1024);
+            assert_eq!(config.nproc_soft, 256);
+        }
+
+        #[test]
+        fn test_tmpfs_mount() {
+            let mount = TmpfsMount::new("/tmp", 512 * 1024 * 1024);
+            assert_eq!(mount.path, "/tmp");
+            assert_eq!(mount.size_bytes, 512 * 1024 * 1024);
+            assert!(mount.options.contains(&"noexec".to_string()));
+            assert!(mount.options.contains(&"nosuid".to_string()));
+        }
+
+        #[test]
+        fn test_tmpfs_docker_options() {
+            let mount = TmpfsMount::new("/tmp", 1024);
+            let opts = mount.to_docker_options();
+            assert!(opts.contains("size=1024"));
+            assert!(opts.contains("noexec"));
+        }
+
+        #[test]
+        fn test_dropped_capabilities_list() {
+            #[cfg(feature = "docker")]
+            {
+                // Ensure important security capabilities are dropped
+                assert!(DROPPED_CAPABILITIES.contains(&"SYS_ADMIN"));
+                assert!(DROPPED_CAPABILITIES.contains(&"NET_RAW"));
+                assert!(DROPPED_CAPABILITIES.contains(&"SYS_PTRACE"));
+            }
         }
     }
 }

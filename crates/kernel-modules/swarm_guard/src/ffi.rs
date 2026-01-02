@@ -4,10 +4,287 @@
 
 use alloc::boxed::Box;
 use alloc::ffi::CString;
-use core::ffi::{c_char, c_int};
+use core::ffi::{c_char, c_int, c_uint};
 use core::ptr;
 
 use crate::{cleanup, init, KernelResult};
+
+// ==================== Mount Isolation FFI Structures ====================
+
+/// Maximum path length for mount paths (matches C MAX_PATH_LEN)
+pub const MAX_PATH_LEN: usize = 256;
+
+/// Maximum number of bind mounts (matches C MAX_BIND_MOUNTS)
+pub const MAX_BIND_MOUNTS: usize = 16;
+
+/// Mount flags for bind mounts
+pub mod mount_flags {
+    pub const SWARM_MOUNT_READONLY: u32 = 0x01;
+    pub const SWARM_MOUNT_NOSUID: u32 = 0x02;
+    pub const SWARM_MOUNT_NOEXEC: u32 = 0x04;
+    pub const SWARM_MOUNT_NODEV: u32 = 0x08;
+}
+
+/// Bind mount configuration (C-compatible)
+#[repr(C)]
+#[derive(Clone)]
+pub struct SwarmBindMount {
+    /// Host path to mount from
+    pub source: [c_char; MAX_PATH_LEN],
+    /// Container path to mount to
+    pub target: [c_char; MAX_PATH_LEN],
+    /// SWARM_MOUNT_* flags
+    pub flags: c_uint,
+}
+
+impl Default for SwarmBindMount {
+    fn default() -> Self {
+        Self {
+            source: [0; MAX_PATH_LEN],
+            target: [0; MAX_PATH_LEN],
+            flags: 0,
+        }
+    }
+}
+
+impl SwarmBindMount {
+    /// Create a new bind mount from source and target paths
+    pub fn new(source: &str, target: &str, flags: u32) -> Self {
+        let mut mount = Self::default();
+        copy_str_to_array(source, &mut mount.source);
+        copy_str_to_array(target, &mut mount.target);
+        mount.flags = flags;
+        mount
+    }
+}
+
+/// OverlayFS configuration for container rootfs (C-compatible)
+#[repr(C)]
+#[derive(Clone)]
+pub struct SwarmOverlayFsConfig {
+    /// Read-only base layer (e.g., toolchain)
+    pub lower_dir: [c_char; MAX_PATH_LEN],
+    /// Writable layer for changes
+    pub upper_dir: [c_char; MAX_PATH_LEN],
+    /// OverlayFS work directory
+    pub work_dir: [c_char; MAX_PATH_LEN],
+    /// Final merged mount point
+    pub merged_dir: [c_char; MAX_PATH_LEN],
+}
+
+impl Default for SwarmOverlayFsConfig {
+    fn default() -> Self {
+        Self {
+            lower_dir: [0; MAX_PATH_LEN],
+            upper_dir: [0; MAX_PATH_LEN],
+            work_dir: [0; MAX_PATH_LEN],
+            merged_dir: [0; MAX_PATH_LEN],
+        }
+    }
+}
+
+impl SwarmOverlayFsConfig {
+    /// Create a new overlayfs config
+    pub fn new(lower: &str, upper: &str, work: &str, merged: &str) -> Self {
+        let mut config = Self::default();
+        copy_str_to_array(lower, &mut config.lower_dir);
+        copy_str_to_array(upper, &mut config.upper_dir);
+        copy_str_to_array(work, &mut config.work_dir);
+        copy_str_to_array(merged, &mut config.merged_dir);
+        config
+    }
+}
+
+/// Mount isolation configuration for build containers (C-compatible)
+#[repr(C)]
+pub struct SwarmMountIsolationConfig {
+    /// OverlayFS for container root filesystem
+    pub rootfs: SwarmOverlayFsConfig,
+    /// Bind mounts for shared caches
+    pub bind_mounts: [SwarmBindMount; MAX_BIND_MOUNTS],
+    /// Number of bind mounts
+    pub num_bind_mounts: c_uint,
+    /// Old root mount point for pivot_root cleanup
+    pub old_root: [c_char; MAX_PATH_LEN],
+    /// Use overlayfs for rootfs
+    pub use_overlayfs: c_uint,
+    /// Make mounts private (MS_PRIVATE)
+    pub private_mounts: c_uint,
+}
+
+impl Default for SwarmMountIsolationConfig {
+    fn default() -> Self {
+        Self {
+            rootfs: SwarmOverlayFsConfig::default(),
+            bind_mounts: core::array::from_fn(|_| SwarmBindMount::default()),
+            num_bind_mounts: 0,
+            old_root: [0; MAX_PATH_LEN],
+            use_overlayfs: 0,
+            private_mounts: 1, // Default to private mounts
+        }
+    }
+}
+
+impl SwarmMountIsolationConfig {
+    /// Set the old_root path
+    pub fn set_old_root(&mut self, path: &str) {
+        copy_str_to_array(path, &mut self.old_root);
+    }
+
+    /// Add a bind mount
+    pub fn add_bind_mount(&mut self, source: &str, target: &str, flags: u32) -> bool {
+        if self.num_bind_mounts as usize >= MAX_BIND_MOUNTS {
+            return false;
+        }
+        self.bind_mounts[self.num_bind_mounts as usize] = SwarmBindMount::new(source, target, flags);
+        self.num_bind_mounts += 1;
+        true
+    }
+}
+
+/// Helper to copy a string into a fixed-size char array
+fn copy_str_to_array(s: &str, arr: &mut [c_char]) {
+    let bytes = s.as_bytes();
+    let len = bytes.len().min(arr.len() - 1);
+    for (i, &b) in bytes[..len].iter().enumerate() {
+        arr[i] = b as c_char;
+    }
+    arr[len] = 0; // Null terminate
+}
+
+// ==================== External C Functions (Kernel Module) ====================
+
+extern "C" {
+    /// Setup mount isolation for an agent
+    pub fn swarm_mount_isolation_setup(
+        agent_id: u64,
+        config: *const SwarmMountIsolationConfig,
+    ) -> c_int;
+
+    /// Teardown mount isolation for an agent
+    pub fn swarm_mount_isolation_teardown(agent_id: u64) -> c_int;
+
+    /// Add a bind mount to an existing agent
+    pub fn swarm_mount_add_bind(
+        agent_id: u64,
+        mount: *const SwarmBindMount,
+    ) -> c_int;
+
+    /// Setup overlayfs for an agent
+    pub fn swarm_mount_setup_overlayfs(
+        agent_id: u64,
+        config: *const SwarmOverlayFsConfig,
+    ) -> c_int;
+
+    /// Perform pivot_root for an agent
+    pub fn swarm_mount_pivot_root(
+        agent_id: u64,
+        new_root: *const c_char,
+        old_root: *const c_char,
+    ) -> c_int;
+}
+
+// ==================== Safe Rust Wrappers ====================
+
+/// Result type for mount operations
+pub type MountResult<T> = Result<T, MountError>;
+
+/// Mount operation errors
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MountError {
+    /// Permission denied
+    PermissionDenied,
+    /// Invalid argument
+    InvalidArgument,
+    /// No such file or directory
+    NotFound,
+    /// I/O error
+    IoError,
+    /// Operation not supported
+    NotSupported,
+    /// Agent not found
+    AgentNotFound,
+    /// Unknown error with errno
+    Unknown(i32),
+}
+
+impl MountError {
+    /// Convert errno to MountError
+    pub fn from_errno(errno: i32) -> Self {
+        match errno {
+            -1 => MountError::PermissionDenied,
+            -2 => MountError::NotFound,
+            -5 => MountError::IoError,
+            -22 => MountError::InvalidArgument,
+            -95 => MountError::NotSupported,
+            -3 => MountError::AgentNotFound, // ESRCH
+            e => MountError::Unknown(e),
+        }
+    }
+}
+
+/// Safe wrapper for mount isolation setup
+pub fn setup_mount_isolation(agent_id: u64, config: &SwarmMountIsolationConfig) -> MountResult<()> {
+    let ret = unsafe { swarm_mount_isolation_setup(agent_id, config as *const _) };
+    if ret == 0 {
+        Ok(())
+    } else {
+        Err(MountError::from_errno(ret))
+    }
+}
+
+/// Safe wrapper for mount isolation teardown
+pub fn teardown_mount_isolation(agent_id: u64) -> MountResult<()> {
+    let ret = unsafe { swarm_mount_isolation_teardown(agent_id) };
+    if ret == 0 {
+        Ok(())
+    } else {
+        Err(MountError::from_errno(ret))
+    }
+}
+
+/// Safe wrapper for adding a bind mount
+pub fn add_bind_mount(agent_id: u64, mount: &SwarmBindMount) -> MountResult<()> {
+    let ret = unsafe { swarm_mount_add_bind(agent_id, mount as *const _) };
+    if ret == 0 {
+        Ok(())
+    } else {
+        Err(MountError::from_errno(ret))
+    }
+}
+
+/// Safe wrapper for overlayfs setup
+pub fn setup_overlayfs(agent_id: u64, config: &SwarmOverlayFsConfig) -> MountResult<()> {
+    let ret = unsafe { swarm_mount_setup_overlayfs(agent_id, config as *const _) };
+    if ret == 0 {
+        Ok(())
+    } else {
+        Err(MountError::from_errno(ret))
+    }
+}
+
+/// Safe wrapper for pivot_root
+pub fn pivot_root(agent_id: u64, new_root: &str, old_root: &str) -> MountResult<()> {
+    let mut new_root_buf = [0i8; MAX_PATH_LEN];
+    let mut old_root_buf = [0i8; MAX_PATH_LEN];
+    copy_str_to_array(new_root, &mut new_root_buf);
+    copy_str_to_array(old_root, &mut old_root_buf);
+
+    let ret = unsafe {
+        swarm_mount_pivot_root(
+            agent_id,
+            new_root_buf.as_ptr(),
+            old_root_buf.as_ptr(),
+        )
+    };
+    if ret == 0 {
+        Ok(())
+    } else {
+        Err(MountError::from_errno(ret))
+    }
+}
+
+// ==================== End Mount Isolation FFI ====================
 
 /// Initialize SwarmGuard subsystems
 #[no_mangle]

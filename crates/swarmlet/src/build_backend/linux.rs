@@ -5,9 +5,16 @@
 //! - cgroups v2 for resource limits
 //! - OverlayFS for copy-on-write filesystem
 //! - seccomp for syscall filtering
+//! - Optional swarm_guard kernel module for enhanced isolation
 //!
 //! This is the preferred backend on Linux as it provides better performance
 //! than Docker through direct kernel integration.
+//!
+//! ## Kernel Module Integration
+//!
+//! When the swarm_guard kernel module is loaded, this backend will use
+//! kernel-level mount isolation for better security and performance.
+//! Falls back to direct syscalls when the module is not available.
 
 use super::{BackendCapabilities, BackendType, BuildBackend, BuildContext, CacheMount};
 use crate::build_job::{BuildResourceLimits, BuildResourceUsage, BuildResult, CargoCommand};
@@ -17,9 +24,13 @@ use std::collections::HashMap;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tracing::{debug, error, info, warn};
+
+/// Atomic counter for generating unique agent IDs for kernel module
+static AGENT_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Configuration for container isolation
 #[derive(Debug, Clone)]
@@ -65,6 +76,8 @@ pub struct LinuxNativeBackend {
     user_ns: bool,
     /// cgroup base path for builds
     cgroup_base: PathBuf,
+    /// Whether swarm_guard kernel module is available
+    kernel_module: bool,
 }
 
 impl LinuxNativeBackend {
@@ -80,12 +93,21 @@ impl LinuxNativeBackend {
         // Check for user namespace support
         let user_ns = Self::check_user_ns();
 
+        // Check for swarm_guard kernel module
+        let kernel_module = Self::check_kernel_module();
+
         if !cgroups_v2 {
             warn!("cgroups v2 not available, some resource limits may not work");
         }
 
         if !user_ns {
             warn!("User namespaces not available, rootless builds not possible");
+        }
+
+        if kernel_module {
+            info!("swarm_guard kernel module detected, using kernel-level mount isolation");
+        } else {
+            info!("swarm_guard kernel module not available, using direct syscalls for isolation");
         }
 
         // Ensure base directories exist
@@ -98,7 +120,52 @@ impl LinuxNativeBackend {
             cgroups_v2,
             user_ns,
             cgroup_base,
+            kernel_module,
         })
+    }
+
+    /// Check if swarm_guard kernel module is loaded
+    fn check_kernel_module() -> bool {
+        // Check if the kernel module is loaded via /sys/module
+        let module_path = Path::new("/sys/module/swarm_guard");
+        if module_path.exists() {
+            debug!("swarm_guard module found in /sys/module");
+            return true;
+        }
+
+        // Alternative: check /proc/modules for loaded module
+        if let Ok(content) = std::fs::read_to_string("/proc/modules") {
+            if content.lines().any(|line| line.starts_with("swarm_guard ")) {
+                debug!("swarm_guard module found in /proc/modules");
+                return true;
+            }
+        }
+
+        // Alternative: check for swarm_guard device
+        let device_path = Path::new("/dev/swarm_guard");
+        if device_path.exists() {
+            debug!("swarm_guard device found at /dev/swarm_guard");
+            return true;
+        }
+
+        // Check for proc entry
+        let proc_path = Path::new("/proc/swarm");
+        if proc_path.exists() {
+            debug!("swarm proc entry found at /proc/swarm");
+            return true;
+        }
+
+        false
+    }
+
+    /// Generate a unique agent ID for kernel module operations
+    fn next_agent_id() -> u64 {
+        AGENT_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
+    }
+
+    /// Check if kernel module is available
+    pub fn has_kernel_module(&self) -> bool {
+        self.kernel_module
     }
 
     /// Check if cgroups v2 (unified hierarchy) is available
@@ -319,8 +386,9 @@ impl LinuxNativeBackend {
         let env = context.build_environment();
 
         info!(
-            "Executing cargo {:?} in isolated environment",
-            cargo_args.first()
+            "Executing cargo {:?} in isolated environment (kernel_module: {})",
+            cargo_args.first(),
+            self.kernel_module
         );
 
         // Setup cgroup if limits are provided
@@ -339,6 +407,22 @@ impl LinuxNativeBackend {
             None
         };
 
+        // Setup kernel mount isolation if available
+        let kernel_agent_id = if self.kernel_module {
+            match Self::setup_kernel_mount_isolation(config) {
+                Ok(agent_id) => {
+                    info!("Kernel mount isolation setup for agent {}", agent_id);
+                    Some(agent_id)
+                }
+                Err(e) => {
+                    warn!("Failed to setup kernel mount isolation, falling back: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         // Build the command
         let mut cmd = Command::new("cargo");
         cmd.args(cargo_args)
@@ -350,12 +434,15 @@ impl LinuxNativeBackend {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        // On Linux, we can use pre_exec to setup isolation
+        // On Linux, use pre_exec for namespace isolation
+        // Skip namespace setup if kernel module is handling isolation
         #[cfg(target_os = "linux")]
-        if Self::check_capabilities() {
+        if kernel_agent_id.is_none() && Self::check_capabilities() {
             use nix::sched::{unshare, CloneFlags};
 
             let hostname = config.hostname.clone();
+
+            info!("Using direct syscall namespace isolation (fallback mode)");
 
             unsafe {
                 cmd.pre_exec(move || {
@@ -382,6 +469,8 @@ impl LinuxNativeBackend {
                     Ok(())
                 });
             }
+        } else if kernel_agent_id.is_some() {
+            info!("Using kernel module for namespace isolation");
         }
 
         let start_time = std::time::Instant::now();
@@ -457,6 +546,13 @@ impl LinuxNativeBackend {
             tokio::fs::remove_dir(&cgroup).await.ok();
         }
 
+        // Cleanup kernel mount isolation
+        if let Some(agent_id) = kernel_agent_id {
+            if let Err(e) = Self::teardown_kernel_mount_isolation(agent_id) {
+                warn!("Failed to teardown kernel mount isolation: {}", e);
+            }
+        }
+
         let exit_code = status.code().unwrap_or(-1);
 
         if exit_code != 0 {
@@ -518,6 +614,117 @@ impl LinuxNativeBackend {
     fn cleanup_overlayfs(_rootfs: &Path) -> Result<()> {
         Ok(())
     }
+
+    // ==================== Kernel Module Mount Isolation ====================
+
+    /// Setup mount isolation using the swarm_guard kernel module
+    ///
+    /// This method uses the kernel module's mount isolation functions for
+    /// better security and performance than direct syscalls.
+    ///
+    /// Returns the agent_id used for kernel module operations.
+    #[cfg(target_os = "linux")]
+    fn setup_kernel_mount_isolation(config: &ContainerConfig) -> Result<u64> {
+        use crate::kernel_interface::{KernelInterface, MountIsolationConfig, mount_flags};
+
+        // Generate unique agent ID
+        let agent_id = Self::next_agent_id();
+
+        debug!(
+            "Setting up kernel mount isolation for agent {} at {}",
+            agent_id,
+            config.rootfs.display()
+        );
+
+        // Check if kernel interface is available
+        if !KernelInterface::is_available() {
+            return Err(SwarmletError::System(
+                "Kernel module interface not available".to_string(),
+            ));
+        }
+
+        // Open kernel interface
+        let ki = KernelInterface::open()?;
+
+        // Build mount isolation config
+        let lower_dir = config.lower_dir.to_string_lossy();
+        let upper_dir = config.upper_dir.to_string_lossy();
+        let work_dir = config.work_dir.to_string_lossy();
+        let merged_dir = config.rootfs.to_string_lossy();
+
+        let mut iso_config = MountIsolationConfig::new(agent_id)
+            .with_overlayfs(&lower_dir, &upper_dir, &work_dir, &merged_dir)
+            .with_old_root("/.oldroot");
+
+        // Add bind mounts
+        for bind in &config.bind_mounts {
+            let mut flags = 0u32;
+            if bind.readonly {
+                flags |= mount_flags::READONLY;
+            }
+
+            let source = bind.source.to_string_lossy();
+            let target = bind.target.to_string_lossy();
+
+            if !iso_config.add_bind_mount(&source, &target, flags) {
+                warn!("Max bind mounts reached, skipping: {} -> {}", source, target);
+            }
+        }
+
+        debug!(
+            "Kernel overlayfs config: lower={}, upper={}, work={}, merged={}, {} bind mounts",
+            lower_dir, upper_dir, work_dir, merged_dir, iso_config.num_bind_mounts
+        );
+
+        // Call kernel module to setup mount isolation
+        ki.setup_mount_isolation(&iso_config)?;
+
+        info!(
+            "Kernel mount isolation setup complete for agent {}",
+            agent_id
+        );
+
+        Ok(agent_id)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn setup_kernel_mount_isolation(_config: &ContainerConfig) -> Result<u64> {
+        Err(SwarmletError::NotImplemented(
+            "Kernel mount isolation only available on Linux".to_string(),
+        ))
+    }
+
+    /// Teardown kernel mount isolation for an agent
+    #[cfg(target_os = "linux")]
+    fn teardown_kernel_mount_isolation(agent_id: u64) -> Result<()> {
+        use crate::kernel_interface::KernelInterface;
+
+        debug!("Tearing down kernel mount isolation for agent {}", agent_id);
+
+        // Check if kernel interface is available
+        if !KernelInterface::is_available() {
+            warn!("Kernel module interface not available for teardown");
+            return Ok(());
+        }
+
+        // Open kernel interface and teardown
+        let ki = KernelInterface::open()?;
+        ki.teardown_mount_isolation(agent_id)?;
+
+        info!(
+            "Kernel mount isolation teardown complete for agent {}",
+            agent_id
+        );
+
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn teardown_kernel_mount_isolation(_agent_id: u64) -> Result<()> {
+        Ok(())
+    }
+
+    // ==================== End Kernel Module Mount Isolation ====================
 
     /// Convert CacheMounts to BindMounts
     fn cache_to_bind_mounts(caches: &[CacheMount], container_root: &Path) -> Vec<BindMount> {
@@ -684,5 +891,22 @@ mod tests {
         };
 
         assert_eq!(config.hostname, "test-build");
+    }
+
+    #[test]
+    fn test_kernel_module_check() {
+        // Test kernel module detection
+        let result = LinuxNativeBackend::check_kernel_module();
+        // Will likely be false unless running on a system with swarm_guard loaded
+        // Just verify it doesn't panic
+        let _ = result;
+    }
+
+    #[test]
+    fn test_agent_id_generation() {
+        let id1 = LinuxNativeBackend::next_agent_id();
+        let id2 = LinuxNativeBackend::next_agent_id();
+        // IDs should be unique and increasing
+        assert!(id2 > id1);
     }
 }
