@@ -5,6 +5,10 @@
 
 pub mod agent;
 pub mod agent_actor;
+pub mod build_backend;
+pub mod build_job;
+pub mod build_job_manager;
+pub mod cache_manager;
 pub mod command;
 pub mod config;
 pub mod discovery;
@@ -12,6 +16,7 @@ pub mod error;
 pub mod join;
 pub mod profile;
 pub mod security;
+pub mod toolchain_manager;
 pub mod wireguard;
 pub mod workload;
 
@@ -27,7 +32,7 @@ pub use agent_actor::{
     create_swarmlet_actor, SwarmletAgentActor, SwarmletAgentHandle, SwarmletRequest,
 };
 pub use command::{CommandExecutor, CommandRequest, CommandResult, CommandStatus};
-pub use config::Config;
+pub use config::{Config, BuildConfig};
 pub use discovery::{ClusterDiscovery, ClusterInfo};
 pub use error::{Result, SwarmletError};
 pub use join::{JoinProtocol, JoinResult};
@@ -36,6 +41,16 @@ pub use wireguard::{
     WireGuardManager, WireGuardConfigRequest, WireGuardConfigResponse, WireGuardStatus,
     WireGuardPeerConfig, AddPeerRequest, RemovePeerRequest, PeerStatus,
 };
+
+// Build job exports
+pub use build_job::{
+    BuildJob, CargoCommand, RustToolchain, BuildSource, BuildProfile,
+    BuildResourceLimits, CacheConfig, ActiveBuildJob, BuildJobStatus,
+    BuildLogEntry, BuildArtifact,
+};
+pub use build_job_manager::BuildJobManager;
+pub use toolchain_manager::{ToolchainManager, ToolchainInfo};
+pub use cache_manager::CacheManager;
 
 // HPC Channels bridge exports
 #[cfg(feature = "hpc-channels")]

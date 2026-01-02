@@ -10,7 +10,7 @@ license.workspace = true
 hpc-error = { path = "../../hpc-foundation/hpc-error", features = ["sqlx", "axum", "reqwest", "csv"] }
 hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
 hpc-config = { path = "../../hpc-foundation/hpc-config" }
-hpc-channels = { path = "../../../../01-hpc-channels" }
+hpc-channels = { path = "../../../../02-hpc-channels" }
 
 # Async runtime
 tokio = { workspace = true }

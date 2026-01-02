@@ -11,7 +11,7 @@ hpc-error = { path = "../../hpc-foundation/hpc-error", features = ["sqlx", "axum
 hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
 hpc-config = { path = "../../hpc-foundation/hpc-config" }
 hpc-resources = { path = "../../hpc-foundation/hpc-resources" }
-hpc-channels = { path = "../../../../01-hpc-channels" }
+hpc-channels = { path = "../../../../02-hpc-channels" }
 
 # Async runtime
 tokio = { workspace = true }

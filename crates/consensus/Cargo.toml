@@ -19,7 +19,7 @@ futures.workspace = true
 tracing.workspace = true
 
 # HPC Channels integration
-hpc-channels = { path = "../../../01-hpc-channels", optional = true, features = ["rkyv-codec"] }
+hpc-channels = { path = "../../../02-hpc-channels", optional = true, features = ["rkyv-codec"] }
 
 # External crates
 stratoswarm-cuda = { path = "../cuda" }

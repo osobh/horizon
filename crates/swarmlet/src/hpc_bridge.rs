@@ -197,6 +197,340 @@ pub fn shared_channel_bridge() -> SharedAgentChannelBridge {
     Arc::new(AgentChannelBridge::new())
 }
 
+// ============================================================================
+// Build Channel Bridge (hpc-ci <-> stratoswarm build jobs)
+// ============================================================================
+
+use hpc_channels::messages::{
+    BuildCommand as HpcBuildCommand, BuildLogLevel, BuildMessage, BuildProfile as HpcBuildProfile,
+    BuildSource as HpcBuildSource, DeployMessage, DeployStrategy as HpcDeployStrategy,
+};
+use uuid::Uuid;
+
+/// Bridge between hpc-channels build messages and local BuildJobManager.
+///
+/// Listens on `hpc.build.submit` for incoming job requests (1-5µs latency)
+/// and publishes status updates to `hpc.build.status` and `hpc.build.logs`.
+pub struct BuildChannelBridge {
+    /// Sender for build status events.
+    status_tx: broadcast::Sender<BuildMessage>,
+    /// Sender for build log streaming.
+    logs_tx: broadcast::Sender<BuildMessage>,
+    /// Node ID for this swarmlet.
+    node_id: String,
+}
+
+impl BuildChannelBridge {
+    /// Create a new build channel bridge.
+    pub fn new(node_id: String) -> Self {
+        let status_tx =
+            hpc_channels::broadcast::<BuildMessage>(hpc_channels::channels::BUILD_STATUS, 512);
+        let logs_tx =
+            hpc_channels::broadcast::<BuildMessage>(hpc_channels::channels::BUILD_LOGS, 4096);
+
+        Self {
+            status_tx,
+            logs_tx,
+            node_id,
+        }
+    }
+
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+
+    /// Subscribe to build job submissions from hpc-ci.
+    ///
+    /// Returns None if the channel doesn't exist yet (no one has broadcast to it).
+    pub fn subscribe_submissions() -> Option<broadcast::Receiver<BuildMessage>> {
+        hpc_channels::subscribe::<BuildMessage>(hpc_channels::channels::BUILD_SUBMIT).ok()
+    }
+
+    /// Publish job queued status.
+    pub fn publish_queued(&self, job_id: &Uuid, position: u32) {
+        let _ = self.status_tx.send(BuildMessage::Queued {
+            job_id: job_id.to_string(),
+            position,
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish job started status.
+    pub fn publish_started(&self, job_id: &Uuid) {
+        let _ = self.status_tx.send(BuildMessage::Started {
+            job_id: job_id.to_string(),
+            worker_id: self.node_id.clone(),
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish job progress.
+    pub fn publish_progress(&self, job_id: &Uuid, phase: &str, percent: u8) {
+        let _ = self.status_tx.send(BuildMessage::Progress {
+            job_id: job_id.to_string(),
+            phase: phase.to_string(),
+            percent,
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish job completed.
+    pub fn publish_completed(&self, job_id: &Uuid, success: bool, duration_ms: u64, artifacts: Vec<String>) {
+        let _ = self.status_tx.send(BuildMessage::Completed {
+            job_id: job_id.to_string(),
+            success,
+            duration_ms,
+            artifacts,
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish job failed.
+    pub fn publish_failed(&self, job_id: &Uuid, error: &str) {
+        let _ = self.status_tx.send(BuildMessage::Failed {
+            job_id: job_id.to_string(),
+            error: error.to_string(),
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish job cancelled.
+    pub fn publish_cancelled(&self, job_id: &Uuid) {
+        let _ = self.status_tx.send(BuildMessage::Cancelled {
+            job_id: job_id.to_string(),
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish a build log entry.
+    pub fn publish_log(&self, job_id: &Uuid, level: BuildLogLevel, content: &str, source: &str) {
+        let _ = self.logs_tx.send(BuildMessage::Log {
+            job_id: job_id.to_string(),
+            level,
+            content: content.to_string(),
+            source: source.to_string(),
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Subscribe to build status events (for monitoring).
+    pub fn subscribe_status(&self) -> broadcast::Receiver<BuildMessage> {
+        self.status_tx.subscribe()
+    }
+
+    /// Subscribe to build logs (for monitoring).
+    pub fn subscribe_logs(&self) -> broadcast::Receiver<BuildMessage> {
+        self.logs_tx.subscribe()
+    }
+}
+
+/// Shared build channel bridge type.
+pub type SharedBuildChannelBridge = Arc<BuildChannelBridge>;
+
+/// Create a new shared build channel bridge.
+#[must_use]
+pub fn shared_build_bridge(node_id: String) -> SharedBuildChannelBridge {
+    Arc::new(BuildChannelBridge::new(node_id))
+}
+
+// ============================================================================
+// Deploy Channel Bridge (hpc-ci <-> stratoswarm deployments)
+// ============================================================================
+
+/// Bridge between hpc-channels deploy messages and local deployment system.
+///
+/// Listens on `hpc.deploy.submit` for incoming deployment requests (1-5µs latency)
+/// and publishes status updates to `hpc.deploy.status`.
+pub struct DeployChannelBridge {
+    /// Sender for deploy status events.
+    status_tx: broadcast::Sender<DeployMessage>,
+    /// Node ID for this swarmlet.
+    node_id: String,
+}
+
+impl DeployChannelBridge {
+    /// Create a new deploy channel bridge.
+    pub fn new(node_id: String) -> Self {
+        let status_tx =
+            hpc_channels::broadcast::<DeployMessage>(hpc_channels::channels::DEPLOY_STATUS, 256);
+
+        Self { status_tx, node_id }
+    }
+
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+
+    /// Subscribe to deploy job submissions from hpc-ci.
+    ///
+    /// Returns None if the channel doesn't exist yet (no one has broadcast to it).
+    pub fn subscribe_submissions() -> Option<broadcast::Receiver<DeployMessage>> {
+        hpc_channels::subscribe::<DeployMessage>(hpc_channels::channels::DEPLOY_SUBMIT).ok()
+    }
+
+    /// Publish deployment started.
+    pub fn publish_started(&self, deploy_id: &str, strategy: HpcDeployStrategy) {
+        let _ = self.status_tx.send(DeployMessage::Started {
+            deploy_id: deploy_id.to_string(),
+            strategy,
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish deployment progress.
+    pub fn publish_progress(&self, deploy_id: &str, phase: &str, percent: u8) {
+        let _ = self.status_tx.send(DeployMessage::Progress {
+            deploy_id: deploy_id.to_string(),
+            phase: phase.to_string(),
+            percent,
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish health check result.
+    pub fn publish_health_check(&self, deploy_id: &str, passed: bool, endpoint: &str) {
+        let _ = self.status_tx.send(DeployMessage::HealthCheck {
+            deploy_id: deploy_id.to_string(),
+            passed,
+            endpoint: endpoint.to_string(),
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish deployment completed.
+    pub fn publish_completed(&self, deploy_id: &str, success: bool, url: Option<String>) {
+        let _ = self.status_tx.send(DeployMessage::Completed {
+            deploy_id: deploy_id.to_string(),
+            success,
+            url,
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish deployment rolled back.
+    pub fn publish_rolled_back(&self, deploy_id: &str, reason: &str) {
+        let _ = self.status_tx.send(DeployMessage::RolledBack {
+            deploy_id: deploy_id.to_string(),
+            reason: reason.to_string(),
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Subscribe to deploy status events (for monitoring).
+    pub fn subscribe_status(&self) -> broadcast::Receiver<DeployMessage> {
+        self.status_tx.subscribe()
+    }
+}
+
+/// Shared deploy channel bridge type.
+pub type SharedDeployChannelBridge = Arc<DeployChannelBridge>;
+
+/// Create a new shared deploy channel bridge.
+#[must_use]
+pub fn shared_deploy_bridge(node_id: String) -> SharedDeployChannelBridge {
+    Arc::new(DeployChannelBridge::new(node_id))
+}
+
+// ============================================================================
+// Conversion helpers for hpc-channels <-> local types
+// ============================================================================
+
+use crate::build_job::{
+    BuildJob, BuildProfile, BuildResourceLimits, BuildSource, CargoCommand, GitReference,
+    RustToolchain,
+};
+
+/// Convert hpc-channels BuildMessage::Submit to local BuildJob.
+pub fn build_job_from_submit(submit: &BuildMessage) -> Option<BuildJob> {
+    match submit {
+        BuildMessage::Submit {
+            job_id,
+            command,
+            toolchain,
+            source,
+            profile,
+            features,
+            env,
+            resources,
+            ..
+        } => {
+            let id = Uuid::parse_str(job_id).ok()?;
+
+            let cargo_command = match command {
+                HpcBuildCommand::Build => CargoCommand::Build,
+                HpcBuildCommand::Test => CargoCommand::Test { filter: None },
+                HpcBuildCommand::Check => CargoCommand::Check,
+                HpcBuildCommand::Clippy => CargoCommand::Clippy { deny_warnings: true },
+                HpcBuildCommand::Doc => CargoCommand::Doc { open: false },
+                HpcBuildCommand::Run => CargoCommand::Run { bin: None, args: vec![] },
+                HpcBuildCommand::Bench => CargoCommand::Bench { filter: None },
+            };
+
+            let build_source = match source {
+                HpcBuildSource::Git { url, git_ref, sha } => BuildSource::Git {
+                    url: url.clone(),
+                    reference: sha
+                        .as_ref()
+                        .map(|s: &String| GitReference::Commit(s.clone()))
+                        .or_else(|| Some(GitReference::Branch(git_ref.clone()))),
+                    depth: Some(1),
+                },
+                HpcBuildSource::Archive { url, checksum } => BuildSource::Archive {
+                    url: url.clone(),
+                    sha256: checksum.clone(),
+                },
+                HpcBuildSource::Artifact { pipeline_id, path } => BuildSource::Cached {
+                    hash: format!("{}:{}", pipeline_id, path),
+                },
+                HpcBuildSource::Local { path } => BuildSource::Local {
+                    path: std::path::PathBuf::from(path),
+                },
+            };
+
+            let build_profile = match profile {
+                HpcBuildProfile::Debug => BuildProfile::Debug,
+                HpcBuildProfile::Release => BuildProfile::Release,
+            };
+
+            let resource_limits = BuildResourceLimits {
+                cpu_cores: Some(resources.cpu_cores as f32),
+                memory_bytes: Some(resources.memory_bytes),
+                disk_bytes: Some(resources.disk_bytes),
+                timeout_seconds: Some(resources.timeout_secs),
+            };
+
+            let job = BuildJob {
+                id,
+                command: cargo_command,
+                toolchain: RustToolchain {
+                    channel: toolchain.clone(),
+                    date: None,
+                    components: vec!["rustfmt".to_string(), "clippy".to_string()],
+                    targets: vec![],
+                },
+                source: build_source,
+                target: None,
+                profile: build_profile,
+                features: features.clone(),
+                environment: env.clone(),
+                resource_limits,
+                cache_config: Default::default(),
+                created_at: chrono::Utc::now(),
+                deadline: None,
+            };
+
+            Some(job)
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

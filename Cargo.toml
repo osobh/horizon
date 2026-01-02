@@ -288,7 +288,7 @@ dispatch2 = "0.2"
 # - shared-memory: Tier 1 same-machine IPC via memmap2
 # - rkyv-codec: Zero-copy serialization
 # - wireguard: Tier 3 cross-site encrypted tunnels (optional, requires base64)
-hpc-channels = { path = "../01-hpc-channels", features = ["shared-memory", "rkyv-codec"] }
+hpc-channels = { path = "../02-hpc-channels", features = ["shared-memory", "rkyv-codec"] }
 
 # WARP file transfer crates
 warp-ipc = { path = "../05-warp/crates/warp-ipc" }

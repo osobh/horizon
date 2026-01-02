@@ -88,7 +88,7 @@ reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 tonic = { version = "0.11", optional = true }
 
 # HPC Platform Integration (optional)
-hpc-channels = { path = "../../../01-hpc-channels", optional = true }
+hpc-channels = { path = "../../../02-hpc-channels", optional = true }
 
 # NAT Traversal & Connectivity Probing (optional)
 # Note: nebula-traverse has WireGuard deps that conflict with warp-crypto

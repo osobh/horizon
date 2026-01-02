@@ -50,7 +50,7 @@ hpc-error = { path = "../../hpc-foundation/hpc-error", features = ["axum"] }
 hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
 hpc-config = { path = "../../hpc-foundation/hpc-config" }
 hpc-tsdb = { path = "../../hpc-foundation/hpc-tsdb" }
-hpc-channels = { path = "../../../../01-hpc-channels" }
+hpc-channels = { path = "../../../../02-hpc-channels" }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }

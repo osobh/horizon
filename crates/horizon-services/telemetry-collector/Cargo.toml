@@ -15,7 +15,7 @@ hpc-types = { path = "../../hpc-foundation/hpc-types" }
 hpc-config = { path = "../../hpc-foundation/hpc-config" }
 hpc-auth = { path = "../../hpc-foundation/hpc-auth" }
 hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
-hpc-channels = { path = "../../../../01-hpc-channels" }
+hpc-channels = { path = "../../../../02-hpc-channels" }
 
 tokio = { workspace = true }
 quinn = { workspace = true }
