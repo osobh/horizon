@@ -53,6 +53,8 @@ pub struct BuildContext {
     pub workspace: PathBuf,
     /// Path to the Rust toolchain
     pub toolchain_path: PathBuf,
+    /// Toolchain specification (e.g., "stable", "nightly", "1.76.0")
+    pub toolchain: Option<String>,
     /// Cache mount configurations
     pub cache_mounts: Vec<CacheMount>,
     /// Environment variables for the build
@@ -61,6 +63,8 @@ pub struct BuildContext {
     pub resource_limits: BuildResourceLimits,
     /// Cargo arguments
     pub cargo_args: Vec<String>,
+    /// Build timeout
+    pub timeout: Option<std::time::Duration>,
 }
 
 impl BuildContext {
@@ -69,11 +73,25 @@ impl BuildContext {
         Self {
             workspace,
             toolchain_path,
+            toolchain: None,
             cache_mounts: Vec::new(),
             environment: HashMap::new(),
             resource_limits: BuildResourceLimits::default(),
             cargo_args: Vec::new(),
+            timeout: None,
         }
+    }
+
+    /// Set the toolchain specification
+    pub fn with_toolchain(mut self, toolchain: impl Into<String>) -> Self {
+        self.toolchain = Some(toolchain.into());
+        self
+    }
+
+    /// Set the build timeout
+    pub fn with_timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
     }
 
     /// Add a cache mount

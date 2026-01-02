@@ -14,7 +14,9 @@ use tokio::sync::RwLock;
 
 // Docker-only imports
 #[cfg(feature = "docker")]
-use crate::build_job::BuildResourceUsage;
+use crate::build_job::{ArtifactType, BuildArtifact, BuildResourceUsage};
+#[cfg(feature = "docker")]
+use sha2::{Digest, Sha256};
 #[cfg(feature = "docker")]
 use tracing::{debug, info, warn};
 #[cfg(feature = "docker")]
@@ -142,6 +144,181 @@ impl DockerBackend {
 
         Ok(())
     }
+
+    /// Get the appropriate Docker image for a Rust toolchain
+    #[cfg(feature = "docker")]
+    fn get_image_for_toolchain(&self, toolchain: Option<&str>) -> String {
+        match toolchain {
+            Some("nightly") => "rustlang/rust:nightly".to_string(),
+            Some("beta") => "rust:beta".to_string(),
+            Some(version) if version.starts_with("1.") => format!("rust:{}", version),
+            Some(_) | None => self.default_image.clone(),
+        }
+    }
+
+    /// Collect build artifacts from workspace
+    #[cfg(feature = "docker")]
+    async fn collect_artifacts(
+        &self,
+        workspace: &PathBuf,
+        command: &CargoCommand,
+    ) -> Vec<BuildArtifact> {
+        let mut artifacts = Vec::new();
+
+        match command {
+            CargoCommand::Build | CargoCommand::Run { .. } => {
+                // Look for binaries in target/release and target/debug
+                for profile in ["release", "debug"] {
+                    let target_dir = workspace.join("target").join(profile);
+                    if let Ok(entries) = tokio::fs::read_dir(&target_dir).await {
+                        let mut entries = entries;
+                        while let Ok(Some(entry)) = entries.next_entry().await {
+                            let path = entry.path();
+                            if self.is_executable(&path).await {
+                                if let Some(artifact) = self.create_artifact(&path, ArtifactType::Binary).await {
+                                    artifacts.push(artifact);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            CargoCommand::Test { .. } => {
+                // Look for test results in target/
+                let results_path = workspace.join("target").join("test-results.json");
+                if results_path.exists() {
+                    if let Some(artifact) = self.create_artifact(&results_path, ArtifactType::TestResults).await {
+                        artifacts.push(artifact);
+                    }
+                }
+            }
+            CargoCommand::Doc { .. } => {
+                // Look for documentation
+                let doc_dir = workspace.join("target").join("doc");
+                if doc_dir.exists() {
+                    // Create a tarball of docs would be ideal, for now just note it exists
+                    artifacts.push(BuildArtifact {
+                        name: "documentation".to_string(),
+                        path: doc_dir,
+                        size_bytes: 0,
+                        artifact_type: ArtifactType::Documentation,
+                        sha256: String::new(),
+                    });
+                }
+            }
+            _ => {}
+        }
+
+        artifacts
+    }
+
+    /// Check if a file is an executable binary
+    #[cfg(feature = "docker")]
+    async fn is_executable(&self, path: &PathBuf) -> bool {
+        if !path.is_file() {
+            return false;
+        }
+
+        // Skip common non-executable files
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if name.ends_with(".d") || name.ends_with(".rlib") || name.ends_with(".rmeta") {
+            return false;
+        }
+
+        // On Unix, check execute permission
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(metadata) = tokio::fs::metadata(path).await {
+                return metadata.permissions().mode() & 0o111 != 0;
+            }
+            return false;
+        }
+
+        // On Windows, check for .exe extension
+        #[cfg(windows)]
+        {
+            return name.ends_with(".exe");
+        }
+
+        #[cfg(not(any(unix, windows)))]
+        {
+            false
+        }
+    }
+
+    /// Create a BuildArtifact from a file path
+    #[cfg(feature = "docker")]
+    async fn create_artifact(&self, path: &PathBuf, artifact_type: ArtifactType) -> Option<BuildArtifact> {
+        let metadata = tokio::fs::metadata(path).await.ok()?;
+        let name = path.file_name()?.to_str()?.to_string();
+
+        // Calculate SHA256 hash
+        let contents = tokio::fs::read(path).await.ok()?;
+        let mut hasher = Sha256::new();
+        hasher.update(&contents);
+        let sha256 = format!("{:x}", hasher.finalize());
+
+        Some(BuildArtifact {
+            name,
+            path: path.clone(),
+            size_bytes: metadata.len(),
+            artifact_type,
+            sha256,
+        })
+    }
+
+    /// Get container stats for resource usage
+    #[cfg(feature = "docker")]
+    async fn get_container_stats(&self, container_id: &str) -> BuildResourceUsage {
+        use futures::StreamExt;
+
+        let mut usage = BuildResourceUsage::default();
+
+        let options = bollard::container::StatsOptions {
+            stream: false,
+            one_shot: true,
+        };
+
+        let mut stats_stream = self.docker.stats(container_id, Some(options));
+
+        if let Some(Ok(stats)) = stats_stream.next().await {
+            // Calculate CPU usage - bollard 0.14 uses direct structs, not Options
+            let cpu_stats = &stats.cpu_stats;
+            let precpu_stats = &stats.precpu_stats;
+
+            let cpu_delta = cpu_stats.cpu_usage.total_usage
+                .saturating_sub(precpu_stats.cpu_usage.total_usage);
+            let system_delta = cpu_stats.system_cpu_usage
+                .unwrap_or(0)
+                .saturating_sub(precpu_stats.system_cpu_usage.unwrap_or(0));
+
+            if system_delta > 0 {
+                let num_cpus = cpu_stats.online_cpus.unwrap_or(1) as f64;
+                usage.cpu_seconds = (cpu_delta as f64 / system_delta as f64) * num_cpus;
+            }
+
+            // Memory usage
+            let memory_stats = &stats.memory_stats;
+            if let Some(mem_usage) = memory_stats.usage {
+                usage.peak_memory_mb = (mem_usage / (1024 * 1024)) as f32;
+            }
+
+            // IO stats
+            let blkio_stats = &stats.blkio_stats;
+            if let Some(io_service_bytes) = &blkio_stats.io_service_bytes_recursive {
+                for stat in io_service_bytes {
+                    match stat.op.as_str() {
+                        "read" | "Read" => usage.disk_read_bytes += stat.value,
+                        "write" | "Write" => usage.disk_write_bytes += stat.value,
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        usage
+    }
 }
 
 #[async_trait]
@@ -151,8 +328,6 @@ impl BuildBackend for DockerBackend {
         command: &CargoCommand,
         context: &BuildContext,
     ) -> Result<BuildResult> {
-        // Suppress unused warning when docker feature is enabled
-        let _ = command;
         #[cfg(feature = "docker")]
         {
             use bollard::container::{
@@ -169,8 +344,11 @@ impl BuildBackend for DockerBackend {
 
             info!("Executing in Docker: {}", cmd);
 
+            // Select appropriate image based on toolchain
+            let image = self.get_image_for_toolchain(context.toolchain.as_deref());
+
             // Ensure image exists
-            self.ensure_image(&self.default_image).await?;
+            self.ensure_image(&image).await?;
 
             // Build environment variables
             let env: Vec<String> = context
@@ -183,7 +361,7 @@ impl BuildBackend for DockerBackend {
             let host_config = self.build_host_config(context);
 
             let config = Config {
-                image: Some(self.default_image.clone()),
+                image: Some(image),
                 cmd: Some(vec!["sh".to_string(), "-c".to_string(), cmd]),
                 env: Some(env),
                 working_dir: Some("/workspace".to_string()),
@@ -217,7 +395,8 @@ impl BuildBackend for DockerBackend {
                 .await
                 .map_err(|e| SwarmletError::Docker(format!("Failed to start container: {e}")))?;
 
-            // Collect logs
+            // Collect logs with timeout
+            let timeout_duration = context.timeout.unwrap_or(std::time::Duration::from_secs(3600));
             let logs_options = LogsOptions::<String> {
                 follow: true,
                 stdout: true,
@@ -226,27 +405,40 @@ impl BuildBackend for DockerBackend {
             };
 
             let mut log_stream = self.docker.logs(&container.id, Some(logs_options));
-            let mut stdout_lines = Vec::new();
-            let mut stderr_lines = Vec::new();
 
-            while let Some(log_result) = log_stream.next().await {
-                match log_result {
-                    Ok(bollard::container::LogOutput::StdOut { message }) => {
-                        let line = String::from_utf8_lossy(&message);
-                        debug!("[stdout] {}", line.trim());
-                        stdout_lines.push(line.to_string());
+            let log_collection = async {
+                while let Some(log_result) = log_stream.next().await {
+                    match log_result {
+                        Ok(bollard::container::LogOutput::StdOut { message }) => {
+                            let line = String::from_utf8_lossy(&message);
+                            debug!("[stdout] {}", line.trim());
+                        }
+                        Ok(bollard::container::LogOutput::StdErr { message }) => {
+                            let line = String::from_utf8_lossy(&message);
+                            debug!("[stderr] {}", line.trim());
+                        }
+                        Err(e) => {
+                            warn!("Log stream error: {}", e);
+                        }
+                        _ => {}
                     }
-                    Ok(bollard::container::LogOutput::StdErr { message }) => {
-                        let line = String::from_utf8_lossy(&message);
-                        debug!("[stderr] {}", line.trim());
-                        stderr_lines.push(line.to_string());
-                    }
-                    Err(e) => {
-                        warn!("Log stream error: {}", e);
-                    }
-                    _ => {}
+                }
+            };
+
+            // Apply timeout to log collection
+            let timed_out = tokio::time::timeout(timeout_duration, log_collection).await.is_err();
+
+            if timed_out {
+                warn!("Build timed out after {:?}", timeout_duration);
+                // Kill the container
+                if let Err(e) = self.docker.kill_container::<String>(&container.id, None).await {
+                    warn!("Failed to kill timed out container: {}", e);
                 }
             }
+
+            // Get container stats before it's removed
+            let mut resource_usage = self.get_container_stats(&container.id).await;
+            resource_usage.compile_time_seconds = start_time.elapsed().as_secs_f64();
 
             // Wait for container to finish
             let wait_options = WaitContainerOptions {
@@ -254,13 +446,18 @@ impl BuildBackend for DockerBackend {
             };
 
             let mut wait_stream = self.docker.wait_container(&container.id, Some(wait_options));
-            let exit_code = if let Some(Ok(result)) = wait_stream.next().await {
+            let exit_code = if timed_out {
+                -1 // Timeout exit code
+            } else if let Some(Ok(result)) = wait_stream.next().await {
                 result.status_code as i32
             } else {
                 -1
             };
 
             let duration = start_time.elapsed();
+
+            // Collect artifacts from workspace
+            let artifacts = self.collect_artifacts(&context.workspace, command).await;
 
             // Remove container from tracking
             {
@@ -285,12 +482,9 @@ impl BuildBackend for DockerBackend {
 
             Ok(BuildResult {
                 exit_code,
-                resource_usage: BuildResourceUsage {
-                    compile_time_seconds: duration.as_secs_f64(),
-                    ..Default::default()
-                },
+                resource_usage,
                 duration,
-                artifacts: Vec::new(), // TODO: collect artifacts
+                artifacts,
             })
         }
 
@@ -374,5 +568,73 @@ mod tests {
             PathBuf::from("/root/.cargo"),
         );
         assert_eq!(mount.to_docker_bind(), "/host/cargo:/root/.cargo:rw");
+    }
+
+    #[test]
+    fn test_backend_type() {
+        // Test that we can create an instance (Docker not running is fine)
+        // Just verify type information
+        assert_eq!(BackendType::Docker.to_string(), "docker");
+    }
+
+    #[test]
+    fn test_backend_capabilities_default() {
+        let caps = BackendCapabilities::default();
+        assert!(!caps.full_namespace_isolation);
+        assert!(!caps.cgroups_v2);
+        assert!(!caps.gpu_passthrough);
+        assert_eq!(caps.max_containers, 10);
+    }
+
+    #[cfg(feature = "docker")]
+    mod docker_feature_tests {
+        // Helper to create a minimal DockerBackend for testing helper methods
+        // without actually connecting to Docker
+        struct MockDockerBackend {
+            default_image: String,
+        }
+
+        impl MockDockerBackend {
+            fn new() -> Self {
+                Self {
+                    default_image: "rust:latest".to_string(),
+                }
+            }
+
+            fn get_image_for_toolchain(&self, toolchain: Option<&str>) -> String {
+                match toolchain {
+                    Some("nightly") => "rustlang/rust:nightly".to_string(),
+                    Some("beta") => "rust:beta".to_string(),
+                    Some(version) if version.starts_with("1.") => format!("rust:{}", version),
+                    Some(_) | None => self.default_image.clone(),
+                }
+            }
+        }
+
+        #[test]
+        fn test_toolchain_image_selection_stable() {
+            let backend = MockDockerBackend::new();
+            assert_eq!(backend.get_image_for_toolchain(None), "rust:latest");
+            assert_eq!(backend.get_image_for_toolchain(Some("stable")), "rust:latest");
+        }
+
+        #[test]
+        fn test_toolchain_image_selection_nightly() {
+            let backend = MockDockerBackend::new();
+            assert_eq!(backend.get_image_for_toolchain(Some("nightly")), "rustlang/rust:nightly");
+        }
+
+        #[test]
+        fn test_toolchain_image_selection_beta() {
+            let backend = MockDockerBackend::new();
+            assert_eq!(backend.get_image_for_toolchain(Some("beta")), "rust:beta");
+        }
+
+        #[test]
+        fn test_toolchain_image_selection_version() {
+            let backend = MockDockerBackend::new();
+            assert_eq!(backend.get_image_for_toolchain(Some("1.76.0")), "rust:1.76.0");
+            assert_eq!(backend.get_image_for_toolchain(Some("1.75")), "rust:1.75");
+        }
     }
 }
