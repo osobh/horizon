@@ -11,6 +11,7 @@ use crate::build_log_stream::BuildLogStreamer;
 use crate::cache_manager::CacheManager;
 use crate::config::Config;
 use crate::toolchain_manager::ToolchainManager;
+use crate::error::BuildPhase;
 use crate::{Result, SwarmletError};
 use chrono::Utc;
 use flate2::read::GzDecoder;
@@ -80,6 +81,11 @@ impl BuildJobManager {
         *guard = Some(streamer);
     }
 
+    /// Get a reference to the cache manager
+    pub fn cache_manager(&self) -> &Arc<CacheManager> {
+        &self.cache_manager
+    }
+
     /// Submit a new build job
     pub async fn submit_build(&self, job: BuildJob) -> Result<Uuid> {
         // Check capacity
@@ -130,13 +136,20 @@ impl BuildJobManager {
         tokio::spawn(async move {
             if let Err(e) = this.execute_build(job_id, job).await {
                 error!("Build {} failed: {}", job_id, e);
+                let error_msg = e.to_string();
                 this.update_status(
                     job_id,
                     BuildJobStatus::Failed {
-                        error: e.to_string(),
+                        error: error_msg.clone(),
                     },
                 )
                 .await;
+
+                // Broadcast error to WebSocket clients
+                let streamer_guard = this.log_streamer.read().await;
+                if let Some(ref streamer) = *streamer_guard {
+                    streamer.broadcast_error(job_id, error_msg).await;
+                }
             }
         });
 
@@ -151,15 +164,30 @@ impl BuildJobManager {
         self.log(job_id, LogStream::System, "Preparing build environment")
             .await;
 
-        let workspace = self.backend.create_workspace(&job_id.to_string()).await?;
+        let workspace = self.backend.create_workspace(&job_id.to_string()).await
+            .map_err(|e| {
+                SwarmletError::build_error_with_source(
+                    BuildPhase::PreparingEnvironment,
+                    "Failed to create workspace",
+                    e,
+                )
+            })?;
 
-        // Phase 2: Fetch source
+        // Phase 2: Fetch source (with retry for recoverable errors)
         self.update_status(job_id, BuildJobStatus::FetchingSource)
             .await;
         self.log(job_id, LogStream::System, "Fetching source code")
             .await;
 
-        self.fetch_source(&job.source, &workspace).await?;
+        if let Err(e) = self.fetch_source_with_retry(&job.source, &workspace, job_id, 3).await {
+            // Cleanup workspace on failure
+            self.cleanup_on_error(job_id, &workspace).await;
+            return Err(SwarmletError::build_error_with_source(
+                BuildPhase::FetchingSource,
+                "Failed to fetch source code",
+                e,
+            ));
+        }
 
         // Phase 3: Provision toolchain
         self.update_status(job_id, BuildJobStatus::ProvisioningToolchain)
@@ -171,10 +199,17 @@ impl BuildJobManager {
         )
         .await;
 
-        let toolchain_path = self
-            .toolchain_manager
-            .ensure_toolchain(&job.toolchain)
-            .await?;
+        let toolchain_path = match self.toolchain_manager.ensure_toolchain(&job.toolchain).await {
+            Ok(path) => path,
+            Err(e) => {
+                self.cleanup_on_error(job_id, &workspace).await;
+                return Err(SwarmletError::build_error_with_source(
+                    BuildPhase::ProvisioningToolchain,
+                    format!("Failed to provision toolchain: {}", job.toolchain.toolchain_string()),
+                    e,
+                ));
+            }
+        };
 
         // Phase 4: Execute build
         self.update_status(job_id, BuildJobStatus::Building).await;
@@ -206,16 +241,14 @@ impl BuildJobManager {
         self.update_status(job_id, BuildJobStatus::CollectingArtifacts)
             .await;
 
-        // Update final status
+        // Update final status and broadcast completion
+        let duration_secs = result.duration.as_secs_f64();
         if result.is_success() {
             self.update_status(job_id, BuildJobStatus::Completed).await;
             self.log(
                 job_id,
                 LogStream::System,
-                &format!(
-                    "Build completed in {:.2}s",
-                    result.duration.as_secs_f64()
-                ),
+                &format!("Build completed in {:.2}s", duration_secs),
             )
             .await;
         } else {
@@ -226,6 +259,29 @@ impl BuildJobManager {
                 },
             )
             .await;
+        }
+
+        // Broadcast completion to WebSocket clients
+        {
+            let streamer_guard = self.log_streamer.read().await;
+            if let Some(ref streamer) = *streamer_guard {
+                streamer
+                    .broadcast_completed(job_id, result.exit_code, duration_secs)
+                    .await;
+            }
+        }
+
+        // Record artifact cache usage if enabled
+        if job.cache_config.cache_target {
+            if let Some(ref cache_key) = job.cache_config.cache_key {
+                if let Err(e) = self
+                    .cache_manager
+                    .record_artifact_usage(cache_key, &job_id.to_string())
+                    .await
+                {
+                    warn!("Failed to record artifact cache usage: {}", e);
+                }
+            }
         }
 
         // Update resource usage
@@ -243,6 +299,101 @@ impl BuildJobManager {
         }
 
         Ok(())
+    }
+
+    /// Fetch source with retry logic for recoverable errors
+    async fn fetch_source_with_retry(
+        &self,
+        source: &BuildSource,
+        workspace: &PathBuf,
+        job_id: Uuid,
+        max_retries: u32,
+    ) -> Result<()> {
+        let mut last_error = None;
+
+        for attempt in 1..=max_retries {
+            match self.fetch_source(source, workspace).await {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    let is_last_attempt = attempt == max_retries;
+
+                    if e.is_recoverable() && !is_last_attempt {
+                        warn!(
+                            "Build {}: Source fetch attempt {}/{} failed (recoverable): {}",
+                            job_id, attempt, max_retries, e
+                        );
+                        self.log(
+                            job_id,
+                            LogStream::System,
+                            &format!(
+                                "Source fetch failed (attempt {}/{}), retrying in 2s: {}",
+                                attempt, max_retries, e
+                            ),
+                        )
+                        .await;
+
+                        // Clean up partial workspace before retry
+                        if let Err(cleanup_err) = self.cleanup_workspace_contents(workspace).await {
+                            warn!("Failed to cleanup workspace before retry: {}", cleanup_err);
+                        }
+
+                        // Wait before retry with exponential backoff
+                        tokio::time::sleep(std::time::Duration::from_secs(2_u64.pow(attempt - 1))).await;
+                        last_error = Some(e);
+                    } else {
+                        // Non-recoverable error or last attempt
+                        if is_last_attempt {
+                            error!(
+                                "Build {}: Source fetch failed after {} attempts: {}",
+                                job_id, max_retries, e
+                            );
+                            self.log(
+                                job_id,
+                                LogStream::System,
+                                &format!("Source fetch failed after {} attempts: {}", max_retries, e),
+                            )
+                            .await;
+                        }
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        // Should not reach here, but return last error if we do
+        Err(last_error.unwrap_or_else(|| {
+            SwarmletError::WorkloadExecution("Source fetch failed with unknown error".to_string())
+        }))
+    }
+
+    /// Clean up workspace contents (for retry)
+    async fn cleanup_workspace_contents(&self, workspace: &PathBuf) -> Result<()> {
+        if workspace.exists() {
+            let mut entries = tokio::fs::read_dir(workspace).await?;
+            while let Some(entry) = entries.next_entry().await? {
+                let path = entry.path();
+                if path.is_dir() {
+                    tokio::fs::remove_dir_all(&path).await?;
+                } else {
+                    tokio::fs::remove_file(&path).await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Clean up on build error
+    async fn cleanup_on_error(&self, job_id: Uuid, workspace: &PathBuf) {
+        self.log(
+            job_id,
+            LogStream::System,
+            "Cleaning up after build failure...",
+        )
+        .await;
+
+        if let Err(e) = self.backend.cleanup_workspace(workspace).await {
+            warn!("Failed to cleanup workspace after error: {}", e);
+        }
     }
 
     /// Fetch source code to workspace

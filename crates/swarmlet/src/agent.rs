@@ -1904,6 +1904,202 @@ impl SwarmletAgent {
                 })
             });
 
+        // Source cache routes
+        let build_manager_sources_list = self.build_job_manager.clone();
+        let sources_list_route = warp::path!("api" / "v1" / "sources")
+            .and(warp::get())
+            .and_then(move || {
+                let bm = build_manager_sources_list.clone();
+                async move {
+                    let sources = bm.cache_manager().list_cached_sources().await;
+                    let json = serde_json::to_string(&sources).unwrap_or_else(|_| {
+                        r#"{"error": "serialization_failed"}"#.to_string()
+                    });
+                    Ok::<_, Infallible>(warp::reply::with_header(
+                        warp::reply::with_status(json, warp::http::StatusCode::OK),
+                        "content-type",
+                        "application/json",
+                    ))
+                }
+            });
+
+        let build_manager_sources_get = self.build_job_manager.clone();
+        let sources_get_route = warp::path!("api" / "v1" / "sources" / String)
+            .and(warp::get())
+            .and_then(move |hash: String| {
+                let bm = build_manager_sources_get.clone();
+                async move {
+                    match bm.cache_manager().get_source_metadata(&hash).await {
+                        Some(metadata) => {
+                            let json = serde_json::to_string(&metadata).unwrap_or_else(|_| {
+                                r#"{"error": "serialization_failed"}"#.to_string()
+                            });
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        None => {
+                            let error_response = r#"{"error": "source_not_found"}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::NOT_FOUND,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        let build_manager_sources_delete = self.build_job_manager.clone();
+        let sources_delete_route = warp::path!("api" / "v1" / "sources" / String)
+            .and(warp::delete())
+            .and_then(move |hash: String| {
+                let bm = build_manager_sources_delete.clone();
+                async move {
+                    match bm.cache_manager().delete_cached_source(&hash).await {
+                        Ok(Some(metadata)) => {
+                            let response = serde_json::json!({
+                                "success": true,
+                                "deleted": metadata
+                            });
+                            let json = serde_json::to_string(&response).unwrap_or_else(|_| {
+                                r#"{"success": true}"#.to_string()
+                            });
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Ok(None) => {
+                            let error_response = r#"{"error": "source_not_found"}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::NOT_FOUND,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Err(e) => {
+                            let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        // Artifact cache routes
+        let build_manager_artifacts_list = self.build_job_manager.clone();
+        let artifacts_list_route = warp::path!("api" / "v1" / "artifacts")
+            .and(warp::get())
+            .and_then(move || {
+                let bm = build_manager_artifacts_list.clone();
+                async move {
+                    let artifacts = bm.cache_manager().list_artifact_caches().await;
+                    let json = serde_json::to_string(&artifacts).unwrap_or_else(|_| {
+                        r#"{"error": "serialization_failed"}"#.to_string()
+                    });
+                    Ok::<_, Infallible>(warp::reply::with_header(
+                        warp::reply::with_status(json, warp::http::StatusCode::OK),
+                        "content-type",
+                        "application/json",
+                    ))
+                }
+            });
+
+        let build_manager_artifacts_get = self.build_job_manager.clone();
+        let artifacts_get_route = warp::path!("api" / "v1" / "artifacts" / String)
+            .and(warp::get())
+            .and_then(move |cache_key: String| {
+                let bm = build_manager_artifacts_get.clone();
+                async move {
+                    match bm.cache_manager().get_artifact_metadata(&cache_key).await {
+                        Some(metadata) => {
+                            let json = serde_json::to_string(&metadata).unwrap_or_else(|_| {
+                                r#"{"error": "serialization_failed"}"#.to_string()
+                            });
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        None => {
+                            let error_response = r#"{"error": "artifact_not_found"}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::NOT_FOUND,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        let build_manager_artifacts_delete = self.build_job_manager.clone();
+        let artifacts_delete_route = warp::path!("api" / "v1" / "artifacts" / String)
+            .and(warp::delete())
+            .and_then(move |cache_key: String| {
+                let bm = build_manager_artifacts_delete.clone();
+                async move {
+                    match bm.cache_manager().delete_artifact_cache(&cache_key).await {
+                        Ok(Some(metadata)) => {
+                            let response = serde_json::json!({
+                                "success": true,
+                                "deleted": metadata
+                            });
+                            let json = serde_json::to_string(&response).unwrap_or_else(|_| {
+                                r#"{"success": true}"#.to_string()
+                            });
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Ok(None) => {
+                            let error_response = r#"{"error": "artifact_not_found"}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::NOT_FOUND,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Err(e) => {
+                            let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
         // Detailed metrics route (Prometheus format)
         let health_status_detailed = self.health_status.clone();
         let workload_manager_metrics = self.workload_manager.clone();
@@ -2004,6 +2200,12 @@ impl SwarmletAgent {
             .or(builds_cancel_route)
             .or(builds_logs_route)
             .or(builds_logs_stream_route)
+            .or(sources_list_route)
+            .or(sources_get_route)
+            .or(sources_delete_route)
+            .or(artifacts_list_route)
+            .or(artifacts_get_route)
+            .or(artifacts_delete_route)
             .or(detailed_metrics_route)
             .or(hardware_route);
 

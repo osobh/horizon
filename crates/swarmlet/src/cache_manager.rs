@@ -41,17 +41,34 @@ pub struct CacheManager {
     max_cache_bytes: u64,
 }
 
-/// Information about a target cache
+/// Information about a target cache (runtime tracking)
 #[derive(Debug, Clone)]
 pub struct TargetCacheInfo {
     /// Path to the cache
     pub path: PathBuf,
     /// Cache key (project hash)
     pub key: String,
-    /// When the cache was last used
+    /// When the cache was last used (runtime)
     pub last_used: std::time::Instant,
     /// Approximate size in bytes
     pub size_bytes: u64,
+}
+
+/// Metadata for artifact cache (persisted to disk)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArtifactCacheMetadata {
+    /// Cache key (project identifier)
+    pub cache_key: String,
+    /// When the cache was created
+    pub created_at: DateTime<Utc>,
+    /// Size in bytes
+    pub size_bytes: u64,
+    /// When the cache was last used
+    pub last_used: DateTime<Utc>,
+    /// Number of times the cache has been used
+    pub use_count: u32,
+    /// Associated build job IDs that used this cache
+    pub build_jobs: Vec<String>,
 }
 
 /// Metadata for cached source code
@@ -480,7 +497,227 @@ impl CacheManager {
         caches.values().cloned().collect()
     }
 
+    /// Delete a cached source by hash
+    ///
+    /// Returns the metadata of the deleted source, or None if not found.
+    pub async fn delete_cached_source(&self, hash: &str) -> Result<Option<SourceCacheMetadata>> {
+        let mut caches = self.source_caches.write().await;
+
+        if let Some(metadata) = caches.remove(hash) {
+            let cache_path = self.sources_dir.join(hash);
+            if cache_path.exists() {
+                tokio::fs::remove_dir_all(&cache_path).await.map_err(|e| {
+                    // Re-insert metadata on failure
+                    caches.insert(hash.to_string(), metadata.clone());
+                    SwarmletError::Io(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to remove source cache directory: {e}"),
+                    ))
+                })?;
+            }
+            info!("Deleted source cache: {} ({} bytes)", hash, metadata.size_bytes);
+            Ok(Some(metadata))
+        } else {
+            Ok(None)
+        }
+    }
+
     // ==================== End Source Caching ====================
+
+    // ==================== Artifact Caching ====================
+
+    /// Get the artifacts cache directory path
+    pub fn artifacts_path(&self) -> PathBuf {
+        self.cache_dir.join("targets")
+    }
+
+    /// Record artifact cache usage for a build
+    ///
+    /// This updates or creates metadata for an artifact cache, tracking
+    /// which builds have used it for incremental compilation.
+    pub async fn record_artifact_usage(&self, cache_key: &str, build_job_id: &str) -> Result<()> {
+        let targets_dir = self.artifacts_path();
+        let cache_path = targets_dir.join(cache_key);
+        let metadata_path = cache_path.join("artifact_metadata.json");
+
+        // Calculate current size
+        let size_bytes = if cache_path.exists() {
+            Self::dir_size(&cache_path).await.unwrap_or(0)
+        } else {
+            0
+        };
+
+        let now = Utc::now();
+
+        // Load existing metadata or create new
+        let mut metadata = if metadata_path.exists() {
+            let contents = tokio::fs::read_to_string(&metadata_path).await?;
+            serde_json::from_str::<ArtifactCacheMetadata>(&contents).unwrap_or_else(|_| {
+                ArtifactCacheMetadata {
+                    cache_key: cache_key.to_string(),
+                    created_at: now,
+                    size_bytes,
+                    last_used: now,
+                    use_count: 0,
+                    build_jobs: Vec::new(),
+                }
+            })
+        } else {
+            ArtifactCacheMetadata {
+                cache_key: cache_key.to_string(),
+                created_at: now,
+                size_bytes,
+                last_used: now,
+                use_count: 0,
+                build_jobs: Vec::new(),
+            }
+        };
+
+        // Update metadata
+        metadata.last_used = now;
+        metadata.use_count += 1;
+        metadata.size_bytes = size_bytes;
+
+        // Add build job ID if not already present (keep last 10)
+        if !metadata.build_jobs.contains(&build_job_id.to_string()) {
+            metadata.build_jobs.push(build_job_id.to_string());
+            if metadata.build_jobs.len() > 10 {
+                metadata.build_jobs.remove(0);
+            }
+        }
+
+        // Save metadata
+        let metadata_json = serde_json::to_string_pretty(&metadata).map_err(|e| {
+            SwarmletError::Configuration(format!("Failed to serialize artifact metadata: {e}"))
+        })?;
+        tokio::fs::write(&metadata_path, metadata_json).await?;
+
+        debug!(
+            "Recorded artifact cache usage: {} (use_count: {}, size: {} bytes)",
+            cache_key, metadata.use_count, metadata.size_bytes
+        );
+
+        Ok(())
+    }
+
+    /// List all artifact caches
+    pub async fn list_artifact_caches(&self) -> Vec<ArtifactCacheMetadata> {
+        let targets_dir = self.artifacts_path();
+        let mut caches = Vec::new();
+
+        if let Ok(mut entries) = tokio::fs::read_dir(&targets_dir).await {
+            while let Ok(Some(entry)) = entries.next_entry().await {
+                let metadata_path = entry.path().join("artifact_metadata.json");
+                if metadata_path.exists() {
+                    if let Ok(contents) = tokio::fs::read_to_string(&metadata_path).await {
+                        if let Ok(metadata) = serde_json::from_str::<ArtifactCacheMetadata>(&contents) {
+                            caches.push(metadata);
+                        }
+                    }
+                } else if entry.path().is_dir() {
+                    // Directory exists but no metadata - create basic entry
+                    let cache_key = entry.file_name().to_string_lossy().to_string();
+                    let size_bytes = Self::dir_size(&entry.path()).await.unwrap_or(0);
+                    caches.push(ArtifactCacheMetadata {
+                        cache_key,
+                        created_at: Utc::now(),
+                        size_bytes,
+                        last_used: Utc::now(),
+                        use_count: 0,
+                        build_jobs: Vec::new(),
+                    });
+                }
+            }
+        }
+
+        caches
+    }
+
+    /// Get metadata for a specific artifact cache
+    pub async fn get_artifact_metadata(&self, cache_key: &str) -> Option<ArtifactCacheMetadata> {
+        let metadata_path = self.artifacts_path().join(cache_key).join("artifact_metadata.json");
+
+        if metadata_path.exists() {
+            if let Ok(contents) = tokio::fs::read_to_string(&metadata_path).await {
+                return serde_json::from_str(&contents).ok();
+            }
+        }
+
+        // Check if directory exists but has no metadata
+        let cache_path = self.artifacts_path().join(cache_key);
+        if cache_path.is_dir() {
+            let size_bytes = Self::dir_size(&cache_path).await.unwrap_or(0);
+            return Some(ArtifactCacheMetadata {
+                cache_key: cache_key.to_string(),
+                created_at: Utc::now(),
+                size_bytes,
+                last_used: Utc::now(),
+                use_count: 0,
+                build_jobs: Vec::new(),
+            });
+        }
+
+        None
+    }
+
+    /// Delete an artifact cache
+    pub async fn delete_artifact_cache(&self, cache_key: &str) -> Result<Option<ArtifactCacheMetadata>> {
+        let cache_path = self.artifacts_path().join(cache_key);
+
+        if !cache_path.exists() {
+            return Ok(None);
+        }
+
+        // Get metadata before deletion
+        let metadata = self.get_artifact_metadata(cache_key).await;
+
+        // Remove from runtime cache
+        {
+            let mut caches = self.target_caches.write().await;
+            caches.remove(cache_key);
+        }
+
+        // Delete directory
+        tokio::fs::remove_dir_all(&cache_path).await.map_err(|e| {
+            SwarmletError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to remove artifact cache directory: {e}"),
+            ))
+        })?;
+
+        if let Some(ref m) = metadata {
+            info!(
+                "Deleted artifact cache: {} ({} bytes, {} builds)",
+                cache_key,
+                m.size_bytes,
+                m.build_jobs.len()
+            );
+        }
+
+        Ok(metadata)
+    }
+
+    /// Cleanup old artifact caches that haven't been used recently
+    pub async fn cleanup_artifacts(&self, max_age_secs: u64) -> Result<ArtifactCleanupResult> {
+        let mut result = ArtifactCleanupResult::default();
+        let now = Utc::now();
+
+        let caches = self.list_artifact_caches().await;
+
+        for cache in caches {
+            let age = now.signed_duration_since(cache.last_used);
+            if age.num_seconds() as u64 > max_age_secs {
+                if let Ok(Some(deleted)) = self.delete_artifact_cache(&cache.cache_key).await {
+                    result.caches_removed += 1;
+                    result.bytes_freed += deleted.size_bytes;
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    // ==================== End Artifact Caching ====================
 
     /// Calculate total cache size
     pub async fn total_size(&self) -> Result<u64> {
@@ -650,6 +887,15 @@ pub struct CleanupResult {
 pub struct SourceCleanupResult {
     /// Number of source caches removed
     pub sources_removed: usize,
+    /// Bytes freed
+    pub bytes_freed: u64,
+}
+
+/// Result of an artifact cache cleanup operation
+#[derive(Debug, Default)]
+pub struct ArtifactCleanupResult {
+    /// Number of artifact caches removed
+    pub caches_removed: usize,
     /// Bytes freed
     pub bytes_freed: u64,
 }
@@ -845,6 +1091,117 @@ mod tests {
 
         let metadata_after = manager.get_source_metadata(&hash).await.unwrap();
         assert!(metadata_after.last_used >= metadata_before.last_used);
+
+        // Cleanup
+        let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+    }
+
+    #[tokio::test]
+    async fn test_delete_cached_source() {
+        let temp_dir = std::env::temp_dir().join("test-delete-source");
+        let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+
+        let manager = CacheManager::new(temp_dir.clone()).await.unwrap();
+
+        // Create and cache workspace
+        let workspace = temp_dir.join("workspace");
+        tokio::fs::create_dir_all(&workspace).await.unwrap();
+        tokio::fs::write(workspace.join("main.rs"), "fn main() {}").await.unwrap();
+
+        let hash = manager.cache_source(&workspace, "local", "/test").await.unwrap();
+
+        // Verify it's cached
+        assert!(manager.has_cached_source(&hash).await);
+        let cache_path = manager.get_cached_source(&hash).await.unwrap();
+        assert!(cache_path.exists());
+
+        // Delete the source
+        let deleted = manager.delete_cached_source(&hash).await.unwrap();
+        assert!(deleted.is_some());
+        assert_eq!(deleted.unwrap().hash, hash);
+
+        // Verify it's no longer cached
+        assert!(!manager.has_cached_source(&hash).await);
+        assert!(manager.get_cached_source(&hash).await.is_none());
+        assert!(!cache_path.exists());
+
+        // Deleting non-existent source returns None
+        let deleted_again = manager.delete_cached_source(&hash).await.unwrap();
+        assert!(deleted_again.is_none());
+
+        // Cleanup
+        let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+    }
+
+    #[tokio::test]
+    async fn test_artifact_cache_record_and_list() {
+        let temp_dir = std::env::temp_dir().join("test-artifact-cache");
+        let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+
+        let manager = CacheManager::new(temp_dir.clone()).await.unwrap();
+
+        // Initially empty
+        assert!(manager.list_artifact_caches().await.is_empty());
+
+        // Create artifact cache directory and record usage
+        let cache_key = "my-project-abc123";
+        let artifacts_path = manager.artifacts_path().join(cache_key);
+        tokio::fs::create_dir_all(&artifacts_path).await.unwrap();
+        tokio::fs::write(artifacts_path.join("some-artifact.rlib"), "binary data").await.unwrap();
+
+        // Record usage
+        manager.record_artifact_usage(cache_key, "job-1").await.unwrap();
+
+        // List should now contain the cache
+        let caches = manager.list_artifact_caches().await;
+        assert_eq!(caches.len(), 1);
+        assert_eq!(caches[0].cache_key, cache_key);
+        assert_eq!(caches[0].use_count, 1);
+        assert!(caches[0].build_jobs.contains(&"job-1".to_string()));
+
+        // Record another usage
+        manager.record_artifact_usage(cache_key, "job-2").await.unwrap();
+
+        let metadata = manager.get_artifact_metadata(cache_key).await.unwrap();
+        assert_eq!(metadata.use_count, 2);
+        assert!(metadata.build_jobs.contains(&"job-1".to_string()));
+        assert!(metadata.build_jobs.contains(&"job-2".to_string()));
+
+        // Cleanup
+        let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+    }
+
+    #[tokio::test]
+    async fn test_artifact_cache_delete() {
+        let temp_dir = std::env::temp_dir().join("test-artifact-delete");
+        let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+
+        let manager = CacheManager::new(temp_dir.clone()).await.unwrap();
+
+        // Create and record artifact cache
+        let cache_key = "delete-test-project";
+        let artifacts_path = manager.artifacts_path().join(cache_key);
+        tokio::fs::create_dir_all(&artifacts_path).await.unwrap();
+        tokio::fs::write(artifacts_path.join("artifact.o"), "obj data").await.unwrap();
+
+        manager.record_artifact_usage(cache_key, "job-1").await.unwrap();
+
+        // Verify it exists
+        assert!(manager.get_artifact_metadata(cache_key).await.is_some());
+        assert!(artifacts_path.exists());
+
+        // Delete it
+        let deleted = manager.delete_artifact_cache(cache_key).await.unwrap();
+        assert!(deleted.is_some());
+        assert_eq!(deleted.unwrap().cache_key, cache_key);
+
+        // Verify it's gone
+        assert!(manager.get_artifact_metadata(cache_key).await.is_none());
+        assert!(!artifacts_path.exists());
+
+        // Delete again returns None
+        let deleted_again = manager.delete_artifact_cache(cache_key).await.unwrap();
+        assert!(deleted_again.is_none());
 
         // Cleanup
         let _ = tokio::fs::remove_dir_all(&temp_dir).await;

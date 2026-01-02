@@ -74,6 +74,58 @@ pub enum SwarmletError {
 
     #[error("WireGuard error: {0}")]
     WireGuard(String),
+
+    #[error("Build error in phase '{phase}': {message}")]
+    Build {
+        phase: BuildPhase,
+        message: String,
+        #[source]
+        source: Option<Box<SwarmletError>>,
+    },
+}
+
+/// Build phases for error context
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildPhase {
+    PreparingEnvironment,
+    FetchingSource,
+    ProvisioningToolchain,
+    Building,
+    CollectingArtifacts,
+    Cleanup,
+}
+
+impl std::fmt::Display for BuildPhase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuildPhase::PreparingEnvironment => write!(f, "preparing_environment"),
+            BuildPhase::FetchingSource => write!(f, "fetching_source"),
+            BuildPhase::ProvisioningToolchain => write!(f, "provisioning_toolchain"),
+            BuildPhase::Building => write!(f, "building"),
+            BuildPhase::CollectingArtifacts => write!(f, "collecting_artifacts"),
+            BuildPhase::Cleanup => write!(f, "cleanup"),
+        }
+    }
+}
+
+impl SwarmletError {
+    /// Create a build error with phase context
+    pub fn build_error(phase: BuildPhase, message: impl Into<String>) -> Self {
+        SwarmletError::Build {
+            phase,
+            message: message.into(),
+            source: None,
+        }
+    }
+
+    /// Create a build error with phase context and source error
+    pub fn build_error_with_source(phase: BuildPhase, message: impl Into<String>, source: SwarmletError) -> Self {
+        SwarmletError::Build {
+            phase,
+            message: message.into(),
+            source: Some(Box::new(source)),
+        }
+    }
 }
 
 impl SwarmletError {

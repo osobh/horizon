@@ -36,7 +36,7 @@ pub use agent_actor::{
 pub use command::{CommandExecutor, CommandRequest, CommandResult, CommandStatus};
 pub use config::{Config, BuildConfig};
 pub use discovery::{ClusterDiscovery, ClusterInfo};
-pub use error::{Result, SwarmletError};
+pub use error::{BuildPhase, Result, SwarmletError};
 pub use join::{JoinProtocol, JoinResult};
 pub use profile::{HardwareProfile, HardwareProfiler, NodeCapabilities};
 pub use wireguard::{
@@ -52,7 +52,7 @@ pub use build_job::{
 };
 pub use build_job_manager::BuildJobManager;
 pub use toolchain_manager::{ToolchainManager, ToolchainInfo};
-pub use cache_manager::CacheManager;
+pub use cache_manager::{CacheManager, ArtifactCacheMetadata, SourceCacheMetadata};
 
 // HPC Channels bridge exports
 #[cfg(feature = "hpc-channels")]
