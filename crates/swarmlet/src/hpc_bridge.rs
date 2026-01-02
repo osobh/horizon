@@ -249,6 +249,13 @@ impl BuildChannelBridge {
         hpc_channels::subscribe::<BuildMessage>(hpc_channels::channels::BUILD_SUBMIT).ok()
     }
 
+    /// Subscribe to build cancellation requests from hpc-ci.
+    ///
+    /// Returns None if the channel doesn't exist yet (no one has broadcast to it).
+    pub fn subscribe_cancellations() -> Option<broadcast::Receiver<BuildMessage>> {
+        hpc_channels::subscribe::<BuildMessage>(hpc_channels::channels::BUILD_CANCEL).ok()
+    }
+
     /// Publish job queued status.
     pub fn publish_queued(&self, job_id: &Uuid, position: u32) {
         let _ = self.status_tx.send(BuildMessage::Queued {

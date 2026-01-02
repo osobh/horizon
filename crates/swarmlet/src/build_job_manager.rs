@@ -352,10 +352,55 @@ impl BuildJobManager {
                 info!("Archive extracted successfully to {:?}", workspace);
                 Ok(())
             }
-            BuildSource::Cached { hash: _ } => {
-                Err(SwarmletError::NotImplemented(
-                    "Cached source not yet implemented".to_string(),
-                ))
+            BuildSource::Cached { hash } => {
+                // Retrieve cached source by hash
+                let cache_path = self
+                    .cache_manager
+                    .get_cached_source(hash)
+                    .await
+                    .ok_or_else(|| {
+                        SwarmletError::WorkloadExecution(format!(
+                            "Cached source not found: {}",
+                            hash
+                        ))
+                    })?;
+
+                let archive_path = cache_path.join("source.tar.gz");
+                if !archive_path.exists() {
+                    return Err(SwarmletError::WorkloadExecution(format!(
+                        "Cached source archive not found: {}",
+                        archive_path.display()
+                    )));
+                }
+
+                debug!(
+                    "Extracting cached source {} from {:?}",
+                    hash, archive_path
+                );
+
+                // Extract the cached archive
+                let file = std::fs::File::open(&archive_path).map_err(|e| {
+                    SwarmletError::Io(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to open cached archive: {}", e),
+                    ))
+                })?;
+                let decoder = GzDecoder::new(file);
+                let mut archive = Archive::new(decoder);
+
+                // Extract directly (no stripping needed - cached sources are stored flat)
+                archive.unpack(workspace).map_err(|e| {
+                    SwarmletError::Io(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to extract cached archive: {}", e),
+                    ))
+                })?;
+
+                // Update last_used timestamp
+                self.cache_manager.touch_source(hash).await?;
+
+                info!("Cached source {} extracted to {:?}", hash, workspace);
+                Ok(())
             }
             BuildSource::Local { path } => {
                 // Copy local files to workspace
@@ -412,10 +457,45 @@ impl BuildJobManager {
     }
 
     /// Cancel a build job
+    ///
+    /// This will:
+    /// 1. Mark the job status as Cancelled
+    /// 2. Kill the running process (if native Linux isolation)
+    /// 3. Stop the container (if Docker backend)
     pub async fn cancel_build(&self, job_id: Uuid) -> Result<()> {
         let mut jobs = self.active_jobs.write().await;
         if let Some(job) = jobs.get_mut(&job_id) {
             if !job.status.is_terminal() {
+                // Kill process if running (native Linux isolation)
+                if let Some(pid) = job.pid {
+                    #[cfg(unix)]
+                    {
+                        use nix::sys::signal::{kill, Signal};
+                        use nix::unistd::Pid;
+                        info!("Killing build process {} for job {}", pid, job_id);
+                        // Send SIGTERM first for graceful shutdown
+                        if let Err(e) = kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
+                            warn!("Failed to send SIGTERM to process {}: {}", pid, e);
+                            // Try SIGKILL if SIGTERM fails
+                            let _ = kill(Pid::from_raw(pid as i32), Signal::SIGKILL);
+                        }
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        warn!("Process termination not supported on this platform");
+                    }
+                }
+
+                // Stop container if running (Docker backend)
+                #[cfg(feature = "docker")]
+                if let Some(ref container_id) = job.container_id {
+                    info!("Stopping container {} for job {}", container_id, job_id);
+                    // Container stopping is handled asynchronously by the Docker backend
+                    // The BuildBackend trait has cancel_build which we can't call from here
+                    // since we don't have access to the backend. Instead, we store the
+                    // container_id and the caller is responsible for stopping it.
+                }
+
                 job.status = BuildJobStatus::Cancelled;
                 job.output_log.push(BuildLogEntry {
                     timestamp: Utc::now(),

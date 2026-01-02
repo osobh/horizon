@@ -8,6 +8,7 @@ pub mod agent_actor;
 pub mod build_backend;
 pub mod build_job;
 pub mod build_job_manager;
+pub mod build_log_stream;
 pub mod cache_manager;
 pub mod command;
 pub mod config;
@@ -19,6 +20,7 @@ pub mod security;
 pub mod toolchain_manager;
 pub mod wireguard;
 pub mod workload;
+pub mod health_check;
 
 // HPC Channels integration
 #[cfg(feature = "hpc-channels")]

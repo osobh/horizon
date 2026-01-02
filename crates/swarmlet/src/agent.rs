@@ -426,6 +426,13 @@ impl SwarmletAgent {
             async move { agent.hpc_channels_deploy_listener().await }
         }));
 
+        // Start hpc-channels cancel listener (1-5µs latency from hpc-ci)
+        #[cfg(feature = "hpc-channels")]
+        tasks.push(tokio::spawn({
+            let agent = agent.clone();
+            async move { agent.hpc_channels_cancel_listener().await }
+        }));
+
         // Wait for shutdown signal
         info!("Swarmlet agent running, waiting for shutdown signal...");
 
@@ -1071,11 +1078,22 @@ impl SwarmletAgent {
         if let Some(endpoint) = health_check {
             self.deploy_bridge.publish_progress(deploy_id, "health_checking", 70);
 
-            // Simple health check - in production this would poll the endpoint
-            tokio::time::sleep(Duration::from_secs(2)).await;
+            // Real health check using HealthChecker
+            let checker = crate::health_check::HealthChecker::with_config(
+                crate::health_check::HealthCheckConfig::default()
+                    .with_initial_delay(Duration::from_secs(2))
+                    .with_max_retries(3)
+            );
+            let result = checker.check(endpoint).await;
 
-            // Assume health check passes for now
-            self.deploy_bridge.publish_health_check(deploy_id, true, endpoint);
+            self.deploy_bridge.publish_health_check(deploy_id, result.passed, endpoint);
+
+            if !result.passed {
+                return Err(format!(
+                    "Health check failed: {}",
+                    result.error.unwrap_or_else(|| "Unknown error".to_string())
+                ));
+            }
         }
 
         // Phase 3: Switch traffic (simulated)
@@ -1139,8 +1157,22 @@ impl SwarmletAgent {
 
             // Health check after each batch
             if let Some(endpoint) = health_check {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                self.deploy_bridge.publish_health_check(deploy_id, true, endpoint);
+                // Real health check using HealthChecker (quick for batch checks)
+                let checker = crate::health_check::HealthChecker::with_config(
+                    crate::health_check::HealthCheckConfig::quick()
+                        .with_initial_delay(Duration::from_secs(1))
+                );
+                let result = checker.check(endpoint).await;
+
+                self.deploy_bridge.publish_health_check(deploy_id, result.passed, endpoint);
+
+                if !result.passed {
+                    return Err(format!(
+                        "Rolling batch {} health check failed: {}",
+                        batch,
+                        result.error.unwrap_or_else(|| "Unknown error".to_string())
+                    ));
+                }
             }
 
             info!("Rolling deployment {}: batch {} complete ({}/{})", deploy_id, batch, deployed, replicas);
@@ -1201,8 +1233,23 @@ impl SwarmletAgent {
         // Health check canary
         if let Some(endpoint) = health_check {
             self.deploy_bridge.publish_progress(deploy_id, "health_checking_canary", 70);
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            self.deploy_bridge.publish_health_check(deploy_id, true, endpoint);
+
+            // Real health check using HealthChecker
+            let checker = crate::health_check::HealthChecker::with_config(
+                crate::health_check::HealthCheckConfig::default()
+                    .with_initial_delay(Duration::from_secs(2))
+                    .with_max_retries(3)
+            );
+            let result = checker.check(endpoint).await;
+
+            self.deploy_bridge.publish_health_check(deploy_id, result.passed, endpoint);
+
+            if !result.passed {
+                return Err(format!(
+                    "Canary health check failed: {}",
+                    result.error.unwrap_or_else(|| "Unknown error".to_string())
+                ));
+            }
         }
 
         // In a real canary, we would monitor metrics and gradually increase traffic
@@ -1216,6 +1263,96 @@ impl SwarmletAgent {
 
         let url = format!("https://{}-canary.{}.svc.cluster.local", deploy_id, namespace);
         Ok(Some(url))
+    }
+
+    /// Listen for build cancellation requests from hpc-ci
+    #[cfg(feature = "hpc-channels")]
+    async fn hpc_channels_cancel_listener(&self) -> Result<()> {
+        use crate::hpc_bridge::BuildChannelBridge;
+
+        // Subscribe to build cancellation requests from hpc-ci
+        let mut cancel_rx = match BuildChannelBridge::subscribe_cancellations() {
+            Some(rx) => rx,
+            None => {
+                // Channel doesn't exist yet, wait and retry
+                info!("Waiting for hpc.build.cancel channel to be created...");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+
+                // Try to create the channel by broadcasting
+                let _ = hpc_channels::broadcast::<BuildMessage>(
+                    hpc_channels::channels::BUILD_CANCEL,
+                    256,
+                );
+
+                match BuildChannelBridge::subscribe_cancellations() {
+                    Some(rx) => rx,
+                    None => {
+                        warn!("Could not subscribe to build cancel channel");
+                        return Ok(());
+                    }
+                }
+            }
+        };
+
+        let mut shutdown_signal = self.shutdown_signal.clone();
+
+        info!("HPC-Channels cancel listener started, listening on hpc.build.cancel");
+
+        loop {
+            tokio::select! {
+                result = cancel_rx.recv() => {
+                    match result {
+                        Ok(msg) => {
+                            self.handle_cancel_request(msg).await;
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            warn!("Cancel listener lagged by {} messages", n);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            info!("Build cancel channel closed");
+                            break;
+                        }
+                    }
+                }
+                _ = shutdown_signal.changed() => {
+                    debug!("HPC-Channels cancel listener shutting down");
+                    break;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Handle a build cancellation request from hpc-ci
+    #[cfg(feature = "hpc-channels")]
+    async fn handle_cancel_request(&self, msg: BuildMessage) {
+        if let BuildMessage::CancelRequest { job_id, reason, .. } = msg {
+            let job_uuid = match Uuid::parse_str(&job_id) {
+                Ok(id) => id,
+                Err(_) => {
+                    warn!("Invalid job ID in cancel request: {}", job_id);
+                    return;
+                }
+            };
+
+            info!(
+                "Received cancel request for job {}: {:?}",
+                job_id,
+                reason.as_deref().unwrap_or("no reason provided")
+            );
+
+            // Cancel the build in the BuildJobManager
+            match self.build_job_manager.cancel_build(job_uuid).await {
+                Ok(()) => {
+                    info!("Build job {} cancelled successfully", job_id);
+                    self.build_bridge.publish_cancelled(&job_uuid);
+                }
+                Err(e) => {
+                    warn!("Failed to cancel build job {}: {}", job_id, e);
+                }
+            }
+        }
     }
 
     /// API server loop - provides local HTTP API for health checks and metrics
