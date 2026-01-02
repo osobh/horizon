@@ -12,9 +12,13 @@ use crate::config::Config;
 use crate::toolchain_manager::ToolchainManager;
 use crate::{Result, SwarmletError};
 use chrono::Utc;
+use flate2::read::GzDecoder;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tar::Archive;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -291,27 +295,62 @@ impl BuildJobManager {
                 Ok(())
             }
             BuildSource::Archive { url, sha256 } => {
+                debug!("Downloading archive from: {}", url);
+
                 // Download archive
-                let response = reqwest::get(url).await.map_err(|e| {
-                    SwarmletError::Network(e)
-                })?;
+                let response = reqwest::get(url).await.map_err(SwarmletError::Network)?;
 
-                let bytes = response.bytes().await.map_err(|e| {
-                    SwarmletError::Network(e)
-                })?;
-
-                // Verify hash if provided
-                if let Some(_expected_hash) = sha256 {
-                    // TODO: Verify SHA256
+                if !response.status().is_success() {
+                    return Err(SwarmletError::WorkloadExecution(format!(
+                        "Failed to download archive: HTTP {}",
+                        response.status()
+                    )));
                 }
 
-                // Extract to workspace
-                // TODO: Handle tar.gz extraction
-                let _ = bytes;
+                let bytes = response.bytes().await.map_err(SwarmletError::Network)?;
 
-                Err(SwarmletError::NotImplemented(
-                    "Archive extraction not yet implemented".to_string(),
-                ))
+                // Verify SHA256 hash if provided
+                if let Some(expected_hash) = sha256 {
+                    let mut hasher = Sha256::new();
+                    hasher.update(&bytes);
+                    let actual_hash = format!("{:x}", hasher.finalize());
+
+                    if actual_hash != *expected_hash {
+                        return Err(SwarmletError::WorkloadExecution(format!(
+                            "SHA256 mismatch: expected {}, got {}",
+                            expected_hash, actual_hash
+                        )));
+                    }
+                    debug!("SHA256 verification passed: {}", actual_hash);
+                }
+
+                // Extract archive based on URL extension
+                let is_gzip = url.ends_with(".tar.gz") || url.ends_with(".tgz");
+                let is_tar = url.ends_with(".tar") || is_gzip;
+
+                if !is_tar {
+                    return Err(SwarmletError::WorkloadExecution(
+                        "Unsupported archive format. Only .tar, .tar.gz, and .tgz are supported"
+                            .to_string(),
+                    ));
+                }
+
+                // Extract tar archive (with optional gzip decompression)
+                let bytes_slice = bytes.as_ref();
+
+                if is_gzip {
+                    debug!("Extracting gzipped tar archive to {:?}", workspace);
+                    let decoder = GzDecoder::new(bytes_slice);
+                    let mut archive = Archive::new(decoder);
+                    extract_tar_archive(&mut archive, workspace)?;
+                } else {
+                    debug!("Extracting tar archive to {:?}", workspace);
+                    let mut archive = Archive::new(bytes_slice);
+                    extract_tar_archive(&mut archive, workspace)?;
+                }
+
+                info!("Archive extracted successfully to {:?}", workspace);
+                Ok(())
             }
             BuildSource::Cached { hash: _ } => {
                 Err(SwarmletError::NotImplemented(
@@ -444,6 +483,118 @@ async fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Extract a tar archive to the destination directory
+///
+/// Handles archives that may contain a single top-level directory (common for GitHub releases).
+/// If the archive contains only one directory at the root, extracts its contents directly
+/// to the workspace instead of creating a nested directory.
+fn extract_tar_archive<R: Read>(archive: &mut Archive<R>, dest: &PathBuf) -> Result<()> {
+    // First, collect all entries to analyze structure
+    let mut entries_data: Vec<(PathBuf, Vec<u8>, bool, u32)> = Vec::new();
+    let mut top_level_dirs: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+
+    for entry_result in archive.entries().map_err(|e| {
+        SwarmletError::WorkloadExecution(format!("Failed to read archive entries: {}", e))
+    })? {
+        let mut entry = entry_result.map_err(|e| {
+            SwarmletError::WorkloadExecution(format!("Failed to read archive entry: {}", e))
+        })?;
+
+        let path = entry.path().map_err(|e| {
+            SwarmletError::WorkloadExecution(format!("Invalid path in archive: {}", e))
+        })?;
+        let path = path.to_path_buf();
+
+        // Track top-level directories
+        if let Some(first_component) = path.components().next() {
+            let first = PathBuf::from(first_component.as_os_str());
+            top_level_dirs.insert(first);
+        }
+
+        let is_dir = entry.header().entry_type().is_dir();
+        let mode = entry.header().mode().unwrap_or(0o644);
+
+        let mut data = Vec::new();
+        if !is_dir {
+            entry.read_to_end(&mut data).map_err(|e| {
+                SwarmletError::WorkloadExecution(format!("Failed to read archive content: {}", e))
+            })?;
+        }
+
+        entries_data.push((path, data, is_dir, mode));
+    }
+
+    // Determine if we should strip the top-level directory
+    // (common pattern: archive contains single dir like "project-1.0.0/")
+    let strip_prefix = if top_level_dirs.len() == 1 {
+        top_level_dirs.into_iter().next()
+    } else {
+        None
+    };
+
+    // Create destination directory
+    std::fs::create_dir_all(dest).map_err(|e| {
+        SwarmletError::WorkloadExecution(format!("Failed to create destination directory: {}", e))
+    })?;
+
+    // Extract entries
+    for (path, data, is_dir, mode) in entries_data {
+        // Apply prefix stripping if needed
+        let relative_path = if let Some(ref prefix) = strip_prefix {
+            match path.strip_prefix(prefix) {
+                Ok(stripped) => stripped.to_path_buf(),
+                Err(_) => path,
+            }
+        } else {
+            path
+        };
+
+        // Skip empty paths (happens when stripping the root directory itself)
+        if relative_path.as_os_str().is_empty() {
+            continue;
+        }
+
+        let full_path = dest.join(&relative_path);
+
+        if is_dir {
+            std::fs::create_dir_all(&full_path).map_err(|e| {
+                SwarmletError::WorkloadExecution(format!(
+                    "Failed to create directory {:?}: {}",
+                    full_path, e
+                ))
+            })?;
+        } else {
+            // Ensure parent directory exists
+            if let Some(parent) = full_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    SwarmletError::WorkloadExecution(format!(
+                        "Failed to create parent directory {:?}: {}",
+                        parent, e
+                    ))
+                })?;
+            }
+
+            // Write file
+            std::fs::write(&full_path, &data).map_err(|e| {
+                SwarmletError::WorkloadExecution(format!(
+                    "Failed to write file {:?}: {}",
+                    full_path, e
+                ))
+            })?;
+
+            // Set file permissions on Unix
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let permissions = std::fs::Permissions::from_mode(mode);
+                std::fs::set_permissions(&full_path, permissions).ok(); // Ignore permission errors
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -459,5 +610,130 @@ mod tests {
         );
         let args = job.cargo_args();
         assert_eq!(args, vec!["build"]);
+    }
+
+    #[test]
+    fn test_extract_tar_archive_simple() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use tar::Builder;
+
+        // Create a tar.gz archive in memory
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        {
+            let mut builder = Builder::new(&mut encoder);
+
+            // Add a file
+            let data = b"Hello, World!";
+            let mut header = tar::Header::new_gnu();
+            header.set_path("test.txt").unwrap();
+            header.set_size(data.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder.append(&header, &data[..]).unwrap();
+
+            // Add a directory and file inside it
+            let mut dir_header = tar::Header::new_gnu();
+            dir_header.set_path("subdir/").unwrap();
+            dir_header.set_size(0);
+            dir_header.set_mode(0o755);
+            dir_header.set_entry_type(tar::EntryType::Directory);
+            dir_header.set_cksum();
+            builder.append(&dir_header, &[][..]).unwrap();
+
+            let nested_data = b"Nested content";
+            let mut nested_header = tar::Header::new_gnu();
+            nested_header.set_path("subdir/nested.txt").unwrap();
+            nested_header.set_size(nested_data.len() as u64);
+            nested_header.set_mode(0o644);
+            nested_header.set_cksum();
+            builder.append(&nested_header, &nested_data[..]).unwrap();
+
+            builder.finish().unwrap();
+        }
+        let compressed = encoder.finish().unwrap();
+
+        // Extract to temp directory
+        let temp_dir = tempfile::tempdir().unwrap();
+        let dest = temp_dir.path().to_path_buf();
+
+        let decoder = GzDecoder::new(&compressed[..]);
+        let mut archive = Archive::new(decoder);
+        extract_tar_archive(&mut archive, &dest).unwrap();
+
+        // Verify extraction
+        assert!(dest.join("test.txt").exists());
+        assert!(dest.join("subdir").is_dir());
+        assert!(dest.join("subdir/nested.txt").exists());
+
+        let content = std::fs::read_to_string(dest.join("test.txt")).unwrap();
+        assert_eq!(content, "Hello, World!");
+
+        let nested_content = std::fs::read_to_string(dest.join("subdir/nested.txt")).unwrap();
+        assert_eq!(nested_content, "Nested content");
+    }
+
+    #[test]
+    fn test_extract_tar_archive_strips_single_root_dir() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use tar::Builder;
+
+        // Create archive with single top-level directory (like GitHub releases)
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        {
+            let mut builder = Builder::new(&mut encoder);
+
+            // Add root directory
+            let mut root_header = tar::Header::new_gnu();
+            root_header.set_path("project-1.0.0/").unwrap();
+            root_header.set_size(0);
+            root_header.set_mode(0o755);
+            root_header.set_entry_type(tar::EntryType::Directory);
+            root_header.set_cksum();
+            builder.append(&root_header, &[][..]).unwrap();
+
+            // Add file inside root directory
+            let data = b"fn main() {}";
+            let mut header = tar::Header::new_gnu();
+            header.set_path("project-1.0.0/main.rs").unwrap();
+            header.set_size(data.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder.append(&header, &data[..]).unwrap();
+
+            builder.finish().unwrap();
+        }
+        let compressed = encoder.finish().unwrap();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let dest = temp_dir.path().to_path_buf();
+
+        let decoder = GzDecoder::new(&compressed[..]);
+        let mut archive = Archive::new(decoder);
+        extract_tar_archive(&mut archive, &dest).unwrap();
+
+        // The single root directory should be stripped
+        // So main.rs should be directly in dest, not in dest/project-1.0.0/
+        assert!(dest.join("main.rs").exists());
+        assert!(!dest.join("project-1.0.0").exists());
+    }
+
+    #[test]
+    fn test_sha256_verification() {
+        use sha2::{Digest, Sha256};
+
+        let data = b"test data for hashing";
+        let mut hasher = Sha256::new();
+        hasher.update(data);
+        let hash = format!("{:x}", hasher.finalize());
+
+        // SHA256 produces 64 hex chars
+        assert_eq!(hash.len(), 64);
+        // Verify the hash is computed correctly (actual hash of "test data for hashing")
+        assert_eq!(
+            hash,
+            "f7eb7961d8a233e6256d3a6257548bbb9293c3a08fb3574c88c7d6b429dbb9f5"
+        );
     }
 }
