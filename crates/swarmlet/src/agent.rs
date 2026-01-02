@@ -671,9 +671,15 @@ impl SwarmletAgent {
                     // Start monitoring this job for completion
                     let build_manager = self.build_job_manager.clone();
                     let build_bridge = self.build_bridge.clone();
+                    let artifact_bridge = self.artifact_bridge.clone();
 
                     tokio::spawn(async move {
-                        Self::monitor_build_completion(job_id, build_manager, build_bridge).await;
+                        Self::monitor_build_completion(
+                            job_id,
+                            build_manager,
+                            build_bridge,
+                            artifact_bridge,
+                        ).await;
                     });
                 }
                 Err(e) => {
@@ -686,10 +692,12 @@ impl SwarmletAgent {
 
     /// Monitor a build job for completion and publish status updates + logs
     #[cfg(feature = "hpc-channels")]
+    #[allow(unused_variables)] // artifact_bridge only used with warp-transfer feature
     async fn monitor_build_completion(
         job_id: Uuid,
         build_manager: Arc<BuildJobManager>,
         build_bridge: SharedBuildChannelBridge,
+        artifact_bridge: SharedArtifactTransferBridge,
     ) {
         use crate::build_job::LogStream;
         use hpc_channels::messages::BuildLogLevel;
@@ -749,19 +757,79 @@ impl SwarmletAgent {
                     match status {
                         BuildJobStatus::Completed => {
                             let duration_ms = start_time.elapsed().as_millis() as u64;
+
                             // Get artifacts from the full job info
-                            let artifacts = match build_manager.get_job(job_id).await {
+                            let artifact_paths: Vec<std::path::PathBuf> = match build_manager.get_job(job_id).await {
                                 Some(active_job) => active_job.artifacts
                                     .iter()
-                                    .map(|a| a.path.display().to_string())
+                                    .map(|a| a.path.clone())
                                     .collect(),
                                 None => vec![],
                             };
+                            let artifacts: Vec<String> = artifact_paths
+                                .iter()
+                                .map(|p| p.display().to_string())
+                                .collect();
 
-                            build_bridge.publish_completed(&job_id, true, duration_ms, artifacts);
+                            // Try to store artifacts to warp (if warp-transfer feature enabled)
+                            #[cfg(feature = "warp-transfer")]
+                            let manifest = if !artifact_paths.is_empty() {
+                                // Use temp directory for warp staging
+                                let staging_dir = std::env::temp_dir()
+                                    .join("swarmlet-warp")
+                                    .join(job_id.to_string());
+                                if let Err(e) = std::fs::create_dir_all(&staging_dir) {
+                                    warn!("Failed to create warp staging dir: {}", e);
+                                }
+
+                                // Upload artifacts to warp storage
+                                // Note: pipeline_id and stage are not available here, use job_id
+                                match artifact_bridge.upload_artifacts(
+                                    &job_id.to_string(),
+                                    &job_id.to_string(), // pipeline_id (use job_id as fallback)
+                                    "build",             // stage
+                                    &artifact_paths,
+                                    &staging_dir,
+                                ).await {
+                                    Ok(m) => {
+                                        info!(
+                                            "Stored {} artifacts to warp (merkle_root: {}, {} bytes)",
+                                            m.files.len(),
+                                            m.merkle_root,
+                                            m.total_bytes
+                                        );
+                                        Some(m)
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to store artifacts to warp: {}", e);
+                                        None
+                                    }
+                                }
+                            } else {
+                                None
+                            };
+
+                            #[cfg(not(feature = "warp-transfer"))]
+                            let manifest: Option<hpc_channels::messages::ArtifactManifest> = None;
+
+                            // Log and publish completion with manifest if available
+                            let artifact_count = manifest.as_ref().map(|m| m.files.len()).unwrap_or(0);
+
+                            if manifest.is_some() {
+                                build_bridge.publish_completed_with_manifest(
+                                    &job_id,
+                                    true,
+                                    duration_ms,
+                                    artifacts,
+                                    manifest,
+                                );
+                            } else {
+                                build_bridge.publish_completed(&job_id, true, duration_ms, artifacts);
+                            }
+
                             info!(
-                                "Build job {} completed (duration: {}ms)",
-                                job_id, duration_ms
+                                "Build job {} completed (duration: {}ms, warp artifacts: {})",
+                                job_id, duration_ms, artifact_count
                             );
                             return;
                         }

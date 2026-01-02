@@ -22,6 +22,8 @@ use tracing::{debug, info, warn};
 #[cfg(feature = "docker")]
 use uuid::Uuid;
 
+// sha2 is now always available (not feature-gated)
+
 /// Docker-based build backend
 #[allow(dead_code)] // Fields will be used when Docker implementation is complete
 pub struct DockerBackend {
