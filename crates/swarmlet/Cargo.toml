@@ -60,6 +60,11 @@ toml = { workspace = true }
 # HPC Channels integration
 hpc-channels = { path = "../../../02-hpc-channels", optional = true, features = ["rkyv-codec"] }
 
+# Warp format for high-speed artifact transfer (31 GB/s)
+warp-format = { path = "../../../07-warp/crates/warp-format", optional = true }
+blake3 = { version = "1.5", optional = true }
+hex = { version = "0.4", optional = true }
+
 # Docker integration (optional)
 bollard = { version = "0.14", optional = true }
 
@@ -74,6 +79,7 @@ warp = "0.3"
 default = ["docker"]
 docker = ["bollard"]
 hpc-channels = ["dep:hpc-channels"]
+warp-transfer = ["dep:warp-format", "dep:blake3", "dep:hex", "hpc-channels"]
 
 [dev-dependencies]
 tempfile = "3.8"
