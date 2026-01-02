@@ -369,7 +369,8 @@ pub fn shared_build_bridge(node_id: String) -> SharedBuildChannelBridge {
 pub struct DeployChannelBridge {
     /// Sender for deploy status events.
     status_tx: broadcast::Sender<DeployMessage>,
-    /// Node ID for this swarmlet.
+    /// Node ID for this swarmlet (reserved for future use in multi-node deployments).
+    #[allow(dead_code)]
     node_id: String,
 }
 

@@ -4,13 +4,15 @@
 //! support for macOS, Windows, and Linux systems without kernel module.
 
 use super::{BackendCapabilities, BackendType, BuildBackend, BuildContext};
-use crate::build_job::{BuildResult, CargoCommand};
+use crate::build_job::{BuildResourceUsage, BuildResult, CargoCommand};
 use crate::{Result, SwarmletError};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::{debug, info, warn};
+use uuid::Uuid;
 
 /// Docker-based build backend
 #[allow(dead_code)] // Fields will be used when Docker implementation is complete
@@ -140,7 +142,7 @@ impl DockerBackend {
 impl BuildBackend for DockerBackend {
     async fn execute_cargo(
         &self,
-        command: &CargoCommand,
+        _command: &CargoCommand,
         context: &BuildContext,
     ) -> Result<BuildResult> {
         #[cfg(feature = "docker")]
