@@ -1,7 +1,7 @@
 //! Swarmlet agent runtime
 
 use crate::{
-    build_job::{BuildJob, BuildJobStatus},
+    build_job::BuildJob,
     build_job_manager::BuildJobManager,
     command::CommandExecutor, config::Config, join::JoinResult, profile::HardwareProfiler,
     security::NodeCertificate,
@@ -110,6 +110,8 @@ impl SavedAgentState {
     }
 }
 
+#[cfg(feature = "hpc-channels")]
+use crate::build_job::BuildJobStatus;
 #[cfg(feature = "hpc-channels")]
 use crate::hpc_bridge::{
     SharedAgentChannelBridge, SharedBuildChannelBridge, SharedDeployChannelBridge,

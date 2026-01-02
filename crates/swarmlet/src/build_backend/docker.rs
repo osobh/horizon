@@ -4,14 +4,20 @@
 //! support for macOS, Windows, and Linux systems without kernel module.
 
 use super::{BackendCapabilities, BackendType, BuildBackend, BuildContext};
-use crate::build_job::{BuildResourceUsage, BuildResult, CargoCommand};
+use crate::build_job::{BuildResult, CargoCommand};
 use crate::{Result, SwarmletError};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+// Docker-only imports
+#[cfg(feature = "docker")]
+use crate::build_job::BuildResourceUsage;
+#[cfg(feature = "docker")]
 use tracing::{debug, info, warn};
+#[cfg(feature = "docker")]
 use uuid::Uuid;
 
 /// Docker-based build backend
@@ -142,9 +148,11 @@ impl DockerBackend {
 impl BuildBackend for DockerBackend {
     async fn execute_cargo(
         &self,
-        _command: &CargoCommand,
+        command: &CargoCommand,
         context: &BuildContext,
     ) -> Result<BuildResult> {
+        // Suppress unused warning when docker feature is enabled
+        let _ = command;
         #[cfg(feature = "docker")]
         {
             use bollard::container::{
