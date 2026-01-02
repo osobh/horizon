@@ -278,12 +278,34 @@ impl BuildChannelBridge {
     }
 
     /// Publish job completed.
-    pub fn publish_completed(&self, job_id: &Uuid, success: bool, duration_ms: u64, artifacts: Vec<String>) {
+    pub fn publish_completed(
+        &self,
+        job_id: &Uuid,
+        success: bool,
+        duration_ms: u64,
+        artifacts: Vec<String>,
+    ) {
+        self.publish_completed_with_manifest(job_id, success, duration_ms, artifacts, None);
+    }
+
+    /// Publish job completed with optional warp artifact manifest.
+    ///
+    /// When artifacts are stored in warp, include the manifest for
+    /// high-speed fetching at 31 GB/s.
+    pub fn publish_completed_with_manifest(
+        &self,
+        job_id: &Uuid,
+        success: bool,
+        duration_ms: u64,
+        artifacts: Vec<String>,
+        artifact_manifest: Option<hpc_channels::messages::ArtifactManifest>,
+    ) {
         let _ = self.status_tx.send(BuildMessage::Completed {
             job_id: job_id.to_string(),
             success,
             duration_ms,
             artifacts,
+            artifact_manifest,
             timestamp_ms: Self::now_ms(),
         });
     }
@@ -529,6 +551,179 @@ pub fn build_job_from_submit(submit: &BuildMessage) -> Option<BuildJob> {
         }
         _ => None,
     }
+}
+
+// ============================================================================
+// Artifact Transfer Bridge (warp-based high-speed transfer)
+// ============================================================================
+
+use hpc_channels::messages::{
+    ArtifactFile, ArtifactManifest, ArtifactMessage, ErasureConfig, TransferDirection,
+};
+
+/// Bridge for warp-based artifact transfers.
+///
+/// Handles uploading build artifacts to warp storage (31 GB/s)
+/// and publishing artifact availability notifications.
+pub struct ArtifactTransferBridge {
+    /// Sender for artifact stored notifications.
+    stored_tx: broadcast::Sender<ArtifactMessage>,
+    /// Sender for artifact transfer progress.
+    progress_tx: broadcast::Sender<ArtifactMessage>,
+    /// Node ID for this swarmlet.
+    node_id: String,
+}
+
+impl ArtifactTransferBridge {
+    /// Create a new artifact transfer bridge.
+    pub fn new(node_id: String) -> Self {
+        let stored_tx =
+            hpc_channels::broadcast::<ArtifactMessage>(hpc_channels::channels::ARTIFACT_STORED, 256);
+        let progress_tx =
+            hpc_channels::broadcast::<ArtifactMessage>(hpc_channels::channels::ARTIFACT_PROGRESS, 512);
+
+        Self {
+            stored_tx,
+            progress_tx,
+            node_id,
+        }
+    }
+
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+
+    /// Subscribe to artifact fetch requests.
+    pub fn subscribe_requests() -> Option<broadcast::Receiver<ArtifactMessage>> {
+        hpc_channels::subscribe::<ArtifactMessage>(hpc_channels::channels::ARTIFACT_REQUEST).ok()
+    }
+
+    /// Publish artifact stored notification.
+    ///
+    /// Call this after uploading artifacts to warp storage.
+    pub fn publish_stored(
+        &self,
+        job_id: &str,
+        pipeline_id: &str,
+        stage: &str,
+        manifest: ArtifactManifest,
+    ) {
+        let _ = self.stored_tx.send(ArtifactMessage::Stored {
+            job_id: job_id.to_string(),
+            pipeline_id: pipeline_id.to_string(),
+            stage: stage.to_string(),
+            manifest,
+            source_node: self.node_id.clone(),
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish transfer progress.
+    pub fn publish_progress(
+        &self,
+        correlation_id: &str,
+        direction: TransferDirection,
+        bytes_transferred: u64,
+        total_bytes: u64,
+        rate_bytes_per_sec: u64,
+        eta_secs: u32,
+    ) {
+        let _ = self.progress_tx.send(ArtifactMessage::Progress {
+            correlation_id: correlation_id.to_string(),
+            direction,
+            bytes_transferred,
+            total_bytes,
+            rate_bytes_per_sec,
+            eta_secs,
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Publish transfer completed.
+    pub fn publish_transfer_complete(
+        &self,
+        correlation_id: &str,
+        direction: TransferDirection,
+        total_bytes: u64,
+        duration_ms: u64,
+        success: bool,
+        error: Option<String>,
+    ) {
+        let avg_rate = if duration_ms > 0 {
+            (total_bytes * 1000) / duration_ms
+        } else {
+            0
+        };
+
+        let _ = self.progress_tx.send(ArtifactMessage::TransferComplete {
+            correlation_id: correlation_id.to_string(),
+            direction,
+            total_bytes,
+            duration_ms,
+            avg_rate_bytes_per_sec: avg_rate,
+            success,
+            error,
+            timestamp_ms: Self::now_ms(),
+        });
+    }
+
+    /// Subscribe to artifact stored notifications (for monitoring).
+    pub fn subscribe_stored(&self) -> broadcast::Receiver<ArtifactMessage> {
+        self.stored_tx.subscribe()
+    }
+
+    /// Subscribe to artifact progress (for monitoring).
+    pub fn subscribe_progress(&self) -> broadcast::Receiver<ArtifactMessage> {
+        self.progress_tx.subscribe()
+    }
+
+    /// Create an artifact manifest from build output.
+    ///
+    /// This is a helper to create the manifest structure from build artifacts.
+    pub fn create_manifest(
+        build_id: &str,
+        merkle_root: &str,
+        files: Vec<(String, u64, String, bool)>, // (path, size, hash, executable)
+        total_bytes: u64,
+        dedup_bytes: u64,
+    ) -> ArtifactManifest {
+        let artifact_files: Vec<ArtifactFile> = files
+            .into_iter()
+            .map(|(path, size_bytes, blake3_hash, executable)| ArtifactFile {
+                path,
+                size_bytes,
+                blake3_hash,
+                executable,
+            })
+            .collect();
+
+        let chunk_count = (total_bytes / (4 * 1024 * 1024) + 1) as u32; // 4MB chunks
+        let dedup_count = (dedup_bytes / (4 * 1024 * 1024)) as u32;
+
+        ArtifactManifest {
+            build_id: build_id.to_string(),
+            merkle_root: merkle_root.to_string(),
+            chunk_count,
+            dedup_count,
+            total_bytes,
+            dedup_bytes,
+            files: artifact_files,
+            erasure_config: ErasureConfig::default(),
+            stored_at: Self::now_ms(),
+        }
+    }
+}
+
+/// Shared artifact transfer bridge type.
+pub type SharedArtifactTransferBridge = Arc<ArtifactTransferBridge>;
+
+/// Create a new shared artifact transfer bridge.
+#[must_use]
+pub fn shared_artifact_bridge(node_id: String) -> SharedArtifactTransferBridge {
+    Arc::new(ArtifactTransferBridge::new(node_id))
 }
 
 #[cfg(test)]

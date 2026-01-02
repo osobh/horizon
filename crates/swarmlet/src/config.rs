@@ -26,6 +26,10 @@ pub struct Config {
     /// Logging configuration
     pub logging: LoggingConfig,
 
+    /// Build container configuration
+    #[serde(default)]
+    pub build: BuildConfig,
+
     // Additional fields for agent operation
     #[serde(skip)]
     pub data_dir: PathBuf,
@@ -148,6 +152,49 @@ pub struct LoggingConfig {
     pub export_to_cluster: bool,
 }
 
+/// Build container configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuildConfig {
+    /// Maximum number of concurrent build jobs
+    pub max_concurrent_builds: u32,
+
+    /// Default Rust toolchain (e.g., "stable", "nightly", "1.76.0")
+    pub default_toolchain: String,
+
+    /// Default timeout for build jobs in seconds
+    pub default_timeout_seconds: u64,
+
+    /// Enable sccache for compilation caching
+    pub sccache_enabled: bool,
+
+    /// Maximum cache size in GB
+    pub cache_limit_gb: f32,
+
+    /// Directory for toolchain installations
+    pub toolchains_dir: Option<PathBuf>,
+
+    /// Directory for build caches
+    pub cache_dir: Option<PathBuf>,
+
+    /// Prefer native Linux isolation when available (fallback to Docker)
+    pub prefer_native_isolation: bool,
+}
+
+impl Default for BuildConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent_builds: 4,
+            default_toolchain: "stable".to_string(),
+            default_timeout_seconds: 3600,
+            sccache_enabled: true,
+            cache_limit_gb: 50.0,
+            toolchains_dir: None,
+            cache_dir: None,
+            prefer_native_isolation: true,
+        }
+    }
+}
+
 /// Cleanup policy for old data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CleanupPolicy {
@@ -232,6 +279,7 @@ impl Config {
                 log_file_count: 5,
                 export_to_cluster: true,
             },
+            build: BuildConfig::default(),
             data_dir,
             api_port: Some(defaults::API_PORT),
         }
@@ -436,5 +484,17 @@ mod tests {
         assert!(toml_content.contains("[node]"));
         assert!(toml_content.contains("[network]"));
         assert!(toml_content.contains("[storage]"));
+        assert!(toml_content.contains("[build]"));
+    }
+
+    #[test]
+    fn test_build_config_defaults() {
+        let config = BuildConfig::default();
+        assert_eq!(config.max_concurrent_builds, 4);
+        assert_eq!(config.default_toolchain, "stable");
+        assert_eq!(config.default_timeout_seconds, 3600);
+        assert!(config.sccache_enabled);
+        assert_eq!(config.cache_limit_gb, 50.0);
+        assert!(config.prefer_native_isolation);
     }
 }

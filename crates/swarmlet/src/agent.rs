@@ -1,6 +1,8 @@
 //! Swarmlet agent runtime
 
 use crate::{
+    build_job::{BuildJob, ActiveBuildJob, BuildJobStatus},
+    build_job_manager::BuildJobManager,
     command::CommandExecutor, config::Config, join::JoinResult, profile::HardwareProfiler,
     security::NodeCertificate,
     wireguard::{WireGuardManager, WireGuardConfigRequest, AddPeerRequest, RemovePeerRequest},
@@ -120,6 +122,7 @@ pub struct SwarmletAgent {
     workload_manager: Arc<WorkloadManager>,
     command_executor: Arc<CommandExecutor>,
     wireguard_manager: Arc<WireGuardManager>,
+    build_job_manager: Arc<BuildJobManager>,
     health_status: Arc<RwLock<HealthStatus>>,
     shutdown_signal: tokio::sync::watch::Receiver<bool>,
     shutdown_sender: tokio::sync::watch::Sender<bool>,
@@ -164,6 +167,9 @@ impl SwarmletAgent {
         let workload_manager = Arc::new(WorkloadManager::new(config.clone(), join_result.node_id).await?);
         let command_executor = Arc::new(CommandExecutor::new(config.data_dir.clone()));
         let wireguard_manager = Arc::new(WireGuardManager::new());
+        let build_job_manager = Arc::new(
+            BuildJobManager::new(config.clone(), join_result.node_id, config.data_dir.clone()).await?
+        );
 
         let health_status = Arc::new(RwLock::new(HealthStatus {
             node_id: join_result.node_id,
@@ -188,6 +194,7 @@ impl SwarmletAgent {
             workload_manager,
             command_executor,
             wireguard_manager,
+            build_job_manager,
             health_status,
             shutdown_signal,
             shutdown_sender,
@@ -215,6 +222,9 @@ impl SwarmletAgent {
         let node_certificate = NodeCertificate::from_pem(&saved_state.join_result.node_certificate)?;
         let workload_manager = Arc::new(WorkloadManager::new(config.clone(), saved_state.join_result.node_id).await?);
         let command_executor = Arc::new(CommandExecutor::new(config.data_dir.clone()));
+        let build_job_manager = Arc::new(
+            BuildJobManager::new(config.clone(), saved_state.join_result.node_id, config.data_dir.clone()).await?
+        );
 
         // Create WireGuard manager and restore keys
         let wireguard_manager = Arc::new(WireGuardManager::new());
@@ -259,6 +269,7 @@ impl SwarmletAgent {
             workload_manager,
             command_executor,
             wireguard_manager,
+            build_job_manager,
             health_status,
             shutdown_signal,
             shutdown_sender,
@@ -333,6 +344,12 @@ impl SwarmletAgent {
         tasks.push(tokio::spawn({
             let agent = agent.clone();
             async move { agent.workload_loop().await }
+        }));
+
+        // Start build job management task
+        tasks.push(tokio::spawn({
+            let agent = agent.clone();
+            async move { agent.build_job_loop().await }
         }));
 
         // Start API server task
@@ -459,6 +476,38 @@ impl SwarmletAgent {
                     // Stop all workloads gracefully
                     if let Err(e) = self.workload_manager.stop_all_workloads().await {
                         error!("Failed to stop workloads: {}", e);
+                    }
+                    break;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Build job management loop - monitors and cleans up build jobs
+    async fn build_job_loop(&self) -> Result<()> {
+        let mut interval = interval(Duration::from_secs(60)); // Check every minute
+        let mut shutdown_signal = self.shutdown_signal.clone();
+
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    // Clean up old completed/failed build jobs (older than 1 hour)
+                    self.build_job_manager.cleanup_old_jobs(3600).await;
+
+                    // Log active build count
+                    let active_count = self.build_job_manager.active_job_count().await;
+                    if active_count > 0 {
+                        debug!("Active build jobs: {}", active_count);
+                    }
+                }
+                _ = shutdown_signal.changed() => {
+                    debug!("Build job loop shutting down");
+
+                    // Cancel all active builds gracefully
+                    if let Err(e) = self.build_job_manager.cancel_all().await {
+                        error!("Failed to cancel build jobs: {}", e);
                     }
                     break;
                 }
@@ -803,6 +852,189 @@ impl SwarmletAgent {
                 }
             });
 
+        // Build job routes
+        let build_manager_submit = self.build_job_manager.clone();
+        let builds_submit_route = warp::path!("api" / "v1" / "builds")
+            .and(warp::post())
+            .and(warp::body::json())
+            .and_then(move |job: BuildJob| {
+                let bm = build_manager_submit.clone();
+                async move {
+                    match bm.submit_build(job).await {
+                        Ok(job_id) => {
+                            let json = format!(r#"{{"job_id": "{}"}}"#, job_id);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(json, warp::http::StatusCode::ACCEPTED),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                        Err(e) => {
+                            let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::BAD_REQUEST,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        let build_manager_list = self.build_job_manager.clone();
+        let builds_list_route = warp::path!("api" / "v1" / "builds")
+            .and(warp::get())
+            .and_then(move || {
+                let bm = build_manager_list.clone();
+                async move {
+                    let jobs = bm.list_active_jobs().await;
+                    let json = serde_json::to_string(&jobs).unwrap_or_else(|_| {
+                        r#"{"error": "serialization_failed"}"#.to_string()
+                    });
+                    Ok::<_, Infallible>(warp::reply::with_header(
+                        warp::reply::with_status(json, warp::http::StatusCode::OK),
+                        "content-type",
+                        "application/json",
+                    ))
+                }
+            });
+
+        let build_manager_get = self.build_job_manager.clone();
+        let builds_get_route = warp::path!("api" / "v1" / "builds" / String)
+            .and(warp::get())
+            .and_then(move |job_id: String| {
+                let bm = build_manager_get.clone();
+                async move {
+                    match Uuid::parse_str(&job_id) {
+                        Ok(id) => match bm.get_job(id).await {
+                            Some(job) => {
+                                let json = serde_json::to_string(&job).unwrap_or_else(|_| {
+                                    r#"{"error": "serialization_failed"}"#.to_string()
+                                });
+                                Ok::<_, Infallible>(warp::reply::with_header(
+                                    warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                    "content-type",
+                                    "application/json",
+                                ))
+                            }
+                            None => {
+                                let error_response = r#"{"error": "job_not_found"}"#.to_string();
+                                Ok::<_, Infallible>(warp::reply::with_header(
+                                    warp::reply::with_status(
+                                        error_response,
+                                        warp::http::StatusCode::NOT_FOUND,
+                                    ),
+                                    "content-type",
+                                    "application/json",
+                                ))
+                            }
+                        },
+                        Err(_) => {
+                            let error_response = r#"{"error": "invalid_job_id"}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::BAD_REQUEST,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        let build_manager_cancel = self.build_job_manager.clone();
+        let builds_cancel_route = warp::path!("api" / "v1" / "builds" / String)
+            .and(warp::delete())
+            .and_then(move |job_id: String| {
+                let bm = build_manager_cancel.clone();
+                async move {
+                    match Uuid::parse_str(&job_id) {
+                        Ok(id) => match bm.cancel_build(id).await {
+                            Ok(()) => {
+                                let json = r#"{"success": true}"#.to_string();
+                                Ok::<_, Infallible>(warp::reply::with_header(
+                                    warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                    "content-type",
+                                    "application/json",
+                                ))
+                            }
+                            Err(e) => {
+                                let error_response = format!(r#"{{"error": "{}"}}"#, e);
+                                Ok::<_, Infallible>(warp::reply::with_header(
+                                    warp::reply::with_status(
+                                        error_response,
+                                        warp::http::StatusCode::NOT_FOUND,
+                                    ),
+                                    "content-type",
+                                    "application/json",
+                                ))
+                            }
+                        },
+                        Err(_) => {
+                            let error_response = r#"{"error": "invalid_job_id"}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::BAD_REQUEST,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
+        let build_manager_logs = self.build_job_manager.clone();
+        let builds_logs_route = warp::path!("api" / "v1" / "builds" / String / "logs")
+            .and(warp::get())
+            .and_then(move |job_id: String| {
+                let bm = build_manager_logs.clone();
+                async move {
+                    match Uuid::parse_str(&job_id) {
+                        Ok(id) => match bm.get_logs(id).await {
+                            Some(logs) => {
+                                let json = serde_json::to_string(&logs).unwrap_or_else(|_| {
+                                    r#"{"error": "serialization_failed"}"#.to_string()
+                                });
+                                Ok::<_, Infallible>(warp::reply::with_header(
+                                    warp::reply::with_status(json, warp::http::StatusCode::OK),
+                                    "content-type",
+                                    "application/json",
+                                ))
+                            }
+                            None => {
+                                let error_response = r#"{"error": "job_not_found"}"#.to_string();
+                                Ok::<_, Infallible>(warp::reply::with_header(
+                                    warp::reply::with_status(
+                                        error_response,
+                                        warp::http::StatusCode::NOT_FOUND,
+                                    ),
+                                    "content-type",
+                                    "application/json",
+                                ))
+                            }
+                        },
+                        Err(_) => {
+                            let error_response = r#"{"error": "invalid_job_id"}"#.to_string();
+                            Ok::<_, Infallible>(warp::reply::with_header(
+                                warp::reply::with_status(
+                                    error_response,
+                                    warp::http::StatusCode::BAD_REQUEST,
+                                ),
+                                "content-type",
+                                "application/json",
+                            ))
+                        }
+                    }
+                }
+            });
+
         // Detailed metrics route (Prometheus format)
         let health_status_detailed = self.health_status.clone();
         let workload_manager_metrics = self.workload_manager.clone();
@@ -897,6 +1129,11 @@ impl SwarmletAgent {
             .or(wireguard_list_peers_route)
             .or(workloads_list_route)
             .or(workloads_stop_route)
+            .or(builds_submit_route)
+            .or(builds_list_route)
+            .or(builds_get_route)
+            .or(builds_cancel_route)
+            .or(builds_logs_route)
             .or(detailed_metrics_route)
             .or(hardware_route);
 
