@@ -7,6 +7,7 @@ use crate::build_backend::{BuildBackend, BuildContext, detect_backend};
 use crate::build_job::{
     ActiveBuildJob, BuildJob, BuildJobStatus, BuildLogEntry, BuildSource, LogStream,
 };
+use crate::build_log_stream::BuildLogStreamer;
 use crate::cache_manager::CacheManager;
 use crate::config::Config;
 use crate::toolchain_manager::ToolchainManager;
@@ -39,6 +40,8 @@ pub struct BuildJobManager {
     backend: Arc<dyn BuildBackend>,
     /// Maximum concurrent builds
     max_concurrent_builds: usize,
+    /// Optional log streamer for WebSocket broadcasting
+    log_streamer: Arc<RwLock<Option<Arc<BuildLogStreamer>>>>,
 }
 
 impl BuildJobManager {
@@ -67,7 +70,14 @@ impl BuildJobManager {
             cache_manager,
             backend: Arc::from(backend),
             max_concurrent_builds,
+            log_streamer: Arc::new(RwLock::new(None)),
         })
+    }
+
+    /// Set the log streamer for WebSocket broadcasting
+    pub async fn set_log_streamer(&self, streamer: Arc<BuildLogStreamer>) {
+        let mut guard = self.log_streamer.write().await;
+        *guard = Some(streamer);
     }
 
     /// Submit a new build job
@@ -114,6 +124,7 @@ impl BuildJobManager {
             cache_manager: self.cache_manager.clone(),
             backend: self.backend.clone(),
             max_concurrent_builds: self.max_concurrent_builds,
+            log_streamer: self.log_streamer.clone(),
         };
 
         tokio::spawn(async move {
@@ -411,22 +422,40 @@ impl BuildJobManager {
 
     /// Update job status
     async fn update_status(&self, job_id: Uuid, status: BuildJobStatus) {
-        let mut jobs = self.active_jobs.write().await;
-        if let Some(job) = jobs.get_mut(&job_id) {
-            debug!("Job {} status: {:?}", job_id, status);
-            job.status = status;
+        {
+            let mut jobs = self.active_jobs.write().await;
+            if let Some(job) = jobs.get_mut(&job_id) {
+                debug!("Job {} status: {:?}", job_id, status);
+                job.status = status.clone();
+            }
+        }
+
+        // Broadcast status update to WebSocket clients
+        let streamer_guard = self.log_streamer.read().await;
+        if let Some(ref streamer) = *streamer_guard {
+            streamer.broadcast_status(job_id, status).await;
         }
     }
 
     /// Add a log entry
     async fn log(&self, job_id: Uuid, stream: LogStream, message: &str) {
-        let mut jobs = self.active_jobs.write().await;
-        if let Some(job) = jobs.get_mut(&job_id) {
-            job.output_log.push(BuildLogEntry {
-                timestamp: Utc::now(),
-                stream,
-                message: message.to_string(),
-            });
+        let entry = BuildLogEntry {
+            timestamp: Utc::now(),
+            stream,
+            message: message.to_string(),
+        };
+
+        {
+            let mut jobs = self.active_jobs.write().await;
+            if let Some(job) = jobs.get_mut(&job_id) {
+                job.output_log.push(entry.clone());
+            }
+        }
+
+        // Broadcast log entry to WebSocket clients
+        let streamer_guard = self.log_streamer.read().await;
+        if let Some(ref streamer) = *streamer_guard {
+            streamer.broadcast_log(job_id, entry).await;
         }
     }
 

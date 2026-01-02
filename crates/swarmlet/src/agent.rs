@@ -275,6 +275,7 @@ impl SwarmletAgent {
         let build_job_manager = Arc::new(
             BuildJobManager::new(config.clone(), saved_state.join_result.node_id, config.data_dir.clone()).await?
         );
+        let log_streamer = Arc::new(BuildLogStreamer::new());
 
         // Create WireGuard manager and restore keys
         let wireguard_manager = Arc::new(WireGuardManager::new());
@@ -323,6 +324,7 @@ impl SwarmletAgent {
             command_executor,
             wireguard_manager,
             build_job_manager,
+            log_streamer,
             health_status,
             shutdown_signal,
             shutdown_sender,
@@ -1878,6 +1880,24 @@ impl SwarmletAgent {
                 }
             });
 
+        // WebSocket route for real-time build log streaming
+        let log_streamer_ws = self.log_streamer.clone();
+        let builds_logs_stream_route = warp::path!("api" / "v1" / "builds" / String / "logs" / "stream")
+            .and(warp::ws())
+            .map(move |job_id: String, ws: warp::ws::Ws| {
+                let streamer = log_streamer_ws.clone();
+                ws.on_upgrade(move |socket| async move {
+                    match Uuid::parse_str(&job_id) {
+                        Ok(id) => {
+                            streamer.handle_connection(id, socket).await;
+                        }
+                        Err(_) => {
+                            tracing::warn!("Invalid job ID for WebSocket: {}", job_id);
+                        }
+                    }
+                })
+            });
+
         // Detailed metrics route (Prometheus format)
         let health_status_detailed = self.health_status.clone();
         let workload_manager_metrics = self.workload_manager.clone();
@@ -1977,6 +1997,7 @@ impl SwarmletAgent {
             .or(builds_get_route)
             .or(builds_cancel_route)
             .or(builds_logs_route)
+            .or(builds_logs_stream_route)
             .or(detailed_metrics_route)
             .or(hardware_route);
 
