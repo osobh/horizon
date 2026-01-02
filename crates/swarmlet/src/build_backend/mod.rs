@@ -4,10 +4,12 @@
 //! in isolated containers. It supports:
 //! - Linux native isolation (namespaces, cgroups, overlayfs)
 //! - Docker fallback (for macOS, Windows, or when kernel module unavailable)
+//! - Stub backend (for when no real backend is available)
 
 pub mod docker;
 #[cfg(target_os = "linux")]
 pub mod linux;
+pub mod stub;
 
 use crate::build_job::{BuildResourceLimits, CargoCommand, BuildResult, CacheConfig};
 use crate::Result;
@@ -179,12 +181,15 @@ pub enum BackendType {
     LinuxNative,
     /// Docker-based isolation
     Docker,
+    /// Stub backend (no real backend available)
+    Stub,
 }
 
 impl std::fmt::Display for BackendType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BackendType::LinuxNative => write!(f, "linux-native"),
+            BackendType::Stub => write!(f, "stub"),
             BackendType::Docker => write!(f, "docker"),
         }
     }
@@ -277,9 +282,9 @@ pub async fn detect_backend() -> Result<Box<dyn BuildBackend>> {
         }
     }
 
-    Err(crate::SwarmletError::NotImplemented(
-        "No build backend available. Please install Docker or run on Linux with appropriate permissions.".to_string()
-    ))
+    // Fall back to stub backend - build jobs will fail but agent can start
+    tracing::warn!("No build backend available (Docker not found, not on Linux). Build jobs will fail.");
+    Ok(Box::new(stub::StubBackend::unavailable()))
 }
 
 /// Get available backends in order of preference

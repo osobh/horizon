@@ -111,7 +111,14 @@ impl SavedAgentState {
 }
 
 #[cfg(feature = "hpc-channels")]
-use crate::hpc_bridge::{SharedAgentChannelBridge, shared_channel_bridge};
+use crate::hpc_bridge::{
+    SharedAgentChannelBridge, SharedBuildChannelBridge, SharedDeployChannelBridge,
+    SharedArtifactTransferBridge,
+    shared_channel_bridge, shared_build_bridge, shared_deploy_bridge, shared_artifact_bridge,
+    build_job_from_submit,
+};
+#[cfg(feature = "hpc-channels")]
+use hpc_channels::messages::{BuildMessage, DeployMessage};
 
 /// Main swarmlet agent that manages node lifecycle
 pub struct SwarmletAgent {
@@ -129,6 +136,15 @@ pub struct SwarmletAgent {
     /// HPC-Channels event bridge for publishing agent lifecycle events
     #[cfg(feature = "hpc-channels")]
     event_bridge: SharedAgentChannelBridge,
+    /// HPC-Channels build bridge for hpc-ci integration (1-5µs latency)
+    #[cfg(feature = "hpc-channels")]
+    build_bridge: SharedBuildChannelBridge,
+    /// HPC-Channels deploy bridge for deployment requests
+    #[cfg(feature = "hpc-channels")]
+    deploy_bridge: SharedDeployChannelBridge,
+    /// HPC-Channels artifact transfer bridge for warp integration
+    #[cfg(feature = "hpc-channels")]
+    artifact_bridge: SharedArtifactTransferBridge,
 }
 
 /// Health status of the swarmlet
@@ -187,6 +203,9 @@ impl SwarmletAgent {
 
         let (shutdown_sender, shutdown_signal) = tokio::sync::watch::channel(false);
 
+        #[cfg(feature = "hpc-channels")]
+        let node_id_str = join_result.node_id.to_string();
+
         Ok(Self {
             config,
             join_result,
@@ -200,6 +219,12 @@ impl SwarmletAgent {
             shutdown_sender,
             #[cfg(feature = "hpc-channels")]
             event_bridge: shared_channel_bridge(),
+            #[cfg(feature = "hpc-channels")]
+            build_bridge: shared_build_bridge(node_id_str.clone()),
+            #[cfg(feature = "hpc-channels")]
+            deploy_bridge: shared_deploy_bridge(node_id_str.clone()),
+            #[cfg(feature = "hpc-channels")]
+            artifact_bridge: shared_artifact_bridge(node_id_str),
         })
     }
 
@@ -207,6 +232,24 @@ impl SwarmletAgent {
     #[cfg(feature = "hpc-channels")]
     pub fn event_bridge(&self) -> &SharedAgentChannelBridge {
         &self.event_bridge
+    }
+
+    /// Get the build bridge for hpc-ci integration
+    #[cfg(feature = "hpc-channels")]
+    pub fn build_bridge(&self) -> &SharedBuildChannelBridge {
+        &self.build_bridge
+    }
+
+    /// Get the deploy bridge for deployment requests
+    #[cfg(feature = "hpc-channels")]
+    pub fn deploy_bridge(&self) -> &SharedDeployChannelBridge {
+        &self.deploy_bridge
+    }
+
+    /// Get the artifact bridge for warp transfers
+    #[cfg(feature = "hpc-channels")]
+    pub fn artifact_bridge(&self) -> &SharedArtifactTransferBridge {
+        &self.artifact_bridge
     }
 
     /// Create a swarmlet agent from configuration
@@ -262,6 +305,9 @@ impl SwarmletAgent {
             saved_state.join_result.node_id
         );
 
+        #[cfg(feature = "hpc-channels")]
+        let node_id_str = saved_state.join_result.node_id.to_string();
+
         Ok(Self {
             config,
             join_result: saved_state.join_result,
@@ -275,6 +321,12 @@ impl SwarmletAgent {
             shutdown_sender,
             #[cfg(feature = "hpc-channels")]
             event_bridge: shared_channel_bridge(),
+            #[cfg(feature = "hpc-channels")]
+            build_bridge: shared_build_bridge(node_id_str.clone()),
+            #[cfg(feature = "hpc-channels")]
+            deploy_bridge: shared_deploy_bridge(node_id_str.clone()),
+            #[cfg(feature = "hpc-channels")]
+            artifact_bridge: shared_artifact_bridge(node_id_str),
         })
     }
 
@@ -356,6 +408,13 @@ impl SwarmletAgent {
         tasks.push(tokio::spawn({
             let agent = agent.clone();
             async move { agent.api_server_loop().await }
+        }));
+
+        // Start hpc-channels build job listener (1-5µs latency from hpc-ci)
+        #[cfg(feature = "hpc-channels")]
+        tasks.push(tokio::spawn({
+            let agent = agent.clone();
+            async move { agent.hpc_channels_build_listener().await }
         }));
 
         // Wait for shutdown signal
@@ -515,6 +574,199 @@ impl SwarmletAgent {
         }
 
         Ok(())
+    }
+
+    /// HPC-Channels build job listener - receives jobs from hpc-ci (1-5µs latency)
+    ///
+    /// This is the main integration point between hpc-ci and stratoswarm.
+    /// Jobs submitted via hpc-channels bypass REST API for ultra-low latency.
+    #[cfg(feature = "hpc-channels")]
+    async fn hpc_channels_build_listener(&self) -> Result<()> {
+        use crate::hpc_bridge::BuildChannelBridge;
+
+        // Subscribe to build job submissions from hpc-ci
+        let mut build_rx = match BuildChannelBridge::subscribe_submissions() {
+            Some(rx) => rx,
+            None => {
+                // Channel doesn't exist yet, wait and retry
+                info!("Waiting for hpc.build.submit channel to be created...");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+
+                // Try to create the channel by broadcasting
+                let _ = hpc_channels::broadcast::<BuildMessage>(
+                    hpc_channels::channels::BUILD_SUBMIT,
+                    256,
+                );
+
+                match BuildChannelBridge::subscribe_submissions() {
+                    Some(rx) => rx,
+                    None => {
+                        warn!("Could not subscribe to build submit channel");
+                        return Ok(());
+                    }
+                }
+            }
+        };
+
+        let mut shutdown_signal = self.shutdown_signal.clone();
+
+        info!("HPC-Channels build listener started, listening on hpc.build.submit");
+
+        loop {
+            tokio::select! {
+                result = build_rx.recv() => {
+                    match result {
+                        Ok(msg) => {
+                            self.handle_hpc_build_message(msg).await;
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            warn!("Build listener lagged by {} messages", n);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            info!("Build submit channel closed");
+                            break;
+                        }
+                    }
+                }
+                _ = shutdown_signal.changed() => {
+                    debug!("HPC-Channels build listener shutting down");
+                    break;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Handle an incoming build message from hpc-ci
+    #[cfg(feature = "hpc-channels")]
+    async fn handle_hpc_build_message(&self, msg: BuildMessage) {
+        // Only process Submit messages
+        if let Some(job) = build_job_from_submit(&msg) {
+            let job_id = job.id;
+
+            info!(
+                "Received build job from hpc-ci: {} (command: {:?})",
+                job_id, job.command
+            );
+
+            // Publish queued status
+            self.build_bridge.publish_queued(&job_id, 0);
+
+            // Submit to local BuildJobManager
+            match self.build_job_manager.submit_build(job).await {
+                Ok(_) => {
+                    // Publish started status
+                    self.build_bridge.publish_started(&job_id);
+
+                    // Start monitoring this job for completion
+                    let build_manager = self.build_job_manager.clone();
+                    let build_bridge = self.build_bridge.clone();
+
+                    tokio::spawn(async move {
+                        Self::monitor_build_completion(job_id, build_manager, build_bridge).await;
+                    });
+                }
+                Err(e) => {
+                    error!("Failed to submit build job {}: {}", job_id, e);
+                    self.build_bridge.publish_failed(&job_id, &e.to_string());
+                }
+            }
+        }
+    }
+
+    /// Monitor a build job for completion and publish status updates
+    #[cfg(feature = "hpc-channels")]
+    async fn monitor_build_completion(
+        job_id: Uuid,
+        build_manager: Arc<BuildJobManager>,
+        build_bridge: SharedBuildChannelBridge,
+    ) {
+        let mut last_phase = String::new();
+        let start_time = std::time::Instant::now();
+
+        loop {
+            // Wait a bit before checking
+            tokio::time::sleep(Duration::from_millis(500)).await;
+
+            // Get job status
+            match build_manager.get_job_status(job_id).await {
+                Some(status) => {
+                    // Convert status to phase string and progress percentage
+                    let (phase_str, percent, is_terminal) = match &status {
+                        BuildJobStatus::Queued => ("Queued".to_string(), 0, false),
+                        BuildJobStatus::PreparingEnvironment => ("PreparingEnvironment".to_string(), 10, false),
+                        BuildJobStatus::FetchingSource => ("FetchingSource".to_string(), 20, false),
+                        BuildJobStatus::ProvisioningToolchain => ("ProvisioningToolchain".to_string(), 30, false),
+                        BuildJobStatus::Building => ("Building".to_string(), 50, false),
+                        BuildJobStatus::Testing => ("Testing".to_string(), 75, false),
+                        BuildJobStatus::CollectingArtifacts => ("CollectingArtifacts".to_string(), 90, false),
+                        BuildJobStatus::Completed => ("Completed".to_string(), 100, true),
+                        BuildJobStatus::Failed { .. } => ("Failed".to_string(), 0, true),
+                        BuildJobStatus::Cancelled => ("Cancelled".to_string(), 0, true),
+                        BuildJobStatus::TimedOut => ("TimedOut".to_string(), 0, true),
+                    };
+
+                    // Publish progress if phase changed
+                    if phase_str != last_phase && !is_terminal {
+                        last_phase = phase_str.clone();
+                        build_bridge.publish_progress(&job_id, &phase_str, percent);
+                    }
+
+                    // Handle terminal states
+                    match status {
+                        BuildJobStatus::Completed => {
+                            let duration_ms = start_time.elapsed().as_millis() as u64;
+                            // Get artifacts from the full job info
+                            let artifacts = match build_manager.get_job(job_id).await {
+                                Some(active_job) => active_job.artifacts
+                                    .iter()
+                                    .map(|a| a.path.display().to_string())
+                                    .collect(),
+                                None => vec![],
+                            };
+
+                            build_bridge.publish_completed(&job_id, true, duration_ms, artifacts);
+                            info!(
+                                "Build job {} completed (duration: {}ms)",
+                                job_id, duration_ms
+                            );
+                            return;
+                        }
+                        BuildJobStatus::Failed { ref error } => {
+                            build_bridge.publish_failed(&job_id, error);
+                            error!("Build job {} failed: {}", job_id, error);
+                            return;
+                        }
+                        BuildJobStatus::Cancelled => {
+                            build_bridge.publish_cancelled(&job_id);
+                            info!("Build job {} was cancelled", job_id);
+                            return;
+                        }
+                        BuildJobStatus::TimedOut => {
+                            build_bridge.publish_failed(&job_id, "Build job timed out");
+                            error!("Build job {} timed out", job_id);
+                            return;
+                        }
+                        _ => {
+                            // Continue monitoring
+                        }
+                    }
+                }
+                None => {
+                    // Job not found, it may have been cleaned up
+                    warn!("Build job {} not found in manager", job_id);
+                    return;
+                }
+            }
+
+            // Timeout after 1 hour
+            if start_time.elapsed() > Duration::from_secs(3600) {
+                build_bridge.publish_failed(&job_id, "Build timeout exceeded (1 hour)");
+                error!("Build job {} timed out", job_id);
+                return;
+            }
+        }
     }
 
     /// API server loop - provides local HTTP API for health checks and metrics

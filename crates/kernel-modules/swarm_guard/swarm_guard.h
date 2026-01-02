@@ -133,6 +133,48 @@ struct swarm_namespace_info {
     struct cgroup_namespace *cgroup_ns;
 };
 
+/* Mount isolation configuration */
+#define MAX_BIND_MOUNTS 16
+#define MAX_PATH_LEN 256
+
+/* Mount flags for bind mounts */
+#define SWARM_MOUNT_READONLY    0x01
+#define SWARM_MOUNT_NOSUID      0x02
+#define SWARM_MOUNT_NOEXEC      0x04
+#define SWARM_MOUNT_NODEV       0x08
+
+/* Bind mount configuration */
+struct swarm_bind_mount {
+    char source[MAX_PATH_LEN];      /* Host path to mount from */
+    char target[MAX_PATH_LEN];      /* Container path to mount to */
+    u32 flags;                      /* SWARM_MOUNT_* flags */
+};
+
+/* OverlayFS configuration for container rootfs */
+struct swarm_overlayfs_config {
+    char lower_dir[MAX_PATH_LEN];   /* Read-only base layer (e.g., toolchain) */
+    char upper_dir[MAX_PATH_LEN];   /* Writable layer for changes */
+    char work_dir[MAX_PATH_LEN];    /* OverlayFS work directory */
+    char merged_dir[MAX_PATH_LEN];  /* Final merged mount point */
+};
+
+/* Mount isolation configuration for build containers */
+struct swarm_mount_isolation_config {
+    /* OverlayFS for container root filesystem */
+    struct swarm_overlayfs_config rootfs;
+
+    /* Bind mounts for shared caches (cargo registry, sccache, etc.) */
+    struct swarm_bind_mount bind_mounts[MAX_BIND_MOUNTS];
+    u32 num_bind_mounts;
+
+    /* Old root mount point for pivot_root cleanup */
+    char old_root[MAX_PATH_LEN];
+
+    /* Flags */
+    u32 use_overlayfs;              /* Use overlayfs for rootfs */
+    u32 private_mounts;             /* Make mounts private (MS_PRIVATE) */
+};
+
 /* Cgroup statistics */
 struct swarm_cgroup_stats {
     u64 memory_limit;
@@ -242,6 +284,13 @@ int swarm_agent_get_namespaces(u64 agent_id, struct swarm_namespace_info *info);
 int swarm_agent_set_namespace_flags(u64 agent_id, u32 flags);
 int swarm_namespace_enter(u64 agent_id);
 int swarm_namespace_exit(void);
+
+/* Mount isolation for build containers */
+int swarm_mount_isolation_setup(u64 agent_id, struct swarm_mount_isolation_config *config);
+int swarm_mount_isolation_teardown(u64 agent_id);
+int swarm_mount_add_bind(u64 agent_id, struct swarm_bind_mount *mount);
+int swarm_mount_setup_overlayfs(u64 agent_id, struct swarm_overlayfs_config *config);
+int swarm_mount_pivot_root(u64 agent_id, const char *new_root, const char *old_root);
 
 /* Cgroup management */
 int swarm_cgroup_setup(u64 agent_id);

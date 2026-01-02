@@ -4,6 +4,7 @@
 //! for tracking container agents within the kernel.
 
 use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};

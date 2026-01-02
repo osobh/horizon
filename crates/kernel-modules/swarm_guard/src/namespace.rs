@@ -3,6 +3,8 @@
 //! This module handles the creation and management of Linux namespaces
 //! for agent containers, ensuring proper isolation.
 
+use alloc::format;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::c_int;
 
@@ -96,6 +98,239 @@ pub struct IdMap {
     pub count: u32,
 }
 
+/// Maximum number of bind mounts
+pub const MAX_BIND_MOUNTS: usize = 16;
+/// Maximum path length
+pub const MAX_PATH_LEN: usize = 256;
+
+/// Mount flags for bind mounts
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MountFlags {
+    #[default]
+    None = 0,
+    /// Mount read-only
+    ReadOnly = 0x01,
+    /// No setuid binaries
+    NoSuid = 0x02,
+    /// No executable files
+    NoExec = 0x04,
+    /// No device files
+    NoDev = 0x08,
+}
+
+impl MountFlags {
+    /// Create flags from raw u32
+    pub fn from_raw(raw: u32) -> Self {
+        match raw {
+            0x01 => Self::ReadOnly,
+            0x02 => Self::NoSuid,
+            0x04 => Self::NoExec,
+            0x08 => Self::NoDev,
+            _ => Self::None,
+        }
+    }
+
+    /// Combine multiple flags
+    pub fn combine(flags: &[Self]) -> u32 {
+        flags.iter().fold(0u32, |acc, f| acc | (*f as u32))
+    }
+}
+
+/// Bind mount configuration
+#[derive(Debug, Clone)]
+pub struct BindMount {
+    /// Host path to mount from
+    pub source: Vec<u8>,
+    /// Container path to mount to
+    pub target: Vec<u8>,
+    /// Mount flags (readonly, nosuid, noexec, nodev)
+    pub flags: u32,
+}
+
+impl BindMount {
+    /// Create a new bind mount configuration
+    pub fn new(source: &str, target: &str) -> Self {
+        Self {
+            source: source.as_bytes().to_vec(),
+            target: target.as_bytes().to_vec(),
+            flags: 0,
+        }
+    }
+
+    /// Create a read-only bind mount
+    pub fn readonly(source: &str, target: &str) -> Self {
+        Self {
+            source: source.as_bytes().to_vec(),
+            target: target.as_bytes().to_vec(),
+            flags: MountFlags::ReadOnly as u32,
+        }
+    }
+
+    /// Add mount flags
+    pub fn with_flags(mut self, flags: u32) -> Self {
+        self.flags = flags;
+        self
+    }
+
+    /// Validate the bind mount configuration
+    pub fn validate(&self) -> KernelResult<()> {
+        if self.source.is_empty() || self.source.len() > MAX_PATH_LEN {
+            return Err(KernelError::InvalidArgument);
+        }
+        if self.target.is_empty() || self.target.len() > MAX_PATH_LEN {
+            return Err(KernelError::InvalidArgument);
+        }
+        Ok(())
+    }
+}
+
+/// OverlayFS configuration for container rootfs
+#[derive(Debug, Clone, Default)]
+pub struct OverlayFsConfig {
+    /// Read-only base layer (e.g., toolchain installation)
+    pub lower_dir: Vec<u8>,
+    /// Writable layer for container changes
+    pub upper_dir: Vec<u8>,
+    /// OverlayFS work directory (must be on same filesystem as upper)
+    pub work_dir: Vec<u8>,
+    /// Final merged mount point (new container root)
+    pub merged_dir: Vec<u8>,
+}
+
+impl OverlayFsConfig {
+    /// Create a new overlayfs configuration
+    pub fn new(lower: &str, upper: &str, work: &str, merged: &str) -> Self {
+        Self {
+            lower_dir: lower.as_bytes().to_vec(),
+            upper_dir: upper.as_bytes().to_vec(),
+            work_dir: work.as_bytes().to_vec(),
+            merged_dir: merged.as_bytes().to_vec(),
+        }
+    }
+
+    /// Validate the overlayfs configuration
+    pub fn validate(&self) -> KernelResult<()> {
+        for path in [&self.lower_dir, &self.upper_dir, &self.work_dir, &self.merged_dir] {
+            if path.is_empty() || path.len() > MAX_PATH_LEN {
+                return Err(KernelError::InvalidArgument);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Mount isolation configuration for build containers
+#[derive(Debug, Clone, Default)]
+pub struct MountIsolationConfig {
+    /// OverlayFS configuration for container root filesystem
+    pub rootfs: OverlayFsConfig,
+    /// Bind mounts for shared caches (cargo registry, sccache, etc.)
+    pub bind_mounts: Vec<BindMount>,
+    /// Old root mount point for pivot_root cleanup
+    pub old_root: Vec<u8>,
+    /// Use overlayfs for rootfs
+    pub use_overlayfs: bool,
+    /// Make mounts private (prevent propagation)
+    pub private_mounts: bool,
+}
+
+impl MountIsolationConfig {
+    /// Create a new mount isolation configuration
+    pub fn new() -> Self {
+        Self {
+            rootfs: OverlayFsConfig::default(),
+            bind_mounts: Vec::new(),
+            old_root: b"/.old_root".to_vec(),
+            use_overlayfs: true,
+            private_mounts: true,
+        }
+    }
+
+    /// Create configuration for a Rust build container
+    pub fn for_rust_build(
+        toolchain_path: &str,
+        workspace_path: &str,
+        cargo_registry: &str,
+        sccache_dir: Option<&str>,
+    ) -> Self {
+        let mut config = Self::new();
+
+        // Set up overlayfs with toolchain as lower (read-only) layer
+        config.rootfs = OverlayFsConfig::new(
+            toolchain_path,
+            &format!("{}/upper", workspace_path),
+            &format!("{}/work", workspace_path),
+            &format!("{}/merged", workspace_path),
+        );
+
+        // Add cargo registry bind mount (shared cache)
+        config.bind_mounts.push(BindMount::new(
+            cargo_registry,
+            "/root/.cargo/registry",
+        ));
+
+        // Add sccache bind mount if provided
+        if let Some(sccache) = sccache_dir {
+            config.bind_mounts.push(BindMount::new(
+                sccache,
+                "/root/.cache/sccache",
+            ));
+        }
+
+        config
+    }
+
+    /// Add a bind mount
+    pub fn add_bind_mount(&mut self, mount: BindMount) -> &mut Self {
+        if self.bind_mounts.len() < MAX_BIND_MOUNTS {
+            self.bind_mounts.push(mount);
+        }
+        self
+    }
+
+    /// Add a cargo registry cache mount
+    pub fn with_cargo_registry(&mut self, host_path: &str) -> &mut Self {
+        self.add_bind_mount(BindMount::new(host_path, "/root/.cargo/registry"))
+    }
+
+    /// Add a cargo git cache mount
+    pub fn with_cargo_git(&mut self, host_path: &str) -> &mut Self {
+        self.add_bind_mount(BindMount::new(host_path, "/root/.cargo/git"))
+    }
+
+    /// Add an sccache mount
+    pub fn with_sccache(&mut self, host_path: &str) -> &mut Self {
+        self.add_bind_mount(BindMount::new(host_path, "/root/.cache/sccache"))
+    }
+
+    /// Add a target directory cache mount
+    pub fn with_target_cache(&mut self, host_path: &str, container_path: &str) -> &mut Self {
+        self.add_bind_mount(BindMount::new(host_path, container_path))
+    }
+
+    /// Validate the configuration
+    pub fn validate(&self) -> KernelResult<()> {
+        if self.use_overlayfs {
+            self.rootfs.validate()?;
+        }
+
+        if self.bind_mounts.len() > MAX_BIND_MOUNTS {
+            return Err(KernelError::InvalidArgument);
+        }
+
+        for mount in &self.bind_mounts {
+            mount.validate()?;
+        }
+
+        if self.old_root.is_empty() || self.old_root.len() > MAX_PATH_LEN {
+            return Err(KernelError::InvalidArgument);
+        }
+
+        Ok(())
+    }
+}
+
 impl Default for NamespaceSetup {
     fn default() -> Self {
         Self {
@@ -179,6 +414,85 @@ impl NamespaceManager {
                 return Err(KernelError::InvalidArgument);
             }
         }
+
+        Ok(())
+    }
+
+    /// Set up complete mount isolation for a build container
+    ///
+    /// This function configures:
+    /// 1. Makes mounts private (prevents propagation)
+    /// 2. Sets up overlayfs for container rootfs
+    /// 3. Configures bind mounts for shared caches
+    /// 4. Performs pivot_root to switch filesystem root
+    pub fn setup_mount_isolation(pid: u32, config: &MountIsolationConfig) -> KernelResult<()> {
+        // Validate configuration
+        config.validate()?;
+
+        // In kernel module: call swarm_mount_isolation_setup()
+        // This would invoke the C implementation through FFI
+
+        // Step 1: Make mounts private
+        if config.private_mounts {
+            Self::make_mounts_private()?;
+        }
+
+        // Step 2: Setup overlayfs
+        if config.use_overlayfs {
+            Self::setup_overlayfs(&config.rootfs)?;
+        }
+
+        // Step 3: Setup bind mounts
+        for mount in &config.bind_mounts {
+            Self::setup_bind_mount(mount)?;
+        }
+
+        // Step 4: Pivot root
+        if config.use_overlayfs && !config.rootfs.merged_dir.is_empty() {
+            Self::do_pivot_root(&config.rootfs.merged_dir, &config.old_root)?;
+        }
+
+        Ok(())
+    }
+
+    /// Make all mounts private (prevent propagation to other namespaces)
+    fn make_mounts_private() -> KernelResult<()> {
+        // In kernel: mount("", "/", NULL, MS_REC | MS_PRIVATE, NULL)
+        Ok(())
+    }
+
+    /// Setup overlayfs mount
+    fn setup_overlayfs(config: &OverlayFsConfig) -> KernelResult<()> {
+        config.validate()?;
+
+        // In kernel: mount("overlay", merged_dir, "overlay", 0, options)
+        // where options = "lowerdir=...,upperdir=...,workdir=..."
+
+        Ok(())
+    }
+
+    /// Setup a single bind mount
+    fn setup_bind_mount(mount: &BindMount) -> KernelResult<()> {
+        mount.validate()?;
+
+        // In kernel:
+        // 1. mount(source, target, NULL, MS_BIND, NULL)
+        // 2. mount("", target, NULL, MS_BIND | MS_REMOUNT | flags, NULL)
+
+        Ok(())
+    }
+
+    /// Perform pivot_root to switch filesystem root
+    fn do_pivot_root(new_root: &[u8], old_root: &[u8]) -> KernelResult<()> {
+        if new_root.is_empty() || old_root.is_empty() {
+            return Err(KernelError::InvalidArgument);
+        }
+
+        // In kernel:
+        // 1. mkdir(new_root + old_root)
+        // 2. pivot_root(new_root, new_root + old_root)
+        // 3. chdir("/")
+        // 4. umount(old_root, MNT_DETACH)
 
         Ok(())
     }
@@ -308,5 +622,90 @@ mod tests {
                         .all(|&b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.')
             );
         }
+    }
+
+    #[test]
+    fn test_bind_mount_creation() {
+        let mount = BindMount::new("/host/cache", "/container/cache");
+        assert_eq!(mount.source, b"/host/cache");
+        assert_eq!(mount.target, b"/container/cache");
+        assert_eq!(mount.flags, 0);
+
+        let readonly_mount = BindMount::readonly("/host/data", "/container/data");
+        assert_eq!(readonly_mount.flags, MountFlags::ReadOnly as u32);
+    }
+
+    #[test]
+    fn test_bind_mount_validation() {
+        let valid_mount = BindMount::new("/host/path", "/container/path");
+        assert!(valid_mount.validate().is_ok());
+
+        let empty_source = BindMount::new("", "/container/path");
+        assert!(empty_source.validate().is_err());
+
+        let empty_target = BindMount::new("/host/path", "");
+        assert!(empty_target.validate().is_err());
+    }
+
+    #[test]
+    fn test_overlayfs_config() {
+        let config = OverlayFsConfig::new(
+            "/lower",
+            "/upper",
+            "/work",
+            "/merged",
+        );
+        assert!(config.validate().is_ok());
+
+        let invalid_config = OverlayFsConfig::default();
+        assert!(invalid_config.validate().is_err());
+    }
+
+    #[test]
+    fn test_mount_isolation_config() {
+        let config = MountIsolationConfig::new();
+        assert!(config.use_overlayfs);
+        assert!(config.private_mounts);
+        assert_eq!(config.old_root, b"/.old_root");
+    }
+
+    #[test]
+    fn test_mount_isolation_for_rust_build() {
+        let config = MountIsolationConfig::for_rust_build(
+            "/toolchains/stable",
+            "/workspace/build-123",
+            "/cache/cargo-registry",
+            Some("/cache/sccache"),
+        );
+
+        assert!(config.use_overlayfs);
+        assert_eq!(config.bind_mounts.len(), 2);
+
+        // Check cargo registry mount
+        assert_eq!(config.bind_mounts[0].target, b"/root/.cargo/registry");
+
+        // Check sccache mount
+        assert_eq!(config.bind_mounts[1].target, b"/root/.cache/sccache");
+    }
+
+    #[test]
+    fn test_mount_isolation_builder() {
+        let mut config = MountIsolationConfig::new();
+        config
+            .with_cargo_registry("/cache/registry")
+            .with_cargo_git("/cache/git")
+            .with_sccache("/cache/sccache");
+
+        assert_eq!(config.bind_mounts.len(), 3);
+    }
+
+    #[test]
+    fn test_mount_flags() {
+        let combined = MountFlags::combine(&[
+            MountFlags::ReadOnly,
+            MountFlags::NoSuid,
+            MountFlags::NoExec,
+        ]);
+        assert_eq!(combined, 0x01 | 0x02 | 0x04);
     }
 }

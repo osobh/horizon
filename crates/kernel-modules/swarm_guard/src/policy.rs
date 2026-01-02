@@ -4,13 +4,14 @@
 //! integrating with all other SwarmGuard subsystems.
 
 use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
 
 use crate::agent::{AgentId, DeviceAccess, ResourceLimits, SecurityPolicy};
 use crate::cgroup::CgroupConfig;
 use crate::namespace::NamespaceSetup;
 use crate::syscall::{
-    FilterAction, NetworkPolicy, ProcessCreationPolicy, SyscallFilter, SyscallRule,
+    FilterAction, MountPolicy, NetworkPolicy, ProcessCreationPolicy, SyscallFilter, SyscallRule,
 };
 use crate::{KernelError, KernelResult};
 
@@ -566,6 +567,7 @@ impl From<SyscallPolicy> for SyscallFilter {
                 allowed_ports: vec![],
                 blocked_ips: vec![],
             },
+            mount_policy: MountPolicy::default(),
         }
     }
 }

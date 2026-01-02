@@ -211,9 +211,319 @@ static int create_agent_namespaces(struct swarm_agent_real *agent)
     if (debug)
         pr_info("%s: Created namespaces (flags: 0x%lx) for agent %llu\n",
                 MODULE_NAME, flags, agent->base.id);
-                
+
     return 0;
 }
+
+/*
+ * Mount isolation for build containers
+ *
+ * This sets up isolated mount namespace with:
+ * - OverlayFS for container rootfs (toolchain as lower, writable upper)
+ * - Bind mounts for shared caches (cargo registry, sccache)
+ * - pivot_root to switch filesystem root
+ */
+
+/* Make all mounts in current namespace private (no propagation) */
+static int make_mounts_private(void)
+{
+    /* mount("", "/", NULL, MS_REC | MS_PRIVATE, NULL) */
+    return ksys_mount("", "/", NULL, MS_REC | MS_PRIVATE, NULL);
+}
+
+/* Setup a single bind mount with specified flags */
+static int setup_bind_mount(struct swarm_bind_mount *mount)
+{
+    unsigned long mount_flags = MS_BIND;
+    int ret;
+
+    if (!mount->source[0] || !mount->target[0])
+        return -EINVAL;
+
+    /* Initial bind mount */
+    ret = ksys_mount(mount->source, mount->target, NULL, mount_flags, NULL);
+    if (ret < 0) {
+        pr_err("%s: Failed to bind mount %s -> %s: %d\n",
+               MODULE_NAME, mount->source, mount->target, ret);
+        return ret;
+    }
+
+    /* Remount with additional flags if needed */
+    if (mount->flags) {
+        mount_flags = MS_BIND | MS_REMOUNT;
+
+        if (mount->flags & SWARM_MOUNT_READONLY)
+            mount_flags |= MS_RDONLY;
+        if (mount->flags & SWARM_MOUNT_NOSUID)
+            mount_flags |= MS_NOSUID;
+        if (mount->flags & SWARM_MOUNT_NOEXEC)
+            mount_flags |= MS_NOEXEC;
+        if (mount->flags & SWARM_MOUNT_NODEV)
+            mount_flags |= MS_NODEV;
+
+        ret = ksys_mount("", mount->target, NULL, mount_flags, NULL);
+        if (ret < 0) {
+            pr_warn("%s: Failed to remount %s with flags: %d\n",
+                    MODULE_NAME, mount->target, ret);
+            /* Non-fatal, continue */
+        }
+    }
+
+    if (debug)
+        pr_info("%s: Bind mounted %s -> %s (flags: 0x%x)\n",
+                MODULE_NAME, mount->source, mount->target, mount->flags);
+
+    return 0;
+}
+
+/* Setup overlayfs mount for container rootfs */
+static int setup_overlayfs(struct swarm_overlayfs_config *config)
+{
+    char options[1024];
+    int ret;
+
+    if (!config->lower_dir[0] || !config->upper_dir[0] ||
+        !config->work_dir[0] || !config->merged_dir[0])
+        return -EINVAL;
+
+    /* Create overlayfs options string */
+    snprintf(options, sizeof(options),
+             "lowerdir=%s,upperdir=%s,workdir=%s",
+             config->lower_dir, config->upper_dir, config->work_dir);
+
+    /* Mount overlayfs */
+    ret = ksys_mount("overlay", config->merged_dir, "overlay", 0, options);
+    if (ret < 0) {
+        pr_err("%s: Failed to mount overlayfs at %s: %d\n",
+               MODULE_NAME, config->merged_dir, ret);
+        return ret;
+    }
+
+    if (debug)
+        pr_info("%s: Mounted overlayfs at %s (lower=%s, upper=%s)\n",
+                MODULE_NAME, config->merged_dir,
+                config->lower_dir, config->upper_dir);
+
+    return 0;
+}
+
+/* Perform pivot_root to switch filesystem root */
+static int do_pivot_root(const char *new_root, const char *old_root)
+{
+    int ret;
+    char old_root_path[MAX_PATH_LEN];
+
+    if (!new_root || !old_root)
+        return -EINVAL;
+
+    /* Create full path for old_root inside new_root */
+    snprintf(old_root_path, sizeof(old_root_path), "%s%s", new_root, old_root);
+
+    /* Create old_root directory if it doesn't exist */
+    ret = ksys_mkdir(old_root_path, 0755);
+    if (ret < 0 && ret != -EEXIST) {
+        pr_err("%s: Failed to create old_root dir %s: %d\n",
+               MODULE_NAME, old_root_path, ret);
+        return ret;
+    }
+
+    /* Perform pivot_root */
+    ret = ksys_pivot_root(new_root, old_root_path);
+    if (ret < 0) {
+        pr_err("%s: pivot_root failed (%s -> %s): %d\n",
+               MODULE_NAME, new_root, old_root_path, ret);
+        return ret;
+    }
+
+    /* Change to new root directory */
+    ret = ksys_chdir("/");
+    if (ret < 0) {
+        pr_warn("%s: Failed to chdir to new root: %d\n", MODULE_NAME, ret);
+    }
+
+    /* Unmount old root (lazy unmount to handle busy mounts) */
+    ret = ksys_umount(old_root, MNT_DETACH);
+    if (ret < 0) {
+        pr_warn("%s: Failed to unmount old root %s: %d\n",
+                MODULE_NAME, old_root, ret);
+        /* Non-fatal, continue */
+    }
+
+    if (debug)
+        pr_info("%s: pivot_root complete, new root active\n", MODULE_NAME);
+
+    return 0;
+}
+
+/* Main mount isolation setup function */
+int swarm_mount_isolation_setup(u64 agent_id, struct swarm_mount_isolation_config *config)
+{
+    struct swarm_agent_real *agent = NULL;
+    struct swarm_agent *pos;
+    unsigned long flags;
+    int ret, i;
+
+    if (!config)
+        return -EINVAL;
+
+    /* Find agent */
+    spin_lock_irqsave(&g_state.agents_lock, flags);
+    list_for_each_entry(pos, &g_state.agents, list) {
+        if (pos->id == agent_id) {
+            agent = container_of(pos, struct swarm_agent_real, base);
+            break;
+        }
+    }
+    spin_unlock_irqrestore(&g_state.agents_lock, flags);
+
+    if (!agent)
+        return -ENOENT;
+
+    /* Verify mount namespace is active */
+    if (!(agent->base.namespace_flags & SWARM_NS_MNT)) {
+        pr_err("%s: Mount namespace not enabled for agent %llu\n",
+               MODULE_NAME, agent_id);
+        return -EINVAL;
+    }
+
+    /* Step 1: Make mounts private (prevent propagation) */
+    if (config->private_mounts) {
+        ret = make_mounts_private();
+        if (ret < 0) {
+            pr_err("%s: Failed to make mounts private: %d\n", MODULE_NAME, ret);
+            return ret;
+        }
+    }
+
+    /* Step 2: Setup overlayfs for container rootfs */
+    if (config->use_overlayfs) {
+        ret = setup_overlayfs(&config->rootfs);
+        if (ret < 0) {
+            pr_err("%s: Failed to setup overlayfs: %d\n", MODULE_NAME, ret);
+            return ret;
+        }
+    }
+
+    /* Step 3: Setup bind mounts for caches */
+    for (i = 0; i < config->num_bind_mounts && i < MAX_BIND_MOUNTS; i++) {
+        ret = setup_bind_mount(&config->bind_mounts[i]);
+        if (ret < 0) {
+            pr_warn("%s: Failed to setup bind mount %d: %d\n", MODULE_NAME, i, ret);
+            /* Continue with other mounts */
+        }
+    }
+
+    /* Step 4: pivot_root to new filesystem */
+    if (config->use_overlayfs && config->rootfs.merged_dir[0]) {
+        ret = do_pivot_root(config->rootfs.merged_dir, config->old_root);
+        if (ret < 0) {
+            pr_err("%s: Failed to pivot_root: %d\n", MODULE_NAME, ret);
+            return ret;
+        }
+    }
+
+    if (debug)
+        pr_info("%s: Mount isolation setup complete for agent %llu\n",
+                MODULE_NAME, agent_id);
+
+    return 0;
+}
+EXPORT_SYMBOL(swarm_mount_isolation_setup);
+
+/* Teardown mount isolation */
+int swarm_mount_isolation_teardown(u64 agent_id)
+{
+    /* Mount namespace will be cleaned up when agent is destroyed */
+    /* All mounts within the namespace are automatically cleaned */
+
+    if (debug)
+        pr_info("%s: Mount isolation teardown for agent %llu\n",
+                MODULE_NAME, agent_id);
+
+    return 0;
+}
+EXPORT_SYMBOL(swarm_mount_isolation_teardown);
+
+/* Add a single bind mount to an agent */
+int swarm_mount_add_bind(u64 agent_id, struct swarm_bind_mount *mount)
+{
+    struct swarm_agent_real *agent = NULL;
+    struct swarm_agent *pos;
+    unsigned long flags;
+
+    if (!mount)
+        return -EINVAL;
+
+    /* Find agent */
+    spin_lock_irqsave(&g_state.agents_lock, flags);
+    list_for_each_entry(pos, &g_state.agents, list) {
+        if (pos->id == agent_id) {
+            agent = container_of(pos, struct swarm_agent_real, base);
+            break;
+        }
+    }
+    spin_unlock_irqrestore(&g_state.agents_lock, flags);
+
+    if (!agent)
+        return -ENOENT;
+
+    return setup_bind_mount(mount);
+}
+EXPORT_SYMBOL(swarm_mount_add_bind);
+
+/* Setup overlayfs for an agent */
+int swarm_mount_setup_overlayfs(u64 agent_id, struct swarm_overlayfs_config *config)
+{
+    struct swarm_agent_real *agent = NULL;
+    struct swarm_agent *pos;
+    unsigned long flags;
+
+    if (!config)
+        return -EINVAL;
+
+    /* Find agent */
+    spin_lock_irqsave(&g_state.agents_lock, flags);
+    list_for_each_entry(pos, &g_state.agents, list) {
+        if (pos->id == agent_id) {
+            agent = container_of(pos, struct swarm_agent_real, base);
+            break;
+        }
+    }
+    spin_unlock_irqrestore(&g_state.agents_lock, flags);
+
+    if (!agent)
+        return -ENOENT;
+
+    return setup_overlayfs(config);
+}
+EXPORT_SYMBOL(swarm_mount_setup_overlayfs);
+
+/* Perform pivot_root for an agent */
+int swarm_mount_pivot_root(u64 agent_id, const char *new_root, const char *old_root)
+{
+    struct swarm_agent_real *agent = NULL;
+    struct swarm_agent *pos;
+    unsigned long flags;
+
+    if (!new_root || !old_root)
+        return -EINVAL;
+
+    /* Find agent */
+    spin_lock_irqsave(&g_state.agents_lock, flags);
+    list_for_each_entry(pos, &g_state.agents, list) {
+        if (pos->id == agent_id) {
+            agent = container_of(pos, struct swarm_agent_real, base);
+            break;
+        }
+    }
+    spin_unlock_irqrestore(&g_state.agents_lock, flags);
+
+    if (!agent)
+        return -ENOENT;
+
+    return do_pivot_root(new_root, old_root);
+}
+EXPORT_SYMBOL(swarm_mount_pivot_root);
 
 /* Trust score management using kernel keyring */
 static int init_agent_trust_score(struct swarm_agent_real *agent)

@@ -3,6 +3,7 @@
 //! This module provides system call interception to enforce security
 //! policies for agent containers.
 
+use alloc::vec;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -44,6 +45,14 @@ pub enum Syscall {
     Unlinkat = 263,
     Renameat = 264,
     Faccessat = 269,
+
+    // Mount-related syscalls for build container isolation
+    Mount = 165,
+    Umount2 = 166,
+    PivotRoot = 155,
+    Chroot = 161,
+    Chdir = 80,
+    Fchdir = 81,
 }
 
 impl Syscall {
@@ -83,6 +92,30 @@ impl Syscall {
                 | Self::Renameat
         )
     }
+
+    /// Check if this is a mount-related syscall
+    pub fn is_mount_operation(self) -> bool {
+        matches!(
+            self,
+            Self::Mount
+                | Self::Umount2
+                | Self::PivotRoot
+                | Self::Chroot
+                | Self::Chdir
+                | Self::Fchdir
+        )
+    }
+
+    /// Check if this syscall requires elevated privileges
+    pub fn requires_privilege(self) -> bool {
+        matches!(
+            self,
+            Self::Mount
+                | Self::Umount2
+                | Self::PivotRoot
+                | Self::Chroot
+        )
+    }
 }
 
 /// System call interception statistics
@@ -97,6 +130,8 @@ pub struct InterceptionStats {
     pub process_creation_attempts: AtomicU64,
     /// Network operation attempts
     pub network_attempts: AtomicU64,
+    /// Mount operation attempts
+    pub mount_attempts: AtomicU64,
 }
 
 impl InterceptionStats {
@@ -107,6 +142,7 @@ impl InterceptionStats {
             denied: AtomicU64::new(0),
             process_creation_attempts: AtomicU64::new(0),
             network_attempts: AtomicU64::new(0),
+            mount_attempts: AtomicU64::new(0),
         }
     }
 }
@@ -125,6 +161,8 @@ pub struct SyscallFilter {
     pub process_creation_policy: ProcessCreationPolicy,
     /// Special rules for network operations
     pub network_policy: NetworkPolicy,
+    /// Special rules for mount operations (build containers)
+    pub mount_policy: MountPolicy,
 }
 
 /// Filter action for syscalls
@@ -212,6 +250,103 @@ pub struct IpRange {
     pub mask: [u8; 4],
 }
 
+/// Policy for mount operations (used by build containers)
+#[derive(Debug, Clone)]
+pub struct MountPolicy {
+    /// Allow mount syscall
+    pub allow_mount: bool,
+    /// Allow umount2 syscall
+    pub allow_umount: bool,
+    /// Allow pivot_root syscall
+    pub allow_pivot_root: bool,
+    /// Allow chroot syscall
+    pub allow_chroot: bool,
+    /// Allowed filesystem types for mount
+    pub allowed_fs_types: Vec<Vec<u8>>,
+    /// Allowed mount flags
+    pub allowed_mount_flags: u64,
+    /// Allowed target paths (prefix matching)
+    pub allowed_target_paths: Vec<Vec<u8>>,
+    /// Whether this is a build container (allows privileged mount ops during setup)
+    pub is_build_container: bool,
+    /// Phase of container lifecycle (setup phase allows more operations)
+    pub container_phase: ContainerPhase,
+}
+
+/// Container lifecycle phase for mount policy
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContainerPhase {
+    /// Container is being set up (mount, pivot_root allowed)
+    Setup,
+    /// Container is running (most mount ops denied)
+    Running,
+    /// Container is being torn down
+    Teardown,
+}
+
+impl Default for MountPolicy {
+    fn default() -> Self {
+        Self {
+            allow_mount: false,
+            allow_umount: false,
+            allow_pivot_root: false,
+            allow_chroot: false,
+            allowed_fs_types: Vec::new(),
+            allowed_mount_flags: 0,
+            allowed_target_paths: Vec::new(),
+            is_build_container: false,
+            container_phase: ContainerPhase::Running,
+        }
+    }
+}
+
+impl MountPolicy {
+    /// Create a policy for build container setup phase
+    pub fn build_container_setup() -> Self {
+        Self {
+            allow_mount: true,
+            allow_umount: true,
+            allow_pivot_root: true,
+            allow_chroot: false, // Use pivot_root instead
+            allowed_fs_types: vec![
+                b"overlay".to_vec(),
+                b"tmpfs".to_vec(),
+                b"proc".to_vec(),
+                b"sysfs".to_vec(),
+                b"devpts".to_vec(),
+            ],
+            // MS_BIND | MS_REC | MS_PRIVATE | MS_RDONLY | MS_NOSUID | MS_NOEXEC | MS_NODEV
+            allowed_mount_flags: 0x1000 | 0x4000 | 0x40000 | 0x1 | 0x2 | 0x8 | 0x4,
+            allowed_target_paths: Vec::new(), // Will be set per-container
+            is_build_container: true,
+            container_phase: ContainerPhase::Setup,
+        }
+    }
+
+    /// Create a policy for build container execution phase
+    pub fn build_container_running() -> Self {
+        Self {
+            allow_mount: false,
+            allow_umount: false,
+            allow_pivot_root: false,
+            allow_chroot: false,
+            allowed_fs_types: Vec::new(),
+            allowed_mount_flags: 0,
+            allowed_target_paths: Vec::new(),
+            is_build_container: true,
+            container_phase: ContainerPhase::Running,
+        }
+    }
+
+    /// Transition to running phase after setup
+    pub fn transition_to_running(&mut self) {
+        self.container_phase = ContainerPhase::Running;
+        self.allow_mount = false;
+        self.allow_umount = false;
+        self.allow_pivot_root = false;
+    }
+}
+
 /// System call interceptor
 pub struct SyscallInterceptor;
 
@@ -256,6 +391,13 @@ impl SyscallInterceptor {
                     .fetch_add(1, Ordering::Relaxed);
                 return Self::check_network_operation(syscall, args, &filter.network_policy);
             }
+
+            if syscall.is_mount_operation() {
+                INTERCEPTION_STATS
+                    .mount_attempts
+                    .fetch_add(1, Ordering::Relaxed);
+                return Self::check_mount_operation(syscall, args, &filter.mount_policy);
+            }
         }
 
         // Apply default action
@@ -280,6 +422,7 @@ impl SyscallInterceptor {
                 ],
                 blocked_ips: vec![],
             },
+            mount_policy: MountPolicy::default(),
         })
     }
 
@@ -297,6 +440,13 @@ impl SyscallInterceptor {
             41 => Some(Syscall::Socket),
             42 => Some(Syscall::Connect),
             257 => Some(Syscall::Openat),
+            // Mount-related syscalls
+            80 => Some(Syscall::Chdir),
+            81 => Some(Syscall::Fchdir),
+            155 => Some(Syscall::PivotRoot),
+            161 => Some(Syscall::Chroot),
+            165 => Some(Syscall::Mount),
+            166 => Some(Syscall::Umount2),
             _ => None,
         }
     }
@@ -386,6 +536,107 @@ impl SyscallInterceptor {
         }
     }
 
+    /// Check mount operations
+    fn check_mount_operation(
+        syscall: Syscall,
+        args: &[u64; 6],
+        policy: &MountPolicy,
+    ) -> KernelResult<FilterAction> {
+        // During setup phase, allow configured mount operations
+        if policy.container_phase == ContainerPhase::Setup && policy.is_build_container {
+            return Self::check_mount_operation_setup(syscall, args, policy);
+        }
+
+        // During running phase, deny most mount operations
+        match syscall {
+            Syscall::Mount => {
+                if !policy.allow_mount {
+                    return Ok(FilterAction::Deny);
+                }
+                Ok(FilterAction::Allow)
+            }
+            Syscall::Umount2 => {
+                if !policy.allow_umount {
+                    return Ok(FilterAction::Deny);
+                }
+                Ok(FilterAction::Allow)
+            }
+            Syscall::PivotRoot => {
+                if !policy.allow_pivot_root {
+                    return Ok(FilterAction::Deny);
+                }
+                Ok(FilterAction::Allow)
+            }
+            Syscall::Chroot => {
+                if !policy.allow_chroot {
+                    return Ok(FilterAction::Deny);
+                }
+                Ok(FilterAction::Allow)
+            }
+            // Chdir/Fchdir are generally safe
+            Syscall::Chdir | Syscall::Fchdir => Ok(FilterAction::Allow),
+            _ => Ok(FilterAction::Allow),
+        }
+    }
+
+    /// Check mount operations during container setup phase
+    fn check_mount_operation_setup(
+        syscall: Syscall,
+        args: &[u64; 6],
+        policy: &MountPolicy,
+    ) -> KernelResult<FilterAction> {
+        match syscall {
+            Syscall::Mount => {
+                if !policy.allow_mount {
+                    return Ok(FilterAction::Deny);
+                }
+
+                // args[3] contains mount flags
+                let flags = args[3];
+                if policy.allowed_mount_flags != 0 {
+                    // Check that only allowed flags are used
+                    let disallowed = flags & !policy.allowed_mount_flags;
+                    if disallowed != 0 {
+                        return Ok(FilterAction::Deny);
+                    }
+                }
+
+                // In kernel: would also check:
+                // - args[0] = source path
+                // - args[1] = target path
+                // - args[2] = filesystem type
+                // Against policy.allowed_fs_types and policy.allowed_target_paths
+
+                Ok(FilterAction::Allow)
+            }
+            Syscall::Umount2 => {
+                if policy.allow_umount {
+                    Ok(FilterAction::Allow)
+                } else {
+                    Ok(FilterAction::Deny)
+                }
+            }
+            Syscall::PivotRoot => {
+                if policy.allow_pivot_root {
+                    Ok(FilterAction::Allow)
+                } else {
+                    Ok(FilterAction::Deny)
+                }
+            }
+            Syscall::Chroot => {
+                // Prefer pivot_root over chroot for security
+                if policy.allow_chroot {
+                    Ok(FilterAction::Allow)
+                } else {
+                    Ok(FilterAction::Deny)
+                }
+            }
+            // Allow directory changes during setup
+            Syscall::Chdir | Syscall::Fchdir => Ok(FilterAction::Allow),
+            _ => Ok(FilterAction::Allow),
+        }
+    }
+
     /// Record action taken
     fn record_action(action: FilterAction, syscall_nr: u32) {
         match action {
@@ -465,5 +716,114 @@ mod tests {
             value: 0x10,
         };
         assert!(SyscallInterceptor::check_conditions(&[cond], 0, &args)); // 30 & 0x10 = 0x10
+    }
+
+    #[test]
+    fn test_mount_syscall_classification() {
+        assert!(Syscall::Mount.is_mount_operation());
+        assert!(Syscall::Umount2.is_mount_operation());
+        assert!(Syscall::PivotRoot.is_mount_operation());
+        assert!(Syscall::Chroot.is_mount_operation());
+        assert!(Syscall::Chdir.is_mount_operation());
+        assert!(Syscall::Fchdir.is_mount_operation());
+
+        assert!(!Syscall::Open.is_mount_operation());
+        assert!(!Syscall::Socket.is_mount_operation());
+    }
+
+    #[test]
+    fn test_mount_requires_privilege() {
+        assert!(Syscall::Mount.requires_privilege());
+        assert!(Syscall::Umount2.requires_privilege());
+        assert!(Syscall::PivotRoot.requires_privilege());
+        assert!(Syscall::Chroot.requires_privilege());
+
+        // Chdir/Fchdir don't require privilege
+        assert!(!Syscall::Chdir.requires_privilege());
+        assert!(!Syscall::Fchdir.requires_privilege());
+        assert!(!Syscall::Read.requires_privilege());
+    }
+
+    #[test]
+    fn test_mount_policy_default_denies() {
+        let policy = MountPolicy::default();
+        assert!(!policy.allow_mount);
+        assert!(!policy.allow_umount);
+        assert!(!policy.allow_pivot_root);
+        assert!(!policy.allow_chroot);
+        assert_eq!(policy.container_phase, ContainerPhase::Running);
+    }
+
+    #[test]
+    fn test_mount_policy_build_container_setup() {
+        let policy = MountPolicy::build_container_setup();
+        assert!(policy.allow_mount);
+        assert!(policy.allow_umount);
+        assert!(policy.allow_pivot_root);
+        assert!(!policy.allow_chroot); // Prefer pivot_root
+        assert!(policy.is_build_container);
+        assert_eq!(policy.container_phase, ContainerPhase::Setup);
+        assert!(!policy.allowed_fs_types.is_empty());
+    }
+
+    #[test]
+    fn test_mount_policy_transition() {
+        let mut policy = MountPolicy::build_container_setup();
+        assert!(policy.allow_mount);
+        assert_eq!(policy.container_phase, ContainerPhase::Setup);
+
+        policy.transition_to_running();
+        assert!(!policy.allow_mount);
+        assert!(!policy.allow_umount);
+        assert!(!policy.allow_pivot_root);
+        assert_eq!(policy.container_phase, ContainerPhase::Running);
+    }
+
+    #[test]
+    fn test_check_mount_operation_running_phase() {
+        let policy = MountPolicy::default();
+        let args = [0u64; 6];
+
+        // Default policy denies mount operations
+        let result = SyscallInterceptor::check_mount_operation(Syscall::Mount, &args, &policy);
+        assert_eq!(result.unwrap(), FilterAction::Deny);
+
+        let result = SyscallInterceptor::check_mount_operation(Syscall::PivotRoot, &args, &policy);
+        assert_eq!(result.unwrap(), FilterAction::Deny);
+
+        // Chdir is always allowed
+        let result = SyscallInterceptor::check_mount_operation(Syscall::Chdir, &args, &policy);
+        assert_eq!(result.unwrap(), FilterAction::Allow);
+    }
+
+    #[test]
+    fn test_check_mount_operation_setup_phase() {
+        let policy = MountPolicy::build_container_setup();
+        let args = [0u64; 6];
+
+        // Setup phase allows mount operations
+        let result = SyscallInterceptor::check_mount_operation(Syscall::Mount, &args, &policy);
+        assert_eq!(result.unwrap(), FilterAction::Allow);
+
+        let result = SyscallInterceptor::check_mount_operation(Syscall::PivotRoot, &args, &policy);
+        assert_eq!(result.unwrap(), FilterAction::Allow);
+
+        let result = SyscallInterceptor::check_mount_operation(Syscall::Umount2, &args, &policy);
+        assert_eq!(result.unwrap(), FilterAction::Allow);
+    }
+
+    #[test]
+    fn test_mount_flags_checking() {
+        let policy = MountPolicy::build_container_setup();
+
+        // Allowed flags (MS_BIND = 0x1000)
+        let args = [0, 0, 0, 0x1000, 0, 0];
+        let result = SyscallInterceptor::check_mount_operation_setup(Syscall::Mount, &args, &policy);
+        assert_eq!(result.unwrap(), FilterAction::Allow);
+
+        // Disallowed flags (some random flag not in allowed_mount_flags)
+        let args = [0, 0, 0, 0x80000000, 0, 0];
+        let result = SyscallInterceptor::check_mount_operation_setup(Syscall::Mount, &args, &policy);
+        assert_eq!(result.unwrap(), FilterAction::Deny);
     }
 }
