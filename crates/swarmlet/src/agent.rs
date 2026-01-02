@@ -193,6 +193,9 @@ impl SwarmletAgent {
         );
         let log_streamer = Arc::new(BuildLogStreamer::new());
 
+        // Connect log streamer to build job manager for WebSocket broadcasting
+        build_job_manager.set_log_streamer(log_streamer.clone()).await;
+
         let health_status = Arc::new(RwLock::new(HealthStatus {
             node_id: join_result.node_id,
             status: NodeStatus::Starting,
@@ -276,6 +279,9 @@ impl SwarmletAgent {
             BuildJobManager::new(config.clone(), saved_state.join_result.node_id, config.data_dir.clone()).await?
         );
         let log_streamer = Arc::new(BuildLogStreamer::new());
+
+        // Connect log streamer to build job manager for WebSocket broadcasting
+        build_job_manager.set_log_streamer(log_streamer.clone()).await;
 
         // Create WireGuard manager and restore keys
         let wireguard_manager = Arc::new(WireGuardManager::new());
