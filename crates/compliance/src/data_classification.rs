@@ -58,6 +58,9 @@ pub struct DataMetadata {
     pub owner: Option<String>,
     /// Created timestamp
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Additional tags for metadata
+    #[serde(default)]
+    pub tags: std::collections::HashMap<String, String>,
 }
 
 /// Data classifier
@@ -168,6 +171,7 @@ impl DataClassifier {
             ),
             owner: None,
             created_at: chrono::Utc::now(),
+            tags: std::collections::HashMap::new(),
         })
     }
 

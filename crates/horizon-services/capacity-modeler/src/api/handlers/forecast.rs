@@ -73,7 +73,7 @@ pub async fn forecast_gpu_demand(
 
     // Publish forecast generated event
     state.publish_forecast_event(CapacityMessage::ForecastGenerated {
-        forecast_weeks: request.weeks,
+        forecast_weeks: request.weeks as u32,
         include_confidence: request.include_confidence_intervals,
         timestamp_ms: timestamp_ms(),
     });
@@ -106,8 +106,8 @@ pub async fn backtest_model(
 
     // Publish backtest completed event
     state.publish_forecast_event(CapacityMessage::BacktestCompleted {
-        train_days: backtest_result.train_size,
-        test_days: backtest_result.test_size,
+        train_days: backtest_result.train_size as u32,
+        test_days: backtest_result.test_size as u32,
         mae: backtest_result.metrics.mae,
         mape: backtest_result.metrics.mape,
         timestamp_ms: timestamp_ms(),

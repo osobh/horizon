@@ -77,7 +77,7 @@ impl AuditLogEngine {
     ) -> ComplianceResult<Uuid> {
         // Get the chain
         let chain = self.chains.get_mut(&chain_id).ok_or_else(|| {
-            ComplianceError::AuditError(format!("Audit chain not found: {}", chain_id))
+            ComplianceError::AuditLogError(format!("Audit chain not found: {}", chain_id))
         })?;
 
         // Create the entry
@@ -186,7 +186,7 @@ impl AuditLogEngine {
         let mut result = IntegrityVerificationResult::new();
 
         let chain = self.chains.get(&chain_id).ok_or_else(|| {
-            ComplianceError::AuditError(format!("Chain not found: {}", chain_id))
+            ComplianceError::AuditLogError(format!("Chain not found: {}", chain_id))
         })?;
 
         // Verify chain integrity

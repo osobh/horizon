@@ -60,7 +60,7 @@ impl AuditChain {
     /// Add an entry to the chain
     pub fn add_entry(&mut self, mut entry: AuditLogEntry) -> ComplianceResult<()> {
         if self.state != ChainState::Active {
-            return Err(crate::error::ComplianceError::AuditError(
+            return Err(crate::error::ComplianceError::AuditLogError(
                 "Cannot add entry to non-active chain".to_string(),
             ));
         }
@@ -108,7 +108,7 @@ impl AuditChain {
     /// Seal the chain (make it read-only)
     pub fn seal(&mut self) -> ComplianceResult<()> {
         if self.state != ChainState::Active {
-            return Err(crate::error::ComplianceError::AuditError(
+            return Err(crate::error::ComplianceError::AuditLogError(
                 "Chain is not active".to_string(),
             ));
         }
@@ -120,7 +120,7 @@ impl AuditChain {
     /// Archive the chain
     pub fn archive(&mut self) -> ComplianceResult<()> {
         if self.state != ChainState::Sealed {
-            return Err(crate::error::ComplianceError::AuditError(
+            return Err(crate::error::ComplianceError::AuditLogError(
                 "Chain must be sealed before archiving".to_string(),
             ));
         }

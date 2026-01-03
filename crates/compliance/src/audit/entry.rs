@@ -147,10 +147,9 @@ impl AuditLogEntry {
             || self.data_categories.iter().any(|cat| {
                 matches!(
                     cat,
-                    DataCategory::PersonallyIdentifiable
-                        | DataCategory::Sensitive
-                        | DataCategory::HealthRecords
-                        | DataCategory::FinancialRecords
+                    DataCategory::PII
+                        | DataCategory::PHI
+                        | DataCategory::Financial
                 )
             })
     }
