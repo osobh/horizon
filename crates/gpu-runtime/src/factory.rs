@@ -3,7 +3,7 @@
 //! Factory functions for creating backend-specific engines.
 
 use crate::detect::GpuBackend;
-use crate::error::{RuntimeError, Result};
+use crate::error::{Result, RuntimeError};
 
 /// Factory for creating GPU runtime components.
 ///

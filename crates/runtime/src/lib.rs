@@ -35,8 +35,8 @@ pub use secure_runtime::SecureContainerRuntime;
 
 #[cfg(feature = "hpc-channels")]
 pub use hpc_bridge::{
-    RuntimeChannelBridge, SharedRuntimeChannelBridge, shared_channel_bridge,
-    ContainerStartEvent, ContainerStopEvent, RuntimeEvent,
+    shared_channel_bridge, ContainerStartEvent, ContainerStopEvent, RuntimeChannelBridge,
+    RuntimeEvent, SharedRuntimeChannelBridge,
 };
 
 /// GPU container runtime for managing agent containers

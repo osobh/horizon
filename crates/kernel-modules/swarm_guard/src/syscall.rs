@@ -110,10 +110,7 @@ impl Syscall {
     pub fn requires_privilege(self) -> bool {
         matches!(
             self,
-            Self::Mount
-                | Self::Umount2
-                | Self::PivotRoot
-                | Self::Chroot
+            Self::Mount | Self::Umount2 | Self::PivotRoot | Self::Chroot
         )
     }
 }
@@ -818,12 +815,14 @@ mod tests {
 
         // Allowed flags (MS_BIND = 0x1000)
         let args = [0, 0, 0, 0x1000, 0, 0];
-        let result = SyscallInterceptor::check_mount_operation_setup(Syscall::Mount, &args, &policy);
+        let result =
+            SyscallInterceptor::check_mount_operation_setup(Syscall::Mount, &args, &policy);
         assert_eq!(result.unwrap(), FilterAction::Allow);
 
         // Disallowed flags (some random flag not in allowed_mount_flags)
         let args = [0, 0, 0, 0x80000000, 0, 0];
-        let result = SyscallInterceptor::check_mount_operation_setup(Syscall::Mount, &args, &policy);
+        let result =
+            SyscallInterceptor::check_mount_operation_setup(Syscall::Mount, &args, &policy);
         assert_eq!(result.unwrap(), FilterAction::Deny);
     }
 }

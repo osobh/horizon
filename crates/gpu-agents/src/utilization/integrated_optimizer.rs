@@ -87,8 +87,9 @@ impl IntegratedGpuOptimizer {
         )?));
 
         let metrics_collector = Arc::new(GpuMetricsCollector::new(Arc::clone(&device)));
-        let memory_optimizer =
-            Arc::new(RwLock::new(MemoryCoalescingOptimizer::new(Arc::clone(&device))));
+        let memory_optimizer = Arc::new(RwLock::new(MemoryCoalescingOptimizer::new(Arc::clone(
+            &device,
+        ))));
 
         let state = Arc::new(RwLock::new(OptimizationState {
             current_utilization: 0.0,
@@ -534,7 +535,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_integrated_optimizer_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_integrated_optimizer_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let optimizer = IntegratedGpuOptimizer::new(device).await?;
 
@@ -544,7 +545,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_phase_transitions() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_phase_transitions() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let optimizer = IntegratedGpuOptimizer::new(device).await?;
 

@@ -3,11 +3,11 @@
 //! This example demonstrates how to create GPU, CPU, and NIC metrics
 //! using both the raw structs and the builder patterns.
 
-use prost::Message;
 use hpc_types::telemetry_helpers::{
     CpuMetricBuilder, GpuMetricBuilder, MetricBatchBuilder, NicMetricBuilder,
 };
 use hpc_types::{create_timestamp, current_timestamp};
+use prost::Message;
 
 fn main() {
     println!("=== Schemax Metrics Creation Example ===\n");

@@ -225,7 +225,10 @@ mod tests {
         // Decryption should fail
         let result = vault.decrypt(&encrypted);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VaultError::DecryptionFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            VaultError::DecryptionFailed(_)
+        ));
     }
 
     #[test]
@@ -242,7 +245,10 @@ mod tests {
         // Decryption with wrong key should fail
         let result = vault2.decrypt(&encrypted);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VaultError::DecryptionFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            VaultError::DecryptionFailed(_)
+        ));
     }
 
     #[test]
@@ -261,7 +267,10 @@ mod tests {
         // Decryption should fail
         let result = vault.decrypt(&encrypted);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VaultError::DecryptionFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            VaultError::DecryptionFailed(_)
+        ));
     }
 
     #[test]
@@ -277,7 +286,10 @@ mod tests {
 
         let result = vault.decrypt(&encrypted);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VaultError::InvalidNonceLength { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            VaultError::InvalidNonceLength { .. }
+        ));
     }
 
     #[test]

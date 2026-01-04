@@ -59,7 +59,8 @@ impl GpuSemaphore {
 
     /// Signal (increment) the semaphore.
     pub fn signal(&self) {
-        self.value.fetch_add(1, std::sync::atomic::Ordering::Release);
+        self.value
+            .fetch_add(1, std::sync::atomic::Ordering::Release);
     }
 
     /// Wait (decrement) the semaphore.
@@ -123,7 +124,8 @@ impl FrameSync {
 
     /// Get the current frame index.
     pub fn current_frame(&self) -> u64 {
-        self.current_frame.load(std::sync::atomic::Ordering::Acquire)
+        self.current_frame
+            .load(std::sync::atomic::Ordering::Acquire)
     }
 
     /// Get the buffer index for the current frame.

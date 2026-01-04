@@ -217,10 +217,7 @@ spec:
 async fn test_policy_denial_flow() -> Result<()> {
     // This test verifies that jobs are denied when policy doesn't allow them
 
-    let services = vec![
-        ServiceEndpoint::api_gateway(),
-        ServiceEndpoint::governor(),
-    ];
+    let services = vec![ServiceEndpoint::api_gateway(), ServiceEndpoint::governor()];
     require_services(&services).await?;
 
     let gateway_client = ApiGatewayClient::from_env();
@@ -354,10 +351,7 @@ async fn test_quota_exceeded_flow() -> Result<()> {
 async fn test_concurrent_job_submissions() -> Result<()> {
     // This test verifies that multiple concurrent job submissions work correctly
 
-    let services = vec![
-        ServiceEndpoint::api_gateway(),
-        ServiceEndpoint::scheduler(),
-    ];
+    let services = vec![ServiceEndpoint::api_gateway(), ServiceEndpoint::scheduler()];
     require_services(&services).await?;
 
     let gateway_client = ApiGatewayClient::from_env();

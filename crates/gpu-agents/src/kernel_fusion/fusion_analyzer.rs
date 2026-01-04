@@ -872,7 +872,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_fusion_analyzer_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_fusion_analyzer_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let config = KernelFusionConfig::default();
         let analyzer = FusionAnalyzer::new(Arc::new(device), config);

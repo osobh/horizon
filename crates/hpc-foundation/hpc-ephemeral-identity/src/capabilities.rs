@@ -78,7 +78,8 @@ impl Capability {
 
         if self.resource.ends_with("/*") {
             let prefix = &self.resource[..self.resource.len() - 1];
-            return resource.starts_with(prefix) || resource == &self.resource[..self.resource.len() - 2];
+            return resource.starts_with(prefix)
+                || resource == &self.resource[..self.resource.len() - 2];
         }
 
         if self.resource.ends_with('*') {
@@ -298,8 +299,14 @@ impl TimeRestrictions {
 
     /// Adds a blackout period.
     #[must_use]
-    pub fn with_blackout(mut self, start: DateTime<Utc>, end: DateTime<Utc>, reason: Option<String>) -> Self {
-        self.blackout_periods.push(BlackoutPeriod { start, end, reason });
+    pub fn with_blackout(
+        mut self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        reason: Option<String>,
+    ) -> Self {
+        self.blackout_periods
+            .push(BlackoutPeriod { start, end, reason });
         self
     }
 
@@ -349,7 +356,10 @@ impl TimeRestrictions {
         } else if other.allowed_days.is_empty() {
             self.allowed_days.clone()
         } else {
-            self.allowed_days.intersection(&other.allowed_days).copied().collect()
+            self.allowed_days
+                .intersection(&other.allowed_days)
+                .copied()
+                .collect()
         };
 
         // Take the later start time and earlier end time
@@ -464,7 +474,9 @@ impl CapabilitySet {
         }
 
         // Check if any capability allows this action
-        self.capabilities.iter().any(|cap| cap.allows(action, resource))
+        self.capabilities
+            .iter()
+            .any(|cap| cap.allows(action, resource))
     }
 
     /// Checks if access is allowed at the current time.
@@ -501,7 +513,10 @@ impl CapabilitySet {
             .capabilities
             .iter()
             .filter(|cap| {
-                other.capabilities.iter().any(|other_cap| cap.is_subset_of(other_cap))
+                other
+                    .capabilities
+                    .iter()
+                    .any(|other_cap| cap.is_subset_of(other_cap))
             })
             .cloned()
             .collect();
@@ -522,7 +537,10 @@ impl CapabilitySet {
     #[must_use]
     pub fn is_subset_of(&self, other: &CapabilitySet) -> bool {
         self.capabilities.iter().all(|cap| {
-            other.capabilities.iter().any(|other_cap| cap.is_subset_of(other_cap))
+            other
+                .capabilities
+                .iter()
+                .any(|other_cap| cap.is_subset_of(other_cap))
         })
     }
 
@@ -668,8 +686,7 @@ mod tests {
 
     #[test]
     fn test_rate_limits_intersect() {
-        let a = RateLimits::with_ops_per_minute(100)
-            .with_resource_limit("api", 50);
+        let a = RateLimits::with_ops_per_minute(100).with_resource_limit("api", 50);
         let b = RateLimits::with_ops_per_minute(50)
             .with_resource_limit("api", 75)
             .with_resource_limit("data", 30);
@@ -726,11 +743,10 @@ mod tests {
 
     #[test]
     fn test_time_restrictions_is_allowed_during_window() {
-        let restrictions = TimeRestrictions::default()
-            .with_time_window(
-                NaiveTime::from_hms_opt(9, 0, 0).unwrap(),
-                NaiveTime::from_hms_opt(17, 0, 0).unwrap(),
-            );
+        let restrictions = TimeRestrictions::default().with_time_window(
+            NaiveTime::from_hms_opt(9, 0, 0).unwrap(),
+            NaiveTime::from_hms_opt(17, 0, 0).unwrap(),
+        );
 
         // 10:00 should be allowed
         let time = Utc::now()
@@ -752,12 +768,11 @@ mod tests {
     #[test]
     fn test_time_restrictions_blackout() {
         let now = Utc::now();
-        let restrictions = TimeRestrictions::unrestricted()
-            .with_blackout(
-                now - chrono::Duration::hours(1),
-                now + chrono::Duration::hours(1),
-                Some("Maintenance".to_string()),
-            );
+        let restrictions = TimeRestrictions::unrestricted().with_blackout(
+            now - chrono::Duration::hours(1),
+            now + chrono::Duration::hours(1),
+            Some("Maintenance".to_string()),
+        );
 
         assert!(!restrictions.is_allowed_at(now));
         assert!(restrictions.is_allowed_at(now + chrono::Duration::hours(2)));
@@ -828,8 +843,7 @@ mod tests {
 
     #[test]
     fn test_capability_set_with_denial() {
-        let set = CapabilitySet::full_access()
-            .with_denial("delete:*");
+        let set = CapabilitySet::full_access().with_denial("delete:*");
 
         assert!(set.allows("read", "anything"));
         assert!(set.allows("write", "anything"));
@@ -838,8 +852,7 @@ mod tests {
 
     #[test]
     fn test_capability_set_validate_success() {
-        let set = CapabilitySet::new()
-            .with_capability(Capability::new("read", "notebooks"));
+        let set = CapabilitySet::new().with_capability(Capability::new("read", "notebooks"));
 
         let result = set.validate("read", "notebooks");
         assert!(result.is_ok());
@@ -847,8 +860,7 @@ mod tests {
 
     #[test]
     fn test_capability_set_validate_denied() {
-        let set = CapabilitySet::new()
-            .with_capability(Capability::new("read", "notebooks"));
+        let set = CapabilitySet::new().with_capability(Capability::new("read", "notebooks"));
 
         let result = set.validate("delete", "notebooks");
         assert!(matches!(result, Err(EphemeralError::CapabilityDenied(_))));
@@ -878,8 +890,7 @@ mod tests {
     #[test]
     fn test_capability_set_is_subset_of() {
         let full = CapabilitySet::full_access();
-        let limited = CapabilitySet::new()
-            .with_capability(Capability::new("read", "notebooks"));
+        let limited = CapabilitySet::new().with_capability(Capability::new("read", "notebooks"));
 
         assert!(limited.is_subset_of(&full));
         assert!(!full.is_subset_of(&limited));

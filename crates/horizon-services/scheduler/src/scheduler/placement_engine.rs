@@ -1,6 +1,6 @@
 use crate::adapters::InventoryClient;
 use crate::error::{HpcError, SchedulerErrorExt};
-use crate::models::{Job, PlacementDecision, Topology, Node, Gpu};
+use crate::models::{Gpu, Job, Node, PlacementDecision, Topology};
 use crate::Result;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -38,20 +38,26 @@ impl PlacementEngine {
 
     /// Helper: Extract GPU count from job resources
     fn get_job_gpu_count(&self, job: &Job) -> usize {
-        job.resources.get_gpu_spec()
+        job.resources
+            .get_gpu_spec()
             .map(|s| s.amount as usize)
             .unwrap_or(0)
     }
 
     /// Helper: Extract GPU type/model from job resources
     fn get_job_gpu_type(&self, job: &Job) -> Option<String> {
-        job.resources.get_gpu_spec()
+        job.resources
+            .get_gpu_spec()
             .and_then(|s| s.constraints.as_ref())
             .and_then(|c| c.model.clone())
     }
 
     /// Try to place all GPUs on a single node (best locality)
-    async fn try_single_node_placement(&self, job: &Job, topology: &Topology) -> Option<PlacementDecision> {
+    async fn try_single_node_placement(
+        &self,
+        job: &Job,
+        topology: &Topology,
+    ) -> Option<PlacementDecision> {
         let required_gpus = self.get_job_gpu_count(job);
 
         for node in &topology.nodes {
@@ -131,7 +137,11 @@ impl PlacementEngine {
     }
 
     /// Try multi-node placement using BFD
-    async fn try_multi_node_placement(&self, job: &Job, topology: &Topology) -> Option<PlacementDecision> {
+    async fn try_multi_node_placement(
+        &self,
+        job: &Job,
+        topology: &Topology,
+    ) -> Option<PlacementDecision> {
         let required_gpus = self.get_job_gpu_count(job);
 
         // Score nodes by available GPU count (BFD)
@@ -218,9 +228,10 @@ impl PlacementEngine {
         let mut distribution = HashMap::new();
 
         for numa_node in &node.numa_nodes {
-            let count = gpus.iter().filter(|g| {
-                numa_node.gpus.iter().any(|ng| ng.id == g.id)
-            }).count();
+            let count = gpus
+                .iter()
+                .filter(|g| numa_node.gpus.iter().any(|ng| ng.id == g.id))
+                .count();
 
             if count > 0 {
                 distribution.insert(numa_node.id, count);
@@ -231,14 +242,17 @@ impl PlacementEngine {
     }
 
     fn count_available_gpus(&self, topology: &Topology) -> usize {
-        topology.nodes.iter()
+        topology
+            .nodes
+            .iter()
             .filter(|n| n.available)
             .map(|n| self.count_node_available_gpus(n))
             .sum()
     }
 
     fn count_node_available_gpus(&self, node: &Node) -> usize {
-        node.numa_nodes.iter()
+        node.numa_nodes
+            .iter()
             .flat_map(|numa| &numa.gpus)
             .filter(|g| g.available)
             .count()
@@ -246,7 +260,7 @@ impl PlacementEngine {
 
     fn matches_gpu_type(&self, gpu: &Gpu, job: &Job) -> bool {
         self.get_job_gpu_type(job)
-            .map_or(true, |req_type| req_type == gpu.gpu_type)
+            .is_none_or(|req_type| req_type == gpu.gpu_type)
     }
 }
 
@@ -320,7 +334,11 @@ mod tests {
         let gpu_h100 = create_test_gpu(Uuid::new_v4(), "H100", true);
         let gpu_a100 = create_test_gpu(Uuid::new_v4(), "A100", true);
 
-        let job_any = Job::builder().user_id("user1").gpu_count(1).build().unwrap();
+        let job_any = Job::builder()
+            .user_id("user1")
+            .gpu_count(1)
+            .build()
+            .unwrap();
         let job_h100 = Job::builder()
             .user_id("user1")
             .gpu_count(1)

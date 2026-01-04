@@ -4,8 +4,8 @@
 //! without requiring the actual kernel module to be loaded.
 
 use swarmlet::kernel_interface::{
-    AgentConfig, BindMountConfig, BindMountEntry, KernelInterface, MountIsolationConfig,
-    OverlayFsConfig, MAX_BIND_MOUNTS, MAX_PATH_LEN, mount_flags,
+    mount_flags, AgentConfig, BindMountConfig, BindMountEntry, KernelInterface,
+    MountIsolationConfig, OverlayFsConfig, MAX_BIND_MOUNTS, MAX_PATH_LEN,
 };
 
 /// Test AgentConfig creation and defaults
@@ -85,13 +85,7 @@ fn test_bind_mount_config_default() {
 /// Test OverlayFsConfig creation
 #[test]
 fn test_overlayfs_config_creation() {
-    let config = OverlayFsConfig::new(
-        99,
-        "/lower/dir",
-        "/upper/dir",
-        "/work/dir",
-        "/merged/dir",
-    );
+    let config = OverlayFsConfig::new(99, "/lower/dir", "/upper/dir", "/work/dir", "/merged/dir");
 
     assert_eq!(config.agent_id, 99);
 
@@ -145,7 +139,11 @@ fn test_mount_isolation_add_bind_mounts() {
 
     // Add multiple bind mounts
     assert!(config.add_bind_mount("/host/cache", "/cache", mount_flags::READONLY));
-    assert!(config.add_bind_mount("/host/src", "/src", mount_flags::READONLY | mount_flags::NOEXEC));
+    assert!(config.add_bind_mount(
+        "/host/src",
+        "/src",
+        mount_flags::READONLY | mount_flags::NOEXEC
+    ));
     assert!(config.add_bind_mount("/host/output", "/output", 0));
 
     assert_eq!(config.num_bind_mounts, 3);
@@ -206,10 +204,8 @@ fn test_mount_flags() {
     assert_eq!(combined, 0x07);
 
     // All flags
-    let all_flags = mount_flags::READONLY
-        | mount_flags::NOSUID
-        | mount_flags::NOEXEC
-        | mount_flags::NODEV;
+    let all_flags =
+        mount_flags::READONLY | mount_flags::NOSUID | mount_flags::NOEXEC | mount_flags::NODEV;
     assert_eq!(all_flags, 0x0F);
 }
 
@@ -304,16 +300,8 @@ fn test_complex_mount_isolation_scenario() {
         "/proc",
         mount_flags::NOSUID | mount_flags::NOEXEC | mount_flags::NODEV,
     );
-    config.add_bind_mount(
-        "/dev/null",
-        "/dev/null",
-        mount_flags::NOSUID,
-    );
-    config.add_bind_mount(
-        "/dev/urandom",
-        "/dev/urandom",
-        mount_flags::NOSUID,
-    );
+    config.add_bind_mount("/dev/null", "/dev/null", mount_flags::NOSUID);
+    config.add_bind_mount("/dev/urandom", "/dev/urandom", mount_flags::NOSUID);
 
     assert_eq!(config.num_bind_mounts, 7);
     assert_eq!(config.use_overlayfs, 1);
@@ -366,10 +354,7 @@ fn test_agent_config_memory_calculations() {
 
     for (mb, expected_bytes) in configs {
         let config = AgentConfig::new("test", mb, 100);
-        assert_eq!(
-            config.memory_limit, expected_bytes,
-            "Failed for {}MB", mb
-        );
+        assert_eq!(config.memory_limit, expected_bytes, "Failed for {}MB", mb);
     }
 }
 

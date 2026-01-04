@@ -14,7 +14,12 @@ pub struct Checkpoint {
 }
 
 impl Checkpoint {
-    pub fn new(job_id: Uuid, state_data: serde_json::Value, storage_path: String, size_bytes: u64) -> Self {
+    pub fn new(
+        job_id: Uuid,
+        state_data: serde_json::Value,
+        storage_path: String,
+        size_bytes: u64,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             job_id,

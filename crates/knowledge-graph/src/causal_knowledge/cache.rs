@@ -2,10 +2,10 @@
 
 use std::collections::HashMap;
 
-use super::types::CausalRelationship;
 use super::chains::CausalChain;
 use super::evidence::CounterfactualAnalysis;
 use super::patterns::TemporalCausalPattern;
+use super::types::CausalRelationship;
 
 /// Cache for causal inference results
 pub struct InferenceCache {
@@ -13,6 +13,12 @@ pub struct InferenceCache {
     pub causal_chains: HashMap<String, CausalChain>,
     pub counterfactuals: HashMap<String, CounterfactualAnalysis>,
     pub temporal_patterns: HashMap<String, TemporalCausalPattern>,
+}
+
+impl Default for InferenceCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl InferenceCache {
@@ -26,7 +32,8 @@ impl InferenceCache {
     }
 
     pub fn cache_relationship(&mut self, relationship: CausalRelationship) {
-        self.causal_relationships.insert(relationship.id.clone(), relationship);
+        self.causal_relationships
+            .insert(relationship.id.clone(), relationship);
     }
 
     pub fn get_relationship(&self, id: &str) -> Option<&CausalRelationship> {
@@ -50,7 +57,8 @@ impl InferenceCache {
     }
 
     pub fn cache_pattern(&mut self, pattern: TemporalCausalPattern) {
-        self.temporal_patterns.insert(pattern.pattern_id.clone(), pattern);
+        self.temporal_patterns
+            .insert(pattern.pattern_id.clone(), pattern);
     }
 
     pub fn get_pattern(&self, id: &str) -> Option<&TemporalCausalPattern> {
@@ -65,9 +73,9 @@ impl InferenceCache {
     }
 
     pub fn size(&self) -> usize {
-        self.causal_relationships.len() + 
-        self.causal_chains.len() + 
-        self.counterfactuals.len() + 
-        self.temporal_patterns.len()
+        self.causal_relationships.len()
+            + self.causal_chains.len()
+            + self.counterfactuals.len()
+            + self.temporal_patterns.len()
     }
 }

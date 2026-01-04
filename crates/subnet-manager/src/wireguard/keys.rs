@@ -181,7 +181,7 @@ fn base64_decode(s: &str) -> Result<Vec<u8>> {
             b'0'..=b'9' => c - b'0' + 52,
             b'+' => 62,
             b'/' => 63,
-            b'=' => continue, // Padding
+            b'=' => continue,                         // Padding
             b' ' | b'\n' | b'\r' | b'\t' => continue, // Whitespace
             _ => {
                 return Err(Error::WireGuardConfig(format!(
@@ -223,7 +223,8 @@ impl<'a, W: std::io::Write> Base64Encoder<'a, W> {
     fn finish(mut self) -> std::io::Result<()> {
         if self.bits > 0 {
             self.buffer <<= 6 - self.bits;
-            self.writer.write_all(&[Self::encode_char(self.buffer as u8)])?;
+            self.writer
+                .write_all(&[Self::encode_char(self.buffer as u8)])?;
             let padding = (6 - self.bits) / 2;
             for _ in 0..padding {
                 self.writer.write_all(b"=")?;

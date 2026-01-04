@@ -29,16 +29,22 @@ pub struct FastGpuPatternMatcher {
 impl FastGpuPatternMatcher {
     pub fn new(device: Arc<CudaDevice>, max_patterns: usize, max_nodes: usize) -> Result<Self> {
         // Allocate aligned buffers
-        let pattern_buffer = unsafe { 
-            device.alloc::<u8>(max_patterns * NODE_SIZE) 
+        // SAFETY: alloc returns uninitialized memory. pattern_buffer will be written
+        // via htod_copy_into before any kernel reads in match_batch().
+        let pattern_buffer = unsafe {
+            device.alloc::<u8>(max_patterns * NODE_SIZE)
         }.context("Failed to allocate pattern buffer")?;
         
-        let ast_buffer = unsafe { 
-            device.alloc::<u8>(max_nodes * NODE_SIZE) 
+        // SAFETY: alloc returns uninitialized memory. ast_buffer will be written
+        // via htod_copy_into before any kernel reads in match_batch().
+        let ast_buffer = unsafe {
+            device.alloc::<u8>(max_nodes * NODE_SIZE)
         }.context("Failed to allocate AST buffer")?;
         
-        let match_buffer = unsafe { 
-            device.alloc::<u32>(max_nodes * 2) 
+        // SAFETY: alloc returns uninitialized memory. match_buffer is cleared
+        // via htod_copy_into with zeros before any kernel reads in match_batch().
+        let match_buffer = unsafe {
+            device.alloc::<u32>(max_nodes * 2)
         }.context("Failed to allocate match buffer")?;
         
         Ok(Self {
@@ -73,6 +79,9 @@ impl FastGpuPatternMatcher {
         self.device.htod_copy_into(zeros, &mut match_slice)?;
         
         // Launch fast kernel
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations.
+        // pattern_count and node_count match the encoded data sizes. Buffers have
+        // been initialized via htod_copy_into before this kernel launch.
         unsafe {
             crate::synthesis::launch_match_patterns_fast(
                 *self.pattern_buffer.device_ptr() as *const u8,

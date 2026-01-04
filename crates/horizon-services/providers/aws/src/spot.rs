@@ -12,11 +12,7 @@ impl SpotPriceManager {
         }
     }
 
-    pub fn get_spot_prices(
-        &self,
-        instance_type: &str,
-        region: &str,
-    ) -> ProviderResult<SpotPrices> {
+    pub fn get_spot_prices(&self, instance_type: &str, region: &str) -> ProviderResult<SpotPrices> {
         if instance_type.is_empty() {
             return Err(ProviderError::InvalidRequest(
                 "instance_type cannot be empty".to_string(),

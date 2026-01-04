@@ -13,7 +13,7 @@ use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{debug, instrument, trace};
 
 /// Command-line WireGuard backend
 ///
@@ -267,9 +267,14 @@ impl CommandBackend {
 
         for part in s.split(',') {
             let part = part.trim();
-            if let Some(mins) = part.strip_suffix(" minutes").or(part.strip_suffix(" minute")) {
+            if let Some(mins) = part
+                .strip_suffix(" minutes")
+                .or(part.strip_suffix(" minute"))
+            {
                 total_secs += mins.trim().parse::<u64>().unwrap_or(0) * 60;
-            } else if let Some(secs) = part.strip_suffix(" seconds").or(part.strip_suffix(" second"))
+            } else if let Some(secs) = part
+                .strip_suffix(" seconds")
+                .or(part.strip_suffix(" second"))
             {
                 total_secs += secs.trim().parse::<u64>().unwrap_or(0);
             } else if let Some(hours) = part.strip_suffix(" hours").or(part.strip_suffix(" hour")) {
@@ -424,8 +429,11 @@ impl WireGuardBackend for CommandBackend {
     #[instrument(skip(self))]
     async fn remove_peer(&self, interface: &str, public_key: &str) -> Result<()> {
         debug!("Removing peer");
-        self.exec_privileged(&self.wg_path, &["set", interface, "peer", public_key, "remove"])
-            .await?;
+        self.exec_privileged(
+            &self.wg_path,
+            &["set", interface, "peer", public_key, "remove"],
+        )
+        .await?;
         Ok(())
     }
 
@@ -438,7 +446,14 @@ impl WireGuardBackend for CommandBackend {
         let endpoint_str = endpoint.to_string();
         self.exec_privileged(
             &self.wg_path,
-            &["set", interface, "peer", public_key, "endpoint", &endpoint_str],
+            &[
+                "set",
+                interface,
+                "peer",
+                public_key,
+                "endpoint",
+                &endpoint_str,
+            ],
         )
         .await?;
         Ok(())

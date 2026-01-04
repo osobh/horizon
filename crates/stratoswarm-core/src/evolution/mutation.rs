@@ -53,7 +53,7 @@ impl MutationOperator for GaussianMutation {
             .collect()
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Gaussian"
     }
 }
@@ -92,7 +92,7 @@ impl MutationOperator for UniformMutation {
             .collect()
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Uniform"
     }
 }
@@ -138,7 +138,7 @@ impl MutationOperator for PolynomialMutation {
             .collect()
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Polynomial"
     }
 }
@@ -171,8 +171,14 @@ impl AdaptiveMutationRate {
     /// Create a new adaptive mutation rate calculator.
     #[must_use]
     pub fn new(min_rate: f64, max_rate: f64) -> Self {
-        assert!(min_rate >= 0.0 && min_rate <= 1.0, "Min rate must be in [0, 1]");
-        assert!(max_rate >= 0.0 && max_rate <= 1.0, "Max rate must be in [0, 1]");
+        assert!(
+            (0.0..=1.0).contains(&min_rate),
+            "Min rate must be in [0, 1]"
+        );
+        assert!(
+            (0.0..=1.0).contains(&max_rate),
+            "Max rate must be in [0, 1]"
+        );
         assert!(min_rate <= max_rate, "Min rate must be <= max rate");
 
         Self { min_rate, max_rate }

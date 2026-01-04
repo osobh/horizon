@@ -136,7 +136,8 @@ impl SwarmMountIsolationConfig {
         if self.num_bind_mounts as usize >= MAX_BIND_MOUNTS {
             return false;
         }
-        self.bind_mounts[self.num_bind_mounts as usize] = SwarmBindMount::new(source, target, flags);
+        self.bind_mounts[self.num_bind_mounts as usize] =
+            SwarmBindMount::new(source, target, flags);
         self.num_bind_mounts += 1;
         true
     }
@@ -165,16 +166,11 @@ extern "C" {
     pub fn swarm_mount_isolation_teardown(agent_id: u64) -> c_int;
 
     /// Add a bind mount to an existing agent
-    pub fn swarm_mount_add_bind(
-        agent_id: u64,
-        mount: *const SwarmBindMount,
-    ) -> c_int;
+    pub fn swarm_mount_add_bind(agent_id: u64, mount: *const SwarmBindMount) -> c_int;
 
     /// Setup overlayfs for an agent
-    pub fn swarm_mount_setup_overlayfs(
-        agent_id: u64,
-        config: *const SwarmOverlayFsConfig,
-    ) -> c_int;
+    pub fn swarm_mount_setup_overlayfs(agent_id: u64, config: *const SwarmOverlayFsConfig)
+        -> c_int;
 
     /// Perform pivot_root for an agent
     pub fn swarm_mount_pivot_root(
@@ -225,6 +221,8 @@ impl MountError {
 
 /// Safe wrapper for mount isolation setup
 pub fn setup_mount_isolation(agent_id: u64, config: &SwarmMountIsolationConfig) -> MountResult<()> {
+    // SAFETY: config is a valid reference to SwarmMountIsolationConfig. The kernel
+    // function reads the config during this call and does not retain the pointer.
     let ret = unsafe { swarm_mount_isolation_setup(agent_id, config as *const _) };
     if ret == 0 {
         Ok(())
@@ -235,6 +233,8 @@ pub fn setup_mount_isolation(agent_id: u64, config: &SwarmMountIsolationConfig) 
 
 /// Safe wrapper for mount isolation teardown
 pub fn teardown_mount_isolation(agent_id: u64) -> MountResult<()> {
+    // SAFETY: This is a simple kernel FFI call with no pointer arguments.
+    // The kernel function cleans up resources associated with agent_id.
     let ret = unsafe { swarm_mount_isolation_teardown(agent_id) };
     if ret == 0 {
         Ok(())
@@ -245,6 +245,8 @@ pub fn teardown_mount_isolation(agent_id: u64) -> MountResult<()> {
 
 /// Safe wrapper for adding a bind mount
 pub fn add_bind_mount(agent_id: u64, mount: &SwarmBindMount) -> MountResult<()> {
+    // SAFETY: mount is a valid reference to SwarmBindMount. The kernel function
+    // reads the mount config during this call and does not retain the pointer.
     let ret = unsafe { swarm_mount_add_bind(agent_id, mount as *const _) };
     if ret == 0 {
         Ok(())
@@ -255,6 +257,8 @@ pub fn add_bind_mount(agent_id: u64, mount: &SwarmBindMount) -> MountResult<()> 
 
 /// Safe wrapper for overlayfs setup
 pub fn setup_overlayfs(agent_id: u64, config: &SwarmOverlayFsConfig) -> MountResult<()> {
+    // SAFETY: config is a valid reference to SwarmOverlayFsConfig. The kernel
+    // function reads the config during this call and does not retain the pointer.
     let ret = unsafe { swarm_mount_setup_overlayfs(agent_id, config as *const _) };
     if ret == 0 {
         Ok(())
@@ -270,13 +274,11 @@ pub fn pivot_root(agent_id: u64, new_root: &str, old_root: &str) -> MountResult<
     copy_str_to_array(new_root, &mut new_root_buf);
     copy_str_to_array(old_root, &mut old_root_buf);
 
-    let ret = unsafe {
-        swarm_mount_pivot_root(
-            agent_id,
-            new_root_buf.as_ptr(),
-            old_root_buf.as_ptr(),
-        )
-    };
+    // SAFETY: new_root_buf and old_root_buf are stack-allocated null-terminated
+    // strings. The kernel function reads these during the call and does not
+    // retain the pointers. Both buffers are valid for the duration of the call.
+    let ret =
+        unsafe { swarm_mount_pivot_root(agent_id, new_root_buf.as_ptr(), old_root_buf.as_ptr()) };
     if ret == 0 {
         Ok(())
     } else {
@@ -325,6 +327,9 @@ pub extern "C" fn swarm_guard_create_agent(config: *const c_char) -> c_int {
     }
 
     // Convert C string to Rust string
+    // SAFETY: config is non-null (checked above). libc::strlen finds the null
+    // terminator, ensuring len bytes are valid. from_raw_parts creates a slice
+    // of exactly len bytes which is then validated as UTF-8.
     let config_str = unsafe {
         let len = libc::strlen(config);
         let slice = core::slice::from_raw_parts(config as *const u8, len);
@@ -370,9 +375,16 @@ fn kernel_error_to_errno(error: crate::KernelError) -> c_int {
 mod libc {
     use core::ffi::c_char;
 
+    /// Calculate length of a null-terminated C string
+    ///
+    /// # Safety
+    /// - `s` must be a valid pointer to a null-terminated C string
+    /// - The memory from `s` to the null terminator must be readable
     pub unsafe fn strlen(s: *const c_char) -> usize {
         let mut len = 0;
         let mut ptr = s;
+        // SAFETY: Caller guarantees s points to a null-terminated string.
+        // We iterate until finding null, incrementing ptr within valid memory.
         while *ptr != 0 {
             len += 1;
             ptr = ptr.add(1);

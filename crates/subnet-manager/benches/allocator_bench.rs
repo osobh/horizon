@@ -192,9 +192,7 @@ fn bench_with_allocated_restoration(c: &mut Criterion) {
 
     c.bench_function("with_allocated_restoration", |b| {
         // Pre-generate IPs to restore
-        let allocated: Vec<Ipv4Addr> = (10..=200u8)
-            .map(|i| Ipv4Addr::new(10, 100, 0, i))
-            .collect();
+        let allocated: Vec<Ipv4Addr> = (10..=200u8).map(|i| Ipv4Addr::new(10, 100, 0, i)).collect();
 
         b.iter(|| {
             let allocator = SubnetIpAllocator::new(cidr).with_allocated(&allocated);
@@ -215,9 +213,7 @@ fn bench_is_allocated_check(c: &mut Criterion) {
         }
 
         // Test IPs
-        let test_ips: Vec<Ipv4Addr> = (2..=254u8)
-            .map(|i| Ipv4Addr::new(10, 100, 0, i))
-            .collect();
+        let test_ips: Vec<Ipv4Addr> = (2..=254u8).map(|i| Ipv4Addr::new(10, 100, 0, i)).collect();
 
         b.iter(|| {
             let mut allocated = 0;

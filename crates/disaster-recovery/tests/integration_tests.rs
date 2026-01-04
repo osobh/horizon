@@ -1,10 +1,10 @@
 use chrono::{Duration, Utc};
+use std::collections::HashMap;
 use stratoswarm_disaster_recovery::{
     backup_manager::*, data_integrity::*, failover_coordinator::*, health_monitor::*,
     recovery_planner::*, replication_manager::*, runbook_executor::*, snapshot_manager::*,
     DisasterRecoveryError,
 };
-use std::collections::HashMap;
 use tokio;
 
 #[tokio::test]
@@ -470,14 +470,12 @@ async fn test_concurrent_disaster_recovery_operations() {
     use tokio::task;
 
     let backup_config = BackupConfig::default();
-    let backup_manager = std::sync::Arc::new(tokio::sync::Mutex::new(
-        BackupManager::new(backup_config)?,
-    ));
+    let backup_manager =
+        std::sync::Arc::new(tokio::sync::Mutex::new(BackupManager::new(backup_config)?));
 
     let health_config = HealthConfig::default();
-    let health_monitor = std::sync::Arc::new(tokio::sync::Mutex::new(
-        HealthMonitor::new(health_config)?,
-    ));
+    let health_monitor =
+        std::sync::Arc::new(tokio::sync::Mutex::new(HealthMonitor::new(health_config)?));
 
     // Spawn concurrent operations
     let tasks = (0..3)

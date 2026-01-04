@@ -1,27 +1,27 @@
 //! Cross-cluster evolution marketplace with production-grade features
 
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use tokio::sync::{mpsc, RwLock};
-use tokio::time::{sleep, interval};
-use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+use anyhow::{anyhow, Result};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::Json,
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Router,
 };
-use tower::ServiceBuilder;
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::sync::{mpsc, RwLock};
+use tokio::time::{interval, sleep};
+use tower::ServiceBuilder;
+use uuid::Uuid;
 
 use crate::marketplace::{
-    types::*, consensus::DistributedConsensus,
-    transfer::KnowledgeTransferCoordinator, security::SecurityManager,
+    consensus::DistributedConsensus, security::SecurityManager,
+    transfer::KnowledgeTransferCoordinator, types::*,
 };
 
 /// Cross-cluster evolution marketplace with production-grade features
@@ -57,13 +57,29 @@ pub struct ClusterInfo {
 
 #[derive(Debug, Clone)]
 pub enum SyncCommand {
-    PublishPackage { package: EvolutionPackage },
-    RequestPackage { package_id: Uuid, from_cluster: String },
-    SyncWithCluster { cluster_id: String },
+    PublishPackage {
+        package: EvolutionPackage,
+    },
+    RequestPackage {
+        package_id: Uuid,
+        from_cluster: String,
+    },
+    SyncWithCluster {
+        cluster_id: String,
+    },
     BroadcastAvailability,
-    ReplicateToCluster { cluster_id: String, package_id: Uuid },
-    ValidatePackage { package: EvolutionPackage, validator_cluster: String },
-    UpdateReputationScore { cluster_id: String, score_delta: f64 },
+    ReplicateToCluster {
+        cluster_id: String,
+        package_id: Uuid,
+    },
+    ValidatePackage {
+        package: EvolutionPackage,
+        validator_cluster: String,
+    },
+    UpdateReputationScore {
+        cluster_id: String,
+        score_delta: f64,
+    },
 }
 
 impl EvolutionMarketplace {
@@ -83,38 +99,50 @@ impl EvolutionMarketplace {
         let knowledge_transfer_coordinator = Arc::new(KnowledgeTransferCoordinator::new(10));
         let security_manager = Arc::new(SecurityManager::new());
 
-        (Self {
-            cluster_id,
-            node_id,
-            local_packages: Arc::new(DashMap::new()),
-            remote_packages: Arc::new(DashMap::new()),
-            cluster_registry: Arc::new(DashMap::new()),
-            consensus_system,
-            replication_factor,
-            sync_sender,
-            marketplace_active: Arc::new(Mutex::new(false)),
-            network_server: None,
-            knowledge_transfer_coordinator,
-            security_manager,
-        }, sync_receiver)
+        (
+            Self {
+                cluster_id,
+                node_id,
+                local_packages: Arc::new(DashMap::new()),
+                remote_packages: Arc::new(DashMap::new()),
+                cluster_registry: Arc::new(DashMap::new()),
+                consensus_system,
+                replication_factor,
+                sync_sender,
+                marketplace_active: Arc::new(Mutex::new(false)),
+                network_server: None,
+                knowledge_transfer_coordinator,
+                security_manager,
+            },
+            sync_receiver,
+        )
     }
 
     /// Start the evolution marketplace with network services
     pub async fn start_marketplace(&self) -> Result<()> {
         {
-            let mut active = self.marketplace_active.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
+            let mut active = self
+                .marketplace_active
+                .lock()
+                .map_err(|e| anyhow!("Lock error: {}", e))?;
             *active = true;
         }
 
         // Initialize cluster network and HTTP server
         self.initialize_cluster_network().await?;
-        
+
         // Register this cluster as a validator
-        self.consensus_system.register_validator(
-            self.cluster_id.clone(),
-            vec!["sm_80".to_string(), "sm_86".to_string(), "universal".to_string()]
-        ).await?;
-        
+        self.consensus_system
+            .register_validator(
+                self.cluster_id.clone(),
+                vec![
+                    "sm_80".to_string(),
+                    "sm_86".to_string(),
+                    "universal".to_string(),
+                ],
+            )
+            .await?;
+
         // Start background services
         self.start_background_services().await?;
 
@@ -124,17 +152,24 @@ impl EvolutionMarketplace {
     /// Stop the marketplace and cleanup resources
     pub async fn stop_marketplace(&self) -> Result<()> {
         {
-            let mut active = self.marketplace_active.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
+            let mut active = self
+                .marketplace_active
+                .lock()
+                .map_err(|e| anyhow!("Lock error: {}", e))?;
             *active = false;
         }
-        
+
         // Stop network server if running
         if let Some(server_handle) = &self.network_server {
-            if let Some(handle) = server_handle.lock().map_err(|e| anyhow!("Lock error: {}", e))?.take() {
+            if let Some(handle) = server_handle
+                .lock()
+                .map_err(|e| anyhow!("Lock error: {}", e))?
+                .take()
+            {
                 handle.abort();
             }
         }
-        
+
         Ok(())
     }
 
@@ -147,7 +182,7 @@ impl EvolutionMarketplace {
     ) -> Result<Uuid> {
         // Benchmark the algorithm
         let benchmark_results = self.benchmark_algorithm(&cuda_code).await?;
-        
+
         // Create package with security features
         let package = EvolutionPackage {
             id: Uuid::new_v4(),
@@ -170,8 +205,11 @@ impl EvolutionMarketplace {
         };
 
         // Validate through distributed consensus
-        let consensus_result = self.consensus_system.validate_algorithm(package.clone()).await?;
-        
+        let consensus_result = self
+            .consensus_system
+            .validate_algorithm(package.clone())
+            .await?;
+
         if !consensus_result {
             return Err(anyhow!("Algorithm failed distributed consensus validation"));
         }
@@ -180,8 +218,8 @@ impl EvolutionMarketplace {
         self.local_packages.insert(package.id, package.clone());
 
         // Broadcast to network
-        self.sync_sender.send(SyncCommand::PublishPackage { 
-            package: package.clone() 
+        self.sync_sender.send(SyncCommand::PublishPackage {
+            package: package.clone(),
         })?;
 
         // Start replication process
@@ -206,7 +244,8 @@ impl EvolutionMarketplace {
             let packages = entry.value();
 
             // Check cluster trust score
-            let cluster_trust = self.cluster_registry
+            let cluster_trust = self
+                .cluster_registry
                 .get(cluster_id)
                 .map(|info| info.trust_score)
                 .unwrap_or(0.0);
@@ -216,11 +255,14 @@ impl EvolutionMarketplace {
             }
 
             for package in packages.values() {
-                if self.evaluate_package_suitability(
-                    package,
-                    performance_threshold,
-                    &compatibility_requirements
-                ).await? {
+                if self
+                    .evaluate_package_suitability(
+                        package,
+                        performance_threshold,
+                        &compatibility_requirements,
+                    )
+                    .await?
+                {
                     discovered.push(package.clone());
                 }
             }
@@ -230,21 +272,23 @@ impl EvolutionMarketplace {
         discovered.sort_by(|a, b| {
             let score_a = self.calculate_composite_ranking_score(a);
             let score_b = self.calculate_composite_ranking_score(b);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         Ok(discovered)
     }
 
     // Private helper methods
-    
+
     async fn initialize_cluster_network(&self) -> Result<()> {
         // In production, this would initialize P2P networking
         // For now, simulate network initialization
         println!("Initializing cluster network for {}", self.cluster_id);
         Ok(())
     }
-    
+
     async fn start_background_services(&self) -> Result<()> {
         // Start periodic sync
         let marketplace_clone = self.clone();
@@ -257,10 +301,10 @@ impl EvolutionMarketplace {
                 }
             }
         });
-        
+
         Ok(())
     }
-    
+
     async fn benchmark_algorithm(&self, cuda_code: &str) -> Result<BenchmarkResults> {
         // Simulate benchmarking
         Ok(BenchmarkResults {
@@ -276,19 +320,23 @@ impl EvolutionMarketplace {
             scalability_factor: 0.8 + rand::random::<f64>() * 0.2,
         })
     }
-    
+
     fn calculate_complexity(&self, cuda_code: &str) -> f64 {
         // Simple complexity metric based on code length and structure
         let base_complexity = (cuda_code.len() as f64).ln();
         let loop_complexity = cuda_code.matches("for").count() as f64 * 2.0;
         let branch_complexity = cuda_code.matches("if").count() as f64 * 1.5;
-        
+
         (base_complexity + loop_complexity + branch_complexity).min(100.0)
     }
-    
+
     async fn generate_compatibility_matrix(&self, cuda_code: &str) -> Result<CompatibilityMatrix> {
         Ok(CompatibilityMatrix {
-            cuda_architectures: vec!["sm_70".to_string(), "sm_80".to_string(), "sm_86".to_string()],
+            cuda_architectures: vec![
+                "sm_70".to_string(),
+                "sm_80".to_string(),
+                "sm_86".to_string(),
+            ],
             min_memory_gb: 8.0,
             min_compute_capability: 7.0,
             required_features: vec!["tensor_cores".to_string()],
@@ -301,24 +349,24 @@ impl EvolutionMarketplace {
             memory_access_patterns: vec!["coalesced".to_string()],
         })
     }
-    
+
     fn calculate_security_hash(&self, content: &str) -> Result<String> {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(content.as_bytes());
         Ok(format!("{:x}", hasher.finalize()))
     }
-    
+
     async fn sign_package(&self, content: &str) -> Result<String> {
-        self.security_manager.sign_package(
-            Uuid::new_v4(), 
-            content.as_bytes()
-        ).await
+        self.security_manager
+            .sign_package(Uuid::new_v4(), content.as_bytes())
+            .await
     }
-    
+
     async fn initiate_package_replication(&self, package_id: Uuid) -> Result<()> {
         // Select replication targets
-        let targets: Vec<String> = self.cluster_registry
+        let targets: Vec<String> = self
+            .cluster_registry
             .iter()
             .filter(|entry| entry.value().trust_score > 0.7)
             .take(self.replication_factor)
@@ -334,7 +382,7 @@ impl EvolutionMarketplace {
 
         Ok(())
     }
-    
+
     async fn sync_remote_catalogs(&self) -> Result<()> {
         for entry in self.cluster_registry.iter() {
             self.sync_sender.send(SyncCommand::SyncWithCluster {
@@ -343,7 +391,7 @@ impl EvolutionMarketplace {
         }
         Ok(())
     }
-    
+
     async fn evaluate_package_suitability(
         &self,
         package: &EvolutionPackage,
@@ -353,34 +401,36 @@ impl EvolutionMarketplace {
         if package.performance_score < performance_threshold {
             return Ok(false);
         }
-        
+
         // Check architecture compatibility
-        let has_compatible_arch = package.compatibility_matrix.cuda_architectures
+        let has_compatible_arch = package
+            .compatibility_matrix
+            .cuda_architectures
             .iter()
             .any(|arch| compatibility_requirements.cuda_architectures.contains(arch));
-        
+
         if !has_compatible_arch {
             return Ok(false);
         }
-        
+
         // Check memory requirements
         if package.compatibility_matrix.min_memory_gb > compatibility_requirements.min_memory_gb {
             return Ok(false);
         }
-        
+
         Ok(true)
     }
-    
+
     fn calculate_composite_ranking_score(&self, package: &EvolutionPackage) -> f64 {
         let performance_weight = 0.3;
         let reputation_weight = 0.2;
         let usage_weight = 0.2;
         let efficiency_weight = 0.3;
-        
-        package.performance_score * performance_weight +
-        package.reputation_score * reputation_weight * 20.0 +
-        package.usage_statistics.average_rating * usage_weight * 20.0 +
-        package.benchmark_results.energy_efficiency_score * efficiency_weight * 100.0
+
+        package.performance_score * performance_weight
+            + package.reputation_score * reputation_weight * 20.0
+            + package.usage_statistics.average_rating * usage_weight * 20.0
+            + package.benchmark_results.energy_efficiency_score * efficiency_weight * 100.0
     }
 }
 

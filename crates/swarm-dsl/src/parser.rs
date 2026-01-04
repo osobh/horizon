@@ -38,25 +38,22 @@ impl SwarmParser {
         let mut file = SwarmFile::new();
 
         for pair in pairs {
-            match pair.as_rule() {
-                Rule::file => {
-                    for inner_pair in pair.into_inner() {
-                        match inner_pair.as_rule() {
-                            Rule::import_statement => {
-                                file.imports.push(self.parse_import(inner_pair)?);
-                            }
-                            Rule::template_definition => {
-                                file.templates.push(self.parse_template(inner_pair)?);
-                            }
-                            Rule::swarm_definition => {
-                                file.swarms.push(self.parse_swarm_definition(inner_pair)?);
-                            }
-                            Rule::EOI => {}
-                            _ => {}
+            if pair.as_rule() == Rule::file {
+                for inner_pair in pair.into_inner() {
+                    match inner_pair.as_rule() {
+                        Rule::import_statement => {
+                            file.imports.push(self.parse_import(inner_pair)?);
                         }
+                        Rule::template_definition => {
+                            file.templates.push(self.parse_template(inner_pair)?);
+                        }
+                        Rule::swarm_definition => {
+                            file.swarms.push(self.parse_swarm_definition(inner_pair)?);
+                        }
+                        Rule::EOI => {}
+                        _ => {}
                     }
                 }
-                _ => {}
             }
         }
 

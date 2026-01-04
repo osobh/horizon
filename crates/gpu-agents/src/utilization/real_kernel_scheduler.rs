@@ -291,6 +291,12 @@ impl RealKernelScheduler {
                 let match_buffer = device.alloc_zeros::<u32>(1000 * 2)?;
 
                 // Launch the actual CUDA kernel
+                // SAFETY: The kernel function is called with valid device pointers obtained
+                // from CudaSlice::device_ptr(). The buffers were allocated with alloc_zeros
+                // ensuring proper initialization. Buffer sizes match kernel expectations:
+                // - pattern_buffer: 32 patterns * 64 bytes = 2048 bytes
+                // - ast_buffer: 1000 nodes * 64 bytes = 64000 bytes
+                // - match_buffer: 1000 nodes * 2 u32s = 8000 bytes
                 unsafe {
                     crate::synthesis::launch_match_patterns_fast(
                         *pattern_buffer.device_ptr() as *const u8,
@@ -432,7 +438,11 @@ impl RealKernelScheduler {
 
             for dep_id in dependencies {
                 // DashMap iteration is lock-free for readers
-                if self.active_kernels.iter().any(|entry| entry.value().kernel.id == *dep_id) {
+                if self
+                    .active_kernels
+                    .iter()
+                    .any(|entry| entry.value().kernel.id == *dep_id)
+                {
                     all_complete = false;
                     break;
                 }
@@ -522,7 +532,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_real_scheduler_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_real_scheduler_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let config = SchedulerConfig::default();
         let scheduler = RealKernelScheduler::new(Arc::new(device), config)?;
@@ -531,7 +541,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_kernel_submission() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_kernel_submission() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let scheduler =
             RealKernelScheduler::new(Arc::new(device), SchedulerConfig::default()).unwrap();

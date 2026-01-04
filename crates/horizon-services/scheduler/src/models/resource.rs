@@ -134,7 +134,10 @@ impl ResourceAllocation {
         self
     }
 
-    pub fn get_assignments(&self, resource_type: &ResourceType) -> Option<&Vec<ResourceAssignment>> {
+    pub fn get_assignments(
+        &self,
+        resource_type: &ResourceType,
+    ) -> Option<&Vec<ResourceAssignment>> {
         self.inner.get_assignments(resource_type)
     }
 

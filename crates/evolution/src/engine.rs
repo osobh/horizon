@@ -1,12 +1,11 @@
 //! Genetic Algorithm Evolution Engine Implementation
 
 use crate::{
-    EvolutionEngine, EvolutionError, EvolutionStats, FitnessFunction, FitnessScore, Population,
-    XPFitnessFunction, AgentFitnessScore,
-    channels::{EvolutionChannelBridge, SharedEvolutionChannelBridge},
+    channels::SharedEvolutionChannelBridge, AgentFitnessScore, EvolutionEngine, EvolutionError,
+    EvolutionStats, FitnessFunction, FitnessScore, Population, XPFitnessFunction,
 };
-use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionResult, EvolutionMetrics};
 use std::sync::{Arc, Mutex};
+use stratoswarm_agent_core::agent::{Agent, AgentId, EvolutionMetrics, EvolutionResult};
 
 /// Simple evolution engine using genetic algorithms
 pub struct GeneticEvolutionEngine {
@@ -170,7 +169,8 @@ impl EvolutionEngine for GeneticEvolutionEngine {
 
         // Publish generation complete event to hpc-channels
         if let Ok(stats) = self.stats.lock() {
-            self.event_bridge.publish_generation_complete(stats.generation, &stats);
+            self.event_bridge
+                .publish_generation_complete(stats.generation, &stats);
         }
 
         Ok(())
@@ -320,9 +320,9 @@ impl<F: XPFitnessFunction> AgentEvolutionEngine<F> {
     pub fn with_defaults(fitness_function: F) -> Self {
         Self::new(
             fitness_function,
-            1.0,  // 100% of ready agents
-            100,  // Max 100 agents per generation
-            1.5,  // 1.5x XP bonus factor
+            1.0, // 100% of ready agents
+            100, // Max 100 agents per generation
+            1.5, // 1.5x XP bonus factor
         )
     }
 }
@@ -337,40 +337,46 @@ impl<F: XPFitnessFunction> XPEvolutionEngine for AgentEvolutionEngine<F> {
 
         // Select candidates for evolution
         let candidate_ids = self.select_evolution_candidates(agents).await?;
-        
+
         let mut evolved_count = 0;
 
         for agent in agents.iter() {
-            if candidate_ids.contains(&agent.id()) && evolved_count < self.max_agents_per_generation {
+            if candidate_ids.contains(&agent.id()) && evolved_count < self.max_agents_per_generation
+            {
                 // Check if agent is ready to evolve
                 if self.fitness_function.should_evolve(agent).await {
                     // Get fitness before evolution
                     let pre_fitness = self.fitness_function.evaluate_agent_fitness(agent).await;
-                    
+
                     // Trigger evolution
                     match agent.trigger_evolution().await {
                         Ok(evolution_result) => {
                             // Get fitness after evolution
-                            let post_fitness = self.fitness_function.evaluate_agent_fitness(agent).await;
-                            
+                            let post_fitness =
+                                self.fitness_function.evaluate_agent_fitness(agent).await;
+
                             // Calculate fitness improvement
                             let fitness_improvement = post_fitness - pre_fitness;
-                            
+
                             // Award XP based on improvement
                             self.award_evolution_xp(agent, &evolution_result).await?;
-                            
+
                             // Award bonus XP for significant improvement
                             if fitness_improvement > 0.1 {
-                                let bonus_xp = (fitness_improvement * 100.0 * self.xp_bonus_factor) as u64;
-                                agent.award_xp(
-                                    bonus_xp,
-                                    "Fitness improvement bonus".to_string(),
-                                    "evolution_bonus".to_string(),
-                                ).await.map_err(|e| EvolutionError::FitnessEvaluationFailed {
-                                    reason: format!("Failed to award bonus XP: {}", e),
-                                })?;
+                                let bonus_xp =
+                                    (fitness_improvement * 100.0 * self.xp_bonus_factor) as u64;
+                                agent
+                                    .award_xp(
+                                        bonus_xp,
+                                        "Fitness improvement bonus".to_string(),
+                                        "evolution_bonus".to_string(),
+                                    )
+                                    .await
+                                    .map_err(|e| EvolutionError::FitnessEvaluationFailed {
+                                        reason: format!("Failed to award bonus XP: {}", e),
+                                    })?;
                             }
-                            
+
                             evolution_results.push(evolution_result);
                             evolved_count += 1;
                         }
@@ -396,7 +402,7 @@ impl<F: XPFitnessFunction> XPEvolutionEngine for AgentEvolutionEngine<F> {
         let stats = agent.stats().await;
         let fitness = self.fitness_function.evaluate_agent_fitness(agent).await;
         let performance_metrics = self.calculate_performance_metrics(agent).await;
-        
+
         Ok(AgentFitnessScore {
             fitness,
             agent_id: agent.id(),
@@ -415,7 +421,7 @@ impl<F: XPFitnessFunction> XPEvolutionEngine for AgentEvolutionEngine<F> {
         for agent in agents {
             if self.fitness_function.should_evolve(agent).await {
                 let fitness = self.fitness_function.evaluate_agent_fitness(agent).await;
-                
+
                 // Apply threshold multiplier for selection
                 if fitness >= 0.3 * self.evolution_threshold_multiplier {
                     candidates.push(agent.id());
@@ -436,35 +442,36 @@ impl<F: XPFitnessFunction> XPEvolutionEngine for AgentEvolutionEngine<F> {
         agent: &Agent,
         evolution_result: &EvolutionResult,
     ) -> Result<(), EvolutionError> {
-        let fitness_improvement = evolution_result.new_metrics.processing_speed 
+        let fitness_improvement = evolution_result.new_metrics.processing_speed
             - evolution_result.previous_metrics.processing_speed;
-        
-        let xp_reward = self.fitness_function.calculate_xp_reward(
-            fitness_improvement,
-            &evolution_result.new_metrics,
-        );
 
-        agent.award_xp(
-            xp_reward,
-            format!(
-                "Evolution from level {} to {}",
-                evolution_result.previous_level,
-                evolution_result.new_level
-            ),
-            "evolution_outcome".to_string(),
-        ).await.map_err(|e| EvolutionError::FitnessEvaluationFailed {
-            reason: format!("Failed to award evolution XP: {}", e),
-        })?;
+        let xp_reward = self
+            .fitness_function
+            .calculate_xp_reward(fitness_improvement, &evolution_result.new_metrics);
+
+        agent
+            .award_xp(
+                xp_reward,
+                format!(
+                    "Evolution from level {} to {}",
+                    evolution_result.previous_level, evolution_result.new_level
+                ),
+                "evolution_outcome".to_string(),
+            )
+            .await
+            .map_err(|e| EvolutionError::FitnessEvaluationFailed {
+                reason: format!("Failed to award evolution XP: {}", e),
+            })?;
 
         Ok(())
     }
 
     async fn get_xp_evolution_stats(&self) -> Result<XPEvolutionStats, EvolutionError> {
-        self.stats.lock()
-            .map(|stats| stats.clone())
-            .map_err(|_| EvolutionError::FitnessEvaluationFailed {
+        self.stats.lock().map(|stats| stats.clone()).map_err(|_| {
+            EvolutionError::FitnessEvaluationFailed {
                 reason: "Failed to acquire stats lock".to_string(),
-            })
+            }
+        })
     }
 }
 
@@ -480,10 +487,10 @@ impl<F: XPFitnessFunction> AgentEvolutionEngine<F> {
                     .map(|r| r.new_level.saturating_sub(r.previous_level))
                     .collect();
 
-                let avg_level_improvement = level_improvements.iter().sum::<u32>() as f64 
-                    / level_improvements.len() as f64;
-                
-                stats.average_level_improvement = 
+                let avg_level_improvement =
+                    level_improvements.iter().sum::<u32>() as f64 / level_improvements.len() as f64;
+
+                stats.average_level_improvement =
                     (stats.average_level_improvement + avg_level_improvement) / 2.0;
 
                 // Calculate fitness improvements
@@ -492,10 +499,10 @@ impl<F: XPFitnessFunction> AgentEvolutionEngine<F> {
                     .map(|r| r.new_metrics.processing_speed - r.previous_metrics.processing_speed)
                     .collect();
 
-                let avg_fitness_improvement = fitness_improvements.iter().sum::<f64>() 
-                    / fitness_improvements.len() as f64;
+                let avg_fitness_improvement =
+                    fitness_improvements.iter().sum::<f64>() / fitness_improvements.len() as f64;
 
-                stats.average_fitness_improvement = 
+                stats.average_fitness_improvement =
                     (stats.average_fitness_improvement + avg_fitness_improvement) / 2.0;
 
                 stats.total_xp_awarded += evolution_results.len() as u64 * 100; // Approximate
@@ -508,10 +515,10 @@ impl<F: XPFitnessFunction> AgentEvolutionEngine<F> {
 
     async fn calculate_performance_metrics(&self, agent: &Agent) -> EvolutionMetrics {
         let stats = agent.stats().await;
-        
+
         let avg_completion_time = if stats.goals_processed > 0 {
             std::time::Duration::from_secs(
-                stats.total_execution_time.as_secs() / stats.goals_processed
+                stats.total_execution_time.as_secs() / stats.goals_processed,
             )
         } else {
             std::time::Duration::from_secs(60)

@@ -1,11 +1,11 @@
-use telemetry_collector::config::CollectorConfig;
-use telemetry_collector::cardinality::CardinalityTracker;
-use telemetry_collector::writers::{InfluxDbWriter, ParquetWriter};
-use telemetry_collector::handler::StreamHandler;
 use hpc_types::{GpuMetric, MetricBatch, Timestamp};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use telemetry_collector::cardinality::CardinalityTracker;
+use telemetry_collector::config::CollectorConfig;
+use telemetry_collector::handler::StreamHandler;
+use telemetry_collector::writers::{InfluxDbWriter, ParquetWriter};
 use tempfile::TempDir;
+use tokio::sync::Mutex;
 
 #[tokio::test]
 async fn test_end_to_end_metric_flow() {
@@ -18,30 +18,27 @@ async fn test_end_to_end_metric_flow() {
     config.parquet.output_dir = temp_dir.path().to_str().unwrap().to_string();
 
     // Setup components
-    let cardinality_tracker = Arc::new(Mutex::new(
-        CardinalityTracker::new(config.limits.max_cardinality)
-    ));
+    let cardinality_tracker = Arc::new(Mutex::new(CardinalityTracker::new(
+        config.limits.max_cardinality,
+    )));
 
-    let influxdb_writer = Arc::new(
-        InfluxDbWriter::new(config.influxdb.clone()).unwrap()
-    );
+    let influxdb_writer = Arc::new(InfluxDbWriter::new(config.influxdb.clone()).unwrap());
 
     let parquet_writer = Arc::new(Mutex::new(
-        ParquetWriter::new(config.parquet.clone()).unwrap()
+        ParquetWriter::new(config.parquet.clone()).unwrap(),
     ));
 
-    let handler = StreamHandler::new(
-        cardinality_tracker.clone(),
-        influxdb_writer,
-        parquet_writer,
-    );
+    let handler = StreamHandler::new(cardinality_tracker.clone(), influxdb_writer, parquet_writer);
 
     // Create test batch
     let batch = MetricBatch {
         gpu_metrics: vec![GpuMetric {
             host_id: "test-host".to_string(),
             gpu_id: "gpu0".to_string(),
-            timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+            timestamp: Some(Timestamp {
+                seconds: 1234567890,
+                nanos: 0,
+            }),
             utilization: 0.85,
             sm_occupancy: 0.90,
             memory_used_gb: 12.0,
@@ -81,23 +78,17 @@ async fn test_cardinality_limit_enforcement() {
     config.parquet.output_dir = temp_dir.path().to_str().unwrap().to_string();
     config.limits.max_cardinality = 2; // Very low limit for testing
 
-    let cardinality_tracker = Arc::new(Mutex::new(
-        CardinalityTracker::new(config.limits.max_cardinality)
-    ));
+    let cardinality_tracker = Arc::new(Mutex::new(CardinalityTracker::new(
+        config.limits.max_cardinality,
+    )));
 
-    let influxdb_writer = Arc::new(
-        InfluxDbWriter::new(config.influxdb.clone()).unwrap()
-    );
+    let influxdb_writer = Arc::new(InfluxDbWriter::new(config.influxdb.clone()).unwrap());
 
     let parquet_writer = Arc::new(Mutex::new(
-        ParquetWriter::new(config.parquet.clone()).unwrap()
+        ParquetWriter::new(config.parquet.clone()).unwrap(),
     ));
 
-    let handler = StreamHandler::new(
-        cardinality_tracker,
-        influxdb_writer,
-        parquet_writer,
-    );
+    let handler = StreamHandler::new(cardinality_tracker, influxdb_writer, parquet_writer);
 
     // First batch should succeed
     let batch1 = MetricBatch {
@@ -105,13 +96,19 @@ async fn test_cardinality_limit_enforcement() {
             GpuMetric {
                 host_id: "host1".to_string(),
                 gpu_id: "gpu0".to_string(),
-                timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+                timestamp: Some(Timestamp {
+                    seconds: 1234567890,
+                    nanos: 0,
+                }),
                 ..Default::default()
             },
             GpuMetric {
                 host_id: "host1".to_string(),
                 gpu_id: "gpu1".to_string(),
-                timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+                timestamp: Some(Timestamp {
+                    seconds: 1234567890,
+                    nanos: 0,
+                }),
                 ..Default::default()
             },
         ],
@@ -126,7 +123,10 @@ async fn test_cardinality_limit_enforcement() {
         gpu_metrics: vec![GpuMetric {
             host_id: "host2".to_string(),
             gpu_id: "gpu0".to_string(),
-            timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+            timestamp: Some(Timestamp {
+                seconds: 1234567890,
+                nanos: 0,
+            }),
             ..Default::default()
         }],
         cpu_metrics: vec![],
@@ -144,16 +144,14 @@ async fn test_concurrent_batch_handling() {
     config.influxdb.token = "test-token".to_string();
     config.parquet.output_dir = temp_dir.path().to_str().unwrap().to_string();
 
-    let cardinality_tracker = Arc::new(Mutex::new(
-        CardinalityTracker::new(config.limits.max_cardinality)
-    ));
+    let cardinality_tracker = Arc::new(Mutex::new(CardinalityTracker::new(
+        config.limits.max_cardinality,
+    )));
 
-    let influxdb_writer = Arc::new(
-        InfluxDbWriter::new(config.influxdb.clone()).unwrap()
-    );
+    let influxdb_writer = Arc::new(InfluxDbWriter::new(config.influxdb.clone()).unwrap());
 
     let parquet_writer = Arc::new(Mutex::new(
-        ParquetWriter::new(config.parquet.clone()).unwrap()
+        ParquetWriter::new(config.parquet.clone()).unwrap(),
     ));
 
     let handler = Arc::new(StreamHandler::new(
@@ -171,7 +169,10 @@ async fn test_concurrent_batch_handling() {
                 gpu_metrics: vec![GpuMetric {
                     host_id: format!("host{}", i),
                     gpu_id: "gpu0".to_string(),
-                    timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+                    timestamp: Some(Timestamp {
+                        seconds: 1234567890,
+                        nanos: 0,
+                    }),
                     ..Default::default()
                 }],
                 cpu_metrics: vec![],

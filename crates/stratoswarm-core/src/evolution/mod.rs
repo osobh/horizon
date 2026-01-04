@@ -5,11 +5,11 @@
 //!
 //! # Architecture
 //!
-//! - **EvolutionService**: Main service that processes evolution commands from a channel
-//! - **Population**: Structure of Arrays (SoA) layout for GPU-efficient population storage
-//! - **FitnessFunction**: Trait for defining fitness evaluation functions
-//! - **SelectionStrategy**: Various selection strategies (tournament, roulette, rank, elite)
-//! - **MutationOperator**: Various mutation operators (Gaussian, uniform, polynomial)
+//! - **`EvolutionService`**: Main service that processes evolution commands from a channel
+//! - **Population**: Structure of Arrays (`SoA`) layout for GPU-efficient population storage
+//! - **`FitnessFunction`**: Trait for defining fitness evaluation functions
+//! - **`SelectionStrategy`**: Various selection strategies (tournament, roulette, rank, elite)
+//! - **`MutationOperator`**: Various mutation operators (Gaussian, uniform, polynomial)
 //!
 //! # Example Usage
 //!
@@ -49,9 +49,7 @@ pub mod service;
 
 // Re-export main types
 pub use fitness::{FitnessFunction, RastriginFunction, RosenbrockFunction, SphereFunction};
-pub use mutation::{
-    GaussianMutation, MutationOperator, PolynomialMutation, UniformMutation,
-};
+pub use mutation::{GaussianMutation, MutationOperator, PolynomialMutation, UniformMutation};
 pub use population::{Individual, Population, PopulationId, PopulationStats};
 pub use selection::{
     EliteSelection, RankSelection, RouletteSelection, SelectionStrategy, TournamentSelection,

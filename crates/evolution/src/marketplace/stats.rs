@@ -41,12 +41,12 @@ impl MarketplaceStats {
             self.failed_validations += 1;
         }
     }
-    
+
     pub fn update_transfer(&mut self, bytes: u64) {
         self.total_transfers += 1;
         self.network_bandwidth_usage_gb += bytes as f64 / (1024.0 * 1024.0 * 1024.0);
     }
-    
+
     pub fn validation_success_rate(&self) -> f64 {
         let total = self.successful_validations + self.failed_validations;
         if total == 0 {

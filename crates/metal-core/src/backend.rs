@@ -9,7 +9,6 @@ use crate::compute::MetalComputePipeline;
 use crate::error::Result;
 use crate::tensor::{MetalTensor, TensorDescriptor};
 
-
 /// Information about a Metal device.
 #[derive(Debug, Clone)]
 pub struct DeviceInfo {
@@ -174,5 +173,9 @@ pub enum MetalFeature {
 /// Trait for backends that support ML operations.
 pub trait MetalMLBackend: MetalBackend {
     /// Run a neural network encoded in the given CoreML package.
-    fn run_ml_network(&self, network_path: &str, inputs: &[&Self::Tensor]) -> Result<Vec<Self::Tensor>>;
+    fn run_ml_network(
+        &self,
+        network_path: &str,
+        inputs: &[&Self::Tensor],
+    ) -> Result<Vec<Self::Tensor>>;
 }

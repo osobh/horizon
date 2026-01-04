@@ -241,7 +241,7 @@ fn hamming_distance(genome1: &[u8], genome2: &[u8]) -> f64 {
     }
 
     // Add difference for length mismatch
-    differences += (genome1.len() as i32 - genome2.len() as i32).abs() as usize;
+    differences += (genome1.len() as i32 - genome2.len() as i32).unsigned_abs() as usize;
 
     differences as f64 / genome1.len().max(genome2.len()) as f64
 }

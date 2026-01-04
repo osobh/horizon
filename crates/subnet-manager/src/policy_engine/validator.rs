@@ -1,8 +1,7 @@
 //! Policy validation and conflict detection
 
 use crate::models::{AssignmentPolicy, MatchOperator, NodeAttribute, PolicyRule, PolicyValue};
-use crate::{Error, Result};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 /// Policy validation result
@@ -55,10 +54,7 @@ pub enum ValidationError {
     /// Policy has no rules
     NoRules,
     /// Invalid rule configuration
-    InvalidRule {
-        rule_index: usize,
-        reason: String,
-    },
+    InvalidRule { rule_index: usize, reason: String },
     /// Incompatible operator for attribute type
     IncompatibleOperator {
         attribute: NodeAttribute,
@@ -71,49 +67,33 @@ pub enum ValidationError {
         got: String,
     },
     /// Invalid time constraint
-    InvalidTimeConstraint {
-        reason: String,
-    },
+    InvalidTimeConstraint { reason: String },
     /// Target subnet doesn't exist
-    TargetSubnetMissing {
-        subnet_id: Uuid,
-    },
+    TargetSubnetMissing { subnet_id: Uuid },
     /// Policy name is empty
     EmptyName,
     /// Duplicate policy name
-    DuplicateName {
-        name: String,
-    },
+    DuplicateName { name: String },
 }
 
 /// Validation warnings (non-fatal issues)
 #[derive(Debug, Clone)]
 pub enum ValidationWarning {
     /// Policy has very low priority
-    LowPriority {
-        priority: i32,
-    },
+    LowPriority { priority: i32 },
     /// Policy has very high priority
-    HighPriority {
-        priority: i32,
-    },
+    HighPriority { priority: i32 },
     /// Policy uses regex which may be slow
-    RegexPerformance {
-        rule_index: usize,
-    },
+    RegexPerformance { rule_index: usize },
     /// Policy time constraint may never be active
-    NeverActive {
-        reason: String,
-    },
+    NeverActive { reason: String },
     /// Overlapping rules with another policy
     OverlappingRules {
         other_policy_id: Uuid,
         overlap_description: String,
     },
     /// Policy targets a draining subnet
-    TargetSubnetDraining {
-        subnet_id: Uuid,
-    },
+    TargetSubnetDraining { subnet_id: Uuid },
 }
 
 /// Policy validator
@@ -174,7 +154,8 @@ impl PolicyValidator {
 
             // Check for regex performance warning
             if rule.operator == MatchOperator::Regex {
-                result = result.with_warning(ValidationWarning::RegexPerformance { rule_index: idx });
+                result =
+                    result.with_warning(ValidationWarning::RegexPerformance { rule_index: idx });
             }
         }
 
@@ -218,7 +199,9 @@ impl PolicyValidator {
             | NodeAttribute::GpuCount
             | NodeAttribute::GpuMemoryGb
             | NodeAttribute::ReliabilityTier => {
-                if !self.is_numeric_operator(rule.operator) && !self.is_existence_operator(rule.operator) {
+                if !self.is_numeric_operator(rule.operator)
+                    && !self.is_existence_operator(rule.operator)
+                {
                     return Some(ValidationError::IncompatibleOperator {
                         attribute: rule.attribute,
                         operator: rule.operator,
@@ -227,7 +210,9 @@ impl PolicyValidator {
             }
             // Float attributes
             NodeAttribute::StorageTb | NodeAttribute::NetworkBandwidthGbps => {
-                if !self.is_numeric_operator(rule.operator) && !self.is_existence_operator(rule.operator) {
+                if !self.is_numeric_operator(rule.operator)
+                    && !self.is_existence_operator(rule.operator)
+                {
                     return Some(ValidationError::IncompatibleOperator {
                         attribute: rule.attribute,
                         operator: rule.operator,
@@ -263,7 +248,10 @@ impl PolicyValidator {
             NodeAttribute::NodeType => {
                 if !matches!(
                     rule.operator,
-                    MatchOperator::Equals | MatchOperator::NotEquals | MatchOperator::Exists | MatchOperator::NotExists
+                    MatchOperator::Equals
+                        | MatchOperator::NotEquals
+                        | MatchOperator::Exists
+                        | MatchOperator::NotExists
                 ) {
                     return Some(ValidationError::IncompatibleOperator {
                         attribute: rule.attribute,
@@ -293,7 +281,10 @@ impl PolicyValidator {
         // Validate value type matches operator expectations
         match rule.operator {
             MatchOperator::In | MatchOperator::NotIn => {
-                if !matches!(rule.value, PolicyValue::StringList(_) | PolicyValue::UuidList(_)) {
+                if !matches!(
+                    rule.value,
+                    PolicyValue::StringList(_) | PolicyValue::UuidList(_)
+                ) {
                     return Some(ValidationError::InvalidRule {
                         rule_index: idx,
                         reason: "In/NotIn operators require a list value".to_string(),
@@ -395,9 +386,11 @@ impl ConflictDetector {
     /// Check if two policies conflict
     fn check_conflict(a: &AssignmentPolicy, b: &AssignmentPolicy) -> Option<PolicyConflict> {
         // Same priority targeting different subnets with overlapping rules
-        if a.priority == b.priority && a.target_subnet_id != b.target_subnet_id {
-            if Self::rules_may_overlap(&a.rules, &b.rules) {
-                return Some(PolicyConflict {
+        if a.priority == b.priority
+            && a.target_subnet_id != b.target_subnet_id
+            && Self::rules_may_overlap(&a.rules, &b.rules)
+        {
+            return Some(PolicyConflict {
                     policy_a_id: a.id,
                     policy_b_id: b.id,
                     conflict_type: ConflictType::SamePriorityOverlap,
@@ -407,7 +400,6 @@ impl ConflictDetector {
                     ),
                     severity: ConflictSeverity::Warning,
                 });
-            }
         }
 
         // Identical rules targeting different subnets
@@ -457,14 +449,8 @@ impl ConflictDetector {
         }
 
         // Simple check - same attributes and operators
-        let set_a: HashSet<_> = rules_a
-            .iter()
-            .map(|r| (r.attribute, r.operator))
-            .collect();
-        let set_b: HashSet<_> = rules_b
-            .iter()
-            .map(|r| (r.attribute, r.operator))
-            .collect();
+        let set_a: HashSet<_> = rules_a.iter().map(|r| (r.attribute, r.operator)).collect();
+        let set_b: HashSet<_> = rules_b.iter().map(|r| (r.attribute, r.operator)).collect();
 
         set_a == set_b
     }
@@ -475,14 +461,13 @@ impl ConflictDetector {
             for rule_b in rules_b {
                 if rule_a.attribute == rule_b.attribute {
                     // Check for Equals vs NotEquals on same value
-                    if (rule_a.operator == MatchOperator::Equals
+                    if ((rule_a.operator == MatchOperator::Equals
                         && rule_b.operator == MatchOperator::NotEquals)
                         || (rule_a.operator == MatchOperator::NotEquals
-                            && rule_b.operator == MatchOperator::Equals)
+                            && rule_b.operator == MatchOperator::Equals))
+                        && rule_a.value == rule_b.value
                     {
-                        if rule_a.value == rule_b.value {
-                            return true;
-                        }
+                        return true;
                     }
 
                     // Check for Exists vs NotExists
@@ -548,11 +533,16 @@ mod tests {
     fn test_validate_empty_name() {
         let validator = PolicyValidator::new();
         let mut policy = AssignmentPolicy::new("", Uuid::new_v4(), 100);
-        policy.rules.push(PolicyRule::node_type_equals(NodeType::DataCenter));
+        policy
+            .rules
+            .push(PolicyRule::node_type_equals(NodeType::DataCenter));
 
         let result = validator.validate(&policy);
         assert!(!result.is_valid);
-        assert!(result.errors.iter().any(|e| matches!(e, ValidationError::EmptyName)));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::EmptyName)));
     }
 
     #[test]
@@ -562,7 +552,10 @@ mod tests {
 
         let result = validator.validate(&policy);
         assert!(!result.is_valid);
-        assert!(result.errors.iter().any(|e| matches!(e, ValidationError::NoRules)));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::NoRules)));
     }
 
     #[test]
@@ -577,14 +570,16 @@ mod tests {
 
         let result = validator.validate(&policy);
         assert!(!result.is_valid);
-        assert!(result.errors.iter().any(|e| matches!(e, ValidationError::IncompatibleOperator { .. })));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::IncompatibleOperator { .. })));
     }
 
     #[test]
     fn test_validate_valid_policy() {
         let subnet_id = Uuid::new_v4();
-        let validator = PolicyValidator::new()
-            .with_existing_subnets(vec![subnet_id]);
+        let validator = PolicyValidator::new().with_existing_subnets(vec![subnet_id]);
 
         let policy = AssignmentPolicy::new("Test", subnet_id, 100)
             .with_rule(PolicyRule::node_type_equals(NodeType::DataCenter));
@@ -606,7 +601,10 @@ mod tests {
 
         let conflicts = ConflictDetector::detect_conflicts(&[policy_a, policy_b]);
         assert!(!conflicts.is_empty());
-        assert_eq!(conflicts[0].conflict_type, ConflictType::SamePriorityOverlap);
+        assert_eq!(
+            conflicts[0].conflict_type,
+            ConflictType::SamePriorityOverlap
+        );
     }
 
     #[test]
@@ -614,18 +612,16 @@ mod tests {
         let subnet_a = Uuid::new_v4();
         let subnet_b = Uuid::new_v4();
 
-        let policy_a = AssignmentPolicy::new("Policy A", subnet_a, 100)
-            .with_rule(PolicyRule::new(
-                NodeAttribute::Region,
-                MatchOperator::Equals,
-                PolicyValue::String("us-east-1".to_string()),
-            ));
-        let policy_b = AssignmentPolicy::new("Policy B", subnet_b, 50)
-            .with_rule(PolicyRule::new(
-                NodeAttribute::Region,
-                MatchOperator::NotEquals,
-                PolicyValue::String("us-east-1".to_string()),
-            ));
+        let policy_a = AssignmentPolicy::new("Policy A", subnet_a, 100).with_rule(PolicyRule::new(
+            NodeAttribute::Region,
+            MatchOperator::Equals,
+            PolicyValue::String("us-east-1".to_string()),
+        ));
+        let policy_b = AssignmentPolicy::new("Policy B", subnet_b, 50).with_rule(PolicyRule::new(
+            NodeAttribute::Region,
+            MatchOperator::NotEquals,
+            PolicyValue::String("us-east-1".to_string()),
+        ));
 
         let conflicts = ConflictDetector::detect_conflicts(&[policy_a, policy_b]);
         assert!(!conflicts.is_empty());

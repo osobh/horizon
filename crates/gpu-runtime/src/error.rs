@@ -18,23 +18,17 @@ pub enum RuntimeError {
 
     /// Backend initialization failed.
     #[error("Failed to initialize {backend}: {message}")]
-    InitializationFailed {
-        backend: String,
-        message: String,
-    },
+    InitializationFailed { backend: String, message: String },
 
     /// Feature not enabled.
-    #[error("Feature '{feature}' is not enabled. Enable it in Cargo.toml: features = [\"{feature}\"]")]
-    FeatureNotEnabled {
-        feature: String,
-    },
+    #[error(
+        "Feature '{feature}' is not enabled. Enable it in Cargo.toml: features = [\"{feature}\"]"
+    )]
+    FeatureNotEnabled { feature: String },
 
     /// Operation not supported.
     #[error("Operation '{operation}' is not supported by backend '{backend}'")]
-    OperationNotSupported {
-        operation: String,
-        backend: String,
-    },
+    OperationNotSupported { operation: String, backend: String },
 
     /// Metal-specific error.
     #[cfg(feature = "metal")]
@@ -68,7 +62,10 @@ impl RuntimeError {
     }
 
     /// Create an operation not supported error.
-    pub fn operation_not_supported(operation: impl Into<String>, backend: impl Into<String>) -> Self {
+    pub fn operation_not_supported(
+        operation: impl Into<String>,
+        backend: impl Into<String>,
+    ) -> Self {
         RuntimeError::OperationNotSupported {
             operation: operation.into(),
             backend: backend.into(),

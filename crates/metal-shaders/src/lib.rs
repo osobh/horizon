@@ -28,11 +28,11 @@
 //! let pipeline = backend.create_compute_pipeline(&shader_source, "evolution_kernel")?;
 //! ```
 
-pub mod common;
 pub mod agent;
+pub mod common;
+pub mod consensus;
 pub mod evolution;
 pub mod knowledge;
-pub mod consensus;
 pub mod util;
 
 /// Re-export metal-core for convenience
@@ -77,10 +77,7 @@ mod tests {
 
     #[test]
     fn test_combine_shaders() {
-        let combined = combine_shaders(&[
-            common::RNG,
-            common::ATOMICS,
-        ]);
+        let combined = combine_shaders(&[common::RNG, common::ATOMICS]);
 
         assert!(combined.contains("philox"));
         assert!(combined.contains("atomic_add_float"));
@@ -88,8 +85,8 @@ mod tests {
 
     #[test]
     fn test_shader_compilation() {
-        use stratoswarm_metal_core::metal3::{is_available, Metal3Backend, Metal3ComputePipeline};
         use stratoswarm_metal_core::backend::MetalBackend;
+        use stratoswarm_metal_core::metal3::{is_available, Metal3Backend, Metal3ComputePipeline};
 
         if !is_available() {
             println!("Skipping test - Metal not available");
@@ -115,6 +112,10 @@ mod tests {
         );
 
         let result = backend.create_compute_pipeline(&source, "test_kernel");
-        assert!(result.is_ok(), "Failed to compile shader: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to compile shader: {:?}",
+            result.err()
+        );
     }
 }

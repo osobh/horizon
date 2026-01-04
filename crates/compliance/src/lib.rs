@@ -10,8 +10,8 @@
 #![warn(missing_docs)]
 
 pub mod ai_safety;
-pub mod audit_framework;
 pub mod audit;
+pub mod audit_framework;
 pub mod data_classification;
 pub mod encryption;
 pub mod error;

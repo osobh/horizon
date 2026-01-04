@@ -6,7 +6,7 @@
 use super::access_tracking::AccessTracker;
 use super::types::{ImportanceMethod, PruningStrategy, RemovalPriority};
 use crate::error::KnowledgeGraphResult;
-use crate::graph::{KnowledgeGraph, Node, NodeType};
+use crate::graph::{KnowledgeGraph, NodeType};
 use chrono::{Duration, Utc};
 use std::collections::{HashMap, HashSet};
 
@@ -244,7 +244,7 @@ impl StrategyExecutor {
 
                 property_groups
                     .entry(properties_key)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(node.id.clone());
             }
         }

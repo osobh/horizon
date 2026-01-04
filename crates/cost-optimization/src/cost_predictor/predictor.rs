@@ -72,9 +72,11 @@ impl CostPredictor {
         series.push_back(point);
 
         // Enforce retention limit
-        let retention_limit = Utc::now() - ChronoDuration::from_std(self.config.retention_period)
-            .map_err(|e| CostOptimizationError::CalculationError {
-                details: format!("Duration conversion error: {}", e),
+        let retention_limit = Utc::now()
+            - ChronoDuration::from_std(self.config.retention_period).map_err(|e| {
+                CostOptimizationError::CalculationError {
+                    details: format!("Duration conversion error: {}", e),
+                }
             })?;
 
         series.retain(|p| p.timestamp > retention_limit);

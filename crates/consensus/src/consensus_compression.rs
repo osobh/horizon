@@ -9,7 +9,6 @@ use crate::protocol::{ConsensusMessage, GpuStatus};
 use crate::validator::ValidatorId;
 use crate::voting::{RoundId, Vote, VoteType};
 use dashmap::DashMap;
-use stratoswarm_cuda::{Context as GpuContext, MemoryPool as GpuMemoryPool, Stream as CudaStream};
 use lz4::EncoderBuilder as Lz4Encoder;
 use parking_lot::RwLock;
 use ring::digest::{Context as HashContext, SHA256};
@@ -18,6 +17,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use stratoswarm_cuda::{Context as GpuContext, MemoryPool as GpuMemoryPool, Stream as CudaStream};
 use tokio::sync::{mpsc, RwLock as AsyncRwLock};
 use zstd::Encoder as ZstdEncoder;
 
@@ -487,50 +487,55 @@ impl ConsensusCompressionEngine {
         message: &ConsensusMessage,
     ) -> ConsensusResult<CompressedMessage> {
         let start_time = Instant::now();
-        
+
         // Analyze message pattern
         let pattern = self.pattern_analyzer.analyze_message(message).await?;
-        
+
         // Select optimal algorithm
-        let algorithm = self.algorithm_selector.select_algorithm(
-            &pattern,
-            message,
-            &self.config,
-        ).await?;
-        
+        let algorithm = self
+            .algorithm_selector
+            .select_algorithm(&pattern, message, &self.config)
+            .await?;
+
         // Get appropriate dictionary
         let dictionary = self.dictionary_manager.get_dictionary(&pattern).await?;
-        
+
         // Serialize message
         let serialized = bincode::serialize(message)?;
         let original_size = serialized.len();
-        
+
         // Perform compression
         let compressed_data = match algorithm {
             CompressionAlgorithm::LZ4 => {
-                self.compress_with_lz4(&serialized, dictionary.as_ref()).await?
-            },
+                self.compress_with_lz4(&serialized, dictionary.as_ref())
+                    .await?
+            }
             CompressionAlgorithm::ZSTD => {
-                self.compress_with_zstd(&serialized, dictionary.as_ref()).await?
-            },
+                self.compress_with_zstd(&serialized, dictionary.as_ref())
+                    .await?
+            }
             CompressionAlgorithm::GpuAccelerated => {
                 if let Some(ref gpu_compressor) = self.gpu_compressor {
                     gpu_compressor.compress_gpu(&serialized, &algorithm).await?
                 } else {
-                    return Err(ConsensusError::GpuError("GPU compressor not available".to_string()));
+                    return Err(ConsensusError::GpuError(
+                        "GPU compressor not available".to_string(),
+                    ));
                 }
-            },
+            }
             CompressionAlgorithm::ConsensusAware => {
-                self.compress_consensus_aware(&serialized, message, &pattern).await?
-            },
+                self.compress_consensus_aware(&serialized, message, &pattern)
+                    .await?
+            }
             CompressionAlgorithm::Adaptive | CompressionAlgorithm::Hybrid => {
-                self.compress_adaptive(&serialized, message, &pattern).await?
-            },
+                self.compress_adaptive(&serialized, message, &pattern)
+                    .await?
+            }
         };
-        
+
         // Calculate checksum
         let checksum = self.calculate_checksum(&compressed_data);
-        
+
         // Create metadata
         let metadata = CompressionMetadata {
             dictionary_id: dictionary.map(|d| d.id),
@@ -538,7 +543,7 @@ impl ConsensusCompressionEngine {
             pattern_signature: self.generate_pattern_signature(&pattern),
             context_hints: self.generate_context_hints(message),
         };
-        
+
         // Update statistics
         let compression_time = start_time.elapsed();
         self.update_compression_stats(
@@ -546,8 +551,9 @@ impl ConsensusCompressionEngine {
             compressed_data.len(),
             compression_time,
             &algorithm,
-        ).await;
-        
+        )
+        .await;
+
         Ok(CompressedMessage {
             message_type: self.get_message_type_id(message),
             compressed_data,
@@ -568,59 +574,70 @@ impl ConsensusCompressionEngine {
         compressed: &CompressedMessage,
     ) -> ConsensusResult<ConsensusMessage> {
         let start_time = Instant::now();
-        
+
         // Verify checksum
         let calculated_checksum = self.calculate_checksum(&compressed.compressed_data);
         if calculated_checksum != compressed.checksum {
             return Err(ConsensusError::ValidationFailed(
-                "Compressed message checksum mismatch".to_string()
+                "Compressed message checksum mismatch".to_string(),
             ));
         }
-        
+
         // Get dictionary if needed
         let dictionary = if let Some(dict_id) = compressed.metadata.dictionary_id {
-            self.dictionary_manager.get_dictionary_by_id(dict_id).await?
+            self.dictionary_manager
+                .get_dictionary_by_id(dict_id)
+                .await?
         } else {
             None
         };
-        
+
         // Perform decompression
         let decompressed_data = match compressed.algorithm {
             CompressionAlgorithm::LZ4 => {
-                self.decompress_with_lz4(&compressed.compressed_data, dictionary.as_ref()).await?
-            },
+                self.decompress_with_lz4(&compressed.compressed_data, dictionary.as_ref())
+                    .await?
+            }
             CompressionAlgorithm::ZSTD => {
-                self.decompress_with_zstd(&compressed.compressed_data, dictionary.as_ref()).await?
-            },
+                self.decompress_with_zstd(&compressed.compressed_data, dictionary.as_ref())
+                    .await?
+            }
             CompressionAlgorithm::GpuAccelerated => {
                 if let Some(ref gpu_compressor) = self.gpu_compressor {
-                    gpu_compressor.decompress_gpu(&compressed.compressed_data, &compressed.algorithm).await?
+                    gpu_compressor
+                        .decompress_gpu(&compressed.compressed_data, &compressed.algorithm)
+                        .await?
                 } else {
-                    return Err(ConsensusError::GpuError("GPU compressor not available".to_string()));
+                    return Err(ConsensusError::GpuError(
+                        "GPU compressor not available".to_string(),
+                    ));
                 }
-            },
+            }
             CompressionAlgorithm::ConsensusAware => {
-                self.decompress_consensus_aware(&compressed.compressed_data, &compressed.metadata).await?
-            },
+                self.decompress_consensus_aware(&compressed.compressed_data, &compressed.metadata)
+                    .await?
+            }
             CompressionAlgorithm::Adaptive | CompressionAlgorithm::Hybrid => {
-                self.decompress_adaptive(&compressed.compressed_data, &compressed.metadata).await?
-            },
+                self.decompress_adaptive(&compressed.compressed_data, &compressed.metadata)
+                    .await?
+            }
         };
-        
+
         // Verify decompressed size
         if decompressed_data.len() != compressed.original_size {
             return Err(ConsensusError::ValidationFailed(
-                "Decompressed size mismatch".to_string()
+                "Decompressed size mismatch".to_string(),
             ));
         }
-        
+
         // Deserialize message
         let message = bincode::deserialize(&decompressed_data)?;
-        
+
         // Update decompression statistics
         let decompression_time = start_time.elapsed();
-        self.update_decompression_stats(decompression_time, &compressed.algorithm).await;
-        
+        self.update_decompression_stats(decompression_time, &compressed.algorithm)
+            .await;
+
         Ok(message)
     }
 
@@ -632,13 +649,13 @@ impl ConsensusCompressionEngine {
         if messages.is_empty() {
             return Ok(Vec::new());
         }
-        
+
         // Analyze batch patterns
         let batch_pattern = self.pattern_analyzer.analyze_batch(messages).await?;
-        
+
         // Optimize for batch pattern
         self.optimize_for_pattern(batch_pattern.clone()).await?;
-        
+
         // Use GPU acceleration for large batches if available
         if messages.len() >= self.config.batch_size && self.gpu_compressor.is_some() {
             self.compress_batch_gpu(messages, &batch_pattern).await
@@ -654,18 +671,20 @@ impl ConsensusCompressionEngine {
             let mut current_pattern = self.pattern_analyzer.current_pattern.write();
             *current_pattern = Some(pattern.clone());
         }
-        
+
         // Build or update dictionary for this pattern
-        self.dictionary_manager.optimize_for_pattern(&pattern).await?;
-        
+        self.dictionary_manager
+            .optimize_for_pattern(&pattern)
+            .await?;
+
         // Update algorithm selection weights
         self.algorithm_selector.adapt_to_pattern(&pattern).await?;
-        
+
         // Configure GPU kernels if available
         if let Some(ref gpu_compressor) = self.gpu_compressor {
             gpu_compressor.optimize_for_pattern(&pattern).await?;
         }
-        
+
         Ok(())
     }
 
@@ -676,11 +695,27 @@ impl ConsensusCompressionEngine {
 
     /// Get performance metrics
     pub async fn get_performance_metrics(&self) -> CompressionPerformanceMetrics {
-        let latency = self.performance_monitor.latency_tracker.get_current_stats().await;
-        let ratios = self.performance_monitor.ratio_tracker.get_current_stats().await;
-        let throughput = self.performance_monitor.throughput_tracker.get_current_stats().await;
-        let resources = self.performance_monitor.resource_tracker.get_current_stats().await;
-        
+        let latency = self
+            .performance_monitor
+            .latency_tracker
+            .get_current_stats()
+            .await;
+        let ratios = self
+            .performance_monitor
+            .ratio_tracker
+            .get_current_stats()
+            .await;
+        let throughput = self
+            .performance_monitor
+            .throughput_tracker
+            .get_current_stats()
+            .await;
+        let resources = self
+            .performance_monitor
+            .resource_tracker
+            .get_current_stats()
+            .await;
+
         CompressionPerformanceMetrics {
             average_latency: latency.moving_average,
             average_ratio: ratios.overall_average,
@@ -692,54 +727,79 @@ impl ConsensusCompressionEngine {
     }
 
     // Private implementation methods
-    
-    async fn compress_with_lz4(&self, data: &[u8], _dictionary: Option<&CompressionDictionary>) -> ConsensusResult<Vec<u8>> {
+
+    async fn compress_with_lz4(
+        &self,
+        data: &[u8],
+        _dictionary: Option<&CompressionDictionary>,
+    ) -> ConsensusResult<Vec<u8>> {
         let mut compressed = Vec::new();
         {
             let mut encoder = Lz4Encoder::new()
                 .level(4)
                 .build(&mut compressed)
-                .map_err(|e| ConsensusError::ValidationFailed(format!("LZ4 encoder error: {}", e)))?;
-            
-            encoder.write_all(data)
+                .map_err(|e| {
+                    ConsensusError::ValidationFailed(format!("LZ4 encoder error: {}", e))
+                })?;
+
+            encoder
+                .write_all(data)
                 .map_err(|e| ConsensusError::ValidationFailed(format!("LZ4 write error: {}", e)))?;
-            encoder.finish()
-                .1.map_err(|e| ConsensusError::ValidationFailed(format!("LZ4 finish error: {}", e)))?;
+            encoder.finish().1.map_err(|e| {
+                ConsensusError::ValidationFailed(format!("LZ4 finish error: {}", e))
+            })?;
         }
         Ok(compressed)
     }
-    
-    async fn decompress_with_lz4(&self, data: &[u8], _dictionary: Option<&CompressionDictionary>) -> ConsensusResult<Vec<u8>> {
+
+    async fn decompress_with_lz4(
+        &self,
+        data: &[u8],
+        _dictionary: Option<&CompressionDictionary>,
+    ) -> ConsensusResult<Vec<u8>> {
         let mut decoder = lz4::Decoder::new(data)
             .map_err(|e| ConsensusError::ValidationFailed(format!("LZ4 decoder error: {}", e)))?;
-        
+
         let mut decompressed = Vec::new();
-        decoder.read_to_end(&mut decompressed)
+        decoder
+            .read_to_end(&mut decompressed)
             .map_err(|e| ConsensusError::ValidationFailed(format!("LZ4 read error: {}", e)))?;
-        
+
         Ok(decompressed)
     }
-    
-    async fn compress_with_zstd(&self, data: &[u8], dictionary: Option<&CompressionDictionary>) -> ConsensusResult<Vec<u8>> {
+
+    async fn compress_with_zstd(
+        &self,
+        data: &[u8],
+        dictionary: Option<&CompressionDictionary>,
+    ) -> ConsensusResult<Vec<u8>> {
         let mut compressed = Vec::new();
         {
             let mut encoder = if let Some(dict) = dictionary {
-                ZstdEncoder::with_dictionary(&mut compressed, 3, &dict.data)
-                    .map_err(|e| ConsensusError::ValidationFailed(format!("ZSTD encoder error: {}", e)))?
+                ZstdEncoder::with_dictionary(&mut compressed, 3, &dict.data).map_err(|e| {
+                    ConsensusError::ValidationFailed(format!("ZSTD encoder error: {}", e))
+                })?
             } else {
-                ZstdEncoder::new(&mut compressed, 3)
-                    .map_err(|e| ConsensusError::ValidationFailed(format!("ZSTD encoder error: {}", e)))?
+                ZstdEncoder::new(&mut compressed, 3).map_err(|e| {
+                    ConsensusError::ValidationFailed(format!("ZSTD encoder error: {}", e))
+                })?
             };
-            
-            encoder.write_all(data)
-                .map_err(|e| ConsensusError::ValidationFailed(format!("ZSTD write error: {}", e)))?;
-            encoder.finish()
-                .map_err(|e| ConsensusError::ValidationFailed(format!("ZSTD finish error: {}", e)))?;
+
+            encoder.write_all(data).map_err(|e| {
+                ConsensusError::ValidationFailed(format!("ZSTD write error: {}", e))
+            })?;
+            encoder.finish().map_err(|e| {
+                ConsensusError::ValidationFailed(format!("ZSTD finish error: {}", e))
+            })?;
         }
         Ok(compressed)
     }
-    
-    async fn decompress_with_zstd(&self, data: &[u8], dictionary: Option<&CompressionDictionary>) -> ConsensusResult<Vec<u8>> {
+
+    async fn decompress_with_zstd(
+        &self,
+        data: &[u8],
+        dictionary: Option<&CompressionDictionary>,
+    ) -> ConsensusResult<Vec<u8>> {
         use std::io::Cursor;
 
         // Note: Dictionary-based decompression would require zstd::stream::Decoder with dict
@@ -751,7 +811,7 @@ impl ConsensusCompressionEngine {
 
         Ok(decompressed)
     }
-    
+
     async fn compress_consensus_aware(
         &self,
         data: &[u8],
@@ -760,22 +820,16 @@ impl ConsensusCompressionEngine {
     ) -> ConsensusResult<Vec<u8>> {
         // Consensus-aware compression exploits protocol structure
         match message {
-            ConsensusMessage::Vote(vote) => {
-                self.compress_vote_optimized(data, vote).await
-            },
-            ConsensusMessage::Proposal { .. } => {
-                self.compress_proposal_optimized(data).await
-            },
-            ConsensusMessage::Heartbeat { .. } => {
-                self.compress_heartbeat_optimized(data).await
-            },
+            ConsensusMessage::Vote(vote) => self.compress_vote_optimized(data, vote).await,
+            ConsensusMessage::Proposal { .. } => self.compress_proposal_optimized(data).await,
+            ConsensusMessage::Heartbeat { .. } => self.compress_heartbeat_optimized(data).await,
             _ => {
                 // Fall back to general compression
                 self.compress_with_zstd(data, None).await
             }
         }
     }
-    
+
     async fn decompress_consensus_aware(
         &self,
         data: &[u8],
@@ -793,7 +847,7 @@ impl ConsensusCompressionEngine {
             self.decompress_with_zstd(data, None).await
         }
     }
-    
+
     async fn compress_adaptive(
         &self,
         data: &[u8],
@@ -806,32 +860,33 @@ impl ConsensusCompressionEngine {
             CompressionAlgorithm::ZSTD,
             CompressionAlgorithm::ConsensusAware,
         ];
-        
+
         let mut best_result = None;
         let mut best_ratio = 0.0f32;
-        
+
         for algorithm in algorithms {
             let compressed = match algorithm {
                 CompressionAlgorithm::LZ4 => self.compress_with_lz4(data, None).await?,
                 CompressionAlgorithm::ZSTD => self.compress_with_zstd(data, None).await?,
                 CompressionAlgorithm::ConsensusAware => {
-                    self.compress_consensus_aware(data, message, pattern).await?
-                },
+                    self.compress_consensus_aware(data, message, pattern)
+                        .await?
+                }
                 _ => continue,
             };
-            
+
             let ratio = 1.0 - (compressed.len() as f32 / data.len() as f32);
             if ratio > best_ratio {
                 best_ratio = ratio;
                 best_result = Some(compressed);
             }
         }
-        
+
         best_result.ok_or_else(|| {
             ConsensusError::ValidationFailed("No compression algorithm succeeded".to_string())
         })
     }
-    
+
     async fn decompress_adaptive(
         &self,
         data: &[u8],
@@ -848,7 +903,7 @@ impl ConsensusCompressionEngine {
             None => self.decompress_with_zstd(data, None).await,
         }
     }
-    
+
     async fn compress_batch_gpu(
         &self,
         messages: &[ConsensusMessage],
@@ -857,57 +912,59 @@ impl ConsensusCompressionEngine {
         if let Some(ref gpu_compressor) = self.gpu_compressor {
             gpu_compressor.compress_batch(messages, pattern).await
         } else {
-            Err(ConsensusError::GpuError("GPU compressor not available".to_string()))
+            Err(ConsensusError::GpuError(
+                "GPU compressor not available".to_string(),
+            ))
         }
     }
-    
+
     async fn compress_batch_sequential(
         &self,
         messages: &[ConsensusMessage],
     ) -> ConsensusResult<Vec<CompressedMessage>> {
         let mut results = Vec::with_capacity(messages.len());
-        
+
         for message in messages {
             let mut engine_clone = self.clone_for_compression();
             let compressed = engine_clone.compress_message(message).await?;
             results.push(compressed);
         }
-        
+
         Ok(results)
     }
-    
+
     async fn compress_vote_optimized(&self, data: &[u8], _vote: &Vote) -> ConsensusResult<Vec<u8>> {
         // Vote-specific compression exploiting common patterns
         self.compress_with_zstd(data, None).await
     }
-    
+
     async fn decompress_vote_optimized(&self, data: &[u8]) -> ConsensusResult<Vec<u8>> {
         self.decompress_with_zstd(data, None).await
     }
-    
+
     async fn compress_proposal_optimized(&self, data: &[u8]) -> ConsensusResult<Vec<u8>> {
         // Proposal-specific compression
         self.compress_with_zstd(data, None).await
     }
-    
+
     async fn decompress_proposal_optimized(&self, data: &[u8]) -> ConsensusResult<Vec<u8>> {
         self.decompress_with_zstd(data, None).await
     }
-    
+
     async fn compress_heartbeat_optimized(&self, data: &[u8]) -> ConsensusResult<Vec<u8>> {
         // Heartbeat messages have high redundancy
         self.compress_with_zstd(data, None).await
     }
-    
+
     async fn decompress_heartbeat_optimized(&self, data: &[u8]) -> ConsensusResult<Vec<u8>> {
         self.decompress_with_zstd(data, None).await
     }
-    
+
     fn calculate_checksum(&self, data: &[u8]) -> u32 {
         let mut context = HashContext::new(&SHA256);
         context.update(data);
         let digest = context.finish();
-        
+
         // Use first 4 bytes of SHA256 as checksum
         u32::from_be_bytes([
             digest.as_ref()[0],
@@ -916,7 +973,7 @@ impl ConsensusCompressionEngine {
             digest.as_ref()[3],
         ])
     }
-    
+
     fn get_message_type_id(&self, message: &ConsensusMessage) -> u8 {
         match message {
             ConsensusMessage::Vote(_) => 1,
@@ -929,7 +986,7 @@ impl ConsensusCompressionEngine {
             ConsensusMessage::Election(_) => 8,
         }
     }
-    
+
     fn get_compression_level(&self, algorithm: &CompressionAlgorithm) -> u8 {
         match algorithm {
             CompressionAlgorithm::LZ4 => 4,
@@ -940,32 +997,32 @@ impl ConsensusCompressionEngine {
             CompressionAlgorithm::Hybrid => 8,
         }
     }
-    
+
     fn generate_pattern_signature(&self, pattern: &MessagePattern) -> Vec<u8> {
         format!("{:?}", pattern).as_bytes().to_vec()
     }
-    
+
     fn generate_context_hints(&self, message: &ConsensusMessage) -> HashMap<String, String> {
         let mut hints = HashMap::new();
-        
+
         match message {
             ConsensusMessage::Vote(_) => {
                 hints.insert("message_type".to_string(), "vote".to_string());
-            },
+            }
             ConsensusMessage::Proposal { .. } => {
                 hints.insert("message_type".to_string(), "proposal".to_string());
-            },
+            }
             ConsensusMessage::Heartbeat { .. } => {
                 hints.insert("message_type".to_string(), "heartbeat".to_string());
-            },
+            }
             _ => {
                 hints.insert("message_type".to_string(), "other".to_string());
-            },
+            }
         }
-        
+
         hints
     }
-    
+
     async fn update_compression_stats(
         &self,
         original_size: usize,
@@ -976,26 +1033,32 @@ impl ConsensusCompressionEngine {
         let mut stats = self.stats.write();
         stats.messages_processed += 1;
         stats.compression_time = stats.compression_time + compression_time;
-        
+
         let ratio = 1.0 - (compressed_size as f32 / original_size as f32);
         if stats.messages_processed == 1 {
             stats.compression_ratio = ratio;
         } else {
             // Running average
-            stats.compression_ratio = (stats.compression_ratio * (stats.messages_processed - 1) as f32 + ratio) / stats.messages_processed as f32;
+            stats.compression_ratio =
+                (stats.compression_ratio * (stats.messages_processed - 1) as f32 + ratio)
+                    / stats.messages_processed as f32;
         }
-        
+
         stats.bytes_saved += original_size.saturating_sub(compressed_size);
-        
+
         // Update algorithm-specific scores
         stats.algorithm_scores.insert(algorithm.clone(), ratio);
     }
-    
-    async fn update_decompression_stats(&self, decompression_time: Duration, _algorithm: &CompressionAlgorithm) {
+
+    async fn update_decompression_stats(
+        &self,
+        decompression_time: Duration,
+        _algorithm: &CompressionAlgorithm,
+    ) {
         let mut stats = self.stats.write();
         stats.decompression_time = stats.decompression_time + decompression_time;
     }
-    
+
     fn clone_for_compression(&self) -> Self {
         // This is a simplified clone for demonstration
         // In production, this would be a more efficient shallow clone
@@ -1056,57 +1119,59 @@ impl MessagePatternAnalyzer {
             })),
         })
     }
-    
+
     async fn analyze_message(&self, message: &ConsensusMessage) -> ConsensusResult<MessagePattern> {
         let pattern = match message {
             ConsensusMessage::Vote(_) => MessagePattern::VotingRound,
             ConsensusMessage::Proposal { .. } => MessagePattern::VotingRound,
             ConsensusMessage::GpuCompute { .. } | ConsensusMessage::GpuResult { .. } => {
                 MessagePattern::GpuComputation
-            },
+            }
             ConsensusMessage::Heartbeat { .. } => MessagePattern::HeartbeatBurst,
             ConsensusMessage::Election(_) => MessagePattern::ElectionCampaign,
             ConsensusMessage::SyncRequest { .. } | ConsensusMessage::SyncResponse { .. } => {
                 MessagePattern::StateSync
-            },
+            }
         };
-        
+
         // Update pattern statistics
         let pattern_key = format!("{:?}", pattern);
-        let mut stats = self.patterns.entry(pattern_key)
-            .or_insert(PatternStats {
-                frequency: 0,
-                average_size: 0,
-                compression_efficiency: 0.0,
-                last_seen: Instant::now(),
-                entropy_score: 0.0,
-            });
-        
+        let mut stats = self.patterns.entry(pattern_key).or_insert(PatternStats {
+            frequency: 0,
+            average_size: 0,
+            compression_efficiency: 0.0,
+            last_seen: Instant::now(),
+            entropy_score: 0.0,
+        });
+
         stats.frequency += 1;
         stats.last_seen = Instant::now();
-        
+
         Ok(pattern)
     }
-    
-    async fn analyze_batch(&self, messages: &[ConsensusMessage]) -> ConsensusResult<MessagePattern> {
+
+    async fn analyze_batch(
+        &self,
+        messages: &[ConsensusMessage],
+    ) -> ConsensusResult<MessagePattern> {
         if messages.is_empty() {
             return Ok(MessagePattern::Mixed);
         }
-        
+
         // Count pattern frequencies
         let mut pattern_counts = HashMap::new();
         for message in messages {
             let pattern = self.analyze_message(message).await?;
             *pattern_counts.entry(pattern).or_insert(0) += 1;
         }
-        
+
         // Return most frequent pattern
         let dominant_pattern = pattern_counts
             .into_iter()
             .max_by_key(|(_, count)| *count)
             .map(|(pattern, _)| pattern)
             .unwrap_or(MessagePattern::Mixed);
-        
+
         Ok(dominant_pattern)
     }
 }
@@ -1122,22 +1187,36 @@ impl GpuCompressor {
             performance_tracker: Arc::new(GpuPerformanceTracker::new()),
         })
     }
-    
-    async fn compress_gpu(&self, data: &[u8], _algorithm: &CompressionAlgorithm) -> ConsensusResult<Vec<u8>> {
+
+    async fn compress_gpu(
+        &self,
+        data: &[u8],
+        _algorithm: &CompressionAlgorithm,
+    ) -> ConsensusResult<Vec<u8>> {
         // Mock GPU compression - would use actual CUDA kernels
         Ok(data.to_vec()) // Placeholder
     }
-    
-    async fn decompress_gpu(&self, data: &[u8], _algorithm: &CompressionAlgorithm) -> ConsensusResult<Vec<u8>> {
+
+    async fn decompress_gpu(
+        &self,
+        data: &[u8],
+        _algorithm: &CompressionAlgorithm,
+    ) -> ConsensusResult<Vec<u8>> {
         // Mock GPU decompression - would use actual CUDA kernels
         Ok(data.to_vec()) // Placeholder
     }
-    
-    async fn compress_batch(&self, _messages: &[ConsensusMessage], _pattern: &MessagePattern) -> ConsensusResult<Vec<CompressedMessage>> {
+
+    async fn compress_batch(
+        &self,
+        _messages: &[ConsensusMessage],
+        _pattern: &MessagePattern,
+    ) -> ConsensusResult<Vec<CompressedMessage>> {
         // Mock batch compression
-        Err(ConsensusError::NotImplemented("GPU batch compression not yet implemented".to_string()))
+        Err(ConsensusError::NotImplemented(
+            "GPU batch compression not yet implemented".to_string(),
+        ))
     }
-    
+
     async fn optimize_for_pattern(&self, _pattern: &MessagePattern) -> ConsensusResult<()> {
         // Mock pattern optimization
         Ok(())
@@ -1153,7 +1232,7 @@ impl AlgorithmSelector {
             current_best: Arc::new(RwLock::new(CompressionAlgorithm::ZSTD)),
         })
     }
-    
+
     async fn select_algorithm(
         &self,
         _pattern: &MessagePattern,
@@ -1162,7 +1241,7 @@ impl AlgorithmSelector {
     ) -> ConsensusResult<CompressionAlgorithm> {
         Ok(config.algorithm.clone())
     }
-    
+
     async fn adapt_to_pattern(&self, _pattern: &MessagePattern) -> ConsensusResult<()> {
         Ok(())
     }
@@ -1177,15 +1256,24 @@ impl DictionaryManager {
             cache: Arc::new(DashMap::new()),
         })
     }
-    
-    async fn get_dictionary(&self, _pattern: &MessagePattern) -> ConsensusResult<Option<CompressionDictionary>> {
+
+    async fn get_dictionary(
+        &self,
+        _pattern: &MessagePattern,
+    ) -> ConsensusResult<Option<CompressionDictionary>> {
         Ok(None) // No dictionary for now
     }
-    
-    async fn get_dictionary_by_id(&self, id: u32) -> ConsensusResult<Option<CompressionDictionary>> {
-        Ok(self.dictionaries.get(&id).map(|entry| entry.value().clone()))
+
+    async fn get_dictionary_by_id(
+        &self,
+        id: u32,
+    ) -> ConsensusResult<Option<CompressionDictionary>> {
+        Ok(self
+            .dictionaries
+            .get(&id)
+            .map(|entry| entry.value().clone()))
     }
-    
+
     async fn optimize_for_pattern(&self, _pattern: &MessagePattern) -> ConsensusResult<()> {
         Ok(())
     }
@@ -1223,7 +1311,7 @@ impl CompressionLatencyTracker {
             moving_average: Arc::new(RwLock::new(Duration::ZERO)),
         }
     }
-    
+
     async fn get_current_stats(&self) -> LatencyTrackerStats {
         LatencyTrackerStats {
             moving_average: *self.moving_average.read(),
@@ -1244,7 +1332,7 @@ impl CompressionRatioTracker {
             by_pattern: Arc::new(DashMap::new()),
         }
     }
-    
+
     async fn get_current_stats(&self) -> RatioTrackerStats {
         RatioTrackerStats {
             overall_average: 0.9, // Mock value
@@ -1267,7 +1355,7 @@ impl CompressionThroughputTracker {
             byte_count: Arc::new(RwLock::new(0)),
         }
     }
-    
+
     async fn get_current_stats(&self) -> ThroughputTrackerStats {
         ThroughputTrackerStats {
             messages_per_second: *self.messages_per_second.read(),
@@ -1289,12 +1377,15 @@ impl CompressionResourceTracker {
             disk_io: Arc::new(RwLock::new(0)),
         }
     }
-    
+
     async fn get_current_stats(&self) -> ResourceTrackerStats {
-        let gpu_average_usage = self.gpu_usage.iter()
+        let gpu_average_usage = self
+            .gpu_usage
+            .iter()
             .map(|entry| *entry.value())
-            .sum::<f32>() / self.gpu_usage.len().max(1) as f32;
-        
+            .sum::<f32>()
+            / self.gpu_usage.len().max(1) as f32;
+
         ResourceTrackerStats {
             cpu_usage: *self.cpu_usage.read(),
             memory_usage: *self.memory_usage.read(),

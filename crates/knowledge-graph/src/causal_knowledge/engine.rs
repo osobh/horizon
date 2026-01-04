@@ -1,8 +1,7 @@
 //! Main causal inference engine implementation
 
 use crate::{KnowledgeGraph, KnowledgeGraphError, KnowledgeGraphResult};
-use chrono::{Duration as ChronoDuration, Utc};
-use half::f16;
+use chrono::Duration as ChronoDuration;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use std::collections::{HashMap, HashSet};
@@ -11,15 +10,15 @@ use std::time::Duration;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
-use super::config::*;
-use super::types::*;
-use super::evidence::*;
+use super::cache::*;
 use super::chains::*;
+use super::config::*;
+use super::evidence::*;
 use super::gpu::*;
 use super::graphs::*;
-use super::cache::*;
-use super::temporal::*;
 use super::patterns::*;
+use super::temporal::*;
+use super::types::*;
 
 /// Main causal inference engine
 pub struct CausalKnowledgeEngine {
@@ -48,7 +47,7 @@ impl CausalKnowledgeEngine {
                     pattern_window: config.temporal_window,
                     confidence_threshold: config.confidence_threshold,
                     min_pattern_frequency: 3,
-                }
+                },
             ))))
         } else {
             None
@@ -66,13 +65,16 @@ impl CausalKnowledgeEngine {
     }
 
     /// Load a knowledge graph for causal analysis
-    pub async fn load_knowledge_graph(&mut self, graph: KnowledgeGraph) -> KnowledgeGraphResult<()> {
+    pub async fn load_knowledge_graph(
+        &mut self,
+        graph: KnowledgeGraph,
+    ) -> KnowledgeGraphResult<()> {
         let mut kg = self.knowledge_graph.write().await;
         *kg = Some(graph);
-        
+
         // Initialize causal graph structure
         self.rebuild_causal_graph().await?;
-        
+
         Ok(())
     }
 
@@ -90,25 +92,34 @@ impl CausalKnowledgeEngine {
     }
 
     /// Discover causal relationships in the knowledge graph
-    pub async fn discover_causal_relationships(&self) -> KnowledgeGraphResult<Vec<CausalRelationship>> {
+    pub async fn discover_causal_relationships(
+        &self,
+    ) -> KnowledgeGraphResult<Vec<CausalRelationship>> {
         let temporal_index = self.temporal_index.read().await;
         let causal_graph = self.causal_graph.read().await;
 
         if let Some(ref gpu_context) = self.gpu_context {
-            self.gpu_discover_causal_relationships(&*temporal_index, &*causal_graph, gpu_context).await
+            self.gpu_discover_causal_relationships(&temporal_index, &causal_graph, gpu_context)
+                .await
         } else {
-            self.cpu_discover_causal_relationships(&*temporal_index, &*causal_graph).await
+            self.cpu_discover_causal_relationships(&temporal_index, &causal_graph)
+                .await
         }
     }
 
     /// Infer multi-hop causal chains
-    pub async fn infer_causal_chains(&self, start_node: &str) -> KnowledgeGraphResult<Vec<CausalChain>> {
+    pub async fn infer_causal_chains(
+        &self,
+        start_node: &str,
+    ) -> KnowledgeGraphResult<Vec<CausalChain>> {
         let causal_graph = self.causal_graph.read().await;
-        
+
         if let Some(ref gpu_context) = self.gpu_context {
-            self.gpu_infer_causal_chains(start_node, &*causal_graph, gpu_context).await
+            self.gpu_infer_causal_chains(start_node, &causal_graph, gpu_context)
+                .await
         } else {
-            self.cpu_infer_causal_chains(start_node, &*causal_graph).await
+            self.cpu_infer_causal_chains(start_node, &causal_graph)
+                .await
         }
     }
 
@@ -124,7 +135,8 @@ impl CausalKnowledgeEngine {
             ];
 
             for network_type in &network_types {
-                self.initialize_causal_network(network_type.clone(), gpu_context).await?;
+                self.initialize_causal_network(network_type.clone(), gpu_context)
+                    .await?;
             }
         }
 
@@ -136,7 +148,8 @@ impl CausalKnowledgeEngine {
         if let Some(ref gpu_context) = self.gpu_context {
             // Simulate training process with GPU acceleration
             let training_data = self.prepare_training_data().await?;
-            self.gpu_train_causal_model(&training_data, gpu_context).await?;
+            self.gpu_train_causal_model(&training_data, gpu_context)
+                .await?;
         }
 
         Ok(())
@@ -146,9 +159,16 @@ impl CausalKnowledgeEngine {
     pub async fn gpu_causal_inference(&self) -> KnowledgeGraphResult<Vec<CausalRelationship>> {
         if let Some(ref gpu_context) = self.gpu_context {
             let causal_graph = self.causal_graph.read().await;
-            self.gpu_discover_causal_relationships(&*self.temporal_index.read().await, &*causal_graph, gpu_context).await
+            self.gpu_discover_causal_relationships(
+                &*self.temporal_index.read().await,
+                &causal_graph,
+                gpu_context,
+            )
+            .await
         } else {
-            Err(KnowledgeGraphError::Other("GPU context not initialized".to_string()))
+            Err(KnowledgeGraphError::Other(
+                "GPU context not initialized".to_string(),
+            ))
         }
     }
 
@@ -162,20 +182,34 @@ impl CausalKnowledgeEngine {
                 throughput: 1500.0, // Operations per second
             })
         } else {
-            Err(KnowledgeGraphError::Other("GPU context not available".to_string()))
+            Err(KnowledgeGraphError::Other(
+                "GPU context not available".to_string(),
+            ))
         }
     }
 
     /// Perform causal inference with uncertainty quantification
     pub async fn infer_with_uncertainty(&self) -> KnowledgeGraphResult<Vec<CausalRelationship>> {
         let base_relationships = self.discover_causal_relationships().await?;
-        
+
         // Apply uncertainty quantification based on configured method
         match self.config.uncertainty_method {
-            UncertaintyMethod::Bayesian => self.bayesian_uncertainty_quantification(base_relationships).await,
-            UncertaintyMethod::Frequentist => self.frequentist_uncertainty_quantification(base_relationships).await,
-            UncertaintyMethod::EvidentialDeepLearning => self.evidential_uncertainty_quantification(base_relationships).await,
-            UncertaintyMethod::ConformalPrediction => self.conformal_uncertainty_quantification(base_relationships).await,
+            UncertaintyMethod::Bayesian => {
+                self.bayesian_uncertainty_quantification(base_relationships)
+                    .await
+            }
+            UncertaintyMethod::Frequentist => {
+                self.frequentist_uncertainty_quantification(base_relationships)
+                    .await
+            }
+            UncertaintyMethod::EvidentialDeepLearning => {
+                self.evidential_uncertainty_quantification(base_relationships)
+                    .await
+            }
+            UncertaintyMethod::ConformalPrediction => {
+                self.conformal_uncertainty_quantification(base_relationships)
+                    .await
+            }
         }
     }
 
@@ -190,7 +224,10 @@ impl CausalKnowledgeEngine {
     }
 
     /// Process real-time event
-    pub async fn process_real_time_event(&mut self, event: TemporalEvent) -> KnowledgeGraphResult<()> {
+    pub async fn process_real_time_event(
+        &mut self,
+        event: TemporalEvent,
+    ) -> KnowledgeGraphResult<()> {
         self.add_temporal_event(event).await
     }
 
@@ -220,10 +257,12 @@ impl CausalKnowledgeEngine {
 
     // Private implementation methods
 
-    async fn initialize_gpu_context(config: &CausalGpuConfig) -> KnowledgeGraphResult<CausalGpuContext> {
+    async fn initialize_gpu_context(
+        config: &CausalGpuConfig,
+    ) -> KnowledgeGraphResult<CausalGpuContext> {
         // Simplified mock GPU context for compilation
         Ok(CausalGpuContext {
-            device_id: config.device_id.unwrap_or(0) as i32,
+            device_id: config.device_id.unwrap_or(0),
             causal_networks: Vec::new(),
             memory_manager: Arc::new(Mutex::new(CausalGpuMemoryManager::new(config.memory_gb))),
         })
@@ -246,7 +285,8 @@ impl CausalKnowledgeEngine {
         _gpu_context: &CausalGpuContext,
     ) -> KnowledgeGraphResult<Vec<CausalRelationship>> {
         // Simplified CPU implementation since GPU functionality is disabled
-        self.cpu_discover_causal_relationships(_temporal_index, causal_graph).await
+        self.cpu_discover_causal_relationships(_temporal_index, causal_graph)
+            .await
     }
 
     async fn cpu_discover_causal_relationships(
@@ -265,8 +305,9 @@ impl CausalKnowledgeEngine {
                 }
 
                 // Compute temporal correlation
-                let correlation = self.compute_temporal_correlation(source_id, target_id, temporal_index)?;
-                
+                let correlation =
+                    self.compute_temporal_correlation(source_id, target_id, temporal_index)?;
+
                 if correlation.abs() > self.config.confidence_threshold {
                     let relationship = CausalRelationship {
                         id: Uuid::new_v4().to_string(),
@@ -303,22 +344,22 @@ impl CausalKnowledgeEngine {
         start_node: &str,
         causal_graph: &CausalGraph,
     ) -> KnowledgeGraphResult<Vec<CausalChain>> {
-        let relationships = self.cpu_discover_causal_relationships(
-            &*self.temporal_index.read().await,
-            causal_graph,
-        ).await?;
+        let relationships = self
+            .cpu_discover_causal_relationships(&*self.temporal_index.read().await, causal_graph)
+            .await?;
 
         // Build adjacency list for efficient traversal
         let mut adjacency: HashMap<String, Vec<(String, f64)>> = HashMap::new();
         for rel in &relationships {
-            adjacency.entry(rel.cause_node_id.clone())
-                .or_insert_with(Vec::new)
+            adjacency
+                .entry(rel.cause_node_id.clone())
+                .or_default()
                 .push((rel.effect_node_id.clone(), rel.causal_strength));
         }
 
         let mut chains = Vec::new();
         let mut visited = HashSet::new();
-        
+
         // DFS-based chain discovery
         self.dfs_find_chains(
             start_node,
@@ -393,8 +434,8 @@ impl CausalKnowledgeEngine {
             // Apply Bayesian uncertainty estimation
             let prior_confidence = 0.5;
             let likelihood = rel.confidence;
-            let posterior = (prior_confidence * likelihood) / 
-                (prior_confidence * likelihood + (1.0 - prior_confidence) * (1.0 - likelihood));
+            let posterior = (prior_confidence * likelihood)
+                / (prior_confidence * likelihood + (1.0 - prior_confidence) * (1.0 - likelihood));
 
             let uncertainty = 1.0 - posterior;
             rel.uncertainty_bounds = UncertaintyBounds {
@@ -512,26 +553,24 @@ impl CausalKnowledgeEngine {
         temporal_index: &TemporalIndex,
     ) -> KnowledgeGraphResult<f64> {
         // Simple mock correlation calculation
-        let mut rng = ChaCha8Rng::seed_from_u64(
-            (source_id.len() + target_id.len()) as u64
-        );
-        
+        let mut rng = ChaCha8Rng::seed_from_u64((source_id.len() + target_id.len()) as u64);
+
         // Simulate correlation based on node relationships and temporal data
         let correlation = (rng.gen::<f64>() - 0.5) * 2.0; // Range [-1, 1]
-        
+
         // Add some temporal influence
         let temporal_factor = if temporal_index.event_count() > 0 {
             0.1 * (temporal_index.event_count() as f64).ln()
         } else {
             0.0
         };
-        
+
         Ok((correlation + temporal_factor).clamp(-1.0, 1.0))
     }
 
     fn create_mock_evidence(&self, correlation: f64) -> CausalEvidence {
         let mut rng = ChaCha8Rng::seed_from_u64((correlation * 1000.0) as u64);
-        
+
         CausalEvidence {
             statistical_metrics: StatisticalMetrics {
                 correlation,
@@ -550,20 +589,25 @@ impl CausalKnowledgeEngine {
                 ],
             },
             experimental_evidence: None,
-            observational_studies: vec![
-                ObservationalStudy {
-                    study_id: "study_1".to_string(),
-                    sample_size: 1000,
-                    effect_direction: if correlation > 0.0 { EffectDirection::Positive } else { EffectDirection::Negative },
-                    controlled_confounders: vec!["confounder_1".to_string(), "confounder_2".to_string()],
+            observational_studies: vec![ObservationalStudy {
+                study_id: "study_1".to_string(),
+                sample_size: 1000,
+                effect_direction: if correlation > 0.0 {
+                    EffectDirection::Positive
+                } else {
+                    EffectDirection::Negative
                 },
-            ],
+                controlled_confounders: vec![
+                    "confounder_1".to_string(),
+                    "confounder_2".to_string(),
+                ],
+            }],
         }
     }
 
     fn compute_uncertainty_bounds(&self, strength: f64) -> UncertaintyBounds {
         let base_uncertainty = (1.0 - strength) * 0.2;
-        
+
         UncertaintyBounds {
             lower_bound: (strength - base_uncertainty).max(0.0),
             upper_bound: (strength + base_uncertainty).min(1.0),

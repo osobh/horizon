@@ -4,25 +4,34 @@
 //! GPU-accelerated consensus mechanisms, and sub-100ms global knowledge propagation.
 
 pub mod config;
-pub mod types;
-pub mod metrics;
-pub mod consensus;
 pub mod conflict;
+pub mod consensus;
+pub mod gpu;
+pub mod metrics;
 pub mod network;
 pub mod protocol;
 pub mod state;
-pub mod gpu;
+pub mod types;
 
 // Re-export main types
-pub use config::{GlobalSyncConfig, GpuClusterSpec, NetworkConfig, ConsensusConfig, ConsensusAlgorithm};
-pub use types::{KnowledgeOperation, OperationType, OperationPriority, VectorClock};
-pub use metrics::{SyncMetrics, ConsensusMetrics, ClusterMetrics, NetworkMetrics, AggregatedMetrics};
-pub use consensus::{ConsensusProposal, ConsensusVote, Vote, ConsensusResult, ConsensusEngine};
-pub use conflict::{ConflictingOperation, ConflictType, ConflictSeverity, Resolution, ResolutionStrategy, ConflictResolver};
-pub use network::{SyncMessage, MessageQueue};
+pub use config::{
+    ConsensusAlgorithm, ConsensusConfig, GlobalSyncConfig, GpuClusterSpec, NetworkConfig,
+};
+pub use conflict::{
+    ConflictResolver, ConflictSeverity, ConflictType, ConflictingOperation, Resolution,
+    ResolutionStrategy,
+};
+pub use consensus::{ConsensusEngine, ConsensusProposal, ConsensusResult, ConsensusVote, Vote};
+pub use gpu::GpuConsensusMetrics;
+pub use metrics::{
+    AggregatedMetrics, ClusterMetrics, ConsensusMetrics, NetworkMetrics, SyncMetrics,
+};
+pub use network::{MessageQueue, SyncMessage};
 pub use protocol::GlobalSyncProtocol;
-pub use state::{KnowledgeCluster, ClusterSyncState, ClusterState};
-pub use gpu::{GpuConsensusMetrics};
+pub use state::{ClusterState, ClusterSyncState, KnowledgeCluster};
+pub use types::{KnowledgeOperation, OperationPriority, OperationType, VectorClock};
 
-pub use protocol::{PerformanceAnomaly, AnomalyType, AnomalySeverity, PerformanceReport, OperationEvidence};
 pub use metrics::MetricsCollector;
+pub use protocol::{
+    AnomalySeverity, AnomalyType, OperationEvidence, PerformanceAnomaly, PerformanceReport,
+};

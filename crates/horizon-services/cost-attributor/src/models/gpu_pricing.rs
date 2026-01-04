@@ -35,9 +35,7 @@ impl std::str::FromStr for PricingModel {
             "on_demand" => Ok(PricingModel::OnDemand),
             "spot" => Ok(PricingModel::Spot),
             "reserved" => Ok(PricingModel::Reserved),
-            _ => Err(crate::error::HpcError::invalid_pricing_model(
-                s.to_string(),
-            )),
+            _ => Err(crate::error::HpcError::invalid_pricing_model(s.to_string())),
         }
     }
 }
@@ -125,23 +123,12 @@ pub struct UpdateGpuPricing {
     pub effective_end: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GpuPricingQuery {
     pub gpu_type: Option<String>,
     pub region: Option<String>,
     pub pricing_model: Option<PricingModel>,
     pub effective_at: Option<DateTime<Utc>>,
-}
-
-impl Default for GpuPricingQuery {
-    fn default() -> Self {
-        Self {
-            gpu_type: None,
-            region: None,
-            pricing_model: None,
-            effective_at: None,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -178,13 +165,9 @@ mod tests {
     #[test]
     fn test_create_gpu_pricing_builder() {
         let now = Utc::now();
-        let pricing = CreateGpuPricing::new(
-            "A100".to_string(),
-            PricingModel::OnDemand,
-            dec!(3.50),
-            now,
-        )
-        .with_region("us-east-1".to_string());
+        let pricing =
+            CreateGpuPricing::new("A100".to_string(), PricingModel::OnDemand, dec!(3.50), now)
+                .with_region("us-east-1".to_string());
 
         assert_eq!(pricing.gpu_type, "A100");
         assert_eq!(pricing.pricing_model, PricingModel::OnDemand);
@@ -195,12 +178,8 @@ mod tests {
     #[test]
     fn test_validate_success() {
         let now = Utc::now();
-        let pricing = CreateGpuPricing::new(
-            "A100".to_string(),
-            PricingModel::OnDemand,
-            dec!(3.50),
-            now,
-        );
+        let pricing =
+            CreateGpuPricing::new("A100".to_string(), PricingModel::OnDemand, dec!(3.50), now);
 
         assert!(pricing.validate().is_ok());
     }
@@ -208,12 +187,7 @@ mod tests {
     #[test]
     fn test_validate_empty_gpu_type() {
         let now = Utc::now();
-        let pricing = CreateGpuPricing::new(
-            String::new(),
-            PricingModel::OnDemand,
-            dec!(3.50),
-            now,
-        );
+        let pricing = CreateGpuPricing::new(String::new(), PricingModel::OnDemand, dec!(3.50), now);
 
         let result = pricing.validate();
         assert!(result.is_err());
@@ -244,12 +218,8 @@ mod tests {
     #[test]
     fn test_validate_negative_rate() {
         let now = Utc::now();
-        let pricing = CreateGpuPricing::new(
-            "A100".to_string(),
-            PricingModel::OnDemand,
-            dec!(-1.00),
-            now,
-        );
+        let pricing =
+            CreateGpuPricing::new("A100".to_string(), PricingModel::OnDemand, dec!(-1.00), now);
 
         let result = pricing.validate();
         assert!(result.is_err());
@@ -260,17 +230,16 @@ mod tests {
         let now = Utc::now();
         let earlier = now - chrono::Duration::hours(1);
 
-        let pricing = CreateGpuPricing::new(
-            "A100".to_string(),
-            PricingModel::OnDemand,
-            dec!(3.50),
-            now,
-        )
-        .with_effective_end(earlier);
+        let pricing =
+            CreateGpuPricing::new("A100".to_string(), PricingModel::OnDemand, dec!(3.50), now)
+                .with_effective_end(earlier);
 
         let result = pricing.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid time range"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid time range"));
     }
 
     #[test]

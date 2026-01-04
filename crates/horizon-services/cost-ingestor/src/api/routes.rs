@@ -12,11 +12,26 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(handlers::health_check))
         .route("/ready", get(handlers::readiness_check))
-        .route("/api/v1/billing/ingest", post(handlers::ingest_billing_data))
-        .route("/api/v1/billing/records", post(handlers::create_billing_record))
-        .route("/api/v1/billing/records", get(handlers::query_billing_records))
-        .route("/api/v1/billing/records/:id", get(handlers::get_billing_record))
-        .route("/api/v1/billing/records/:id", delete(handlers::delete_billing_record))
+        .route(
+            "/api/v1/billing/ingest",
+            post(handlers::ingest_billing_data),
+        )
+        .route(
+            "/api/v1/billing/records",
+            post(handlers::create_billing_record),
+        )
+        .route(
+            "/api/v1/billing/records",
+            get(handlers::query_billing_records),
+        )
+        .route(
+            "/api/v1/billing/records/:id",
+            get(handlers::get_billing_record),
+        )
+        .route(
+            "/api/v1/billing/records/:id",
+            delete(handlers::delete_billing_record),
+        )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

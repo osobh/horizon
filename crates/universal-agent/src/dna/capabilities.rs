@@ -142,12 +142,20 @@ impl FitnessProfile {
         if self.history.len() < 2 {
             return 0.0;
         }
-        let recent: Vec<f64> = self.history.iter().rev().take(20).map(|(_, s)| *s).collect();
+        let recent: Vec<f64> = self
+            .history
+            .iter()
+            .rev()
+            .take(20)
+            .map(|(_, s)| *s)
+            .collect();
         if recent.len() < 2 {
             return 0.0;
         }
-        let first_half: f64 = recent[recent.len() / 2..].iter().sum::<f64>() / (recent.len() / 2) as f64;
-        let second_half: f64 = recent[..recent.len() / 2].iter().sum::<f64>() / (recent.len() / 2) as f64;
+        let first_half: f64 =
+            recent[recent.len() / 2..].iter().sum::<f64>() / (recent.len() / 2) as f64;
+        let second_half: f64 =
+            recent[..recent.len() / 2].iter().sum::<f64>() / (recent.len() / 2) as f64;
         second_half - first_half
     }
 

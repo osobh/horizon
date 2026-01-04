@@ -14,7 +14,11 @@ pub struct SwarmConfig {
     pub alignment_weight: f32,
 }
 
+// SAFETY: SwarmConfig is #[repr(C)] with only primitive types (u32, f32).
+// All bit patterns are valid for these types, there is no padding between fields,
+// and the struct contains no pointers or references that could be invalid.
 unsafe impl bytemuck::Pod for SwarmConfig {}
+// SAFETY: All fields (u32, f32) are safe to zero-initialize.
 unsafe impl bytemuck::Zeroable for SwarmConfig {}
 
 /// LLM model structure on GPU (matches CUDA LLMModel)
@@ -40,10 +44,16 @@ pub struct AgentPrompt {
     pub seq_length: u32,
 }
 
+// SAFETY: AgentPrompt is #[repr(C)] with only primitive types and fixed-size arrays.
+// All fields (u32, f32, [f32; 3], [u32; 512]) have valid bit patterns for any value.
+// No padding issues due to natural alignment of fields.
 unsafe impl bytemuck::Pod for AgentPrompt {}
+// SAFETY: Zero-initialization is safe for all numeric primitive types.
 unsafe impl bytemuck::Zeroable for AgentPrompt {}
 
-// Implement DeviceRepr for AgentPrompt
+// SAFETY: AgentPrompt has a stable C ABI layout (#[repr(C)]) and contains only
+// types that are safe to pass across the FFI boundary to CUDA kernels.
+// The pointer cast preserves the memory layout expected by the CUDA kernel.
 unsafe impl cudarc::driver::DeviceRepr for AgentPrompt {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void
@@ -61,10 +71,15 @@ pub struct LlmResponse {
     pub confidence: f32,
 }
 
+// SAFETY: LlmResponse is #[repr(C)] with only primitive types and fixed-size arrays.
+// All fields (u32, [u32; 512], [f32; 32000], f32) have valid bit patterns for any value.
+// The struct uses natural alignment with no problematic padding.
 unsafe impl bytemuck::Pod for LlmResponse {}
+// SAFETY: Zero-initialization is safe for all numeric types (u32, f32) and their arrays.
 unsafe impl bytemuck::Zeroable for LlmResponse {}
 
-// Implement DeviceRepr for LlmResponse
+// SAFETY: LlmResponse has a stable C ABI layout (#[repr(C)]) and contains only
+// types safe to pass across the FFI boundary. The pointer cast preserves memory layout.
 unsafe impl cudarc::driver::DeviceRepr for LlmResponse {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void
@@ -82,9 +97,15 @@ pub struct GPUKnowledgeNode {
     pub edge_count: u32,
 }
 
+// SAFETY: GPUKnowledgeNode is #[repr(C)] with only primitive types and fixed-size arrays.
+// All fields (u32, [f32; 768]) have valid bit patterns for any value.
+// Natural alignment ensures no padding issues between fields.
 unsafe impl bytemuck::Pod for GPUKnowledgeNode {}
+// SAFETY: Zero-initialization is safe for all numeric types (u32, f32) and their arrays.
 unsafe impl bytemuck::Zeroable for GPUKnowledgeNode {}
 
+// SAFETY: GPUKnowledgeNode has a stable C ABI layout (#[repr(C)]) matching the CUDA
+// GPUKnowledgeNode struct. The pointer cast preserves the expected memory layout.
 unsafe impl cudarc::driver::DeviceRepr for GPUKnowledgeNode {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void
@@ -100,9 +121,14 @@ pub struct GPUAdjacencyEntry {
     pub relationship_hash: u32,
 }
 
+// SAFETY: GPUAdjacencyEntry is #[repr(C)] with only primitive types (u32, f32).
+// All bit patterns are valid for these types with natural alignment.
 unsafe impl bytemuck::Pod for GPUAdjacencyEntry {}
+// SAFETY: Zero-initialization is safe for u32 and f32 types.
 unsafe impl bytemuck::Zeroable for GPUAdjacencyEntry {}
 
+// SAFETY: GPUAdjacencyEntry has a stable C ABI layout (#[repr(C)]) matching the CUDA
+// GPUAdjacencyEntry struct. The pointer cast preserves the expected memory layout.
 unsafe impl cudarc::driver::DeviceRepr for GPUAdjacencyEntry {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void
@@ -119,9 +145,14 @@ pub struct GPUGraphQuery {
     pub query_type: u32, // 0=similarity, 1=path_finding, 2=subgraph
 }
 
+// SAFETY: GPUGraphQuery is #[repr(C)] with only primitive types and fixed-size arrays.
+// All fields ([f32; 768], u32, f32) have valid bit patterns for any value.
 unsafe impl bytemuck::Pod for GPUGraphQuery {}
+// SAFETY: Zero-initialization is safe for all numeric types and their arrays.
 unsafe impl bytemuck::Zeroable for GPUGraphQuery {}
 
+// SAFETY: GPUGraphQuery has a stable C ABI layout (#[repr(C)]) matching the CUDA
+// GPUGraphQuery struct. The pointer cast preserves the expected memory layout.
 unsafe impl cudarc::driver::DeviceRepr for GPUGraphQuery {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void
@@ -138,9 +169,14 @@ pub struct GPUQueryResult {
     pub path: [u32; 20], // MAX_PATH_LENGTH
 }
 
+// SAFETY: GPUQueryResult is #[repr(C)] with only primitive types and fixed-size arrays.
+// All fields (u32, f32, [u32; 20]) have valid bit patterns for any value.
 unsafe impl bytemuck::Pod for GPUQueryResult {}
+// SAFETY: Zero-initialization is safe for all numeric types and their arrays.
 unsafe impl bytemuck::Zeroable for GPUQueryResult {}
 
+// SAFETY: GPUQueryResult has a stable C ABI layout (#[repr(C)]) matching the CUDA
+// GPUQueryResult struct. The pointer cast preserves the expected memory layout.
 unsafe impl cudarc::driver::DeviceRepr for GPUQueryResult {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void
@@ -417,9 +453,14 @@ pub struct HuffmanCodeGPU {
     pub length: u8, // Number of bits in the code
 }
 
+// SAFETY: HuffmanCodeGPU is #[repr(C)] with only primitive types (u32, u8).
+// All bit patterns are valid. Padding between u8 length and end is handled by repr(C).
 unsafe impl bytemuck::Pod for HuffmanCodeGPU {}
+// SAFETY: Zero-initialization is safe for u32 and u8 types.
 unsafe impl bytemuck::Zeroable for HuffmanCodeGPU {}
 
+// SAFETY: HuffmanCodeGPU has a stable C ABI layout (#[repr(C)]) matching the CUDA
+// HuffmanCode struct. The pointer cast preserves the expected memory layout.
 unsafe impl cudarc::driver::DeviceRepr for HuffmanCodeGPU {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void
@@ -436,9 +477,14 @@ pub struct HuffmanTreeNodeGPU {
     pub right: u16,  // Index of right child (0 if leaf)
 }
 
+// SAFETY: HuffmanTreeNodeGPU is #[repr(C)] with only primitive types (u8, u16).
+// All bit patterns are valid. Fields are naturally aligned with predictable padding.
 unsafe impl bytemuck::Pod for HuffmanTreeNodeGPU {}
+// SAFETY: Zero-initialization is safe for u8 and u16 types.
 unsafe impl bytemuck::Zeroable for HuffmanTreeNodeGPU {}
 
+// SAFETY: HuffmanTreeNodeGPU has a stable C ABI layout (#[repr(C)]) matching the CUDA
+// HuffmanTreeNode struct. The pointer cast preserves the expected memory layout.
 unsafe impl cudarc::driver::DeviceRepr for HuffmanTreeNodeGPU {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void

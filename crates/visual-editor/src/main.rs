@@ -37,10 +37,12 @@ async fn main() -> Result<()> {
 
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| {
-                    tracing_subscriber::EnvFilter::new(format!("stratoswarm_visual_editor={}", log_level))
-                }),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                tracing_subscriber::EnvFilter::new(format!(
+                    "stratoswarm_visual_editor={}",
+                    log_level
+                ))
+            }),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();

@@ -1,16 +1,16 @@
+use crate::config::ParquetConfig;
 use anyhow::{anyhow, Context, Result};
 use arrow::array::{Float64Array, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
+use hpc_types::MetricBatch;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
-use std::fs::{File, create_dir_all};
-use std::path::{PathBuf, Path};
+use std::fs::{create_dir_all, File};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use hpc_types::{MetricBatch};
-use crate::config::ParquetConfig;
 
 pub struct ParquetWriter {
     config: ParquetConfig,
@@ -21,8 +21,7 @@ pub struct ParquetWriter {
 impl ParquetWriter {
     pub fn new(config: ParquetConfig) -> Result<Self> {
         // Create output directory if it doesn't exist
-        create_dir_all(&config.output_dir)
-            .context("Failed to create output directory")?;
+        create_dir_all(&config.output_dir).context("Failed to create output directory")?;
 
         Ok(Self {
             config,
@@ -66,9 +65,7 @@ impl ParquetWriter {
 
         // Process GPU metrics
         for metric in &batch.gpu_metrics {
-            let ts = metric.timestamp.as_ref()
-                .map(|t| t.seconds)
-                .unwrap_or(0);
+            let ts = metric.timestamp.as_ref().map(|t| t.seconds).unwrap_or(0);
 
             // Add multiple fields as separate rows
             let fields = vec![
@@ -90,9 +87,7 @@ impl ParquetWriter {
 
         // Process CPU metrics
         for metric in &batch.cpu_metrics {
-            let ts = metric.timestamp.as_ref()
-                .map(|t| t.seconds)
-                .unwrap_or(0);
+            let ts = metric.timestamp.as_ref().map(|t| t.seconds).unwrap_or(0);
 
             let fields = vec![
                 ("utilization", metric.utilization as f64),
@@ -111,9 +106,7 @@ impl ParquetWriter {
 
         // Process NIC metrics
         for metric in &batch.nic_metrics {
-            let ts = metric.timestamp.as_ref()
-                .map(|t| t.seconds)
-                .unwrap_or(0);
+            let ts = metric.timestamp.as_ref().map(|t| t.seconds).unwrap_or(0);
 
             let fields = vec![
                 ("rx_gbps", metric.rx_gbps as f64),
@@ -179,7 +172,9 @@ impl ParquetWriter {
             self.rotation_time = SystemTime::now();
         }
 
-        let file_path = self.current_file.as_ref()
+        let file_path = self
+            .current_file
+            .as_ref()
             .ok_or_else(|| anyhow!("No current file"))?;
 
         // Convert batch to RecordBatch
@@ -191,17 +186,16 @@ impl ParquetWriter {
             .build();
 
         // Write to file
-        let file = File::create(file_path)
-            .context("Failed to create parquet file")?;
+        let file = File::create(file_path).context("Failed to create parquet file")?;
 
         let mut writer = ArrowWriter::try_new(file, record_batch.schema(), Some(props))
             .context("Failed to create ArrowWriter")?;
 
-        writer.write(&record_batch)
+        writer
+            .write(&record_batch)
             .context("Failed to write record batch")?;
 
-        writer.close()
-            .context("Failed to close writer")?;
+        writer.close().context("Failed to close writer")?;
 
         Ok(())
     }

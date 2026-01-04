@@ -109,11 +109,7 @@ mod integration_tests {
     fn test_merkle_with_signatures() {
         // Create signed entries in a Merkle tree
         let keypair = KeyPair::generate();
-        let entries = [
-            b"entry1".to_vec(),
-            b"entry2".to_vec(),
-            b"entry3".to_vec(),
-        ];
+        let entries = [b"entry1".to_vec(), b"entry2".to_vec(), b"entry3".to_vec()];
 
         // Sign each entry
         let signatures: Vec<_> = entries.iter().map(|e| keypair.sign(e)).collect();

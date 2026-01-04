@@ -13,7 +13,13 @@ impl PolicyRepository {
         Self { pool }
     }
 
-    pub async fn create(&self, name: &str, content: &str, description: Option<&str>, created_by: &str) -> Result<Policy> {
+    pub async fn create(
+        &self,
+        name: &str,
+        content: &str,
+        description: Option<&str>,
+        created_by: &str,
+    ) -> Result<Policy> {
         let policy = sqlx::query_as::<_, Policy>(
             r#"
             INSERT INTO policies (name, content, description, created_by)
@@ -36,7 +42,8 @@ impl PolicyRepository {
             HpcError::from(e)
         })?;
 
-        self.create_version(policy.id, policy.version, content, created_by).await?;
+        self.create_version(policy.id, policy.version, content, created_by)
+            .await?;
 
         Ok(policy)
     }
@@ -81,7 +88,13 @@ impl PolicyRepository {
         Ok(policies)
     }
 
-    pub async fn update(&self, name: &str, content: &str, description: Option<&str>, created_by: &str) -> Result<Policy> {
+    pub async fn update(
+        &self,
+        name: &str,
+        content: &str,
+        description: Option<&str>,
+        created_by: &str,
+    ) -> Result<Policy> {
         let existing = self.get_by_name(name).await?;
 
         let new_version = existing.version + 1;
@@ -101,7 +114,8 @@ impl PolicyRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        self.create_version(policy.id, new_version, content, created_by).await?;
+        self.create_version(policy.id, new_version, content, created_by)
+            .await?;
 
         Ok(policy)
     }
@@ -141,7 +155,13 @@ impl PolicyRepository {
         Ok(versions)
     }
 
-    async fn create_version(&self, policy_id: Uuid, version: i32, content: &str, created_by: &str) -> Result<PolicyVersion> {
+    async fn create_version(
+        &self,
+        policy_id: Uuid,
+        version: i32,
+        content: &str,
+        created_by: &str,
+    ) -> Result<PolicyVersion> {
         let version_record = sqlx::query_as::<_, PolicyVersion>(
             r#"
             INSERT INTO policy_versions (policy_id, version, content, created_by)

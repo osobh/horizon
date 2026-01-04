@@ -271,7 +271,12 @@ impl AttentionLayer {
 
 impl FeedForwardLayer {
     /// Create new feed-forward layer
-    pub fn new(input_dim: usize, hidden_dim: usize, output_dim: usize, activation: ActivationType) -> Self {
+    pub fn new(
+        input_dim: usize,
+        hidden_dim: usize,
+        output_dim: usize,
+        activation: ActivationType,
+    ) -> Self {
         Self {
             input_dim,
             hidden_dim,
@@ -333,20 +338,29 @@ impl BertModel {
 
         let embeddings = BertEmbeddings {
             word_embeddings: vec![vec![0.0; bert_config.hidden_size]; bert_config.vocab_size],
-            position_embeddings: vec![vec![0.0; bert_config.hidden_size]; bert_config.max_position_embeddings],
-            token_type_embeddings: vec![vec![0.0; bert_config.hidden_size]; bert_config.type_vocab_size],
+            position_embeddings: vec![
+                vec![0.0; bert_config.hidden_size];
+                bert_config.max_position_embeddings
+            ],
+            token_type_embeddings: vec![
+                vec![0.0; bert_config.hidden_size];
+                bert_config.type_vocab_size
+            ],
             layer_norm: LayerNorm::new(bert_config.hidden_size),
         };
 
         let mut encoder_layers = Vec::new();
         for _ in 0..bert_config.num_hidden_layers {
             encoder_layers.push(BertEncoderLayer {
-                self_attention: AttentionLayer::new(bert_config.hidden_size, bert_config.num_attention_heads),
+                self_attention: AttentionLayer::new(
+                    bert_config.hidden_size,
+                    bert_config.num_attention_heads,
+                ),
                 intermediate: FeedForwardLayer::new(
                     bert_config.hidden_size,
                     bert_config.intermediate_size,
                     bert_config.hidden_size,
-                    bert_config.hidden_act.clone(),
+                    bert_config.hidden_act,
                 ),
                 output: FeedForwardLayer::new(
                     bert_config.intermediate_size,

@@ -18,8 +18,7 @@ impl Default for Config {
                 .unwrap_or_else(|_| "0.0.0.0:8081".to_string()),
             influxdb_url: std::env::var("INFLUXDB_URL")
                 .unwrap_or_else(|_| "http://localhost:8086".to_string()),
-            influxdb_org: std::env::var("INFLUXDB_ORG")
-                .unwrap_or_else(|_| "horizon".to_string()),
+            influxdb_org: std::env::var("INFLUXDB_ORG").unwrap_or_else(|_| "horizon".to_string()),
             influxdb_bucket: std::env::var("INFLUXDB_BUCKET")
                 .unwrap_or_else(|_| "metrics".to_string()),
             influxdb_token: std::env::var("INFLUXDB_TOKEN").unwrap_or_else(|_| "".to_string()),

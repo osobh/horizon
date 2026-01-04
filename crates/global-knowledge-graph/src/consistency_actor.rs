@@ -378,11 +378,7 @@ impl ConsistencyActor {
     }
 
     /// Monitor divergence between regions (internal implementation)
-    fn monitor_divergence(
-        &self,
-        region1: &str,
-        region2: &str,
-    ) -> GlobalKnowledgeGraphResult<u64> {
+    fn monitor_divergence(&self, region1: &str, region2: &str) -> GlobalKnowledgeGraphResult<u64> {
         let state1 = self.convergence_states.get(region1);
         let state2 = self.convergence_states.get(region2);
 
@@ -762,7 +758,8 @@ mod tests {
 
         // Start an update but cancel it
         let handle_clone = handle.clone();
-        let update_future = handle_clone.update_resource("node-1", ResourceType::Node, "us-east-1", 1);
+        let update_future =
+            handle_clone.update_resource("node-1", ResourceType::Node, "us-east-1", 1);
 
         // Drop the future immediately (simulating cancellation)
         drop(update_future);

@@ -34,7 +34,10 @@ impl TournamentSelection {
     /// Create a new tournament selection with the given size.
     #[must_use]
     pub fn new(tournament_size: usize) -> Self {
-        assert!(tournament_size > 0, "Tournament size must be greater than 0");
+        assert!(
+            tournament_size > 0,
+            "Tournament size must be greater than 0"
+        );
         Self { tournament_size }
     }
 }
@@ -56,7 +59,9 @@ impl SelectionStrategy for TournamentSelection {
                 .max_by(|a, b| {
                     let a_fit = a.fitness.expect("Individual must have fitness");
                     let b_fit = b.fitness.expect("Individual must have fitness");
-                    a_fit.partial_cmp(&b_fit).unwrap_or(std::cmp::Ordering::Equal)
+                    a_fit
+                        .partial_cmp(&b_fit)
+                        .unwrap_or(std::cmp::Ordering::Equal)
                 })
                 .expect("Tournament must have at least one individual");
 
@@ -66,7 +71,7 @@ impl SelectionStrategy for TournamentSelection {
         selected
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Tournament"
     }
 }
@@ -103,7 +108,11 @@ impl SelectionStrategy for RouletteSelection {
 
         // Shift fitnesses to be positive
         let min_fitness = fitnesses.iter().copied().fold(f64::INFINITY, f64::min);
-        let shift = if min_fitness < 0.0 { -min_fitness + 1.0 } else { 0.0 };
+        let shift = if min_fitness < 0.0 {
+            -min_fitness + 1.0
+        } else {
+            0.0
+        };
         let adjusted: Vec<f64> = fitnesses.iter().map(|f| f + shift).collect();
 
         let total: f64 = adjusted.iter().sum();
@@ -128,7 +137,7 @@ impl SelectionStrategy for RouletteSelection {
         selected
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Roulette"
     }
 }
@@ -192,7 +201,7 @@ impl SelectionStrategy for RankSelection {
         selected
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Rank"
     }
 }
@@ -225,13 +234,15 @@ impl SelectionStrategy for EliteSelection {
         sorted.sort_by(|a, b| {
             let a_fit = a.fitness.expect("Individual must have fitness");
             let b_fit = b.fitness.expect("Individual must have fitness");
-            b_fit.partial_cmp(&a_fit).unwrap_or(std::cmp::Ordering::Equal)
+            b_fit
+                .partial_cmp(&a_fit)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         sorted.into_iter().take(count).collect()
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Elite"
     }
 }

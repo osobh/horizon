@@ -104,11 +104,11 @@ impl AuditSeverity {
     /// Get retention period in days for this severity
     pub fn retention_days(&self) -> u32 {
         match self {
-            AuditSeverity::Critical => 2555,  // 7 years
-            AuditSeverity::High => 1825,      // 5 years
-            AuditSeverity::Medium => 1095,    // 3 years
-            AuditSeverity::Low => 365,        // 1 year
-            AuditSeverity::Info => 90,        // 90 days
+            AuditSeverity::Critical => 2555, // 7 years
+            AuditSeverity::High => 1825,     // 5 years
+            AuditSeverity::Medium => 1095,   // 3 years
+            AuditSeverity::Low => 365,       // 1 year
+            AuditSeverity::Info => 90,       // 90 days
         }
     }
 }

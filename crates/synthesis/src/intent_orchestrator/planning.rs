@@ -8,8 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::execution::{ActionStep, ActionType, RetryPolicy, ResourceRequirements};
-use super::types::{AgentId, BackoffStrategy, EntityValue};
+use super::execution::{ActionStep, ActionType, ResourceRequirements};
 
 /// Action planner for creating execution plans
 pub struct ActionPlanner {
@@ -105,7 +104,6 @@ pub struct CircularDependencyDetector;
 #[derive(Clone, Debug)]
 pub struct ExecutionMonitor;
 
-
 impl ActionPlanner {
     /// Create new action planner
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
@@ -187,14 +185,17 @@ impl ResourceAllocator {
     /// Allocate resources for execution
     pub async fn allocate_resources(
         &self,
-        requirements: &ResourceRequirements,
+        _requirements: &ResourceRequirements,
     ) -> Result<String, Box<dyn std::error::Error>> {
         // Simplified allocation
         Ok(uuid::Uuid::new_v4().to_string())
     }
 
     /// Release allocated resources
-    pub async fn release_resources(&self, allocation_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn release_resources(
+        &self,
+        _allocation_id: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Simplified release
         Ok(())
     }
@@ -213,7 +214,7 @@ impl DependencyResolver {
     /// Resolve dependencies between action steps
     pub async fn resolve_dependencies(
         &self,
-        mut steps: Vec<ActionStep>,
+        steps: Vec<ActionStep>,
     ) -> Result<Vec<ActionStep>, Box<dyn std::error::Error>> {
         // For now, return steps as-is (simplified)
         // In a real implementation, would perform topological sort
@@ -221,7 +222,7 @@ impl DependencyResolver {
     }
 
     /// Check for circular dependencies
-    pub fn check_circular_dependencies(&self, steps: &[ActionStep]) -> Result<(), String> {
+    pub fn check_circular_dependencies(&self, _steps: &[ActionStep]) -> Result<(), String> {
         // Simplified check
         Ok(())
     }

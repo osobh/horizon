@@ -34,10 +34,7 @@ async fn test_latency_based_routing() {
         ("eu-west-1", 85.0),
     ];
 
-    let closest = latencies
-        .iter()
-        .min_by(|a, b| a.1.partial_cmp(&b.1)?)
-        ?;
+    let closest = latencies.iter().min_by(|a, b| a.1.partial_cmp(&b.1)?)?;
     assert_eq!(closest.0, "us-east-1");
 }
 

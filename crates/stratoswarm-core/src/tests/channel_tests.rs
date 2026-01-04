@@ -145,13 +145,9 @@ async fn test_request_response_pattern_success() {
     });
 
     // Send a request with timeout
-    let response = request_with_timeout(
-        &cost_tx,
-        CostMessage::QueryCost,
-        Duration::from_secs(5),
-    )
-    .await
-    .unwrap();
+    let response = request_with_timeout(&cost_tx, CostMessage::QueryCost, Duration::from_secs(5))
+        .await
+        .unwrap();
 
     match response {
         CostMessage::CostUpdate {
@@ -198,9 +194,7 @@ async fn test_backpressure_on_bounded_channels() {
     for i in 0..150 {
         let tx = gpu_tx.clone();
         let task = tokio::spawn(async move {
-            let cmd = GpuCommand::Synchronize {
-                stream_id: Some(i),
-            };
+            let cmd = GpuCommand::Synchronize { stream_id: Some(i) };
             tx.send(cmd).await
         });
         send_tasks.push(task);
@@ -420,7 +414,10 @@ async fn test_evolution_selection_strategies() {
                 assert_eq!(count, 10);
                 // Verify strategy matches (simplified check)
                 match (strategy, recv_strategy) {
-                    (SelectionStrategy::Tournament { .. }, SelectionStrategy::Tournament { .. }) => {}
+                    (
+                        SelectionStrategy::Tournament { .. },
+                        SelectionStrategy::Tournament { .. },
+                    ) => {}
                     (SelectionStrategy::Roulette, SelectionStrategy::Roulette) => {}
                     (SelectionStrategy::Rank, SelectionStrategy::Rank) => {}
                     (SelectionStrategy::Elitist, SelectionStrategy::Elitist) => {}

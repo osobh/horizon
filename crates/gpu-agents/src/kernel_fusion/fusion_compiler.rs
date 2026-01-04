@@ -786,7 +786,7 @@ mod tests {
     }
 
     #[test]
-    fn test_workload_analysis() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_workload_analysis() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let config = KernelFusionConfig::default();
         let compiler = FusionCompiler::new(Arc::new(device), config);

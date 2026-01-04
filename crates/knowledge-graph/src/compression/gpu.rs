@@ -1,7 +1,7 @@
 //! GPU-accelerated compression kernels and utilities
 
 use crate::KnowledgeGraphResult;
-use cudarc::driver::{CudaDevice, CudaFunction, LaunchAsync, LaunchConfig};
+use cudarc::driver::{CudaDevice, CudaFunction};
 use std::sync::Arc;
 
 /// GPU compression kernel manager
@@ -49,7 +49,11 @@ pub struct GpuMemoryPool {
 
 impl GpuMemoryPool {
     /// Create new GPU memory pool
-    pub fn new(device: Arc<CudaDevice>, initial_buffers: usize, buffer_size: usize) -> KnowledgeGraphResult<Self> {
+    pub fn new(
+        device: Arc<CudaDevice>,
+        initial_buffers: usize,
+        buffer_size: usize,
+    ) -> KnowledgeGraphResult<Self> {
         let mut free_buffers = Vec::new();
         for _ in 0..initial_buffers {
             let buffer = device.alloc_zeros::<u8>(buffer_size)?;

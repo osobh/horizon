@@ -2,15 +2,13 @@
 
 use crate::{Result, SwarmImage, SwarmRegistryError};
 use bytes::Bytes;
-use futures::Stream;
 use std::collections::{HashMap, VecDeque};
-use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::AsyncRead;
-use tokio::sync::{mpsc, Mutex, RwLock};
-use tracing::{debug, error, info, warn};
+use tokio::sync::{mpsc, RwLock};
+use tracing::{debug, error, info};
 
 /// Stream chunk size (64KB)
 const CHUNK_SIZE: usize = 64 * 1024;
@@ -294,7 +292,7 @@ impl ImageStreamer {
         info!("Stream task started for image {}", image.hash);
 
         let mut paused = false;
-        let mut layer_priorities = priorities;
+        let layer_priorities = priorities;
 
         // Stream layers in priority order
         let mut sorted_layers: Vec<_> = image
@@ -432,7 +430,7 @@ impl ImageStreamer {
         Ok(())
     }
 
-    async fn read_layer_data(layer_hash: &str) -> Result<Vec<u8>> {
+    async fn read_layer_data(_layer_hash: &str) -> Result<Vec<u8>> {
         // Simulate reading layer data
         // In reality, this would read from ContentAddressableStore
         Ok(vec![0u8; 1024 * 1024]) // 1MB dummy data

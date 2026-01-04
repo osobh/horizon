@@ -128,7 +128,7 @@ impl QualityAwareRouter {
     pub fn record_send(&self, peer_public_key: &str) -> u64 {
         self.peer_quality
             .entry(peer_public_key.to_string())
-            .or_insert_with(ConnectionQuality::new)
+            .or_default()
             .record_send()
     }
 
@@ -221,36 +221,27 @@ impl QualityAwareRouter {
 
         // If no healthy routes, use all routes but warn
         let candidates = if healthy_routes.is_empty() {
-            warn!(
-                "No healthy routes to {}, using degraded routes",
-                dest_ip
-            );
+            warn!("No healthy routes to {}, using degraded routes", dest_ip);
             routes.iter().collect()
         } else {
             healthy_routes
         };
 
         let selected = match strategy {
-            RouteStrategy::LowestLatency => {
-                candidates
-                    .into_iter()
-                    .min_by_key(|r| {
-                        r.quality
-                            .as_ref()
-                            .map(|q| q.rtt)
-                            .unwrap_or(Duration::from_secs(999))
-                    })
-            }
-            RouteStrategy::BestQuality => {
-                candidates.into_iter().max_by_key(|r| r.score)
-            }
-            RouteStrategy::LowestLoss => {
-                candidates.into_iter().min_by(|a, b| {
-                    let a_loss = a.quality.as_ref().map(|q| q.packet_loss).unwrap_or(100.0);
-                    let b_loss = b.quality.as_ref().map(|q| q.packet_loss).unwrap_or(100.0);
-                    a_loss.partial_cmp(&b_loss).unwrap_or(std::cmp::Ordering::Equal)
-                })
-            }
+            RouteStrategy::LowestLatency => candidates.into_iter().min_by_key(|r| {
+                r.quality
+                    .as_ref()
+                    .map(|q| q.rtt)
+                    .unwrap_or(Duration::from_secs(999))
+            }),
+            RouteStrategy::BestQuality => candidates.into_iter().max_by_key(|r| r.score),
+            RouteStrategy::LowestLoss => candidates.into_iter().min_by(|a, b| {
+                let a_loss = a.quality.as_ref().map(|q| q.packet_loss).unwrap_or(100.0);
+                let b_loss = b.quality.as_ref().map(|q| q.packet_loss).unwrap_or(100.0);
+                a_loss
+                    .partial_cmp(&b_loss)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            }),
             RouteStrategy::RoundRobin => {
                 if candidates.is_empty() {
                     None
@@ -310,7 +301,11 @@ impl QualityAwareRouter {
         let avg_score = if all_quality.is_empty() {
             0
         } else {
-            all_quality.iter().map(|(_, q)| q.score() as u32).sum::<u32>() / all_quality.len() as u32
+            all_quality
+                .iter()
+                .map(|(_, q)| q.score() as u32)
+                .sum::<u32>()
+                / all_quality.len() as u32
         };
 
         RouterStats {
@@ -372,7 +367,13 @@ impl<'de> Deserialize<'de> for RouteStrategy {
             "weighted" => Ok(RouteStrategy::Weighted),
             _ => Err(serde::de::Error::unknown_variant(
                 &s,
-                &["lowest_latency", "best_quality", "lowest_loss", "round_robin", "weighted"],
+                &[
+                    "lowest_latency",
+                    "best_quality",
+                    "lowest_loss",
+                    "round_robin",
+                    "weighted",
+                ],
             )),
         }
     }

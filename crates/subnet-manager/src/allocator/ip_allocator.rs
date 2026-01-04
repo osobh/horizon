@@ -81,9 +81,17 @@ impl SubnetIpAllocator {
         Self {
             cidr,
             allocated: BTreeSet::new(),
-            first_host: if cidr.prefix_len() >= 31 { network } else { first_host + 1 }, // Start after gateway
+            first_host: if cidr.prefix_len() >= 31 {
+                network
+            } else {
+                first_host + 1
+            }, // Start after gateway
             last_host,
-            next_hint: if cidr.prefix_len() >= 31 { network } else { first_host + 1 },
+            next_hint: if cidr.prefix_len() >= 31 {
+                network
+            } else {
+                first_host + 1
+            },
             reserved,
         }
     }
@@ -234,7 +242,9 @@ impl IpAllocator for SubnetIpAllocator {
         let allocated = self.allocated.len();
 
         // Count reserved IPs in the allocatable range
-        let reserved_in_range = self.reserved.iter()
+        let reserved_in_range = self
+            .reserved
+            .iter()
             .filter(|&&ip| ip >= self.first_host && ip <= self.last_host)
             .count();
 
@@ -242,7 +252,10 @@ impl IpAllocator for SubnetIpAllocator {
     }
 
     fn allocated_ips(&self) -> Vec<Ipv4Addr> {
-        self.allocated.iter().map(|&ip| Ipv4Addr::from(ip)).collect()
+        self.allocated
+            .iter()
+            .map(|&ip| Ipv4Addr::from(ip))
+            .collect()
     }
 }
 

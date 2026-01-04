@@ -38,7 +38,8 @@ impl Metal4Buffer {
         let raw_device = device.raw();
         let options = MTLResourceOptions::StorageModeShared;
 
-        let buffer = raw_device.newBufferWithLength_options(size, options)
+        let buffer = raw_device
+            .newBufferWithLength_options(size, options)
             .ok_or_else(|| {
                 MetalError::creation_failed("Metal4Buffer", "Failed to create buffer")
             })?;
@@ -61,15 +62,16 @@ impl Metal4Buffer {
         let raw_device = device.raw();
         let options = MTLResourceOptions::StorageModeShared;
 
-        let ptr = NonNull::new(data.as_ptr() as *mut std::ffi::c_void).ok_or_else(|| {
-            MetalError::creation_failed("Metal4Buffer", "Null data pointer")
-        })?;
+        let ptr = NonNull::new(data.as_ptr() as *mut std::ffi::c_void)
+            .ok_or_else(|| MetalError::creation_failed("Metal4Buffer", "Null data pointer"))?;
 
-        let buffer =
-            unsafe { raw_device.newBufferWithBytes_length_options(ptr, size, options) }
-                .ok_or_else(|| {
-                    MetalError::creation_failed("Metal4Buffer", "Failed to create buffer with data")
-                })?;
+        // SAFETY: ptr is a NonNull created from a valid &[T] slice and points to
+        // size bytes of readable memory. The Metal API copies the data during buffer
+        // creation, so the pointer only needs to be valid for this call.
+        let buffer = unsafe { raw_device.newBufferWithBytes_length_options(ptr, size, options) }
+            .ok_or_else(|| {
+                MetalError::creation_failed("Metal4Buffer", "Failed to create buffer with data")
+            })?;
 
         Ok(Self { raw: buffer, size })
     }
@@ -104,12 +106,19 @@ impl MetalBuffer for Metal4Buffer {
     fn contents<T: Pod>(&self) -> &[T] {
         let ptr = self.raw.contents();
         let count = self.size / std::mem::size_of::<T>();
+        // SAFETY: MTLBuffer.contents() returns a valid pointer to self.size bytes
+        // of GPU-accessible memory. T: Pod ensures safe reinterpretation. The
+        // slice lifetime is tied to &self, ensuring the buffer remains valid.
         unsafe { std::slice::from_raw_parts(ptr.as_ptr() as *const T, count) }
     }
 
     fn contents_mut<T: Pod>(&mut self) -> &mut [T] {
         let ptr = self.raw.contents();
         let count = self.size / std::mem::size_of::<T>();
+        // SAFETY: MTLBuffer.contents() returns a valid pointer to self.size bytes
+        // of GPU-accessible memory. T: Pod ensures safe reinterpretation. &mut self
+        // ensures exclusive access, preventing data races. The slice lifetime is
+        // tied to &mut self, ensuring the buffer remains valid.
         unsafe { std::slice::from_raw_parts_mut(ptr.as_ptr() as *mut T, count) }
     }
 
@@ -154,8 +163,7 @@ mod tests {
     fn test_buffer_with_data() {
         if let Ok(device) = Metal4Device::system_default() {
             let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
-            let buffer =
-                Metal4Buffer::with_data(&device, &data).expect("Failed to create buffer");
+            let buffer = Metal4Buffer::with_data(&device, &data).expect("Failed to create buffer");
 
             assert_eq!(buffer.len(), 16); // 4 floats * 4 bytes
             let contents: &[f32] = buffer.contents();

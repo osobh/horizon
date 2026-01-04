@@ -1,6 +1,6 @@
 //! QUIC stream helpers for bidirectional and unidirectional communication
 
-use crate::error::{RpcError, Result};
+use crate::error::{Result, RpcError};
 use quinn::{RecvStream, SendStream};
 use std::io;
 use tracing::debug;
@@ -58,10 +58,7 @@ impl QuicBiStream {
     /// Finish the send stream
     pub async fn finish(&mut self) -> Result<()> {
         debug!("Finishing bidirectional stream");
-        self.send
-            .finish()
-            .await
-            .map_err(RpcError::QuicWrite)?;
+        self.send.finish().await.map_err(RpcError::QuicWrite)?;
         Ok(())
     }
 
@@ -101,10 +98,7 @@ impl QuicUniStream {
     /// Finish the stream
     pub async fn finish(&mut self) -> Result<()> {
         debug!("Finishing unidirectional stream");
-        self.send
-            .finish()
-            .await
-            .map_err(RpcError::QuicWrite)?;
+        self.send.finish().await.map_err(RpcError::QuicWrite)?;
         Ok(())
     }
 

@@ -2,10 +2,10 @@
 
 use crate::consensus_synthesis::integration::ConsensusSynthesisEngine;
 use crate::multi_region::{
-    MultiRegionConfig, MultiRegionConsensusEngine, Region, MaliciousBehavior,
-    MultiRegionPerformanceMetrics,
+    MaliciousBehavior, MultiRegionConfig, MultiRegionConsensusEngine,
+    MultiRegionPerformanceMetrics, Region,
 };
-use crate::synthesis::{SynthesisTask, Pattern, Template, Token};
+use crate::synthesis::{Pattern, SynthesisTask, Template, Token};
 use crate::types::GpuSwarmConfig;
 use anyhow::{anyhow, Result};
 use cudarc::driver::CudaDevice;
@@ -69,7 +69,7 @@ impl DistributedTestHarness {
     /// Create new test harness
     pub fn new() -> Result<Self> {
         let device = CudaDevice::new(0)?;
-        
+
         Ok(Self {
             device,
             test_results: Vec::new(),
@@ -97,29 +97,64 @@ impl DistributedTestHarness {
     /// Convert metrics to hashmap
     pub fn metrics_to_hashmap(&self, metrics: &DistributedRuntimeMetrics) -> HashMap<String, f64> {
         let mut map = HashMap::new();
-        map.insert("multi_region_consensus_time_ms".to_string(), metrics.multi_region_consensus_time_ms);
-        map.insert("cross_cloud_deployment_time_ms".to_string(), metrics.cross_cloud_deployment_time_ms);
-        map.insert("disaster_recovery_failover_time_ms".to_string(), metrics.disaster_recovery_failover_time_ms);
-        map.insert("zero_trust_detection_rate".to_string(), metrics.zero_trust_detection_rate as f64);
-        map.insert("auto_scaling_response_time_ms".to_string(), metrics.auto_scaling_response_time_ms);
-        map.insert("global_throughput_tasks_per_second".to_string(), metrics.global_throughput_tasks_per_second);
-        map.insert("consensus_success_rate".to_string(), metrics.consensus_success_rate as f64);
-        map.insert("cross_region_latency_p99_ms".to_string(), metrics.cross_region_latency_p99_ms);
-        map.insert("security_violations_detected".to_string(), metrics.security_violations_detected as f64);
-        map.insert("total_regions_active".to_string(), metrics.total_regions_active as f64);
-        map.insert("cloud_providers_utilized".to_string(), metrics.cloud_providers_utilized as f64);
+        map.insert(
+            "multi_region_consensus_time_ms".to_string(),
+            metrics.multi_region_consensus_time_ms,
+        );
+        map.insert(
+            "cross_cloud_deployment_time_ms".to_string(),
+            metrics.cross_cloud_deployment_time_ms,
+        );
+        map.insert(
+            "disaster_recovery_failover_time_ms".to_string(),
+            metrics.disaster_recovery_failover_time_ms,
+        );
+        map.insert(
+            "zero_trust_detection_rate".to_string(),
+            metrics.zero_trust_detection_rate as f64,
+        );
+        map.insert(
+            "auto_scaling_response_time_ms".to_string(),
+            metrics.auto_scaling_response_time_ms,
+        );
+        map.insert(
+            "global_throughput_tasks_per_second".to_string(),
+            metrics.global_throughput_tasks_per_second,
+        );
+        map.insert(
+            "consensus_success_rate".to_string(),
+            metrics.consensus_success_rate as f64,
+        );
+        map.insert(
+            "cross_region_latency_p99_ms".to_string(),
+            metrics.cross_region_latency_p99_ms,
+        );
+        map.insert(
+            "security_violations_detected".to_string(),
+            metrics.security_violations_detected as f64,
+        );
+        map.insert(
+            "total_regions_active".to_string(),
+            metrics.total_regions_active as f64,
+        );
+        map.insert(
+            "cloud_providers_utilized".to_string(),
+            metrics.cloud_providers_utilized as f64,
+        );
         map
     }
 
     /// Generate comprehensive test results
-    pub async fn generate_comprehensive_test_results(&self) -> Result<DistributedRuntimeTestResults> {
+    pub async fn generate_comprehensive_test_results(
+        &self,
+    ) -> Result<DistributedRuntimeTestResults> {
         // Calculate aggregate metrics from all test phases
         let total_tests = self.test_results.len();
         let passed_tests = self.test_results.iter().filter(|r| r.success).count();
         let failed_tests = total_tests - passed_tests;
-        
+
         let total_duration: Duration = self.test_results.iter().map(|r| r.duration).sum();
-        
+
         // Extract performance metrics
         let mut aggregate_metrics = HashMap::new();
         for result in &self.test_results {
@@ -143,7 +178,11 @@ impl DistributedTestHarness {
                 total_duration,
             },
             performance_metrics: aggregate_metrics,
-            tdd_phases_completed: vec!["RED".to_string(), "GREEN".to_string(), "REFACTOR".to_string()],
+            tdd_phases_completed: vec![
+                "RED".to_string(),
+                "GREEN".to_string(),
+                "REFACTOR".to_string(),
+            ],
             distributed_features_validated: vec![
                 "Multi-Region Consensus".to_string(),
                 "Cross-Cloud Deployment".to_string(),
@@ -282,7 +321,9 @@ pub struct ConsensusEngineFactory;
 
 impl ConsensusEngineFactory {
     /// Create test consensus engine
-    pub async fn create_test_consensus_engine(device: Arc<CudaDevice>) -> Result<ConsensusSynthesisEngine> {
+    pub async fn create_test_consensus_engine(
+        device: Arc<CudaDevice>,
+    ) -> Result<ConsensusSynthesisEngine> {
         let swarm_config = GpuSwarmConfig {
             device_id: 0,
             max_agents: 1000,
@@ -294,12 +335,14 @@ impl ConsensusEngineFactory {
             enable_knowledge_graph: false,
             enable_collective_knowledge: false,
         };
-        
+
         ConsensusSynthesisEngine::new(device, Default::default())
     }
 
     /// Create optimized consensus engine for production testing
-    pub async fn create_optimized_consensus_engine(device: Arc<CudaDevice>) -> Result<ConsensusSynthesisEngine> {
+    pub async fn create_optimized_consensus_engine(
+        device: Arc<CudaDevice>,
+    ) -> Result<ConsensusSynthesisEngine> {
         let swarm_config = GpuSwarmConfig {
             device_id: 0,
             max_agents: 10000, // Higher capacity for production
@@ -311,7 +354,7 @@ impl ConsensusEngineFactory {
             enable_knowledge_graph: true,
             enable_collective_knowledge: true,
         };
-        
+
         ConsensusSynthesisEngine::new(device, Default::default())
     }
 }

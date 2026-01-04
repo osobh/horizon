@@ -194,7 +194,8 @@ impl Metal4ArgumentTable {
     pub fn sync(&mut self) {
         if self.dirty {
             let contents = self.backing_buffer.contents_mut::<u64>();
-            contents[..self.buffer_count].copy_from_slice(&self.buffer_addresses[..self.buffer_count]);
+            contents[..self.buffer_count]
+                .copy_from_slice(&self.buffer_addresses[..self.buffer_count]);
             self.dirty = false;
         }
     }
@@ -268,8 +269,8 @@ mod tests {
         if let Ok(device) = Metal4Device::system_default() {
             let device = Arc::new(device);
             let desc = ArgumentTableDescriptor::default();
-            let table = Metal4ArgumentTable::new(&device, desc)
-                .expect("Failed to create argument table");
+            let table =
+                Metal4ArgumentTable::new(&device, desc).expect("Failed to create argument table");
 
             assert_eq!(table.buffer_count(), 0);
             assert_eq!(table.max_buffers(), 31);
@@ -295,8 +296,7 @@ mod tests {
             let mut table = Metal4ArgumentTable::with_capacity(&device, 16)
                 .expect("Failed to create argument table");
 
-            let buffer = Metal4Buffer::new(&device, 1024)
-                .expect("Failed to create buffer");
+            let buffer = Metal4Buffer::new(&device, 1024).expect("Failed to create buffer");
 
             table.set_buffer(0, &buffer).expect("Failed to set buffer");
             assert_eq!(table.buffer_count(), 1);
@@ -317,8 +317,7 @@ mod tests {
             let mut table = Metal4ArgumentTable::with_capacity(&device, 4)
                 .expect("Failed to create argument table");
 
-            let buffer = Metal4Buffer::new(&device, 1024)
-                .expect("Failed to create buffer");
+            let buffer = Metal4Buffer::new(&device, 1024).expect("Failed to create buffer");
 
             // Index 4 is out of bounds for capacity 4
             let result = table.set_buffer(4, &buffer);
@@ -333,8 +332,7 @@ mod tests {
             let mut table = Metal4ArgumentTable::with_capacity(&device, 16)
                 .expect("Failed to create argument table");
 
-            let buffer = Metal4Buffer::new(&device, 1024)
-                .expect("Failed to create buffer");
+            let buffer = Metal4Buffer::new(&device, 1024).expect("Failed to create buffer");
 
             table.set_buffer(0, &buffer).expect("Failed to set buffer");
             table.set_buffer(5, &buffer).expect("Failed to set buffer");
@@ -354,12 +352,9 @@ mod tests {
             let mut table = Metal4ArgumentTable::with_capacity(&device, 16)
                 .expect("Failed to create argument table");
 
-            let buf1 = Metal4Buffer::new(&device, 1024)
-                .expect("Failed to create buffer");
-            let buf2 = Metal4Buffer::new(&device, 2048)
-                .expect("Failed to create buffer");
-            let buf3 = Metal4Buffer::new(&device, 512)
-                .expect("Failed to create buffer");
+            let buf1 = Metal4Buffer::new(&device, 1024).expect("Failed to create buffer");
+            let buf2 = Metal4Buffer::new(&device, 2048).expect("Failed to create buffer");
+            let buf3 = Metal4Buffer::new(&device, 512).expect("Failed to create buffer");
 
             table.set_buffer(0, &buf1).unwrap();
             table.set_buffer(1, &buf2).unwrap();
@@ -378,8 +373,7 @@ mod tests {
 
     #[test]
     fn test_argument_table_descriptor() {
-        let desc = ArgumentTableDescriptor::with_buffer_capacity(64)
-            .with_label("MyTable");
+        let desc = ArgumentTableDescriptor::with_buffer_capacity(64).with_label("MyTable");
 
         assert_eq!(desc.max_buffer_bind_count, 64);
         assert_eq!(desc.label, Some("MyTable".to_string()));

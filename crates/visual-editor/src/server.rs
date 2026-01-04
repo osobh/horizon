@@ -188,22 +188,18 @@ pub async fn run_server(addr: &str) -> Result<()> {
 
     tracing::info!("Starting Visual Editor server on {}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to bind to address {}: {}", addr, e);
-            crate::error::VisualEditorError::IoError(e)
-        })?;
+    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
+        tracing::error!("Failed to bind to address {}: {}", addr, e);
+        crate::error::VisualEditorError::IoError(e)
+    })?;
 
     tracing::info!("Successfully bound to {}", addr);
     tracing::info!("Visual Editor server is ready to accept connections");
 
-    axum::serve(listener, app)
-        .await
-        .map_err(|e| {
-            tracing::error!("Server error: {}", e);
-            crate::error::VisualEditorError::IoError(e)
-        })?;
+    axum::serve(listener, app).await.map_err(|e| {
+        tracing::error!("Server error: {}", e);
+        crate::error::VisualEditorError::IoError(e)
+    })?;
 
     Ok(())
 }

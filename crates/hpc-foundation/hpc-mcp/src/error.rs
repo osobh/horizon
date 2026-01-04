@@ -116,8 +116,8 @@ mod tests {
 
     #[test]
     fn test_serialization_error_conversion() {
-        let json_err = serde_json::from_str::<serde_json::Value>("{invalid")
-            .expect_err("should fail");
+        let json_err =
+            serde_json::from_str::<serde_json::Value>("{invalid").expect_err("should fail");
         let err: McpError = json_err.into();
         assert!(matches!(err, McpError::Serialization(_)));
     }

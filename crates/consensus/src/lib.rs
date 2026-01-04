@@ -14,9 +14,9 @@ pub mod validator;
 pub mod voting;
 
 // New million-node consensus modules
-pub mod million_node_consensus;
-pub mod consensus_compression;
 pub mod adaptive;
+pub mod consensus_compression;
+pub mod million_node_consensus;
 
 // HPC Channels integration
 #[cfg(feature = "hpc-channels")]
@@ -37,24 +37,23 @@ pub use voting::{Vote, VoteType, VotingRound};
 
 // Adaptive consensus exports
 pub use adaptive::{
-    AdaptiveConsensusEngine, AdaptiveConsensusConfig,
-    ConsensusAlgorithmType, NetworkConditions, AlgorithmPerformance,
-    ConsensusAlgorithm as AdaptiveAlgorithm, ConsensusOutcome,
-    AdaptiveGpuConfig, NetworkMonitoringConfig, OptimizationConfig, SelectionStrategy,
+    AdaptiveConsensusConfig, AdaptiveConsensusEngine, AdaptiveGpuConfig, AlgorithmPerformance,
+    ConsensusAlgorithm as AdaptiveAlgorithm, ConsensusAlgorithmType, ConsensusOutcome,
+    NetworkConditions, NetworkMonitoringConfig, OptimizationConfig, SelectionStrategy,
 };
 
 // Million-node consensus exports
 pub use million_node_consensus::{
-    MillionNodeConsensus, MillionNodeConfig, MillionNodeConsensusResult, MillionNodeHealthMetrics,
-    GpuConfig as MillionNodeGpuConfig, MemoryConfig, PartitionConfig, AlgorithmConfig,
-    ConsensusAlgorithm as MillionNodeAlgorithm, VoteAggregationStrategy, PartitionRecoveryAlgorithm,
+    AlgorithmConfig, ConsensusAlgorithm as MillionNodeAlgorithm, GpuConfig as MillionNodeGpuConfig,
+    MemoryConfig, MillionNodeConfig, MillionNodeConsensus, MillionNodeConsensusResult,
+    MillionNodeHealthMetrics, PartitionConfig, PartitionRecoveryAlgorithm, VoteAggregationStrategy,
 };
 
 // Consensus compression exports
 pub use consensus_compression::{
-    ConsensusCompressionEngine, CompressionConfig, CompressionAlgorithm, CompressedMessage,
-    CompressionStats, CompressionPerformanceMetrics, MessagePattern,
-    CompressionGpuConfig, CompressionMemoryConfig, PatternAnalysisConfig,
+    CompressedMessage, CompressionAlgorithm, CompressionConfig, CompressionGpuConfig,
+    CompressionMemoryConfig, CompressionPerformanceMetrics, CompressionStats,
+    ConsensusCompressionEngine, MessagePattern, PatternAnalysisConfig,
 };
 
 pub use std::time::Duration;
@@ -64,8 +63,7 @@ pub use uuid::Uuid;
 // HPC Channels bridge exports
 #[cfg(feature = "hpc-channels")]
 pub use hpc_bridge::{
-    ConsensusChannelBridge, SharedConsensusChannelBridge, shared_channel_bridge,
-    ConsensusEvent,
+    shared_channel_bridge, ConsensusChannelBridge, ConsensusEvent, SharedConsensusChannelBridge,
 };
 
 #[cfg(test)]

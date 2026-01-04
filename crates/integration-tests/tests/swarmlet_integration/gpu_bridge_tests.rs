@@ -15,8 +15,8 @@ use uuid::Uuid;
 /// TDD phase tracking for systematic test development
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TddPhase {
-    Red,    // Test fails (expected behavior)
-    Green,  // Minimal implementation passes
+    Red,      // Test fails (expected behavior)
+    Green,    // Minimal implementation passes
     Refactor, // Optimize for production
 }
 
@@ -49,11 +49,25 @@ pub struct GpuWorkloadAssignment {
 /// Types of GPU workloads for testing
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GpuWorkloadType {
-    MatrixMultiplication { size: usize },
-    ConvolutionalNN { layers: u32, batch_size: u32 },
-    RayTracing { resolution: (u32, u32), samples: u32 },
-    CryptoMining { algorithm: String, duration_sec: u64 },
-    MachineLearningTraining { model_size: u64, epochs: u32 },
+    MatrixMultiplication {
+        size: usize,
+    },
+    ConvolutionalNN {
+        layers: u32,
+        batch_size: u32,
+    },
+    RayTracing {
+        resolution: (u32, u32),
+        samples: u32,
+    },
+    CryptoMining {
+        algorithm: String,
+        duration_sec: u64,
+    },
+    MachineLearningTraining {
+        model_size: u64,
+        epochs: u32,
+    },
 }
 
 /// Compute requirements specification
@@ -433,31 +447,34 @@ impl SwarmletGpuBridgeTests {
     /// Run comprehensive GPU bridge integration tests
     pub async fn run_comprehensive_tests(&self) -> Vec<GpuBridgeTestResult> {
         println!("🚀 Starting Swarmlet ↔ GPU-Agents Bridge Integration Tests");
-        
+
         // Initialize test environment
         self.setup_test_environment().await;
-        
+
         // RED Phase: Write failing tests
         *self.current_phase.write().await = TddPhase::Red;
         self.run_red_phase_tests().await;
-        
+
         // GREEN Phase: Minimal implementation to pass tests
         *self.current_phase.write().await = TddPhase::Green;
         self.run_green_phase_tests().await;
-        
+
         // REFACTOR Phase: Production optimizations
         *self.current_phase.write().await = TddPhase::Refactor;
         self.run_refactor_phase_tests().await;
-        
+
         let results = self.test_results.lock().await.clone();
-        println!("✅ GPU Bridge Integration Tests Complete: {} results", results.len());
+        println!(
+            "✅ GPU Bridge Integration Tests Complete: {} results",
+            results.len()
+        );
         results
     }
 
     /// Setup test environment with mock GPU agents and swarmlets
     async fn setup_test_environment(&self) {
         println!("⚙️  Setting up GPU bridge test environment");
-        
+
         // Create diverse GPU agent pool
         let mut agents = vec![
             MockGpuAgent {
@@ -503,9 +520,9 @@ impl SwarmletGpuBridgeTests {
                 status: AgentStatus::Idle,
             },
         ];
-        
+
         *self.gpu_agents_pool.write().await = agents;
-        
+
         // Create heterogeneous swarmlet cluster
         let mut swarmlets = vec![
             MockSwarmlet {
@@ -626,28 +643,28 @@ impl SwarmletGpuBridgeTests {
                 },
             },
         ];
-        
+
         *self.swarmlet_cluster.write().await = swarmlets;
-        
+
         println!("✅ Test environment setup complete");
     }
 
     /// RED Phase: Write tests that should fail initially
     async fn run_red_phase_tests(&self) {
         println!("🔴 RED Phase: Writing failing tests for GPU bridge functionality");
-        
+
         // Test 1: GPU workload assignment to optimal swarmlet
         self.test_gpu_workload_assignment_optimal().await;
-        
+
         // Test 2: CPU fallback routing when GPU unavailable
         self.test_cpu_fallback_routing().await;
-        
+
         // Test 3: Performance comparison native vs swarmlet
         self.test_performance_comparison().await;
-        
+
         // Test 4: Multi-workload concurrent assignment
         self.test_concurrent_workload_assignment().await;
-        
+
         // Test 5: Bridge latency and reliability
         self.test_bridge_latency_reliability().await;
     }
@@ -655,16 +672,16 @@ impl SwarmletGpuBridgeTests {
     /// GREEN Phase: Minimal implementation to pass tests
     async fn run_green_phase_tests(&self) {
         println!("🟢 GREEN Phase: Implementing minimal bridge functionality");
-        
+
         // Implement basic routing logic
         self.implement_basic_routing_logic().await;
-        
+
         // Implement workload assignment
         self.implement_workload_assignment().await;
-        
+
         // Implement performance monitoring
         self.implement_performance_monitoring().await;
-        
+
         // Re-run tests to verify they pass
         self.verify_green_phase_tests().await;
     }
@@ -672,19 +689,19 @@ impl SwarmletGpuBridgeTests {
     /// REFACTOR Phase: Production optimizations
     async fn run_refactor_phase_tests(&self) {
         println!("🔵 REFACTOR Phase: Production-ready optimizations");
-        
+
         // Optimize routing algorithms
         self.optimize_routing_algorithms().await;
-        
+
         // Implement intelligent load balancing
         self.implement_intelligent_load_balancing().await;
-        
+
         // Add predictive performance modeling
         self.add_predictive_performance_modeling().await;
-        
+
         // Implement fault tolerance and recovery
         self.implement_fault_tolerance().await;
-        
+
         // Final performance validation
         self.validate_production_performance().await;
     }
@@ -693,7 +710,7 @@ impl SwarmletGpuBridgeTests {
     async fn test_gpu_workload_assignment_optimal(&self) {
         let test_start = Instant::now();
         let test_name = "gpu_workload_assignment_optimal";
-        
+
         // Create GPU-intensive workload
         let workload = GpuWorkloadAssignment {
             assignment_id: Uuid::new_v4(),
@@ -730,13 +747,13 @@ impl SwarmletGpuBridgeTests {
                 power_consumption_watts: 350.0,
             },
         };
-        
+
         // RED Phase: This should fail initially
         let success = match *self.current_phase.read().await {
             TddPhase::Red => false, // Expected to fail
             _ => self.simulate_workload_assignment(&workload).await,
         };
-        
+
         let result = GpuBridgeTestResult {
             test_id: Uuid::new_v4(),
             test_name: test_name.to_string(),
@@ -747,12 +764,16 @@ impl SwarmletGpuBridgeTests {
             cpu_utilization_percent: if success { 20.0 } else { 0.0 },
             memory_usage_mb: if success { 8192.0 } else { 0.0 },
             throughput_ops_per_sec: if success { 2500.0 } else { 0.0 },
-            error_message: if !success { Some("Workload assignment not implemented".to_string()) } else { None },
+            error_message: if !success {
+                Some("Workload assignment not implemented".to_string())
+            } else {
+                None
+            },
             timestamp: Utc::now(),
         };
-        
+
         self.test_results.lock().await.push(result);
-        
+
         if success {
             println!("✅ {}: GPU workload assigned successfully", test_name);
         } else {
@@ -764,13 +785,16 @@ impl SwarmletGpuBridgeTests {
     async fn test_cpu_fallback_routing(&self) {
         let test_start = Instant::now();
         let test_name = "cpu_fallback_routing";
-        
+
         // Create workload that should fallback to CPU
         let workload = GpuWorkloadAssignment {
             assignment_id: Uuid::new_v4(),
-            workload_type: GpuWorkloadType::ConvolutionalNN { layers: 10, batch_size: 32 },
+            workload_type: GpuWorkloadType::ConvolutionalNN {
+                layers: 10,
+                batch_size: 32,
+            },
             compute_requirements: ComputeRequirements {
-                gpu_memory_gb: 32.0, // Requires more than available
+                gpu_memory_gb: 32.0,          // Requires more than available
                 cuda_compute_capability: 9.0, // Higher than available
                 cpu_cores_fallback: 16,
                 system_memory_gb: 64.0,
@@ -801,12 +825,12 @@ impl SwarmletGpuBridgeTests {
                 power_consumption_watts: 180.0,
             },
         };
-        
+
         let success = match *self.current_phase.read().await {
             TddPhase::Red => false,
             _ => self.simulate_cpu_fallback(&workload).await,
         };
-        
+
         let result = GpuBridgeTestResult {
             test_id: Uuid::new_v4(),
             test_name: test_name.to_string(),
@@ -817,12 +841,16 @@ impl SwarmletGpuBridgeTests {
             cpu_utilization_percent: if success { 95.0 } else { 0.0 },
             memory_usage_mb: if success { 32768.0 } else { 0.0 },
             throughput_ops_per_sec: if success { 400.0 } else { 0.0 },
-            error_message: if !success { Some("CPU fallback routing not implemented".to_string()) } else { None },
+            error_message: if !success {
+                Some("CPU fallback routing not implemented".to_string())
+            } else {
+                None
+            },
             timestamp: Utc::now(),
         };
-        
+
         self.test_results.lock().await.push(result);
-        
+
         if success {
             println!("✅ {}: CPU fallback routing successful", test_name);
         } else {
@@ -834,12 +862,12 @@ impl SwarmletGpuBridgeTests {
     async fn test_performance_comparison(&self) {
         let test_start = Instant::now();
         let test_name = "performance_comparison_native_vs_swarmlet";
-        
+
         let success = match *self.current_phase.read().await {
             TddPhase::Red => false,
             _ => self.simulate_performance_comparison().await,
         };
-        
+
         let result = GpuBridgeTestResult {
             test_id: Uuid::new_v4(),
             test_name: test_name.to_string(),
@@ -850,12 +878,16 @@ impl SwarmletGpuBridgeTests {
             cpu_utilization_percent: if success { 25.0 } else { 0.0 },
             memory_usage_mb: if success { 12288.0 } else { 0.0 },
             throughput_ops_per_sec: if success { 1850.0 } else { 0.0 },
-            error_message: if !success { Some("Performance comparison not implemented".to_string()) } else { None },
+            error_message: if !success {
+                Some("Performance comparison not implemented".to_string())
+            } else {
+                None
+            },
             timestamp: Utc::now(),
         };
-        
+
         self.test_results.lock().await.push(result);
-        
+
         if success {
             println!("✅ {}: Performance comparison completed", test_name);
         } else {
@@ -867,12 +899,12 @@ impl SwarmletGpuBridgeTests {
     async fn test_concurrent_workload_assignment(&self) {
         let test_start = Instant::now();
         let test_name = "concurrent_workload_assignment";
-        
+
         let success = match *self.current_phase.read().await {
             TddPhase::Red => false,
             _ => self.simulate_concurrent_assignment().await,
         };
-        
+
         let result = GpuBridgeTestResult {
             test_id: Uuid::new_v4(),
             test_name: test_name.to_string(),
@@ -883,14 +915,21 @@ impl SwarmletGpuBridgeTests {
             cpu_utilization_percent: if success { 65.0 } else { 0.0 },
             memory_usage_mb: if success { 20480.0 } else { 0.0 },
             throughput_ops_per_sec: if success { 3200.0 } else { 0.0 },
-            error_message: if !success { Some("Concurrent assignment not implemented".to_string()) } else { None },
+            error_message: if !success {
+                Some("Concurrent assignment not implemented".to_string())
+            } else {
+                None
+            },
             timestamp: Utc::now(),
         };
-        
+
         self.test_results.lock().await.push(result);
-        
+
         if success {
-            println!("✅ {}: Concurrent workload assignment successful", test_name);
+            println!(
+                "✅ {}: Concurrent workload assignment successful",
+                test_name
+            );
         } else {
             println!("❌ {}: Failed as expected in RED phase", test_name);
         }
@@ -900,12 +939,12 @@ impl SwarmletGpuBridgeTests {
     async fn test_bridge_latency_reliability(&self) {
         let test_start = Instant::now();
         let test_name = "bridge_latency_reliability";
-        
+
         let success = match *self.current_phase.read().await {
             TddPhase::Red => false,
             _ => self.simulate_bridge_reliability().await,
         };
-        
+
         let result = GpuBridgeTestResult {
             test_id: Uuid::new_v4(),
             test_name: test_name.to_string(),
@@ -916,12 +955,16 @@ impl SwarmletGpuBridgeTests {
             cpu_utilization_percent: if success { 30.0 } else { 0.0 },
             memory_usage_mb: if success { 4096.0 } else { 0.0 },
             throughput_ops_per_sec: if success { 1200.0 } else { 0.0 },
-            error_message: if !success { Some("Bridge reliability testing not implemented".to_string()) } else { None },
+            error_message: if !success {
+                Some("Bridge reliability testing not implemented".to_string())
+            } else {
+                None
+            },
             timestamp: Utc::now(),
         };
-        
+
         self.test_results.lock().await.push(result);
-        
+
         if success {
             println!("✅ {}: Bridge latency/reliability test passed", test_name);
         } else {
@@ -933,31 +976,34 @@ impl SwarmletGpuBridgeTests {
     async fn simulate_workload_assignment(&self, workload: &GpuWorkloadAssignment) -> bool {
         // Simulate finding best swarmlet match
         let swarmlets = self.swarmlet_cluster.read().await;
-        
+
         for swarmlet in swarmlets.iter() {
-            if self.is_suitable_for_workload(&swarmlet.capabilities, &workload.compute_requirements) {
+            if self.is_suitable_for_workload(&swarmlet.capabilities, &workload.compute_requirements)
+            {
                 // Simulate successful assignment
                 tokio::time::sleep(Duration::from_millis(50)).await;
                 return true;
             }
         }
-        
+
         false
     }
 
     /// Simulate CPU fallback routing
     async fn simulate_cpu_fallback(&self, workload: &GpuWorkloadAssignment) -> bool {
         let swarmlets = self.swarmlet_cluster.read().await;
-        
+
         // Find CPU-only nodes
         for swarmlet in swarmlets.iter() {
-            if !swarmlet.capabilities.has_gpu && 
-               swarmlet.capabilities.cpu_cores >= workload.compute_requirements.cpu_cores_fallback {
+            if !swarmlet.capabilities.has_gpu
+                && swarmlet.capabilities.cpu_cores
+                    >= workload.compute_requirements.cpu_cores_fallback
+            {
                 tokio::time::sleep(Duration::from_millis(80)).await;
                 return true;
             }
         }
-        
+
         false
     }
 
@@ -983,15 +1029,19 @@ impl SwarmletGpuBridgeTests {
     }
 
     /// Check if swarmlet capabilities match workload requirements
-    fn is_suitable_for_workload(&self, capabilities: &NodeCapabilities, requirements: &ComputeRequirements) -> bool {
+    fn is_suitable_for_workload(
+        &self,
+        capabilities: &NodeCapabilities,
+        requirements: &ComputeRequirements,
+    ) -> bool {
         if requirements.gpu_memory_gb > 0.0 {
             // GPU workload
-            capabilities.has_gpu &&
-            capabilities.gpu_memory_gb.unwrap_or(0.0) >= requirements.gpu_memory_gb
+            capabilities.has_gpu
+                && capabilities.gpu_memory_gb.unwrap_or(0.0) >= requirements.gpu_memory_gb
         } else {
             // CPU workload
-            capabilities.cpu_cores >= requirements.cpu_cores_fallback &&
-            capabilities.system_memory_gb >= requirements.system_memory_gb
+            capabilities.cpu_cores >= requirements.cpu_cores_fallback
+                && capabilities.system_memory_gb >= requirements.system_memory_gb
         }
     }
 
@@ -1056,7 +1106,7 @@ mod tests {
     #[tokio::test]
     async fn test_workload_suitability_check() {
         let test_suite = SwarmletGpuBridgeTests::new().await;
-        
+
         let gpu_capabilities = NodeCapabilities {
             has_gpu: true,
             gpu_model: Some("RTX 4090".to_string()),
@@ -1067,7 +1117,7 @@ mod tests {
             system_memory_gb: 64.0,
             network_speed_gbps: 10.0,
         };
-        
+
         let gpu_requirements = ComputeRequirements {
             gpu_memory_gb: 16.0,
             cuda_compute_capability: 8.0,
@@ -1076,14 +1126,14 @@ mod tests {
             storage_gb: 10.0,
             network_bandwidth_mbps: 1000.0,
         };
-        
+
         assert!(test_suite.is_suitable_for_workload(&gpu_capabilities, &gpu_requirements));
     }
 
     #[tokio::test]
     async fn test_cpu_fallback_suitability() {
         let test_suite = SwarmletGpuBridgeTests::new().await;
-        
+
         let cpu_capabilities = NodeCapabilities {
             has_gpu: false,
             gpu_model: None,
@@ -1094,7 +1144,7 @@ mod tests {
             system_memory_gb: 128.0,
             network_speed_gbps: 25.0,
         };
-        
+
         let cpu_requirements = ComputeRequirements {
             gpu_memory_gb: 0.0, // No GPU required
             cuda_compute_capability: 0.0,
@@ -1103,7 +1153,7 @@ mod tests {
             storage_gb: 20.0,
             network_bandwidth_mbps: 2000.0,
         };
-        
+
         assert!(test_suite.is_suitable_for_workload(&cpu_capabilities, &cpu_requirements));
     }
 
@@ -1111,15 +1161,24 @@ mod tests {
     async fn test_comprehensive_bridge_tests() {
         let test_suite = SwarmletGpuBridgeTests::new().await;
         let results = test_suite.run_comprehensive_tests().await;
-        
+
         // Should have results from all phases
         assert!(results.len() >= 15); // 5 tests × 3 phases minimum
-        
+
         // Check we have results from each phase
-        let red_results: Vec<_> = results.iter().filter(|r| r.phase == TddPhase::Red).collect();
-        let green_results: Vec<_> = results.iter().filter(|r| r.phase == TddPhase::Green).collect();
-        let refactor_results: Vec<_> = results.iter().filter(|r| r.phase == TddPhase::Refactor).collect();
-        
+        let red_results: Vec<_> = results
+            .iter()
+            .filter(|r| r.phase == TddPhase::Red)
+            .collect();
+        let green_results: Vec<_> = results
+            .iter()
+            .filter(|r| r.phase == TddPhase::Green)
+            .collect();
+        let refactor_results: Vec<_> = results
+            .iter()
+            .filter(|r| r.phase == TddPhase::Refactor)
+            .collect();
+
         assert!(!red_results.is_empty());
         assert!(!green_results.is_empty());
         assert!(!refactor_results.is_empty());

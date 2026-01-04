@@ -3,34 +3,39 @@
 //! GPU-accelerated knowledge graph compression system using advanced graph algorithms
 //! and neural compression techniques.
 
+pub mod cache;
 pub mod config;
 pub mod engine;
-pub mod streaming;
-pub mod metrics;
 pub mod gpu;
-pub mod cache;
+pub mod metrics;
+pub mod streaming;
 
 pub use config::{
-    CompressionConfig, CompressionGpuConfig, CompressionAlgorithm,
-    SemanticPreservationConfig, GpuOptimizationLevel,
+    CompressionAlgorithm, CompressionConfig, CompressionGpuConfig, GpuOptimizationLevel,
+    SemanticPreservationConfig,
 };
 pub use engine::KnowledgeCompressionEngine;
-pub use streaming::{StreamingCompressionEngine, StreamingCompressionConfig};
 pub use metrics::{
-    CompressionQualityMetrics, CompressionPerformanceMetrics,
-    GraphStatistics, GpuUtilizationStats,
+    CompressionPerformanceMetrics, CompressionQualityMetrics, GpuUtilizationStats, GraphStatistics,
 };
+pub use streaming::{StreamingCompressionConfig, StreamingCompressionEngine};
 
 use crate::KnowledgeGraphResult;
 
 /// Main compression trait that all compression engines implement
 pub trait CompressionEngine {
     /// Compress a knowledge graph
-    async fn compress(&self, graph: &crate::KnowledgeGraph) -> KnowledgeGraphResult<CompressedKnowledgeGraph>;
-    
+    async fn compress(
+        &self,
+        graph: &crate::KnowledgeGraph,
+    ) -> KnowledgeGraphResult<CompressedKnowledgeGraph>;
+
     /// Decompress a compressed graph
-    async fn decompress(&self, compressed: &CompressedKnowledgeGraph) -> KnowledgeGraphResult<crate::KnowledgeGraph>;
-    
+    async fn decompress(
+        &self,
+        compressed: &CompressedKnowledgeGraph,
+    ) -> KnowledgeGraphResult<crate::KnowledgeGraph>;
+
     /// Get compression metrics
     fn get_metrics(&self) -> CompressionPerformanceMetrics;
 }

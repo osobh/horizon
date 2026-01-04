@@ -95,7 +95,7 @@ impl NodeSubnetInfo {
 }
 
 /// Subnet affinity for job scheduling
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum SubnetAffinity {
     /// Node must be in this specific subnet
     Required(Uuid),
@@ -106,18 +106,17 @@ pub enum SubnetAffinity {
     /// Must not be in these subnets
     Excluded(Vec<Uuid>),
     /// No subnet preference
+    #[default]
     None,
-}
-
-impl Default for SubnetAffinity {
-    fn default() -> Self {
-        SubnetAffinity::None
-    }
 }
 
 impl SubnetAffinity {
     /// Check if a node in a given subnet satisfies this affinity
-    pub fn is_satisfied(&self, node_subnet_id: Uuid, all_assignments: &HashMap<Uuid, Uuid>) -> bool {
+    pub fn is_satisfied(
+        &self,
+        node_subnet_id: Uuid,
+        all_assignments: &HashMap<Uuid, Uuid>,
+    ) -> bool {
         match self {
             SubnetAffinity::Required(subnet_id) => node_subnet_id == *subnet_id,
             SubnetAffinity::Preferred(_) => true, // Always satisfied, just affects scoring
@@ -142,13 +141,11 @@ impl SubnetAffinity {
                     0.0
                 }
             }
-            SubnetAffinity::Preferred(prefs) => {
-                prefs
-                    .iter()
-                    .find(|(id, _)| *id == node_subnet_id)
-                    .map(|(_, weight)| *weight)
-                    .unwrap_or(0.5)
-            }
+            SubnetAffinity::Preferred(prefs) => prefs
+                .iter()
+                .find(|(id, _)| *id == node_subnet_id)
+                .map(|(_, weight)| *weight)
+                .unwrap_or(0.5),
             SubnetAffinity::SameAs(_) => 1.0, // Score doesn't apply here
             SubnetAffinity::Excluded(subnets) => {
                 if subnets.contains(&node_subnet_id) {
@@ -410,11 +407,7 @@ impl SubnetMeshOrchestrator {
     }
 
     /// Calculate subnet affinity score for a node
-    pub fn calculate_affinity_score(
-        &self,
-        node_id: Uuid,
-        affinity: &SubnetAffinity,
-    ) -> f64 {
+    pub fn calculate_affinity_score(&self, node_id: Uuid, affinity: &SubnetAffinity) -> f64 {
         match self.assignment_cache.read().get(&node_id) {
             Some(subnet_id) => affinity.score(*subnet_id),
             None => 0.0, // Node not assigned
@@ -433,14 +426,17 @@ impl SubnetMeshOrchestrator {
     /// Re-evaluate all nodes and migrate if policies changed
     #[instrument(skip(self))]
     pub async fn reevaluate_all(&self) -> Vec<(Uuid, Uuid, Uuid)> {
-        let mut migrations = Vec::new();
+        let migrations = Vec::new();
 
         // This would iterate over all known nodes and check if their
         // current subnet assignment still matches the best policy
         // For now, return empty - full implementation would require
         // tracking node attributes
 
-        debug!("Re-evaluation complete, {} migrations needed", migrations.len());
+        debug!(
+            "Re-evaluation complete, {} migrations needed",
+            migrations.len()
+        );
         migrations
     }
 }
@@ -512,10 +508,7 @@ mod tests {
         let subnet2 = Uuid::new_v4();
         let subnet3 = Uuid::new_v4();
 
-        let affinity = SubnetAffinity::Preferred(vec![
-            (subnet1, 1.0),
-            (subnet2, 0.8),
-        ]);
+        let affinity = SubnetAffinity::Preferred(vec![(subnet1, 1.0), (subnet2, 0.8)]);
 
         assert_eq!(affinity.score(subnet1), 1.0);
         assert_eq!(affinity.score(subnet2), 0.8);

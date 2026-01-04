@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::traits::{AgentGenome, ArchitectureGenes, BehaviorGenes, EvolvableAgent};
-use stratoswarm_agent_core::{Agent, AgentConfig, Goal};
 use std::time::Duration;
+use stratoswarm_agent_core::{Agent, AgentConfig, Goal};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -92,11 +92,10 @@ fn test_population_evolution_step() -> TestResult {
     let mut population = ManagedPopulation::new("test_pop".to_string(), agents).unwrap();
 
     let initial_generation = population.generation();
-    population
-        .evolve_generation(
-            &SelectionStrategy::Tournament { size: 3 },
-            &CrossoverStrategy::Uniform { rate: 0.7 },
-        )?;
+    population.evolve_generation(
+        &SelectionStrategy::Tournament { size: 3 },
+        &CrossoverStrategy::Uniform { rate: 0.7 },
+    )?;
 
     assert_eq!(population.generation(), initial_generation + 1);
     assert_eq!(population.size(), 10); // Population size should remain constant
@@ -109,8 +108,7 @@ fn test_selection_strategies() -> TestResult {
     let population = ManagedPopulation::new("test_pop".to_string(), agents).unwrap();
 
     // Test tournament selection
-    let selected = population
-        .select_parents(&SelectionStrategy::Tournament { size: 3 }, 5)?;
+    let selected = population.select_parents(&SelectionStrategy::Tournament { size: 3 }, 5)?;
     assert_eq!(selected.len(), 5);
 
     // Test elite selection
@@ -134,8 +132,8 @@ fn test_crossover_strategies() -> TestResult {
     let parent2 = &population.get_agents()[1];
 
     // Test uniform crossover
-    let offspring = population
-        .crossover(parent1, parent2, &CrossoverStrategy::Uniform { rate: 0.5 })?;
+    let offspring =
+        population.crossover(parent1, parent2, &CrossoverStrategy::Uniform { rate: 0.5 })?;
     assert_eq!(offspring.len(), 2);
     assert_ne!(offspring[0].agent.id(), parent1.agent.id());
     assert_ne!(offspring[1].agent.id(), parent2.agent.id());

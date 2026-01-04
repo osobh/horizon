@@ -24,6 +24,9 @@ impl<T> UnifiedMemory<T> {
         // Allocate unified memory using cudarc
         // In real implementation, would use cudaMallocManaged
         // For now, we'll use regular device allocation as placeholder
+        // SAFETY: alloc returns uninitialized memory. This is a placeholder allocation
+        // that would be replaced with cudaMallocManaged in real implementation.
+        // The memory will be written before any kernel reads from it.
         let device_ptr = unsafe {
             device
                 .alloc::<u8>(size_bytes)
@@ -291,7 +294,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_unified_memory_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_unified_memory_creation() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let mem = UnifiedMemory::<f32>::new(device, 1024)?;
@@ -301,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_pool() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_memory_pool() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let mut pool = UnifiedMemoryPool::new(device, 1024 * 1024);

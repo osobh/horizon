@@ -568,6 +568,12 @@ impl ZeroCopyDataAccess {
     }
 
     /// Create from raw pointer (unsafe)
+    ///
+    /// # Safety
+    /// The caller must ensure that:
+    /// - `ptr` is valid for reads of `len` bytes
+    /// - The memory referenced by `ptr` remains valid for the lifetime of ZeroCopyDataAccess
+    /// - `ptr` is properly aligned for u8 (which is always true)
     pub unsafe fn from_raw_ptr(ptr: *const u8, len: usize) -> Self {
         Self {
             mmap_handle: None,
@@ -578,6 +584,9 @@ impl ZeroCopyDataAccess {
 
     /// Get data slice
     pub fn as_slice(&self) -> &[u8] {
+        // SAFETY: data_ptr and data_len were either set from a valid mmap handle
+        // in from_mmap(), or the caller guaranteed validity via from_raw_ptr().
+        // The mmap_handle keeps the memory alive for the lifetime of self.
         unsafe { std::slice::from_raw_parts(self.data_ptr, self.data_len) }
     }
 

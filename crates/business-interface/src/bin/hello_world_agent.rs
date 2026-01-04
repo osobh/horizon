@@ -7,13 +7,13 @@
 //! 4. Execute "Hello World" on GPU
 //! 5. Return results through the system
 
+use serde_json::json;
+use std::collections::HashMap;
+use std::time::Duration;
 use stratoswarm_business_interface::{
     ollama_client::{OllamaClient, OllamaConfig},
     BusinessInterface, GoalCategory, GoalPriority, GoalSubmissionRequest,
 };
-use serde_json::json;
-use std::collections::HashMap;
-use std::time::Duration;
 use tokio::time::timeout;
 
 /// Simple GPU Hello World Agent

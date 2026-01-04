@@ -4,7 +4,6 @@
 //! for managing queries, statistics, and coordination between different
 //! execution strategies.
 
-use super::gpu_kernels::GpuKernelManager;
 use super::query_execution::QueryExecutor;
 use super::query_types::*;
 use crate::error::KnowledgeGraphResult;
@@ -396,8 +395,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Add test node
         let node = Node::new(NodeType::Agent, HashMap::new());
@@ -426,8 +424,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         let queries = vec![
             Query::new(QueryType::FindNodes {
@@ -492,8 +489,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // This should trigger validation error
         let invalid_query = Query::new(QueryType::FindPath {
@@ -616,8 +612,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Execute a query to generate stats
         let query = Query::new(QueryType::FindNodes {

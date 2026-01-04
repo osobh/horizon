@@ -80,9 +80,10 @@ impl IntoResponse for VisualEditorError {
             VisualEditorError::SerdeError(_) => {
                 (StatusCode::BAD_REQUEST, "Invalid JSON format".to_string())
             }
-            VisualEditorError::AgentError(e) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Agent error: {}", e))
-            }
+            VisualEditorError::AgentError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Agent error: {}", e),
+            ),
             VisualEditorError::Other(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "An error occurred".to_string(),

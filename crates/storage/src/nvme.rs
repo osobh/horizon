@@ -164,7 +164,7 @@ impl NvmeStorage {
 
         let mut file = OpenOptions::new()
             .create(true)
-            .truncate(false)  // Keep existing data; we write at specific offset
+            .truncate(false) // Keep existing data; we write at specific offset
             .write(true)
             .open(&file_path)
             .await?;
@@ -236,10 +236,11 @@ impl Storage for NvmeStorage {
         while let Some(entry) = entries.next_entry().await? {
             if let Some(filename) = entry.file_name().to_str() {
                 if filename.ends_with(".dat") {
-                    let key = filename.strip_suffix(".dat")
-                        .ok_or_else(|| StorageError::InvalidDataFormat {
-                            reason: "Failed to strip .dat suffix".to_string()
-                        })?;
+                    let key = filename.strip_suffix(".dat").ok_or_else(|| {
+                        StorageError::InvalidDataFormat {
+                            reason: "Failed to strip .dat suffix".to_string(),
+                        }
+                    })?;
                     if key.starts_with(prefix) {
                         keys.push(key.to_string());
                     }

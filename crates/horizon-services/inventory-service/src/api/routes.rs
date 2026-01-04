@@ -10,8 +10,8 @@ use utoipa_swagger_ui::SwaggerUi;
 use super::handlers;
 use super::state::AppState;
 use crate::api::models::{
-    CreateAssetRequest, DiscoverAssetsRequest, HealthResponse, ListAssetsQuery,
-    ListAssetsResponse, ListHistoryResponse, Pagination, UpdateAssetRequest,
+    CreateAssetRequest, DiscoverAssetsRequest, HealthResponse, ListAssetsQuery, ListAssetsResponse,
+    ListHistoryResponse, Pagination, UpdateAssetRequest,
 };
 use crate::models::{Asset, AssetHistory, AssetMetrics, AssetStatus, AssetType, ProviderType};
 
@@ -62,16 +62,28 @@ pub fn create_routes(pool: PgPool) -> Router {
     let state = AppState::new(pool);
 
     let api_routes = Router::new()
-        .route("/api/v1/assets", get(handlers::assets::list_assets).post(handlers::assets::create_asset))
+        .route(
+            "/api/v1/assets",
+            get(handlers::assets::list_assets).post(handlers::assets::create_asset),
+        )
         .route(
             "/api/v1/assets/:id",
             get(handlers::assets::get_asset)
                 .put(handlers::assets::update_asset)
                 .delete(handlers::assets::decommission_asset),
         )
-        .route("/api/v1/assets/discover", post(handlers::assets::discover_assets))
-        .route("/api/v1/assets/:id/history", get(handlers::history::list_asset_history))
-        .route("/api/v1/assets/:id/metrics", get(handlers::metrics::get_asset_metrics));
+        .route(
+            "/api/v1/assets/discover",
+            post(handlers::assets::discover_assets),
+        )
+        .route(
+            "/api/v1/assets/:id/history",
+            get(handlers::history::list_asset_history),
+        )
+        .route(
+            "/api/v1/assets/:id/metrics",
+            get(handlers::metrics::get_asset_metrics),
+        );
 
     Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))

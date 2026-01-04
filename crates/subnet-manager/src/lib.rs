@@ -25,33 +25,48 @@ pub mod service;
 pub mod wireguard;
 
 // Re-export core types
+pub use api::{create_router, start_server, ApiServerConfig, AppState};
 pub use error::{Error, Result};
-pub use models::{
-    AssignmentPolicy, CrossSubnetRoute, PolicyRule, RouteDirection, Subnet, SubnetAssignment,
-    SubnetPurpose, SubnetStatus, SubnetTemplate,
+pub use events::{
+    EventTransport, InMemoryTransport, SubnetEventPublisher, SubnetMessage, SUBNET_ASSIGNMENTS,
+    SUBNET_LIFECYCLE, SUBNET_ROUTES, SUBNET_TOPOLOGY, SUBNET_WIREGUARD,
 };
-pub use service::SubnetManager;
-pub use wireguard::{
-    ConfigChange, ConfigSyncService, InterfaceConfig, KeyPair, PeerConfig, SyncEvent, SyncStatus,
-    WireGuardConfigGenerator, WireGuardKeys, WireGuardSubnetConfig,
-    // Subnet-aware WireGuard
-    InterfaceInfo, SubnetAwareWireGuard, SubnetPeer, SubnetWireGuardError,
-    // Migration coordination
-    MigrationCoordError, MigrationCoordStatus, MigrationCoordinator, ProbeConfig, ProbeResult,
+pub use integration::{
+    ClusterNodeInfo, MeshCallbacks, NodeClassMapper, NodeSubnetInfo, OrchestrationError,
+    SubnetAffinity, SubnetMeshOrchestrator,
 };
 pub use migration::{
     BulkMigrationPlan, Migration, MigrationConstraint, MigrationExecutor, MigrationHandle,
     MigrationOptions, MigrationPlan, MigrationPlanner, MigrationProgress, MigrationReason,
     MigrationStateMachine, MigrationStats, MigrationStatus, MigrationStep,
 };
-pub use api::{create_router, start_server, ApiServerConfig, AppState};
-pub use events::{
-    SubnetEventPublisher, SubnetMessage, EventTransport, InMemoryTransport,
-    SUBNET_LIFECYCLE, SUBNET_TOPOLOGY, SUBNET_ASSIGNMENTS, SUBNET_ROUTES, SUBNET_WIREGUARD,
+pub use models::{
+    AssignmentPolicy, CrossSubnetRoute, PolicyRule, RouteDirection, Subnet, SubnetAssignment,
+    SubnetPurpose, SubnetStatus, SubnetTemplate,
 };
-pub use integration::{
-    SubnetMeshOrchestrator, NodeSubnetInfo, SubnetAffinity, NodeClassMapper,
-    ClusterNodeInfo, MeshCallbacks, OrchestrationError,
+pub use service::SubnetManager;
+pub use wireguard::{
+    ConfigChange,
+    ConfigSyncService,
+    InterfaceConfig,
+    // Subnet-aware WireGuard
+    InterfaceInfo,
+    KeyPair,
+    // Migration coordination
+    MigrationCoordError,
+    MigrationCoordStatus,
+    MigrationCoordinator,
+    PeerConfig,
+    ProbeConfig,
+    ProbeResult,
+    SubnetAwareWireGuard,
+    SubnetPeer,
+    SubnetWireGuardError,
+    SyncEvent,
+    SyncStatus,
+    WireGuardConfigGenerator,
+    WireGuardKeys,
+    WireGuardSubnetConfig,
 };
 
 /// Master address space configuration

@@ -47,9 +47,7 @@ async fn test_agent_evolution_to_synthesis() -> TestResult {
 
     // Get goals
     let goals = agent.goals().await;
-    let spec = interpreter
-        .interpret(&goals.first().unwrap())
-        .await?;
+    let spec = interpreter.interpret(&goals.first().unwrap()).await?;
 
     // Verify we got a valid specification
     assert!(matches!(

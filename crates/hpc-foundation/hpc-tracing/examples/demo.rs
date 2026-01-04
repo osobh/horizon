@@ -7,10 +7,10 @@
 //! - Record metrics
 //! - Handle graceful shutdown
 
-use hpc_tracing::{TracingConfig, init, init_metrics};
+use hpc_tracing::{init, init_metrics, TracingConfig};
 use std::net::SocketAddr;
 use std::time::Duration;
-use tracing::{info, warn, error, debug, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 /// Simulates a data processing operation with tracing
 #[instrument(skip(data))]

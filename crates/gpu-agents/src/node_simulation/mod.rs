@@ -100,10 +100,14 @@ impl MultiNodeSimulator {
         let total_memory = config.max_nodes * config.gpu_memory_per_node;
 
         // Allocate GPU memory for all nodes
+        // SAFETY: alloc returns uninitialized memory. gpu_memory is partitioned
+        // among nodes and will be written when nodes perform GPU operations.
         let gpu_memory = unsafe { device.alloc::<u8>(total_memory) }
             .map_err(|e| anyhow!("Failed to allocate GPU memory: {}", e))?;
 
         // Allocate communication buffer
+        // SAFETY: alloc returns uninitialized memory. comm_buffer will be written
+        // when cross-node messages are sent via GPU-accelerated communication.
         let comm_buffer = unsafe { device.alloc::<u8>(config.communication_buffer_size) }
             .map_err(|e| anyhow!("Failed to allocate comm buffer: {}", e))?;
 

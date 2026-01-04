@@ -40,6 +40,8 @@ impl GpuTransformer {
         transform_type: TransformType,
         buffer_size: usize,
     ) -> Result<Self> {
+        // SAFETY: alloc returns uninitialized memory. temp_buffer is used as scratch
+        // space by transformation kernels and will be written before read.
         let temp_buffer = unsafe { device.alloc::<u8>(buffer_size)? };
 
         Ok(Self {
@@ -80,8 +82,12 @@ impl GpuTransformer {
     ) -> Result<usize> {
         // Allocate state buffer for parser
         let state_size = input.len() / 4; // Estimate
+                                          // SAFETY: alloc returns uninitialized memory. parser_state is internal scratch
+                                          // space that the kernel initializes before use.
         let parser_state = unsafe { self.device.alloc::<u32>(state_size)? };
 
+        // SAFETY: All pointers are valid device pointers from CudaSlice references.
+        // Input/output/parser_state lengths match their allocations. Stream is valid.
         unsafe {
             launch_json_parser(
                 *input.device_ptr() as *const u8,
@@ -106,6 +112,8 @@ impl GpuTransformer {
         let delimiter = b',';
         let quote = b'"';
 
+        // SAFETY: All pointers are valid device pointers from CudaSlice references.
+        // Input/output lengths match their allocations. Stream is valid.
         unsafe {
             launch_csv_parser(
                 *input.device_ptr() as *const u8,
@@ -131,6 +139,8 @@ impl GpuTransformer {
         // Assume input is array of f32
         let input_floats = input.len() / 4;
 
+        // SAFETY: All pointers are valid device pointers from CudaSlice references.
+        // Input is reinterpreted as f32 array (4 bytes per element). Stream is valid.
         unsafe {
             launch_normalize(
                 *input.device_ptr() as *const f32,
@@ -153,6 +163,8 @@ impl GpuTransformer {
         stream: &CudaStream,
     ) -> Result<usize> {
         if let Some(ref schema) = self.schema {
+            // SAFETY: All pointers are valid device pointers from CudaSlice references.
+            // Schema pointer is valid for the duration of the kernel call. Stream is valid.
             unsafe {
                 launch_type_converter(
                     *input.device_ptr() as *const u8,
@@ -276,6 +288,8 @@ impl BatchTransformer {
 
             for input in outputs {
                 let output_size = transformer.output_size(input.len());
+                // SAFETY: alloc returns uninitialized memory. Output buffer will be
+                // written by transformer.process() before any subsequent reads.
                 let mut output = unsafe { self.device.alloc::<u8>(output_size)? };
 
                 transformer.process(&input, &mut output, stream)?;
@@ -334,7 +348,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_transformer_names() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_transformer_names() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
 

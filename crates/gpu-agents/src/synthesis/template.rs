@@ -21,10 +21,16 @@ impl GpuTemplateExpander {
     /// Create a new GPU template expander
     pub fn new(device: Arc<CudaDevice>, max_output_size: usize) -> Result<Self> {
         // Allocate GPU buffers
+        // SAFETY: alloc returns uninitialized memory. template_buffer will be written
+        // via htod_copy_into in expand_template() before the kernel reads it.
         let template_buffer = unsafe { device.alloc::<u8>(max_output_size) }
             .context("Failed to allocate template buffer")?;
+        // SAFETY: alloc returns uninitialized memory. binding_buffer will be written
+        // via htod_copy_into in expand_template() before the kernel reads it.
         let binding_buffer = unsafe { device.alloc::<u8>(max_output_size) }
             .context("Failed to allocate binding buffer")?;
+        // SAFETY: alloc returns uninitialized memory. output_buffer will be cleared
+        // to zeros in expand_template() before the kernel writes results.
         let output_buffer = unsafe { device.alloc::<u8>(max_output_size) }
             .context("Failed to allocate output buffer")?;
 
@@ -59,6 +65,11 @@ impl GpuTemplateExpander {
             .htod_copy_into(zeros, &mut self.output_buffer.clone())?;
 
         // Launch template expansion kernel
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
+        // - template_buffer: populated via htod_copy_into above
+        // - binding_buffer: populated via htod_copy_into above
+        // - output_buffer: cleared to zeros above, kernel writes expanded result
+        // - max_output_size matches the allocation size
         unsafe {
             crate::synthesis::launch_expand_templates(
                 *self.template_buffer.device_ptr() as *const u8,

@@ -74,13 +74,11 @@ impl ChargebackGenerator {
             ));
         }
 
-        Ok(ChargebackReport::new(
-            customer_id.to_string(),
-            period_start,
-            period_end,
+        Ok(
+            ChargebackReport::new(customer_id.to_string(), period_start, period_end)
+                .with_breakdown(breakdown)
+                .with_line_items(line_items),
         )
-        .with_breakdown(breakdown)
-        .with_line_items(line_items))
     }
 
     /// Generate detailed line items from attributions
@@ -96,11 +94,7 @@ impl ChargebackGenerator {
             .get_attributions(period_start, period_end, None, None, Some(customer_id))
             .await?;
 
-        let mut report = ChargebackReport::new(
-            customer_id.to_string(),
-            period_start,
-            period_end,
-        );
+        let mut report = ChargebackReport::new(customer_id.to_string(), period_start, period_end);
 
         // Create breakdown
         let breakdown = CostBreakdown::from_summaries(&attributions);
@@ -111,7 +105,9 @@ impl ChargebackGenerator {
             if attr.gpu_cost > Decimal::ZERO {
                 let desc = format!(
                     "GPU - Job {} - User {}",
-                    attr.job_id.map(|id| id.to_string()).unwrap_or_else(|| "N/A".to_string()),
+                    attr.job_id
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "N/A".to_string()),
                     attr.user_id
                 );
                 report.add_line_item(ChargebackLineItem::new(
@@ -126,7 +122,9 @@ impl ChargebackGenerator {
             if attr.cpu_cost > Decimal::ZERO {
                 let desc = format!(
                     "CPU - Job {} - User {}",
-                    attr.job_id.map(|id| id.to_string()).unwrap_or_else(|| "N/A".to_string()),
+                    attr.job_id
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "N/A".to_string()),
                     attr.user_id
                 );
                 report.add_line_item(ChargebackLineItem::new(

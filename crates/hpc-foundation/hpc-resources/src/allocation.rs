@@ -38,12 +38,15 @@ impl ResourceAllocation {
     ) -> Self {
         self.assignments
             .entry(resource_type)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(assignment);
         self
     }
 
-    pub fn get_assignments(&self, resource_type: &ResourceType) -> Option<&Vec<ResourceAssignment>> {
+    pub fn get_assignments(
+        &self,
+        resource_type: &ResourceType,
+    ) -> Option<&Vec<ResourceAssignment>> {
         self.assignments.get(resource_type)
     }
 

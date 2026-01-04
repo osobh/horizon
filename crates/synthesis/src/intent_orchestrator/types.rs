@@ -116,7 +116,7 @@ impl SuccessCriterion {
     /// Evaluate if criterion is met
     pub fn evaluate(&self, actual_value: f64) -> bool {
         let tolerance = self.tolerance.unwrap_or(0.0);
-        
+
         match self.operator {
             ComparisonOperator::Equal => (actual_value - self.target_value).abs() <= tolerance,
             ComparisonOperator::NotEqual => (actual_value - self.target_value).abs() > tolerance,
@@ -175,20 +175,20 @@ impl Vocabulary {
         let special_tokens = SpecialTokens::default();
         let mut word_to_idx = std::collections::HashMap::new();
         let mut idx_to_word = std::collections::HashMap::new();
-        
+
         // Add special tokens
         word_to_idx.insert(special_tokens.pad.clone(), 0);
         word_to_idx.insert(special_tokens.unk.clone(), 1);
         word_to_idx.insert(special_tokens.bos.clone(), 2);
         word_to_idx.insert(special_tokens.eos.clone(), 3);
         word_to_idx.insert(special_tokens.mask.clone(), 4);
-        
+
         idx_to_word.insert(0, special_tokens.pad.clone());
         idx_to_word.insert(1, special_tokens.unk.clone());
         idx_to_word.insert(2, special_tokens.bos.clone());
         idx_to_word.insert(3, special_tokens.eos.clone());
         idx_to_word.insert(4, special_tokens.mask.clone());
-        
+
         Self {
             word_to_idx,
             idx_to_word,
@@ -212,7 +212,8 @@ impl Vocabulary {
 
     /// Get index for word
     pub fn get_idx(&self, word: &str) -> usize {
-        self.word_to_idx.get(word)
+        self.word_to_idx
+            .get(word)
             .copied()
             .unwrap_or_else(|| self.word_to_idx[&self.special_tokens.unk])
     }

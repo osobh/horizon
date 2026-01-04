@@ -238,9 +238,7 @@ fn test_memory_advice() {
     let managed = ManagedMemory::<f32>::allocate(1024).unwrap();
 
     // Test setting memory advice
-    managed
-        .set_advice(MemoryAdvice::PreferredLocation, 0)
-        ?;
+    managed.set_advice(MemoryAdvice::PreferredLocation, 0)?;
     managed.set_advice(MemoryAdvice::AccessedBy, 0)?;
     managed.set_advice(MemoryAdvice::ReadMostly, 0)?;
 }
@@ -336,9 +334,7 @@ fn test_memory_stream_operations() {
     let host_data: Vec<f32> = (0..1000).map(|i| i as f32).collect();
 
     // Asynchronous copy operations
-    device_mem
-        .copy_from_host_async(&host_data, &stream)
-        ?;
+    device_mem.copy_from_host_async(&host_data, &stream)?;
     stream.synchronize()?;
 
     let result = device_mem.copy_to_host_async(&stream).unwrap();
@@ -378,12 +374,8 @@ fn test_memory_performance_hints() {
     let device_mem = DeviceMemory::<f64>::allocate(2048).unwrap();
 
     // Test performance hints
-    device_mem
-        .set_cache_preference(CachePreference::L1)
-        ?;
-    device_mem
-        .set_cache_preference(CachePreference::Shared)
-        ?;
+    device_mem.set_cache_preference(CachePreference::L1)?;
+    device_mem.set_cache_preference(CachePreference::Shared)?;
     device_mem
         .set_cache_preference(CachePreference::None)
         .unwrap();

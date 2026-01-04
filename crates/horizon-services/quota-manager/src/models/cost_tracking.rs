@@ -250,7 +250,9 @@ impl CostSummaryBuilder {
             std::collections::HashMap::new();
         for record in &self.records {
             let key = record.resource_type.as_str().to_string();
-            let entry = by_resource.entry(key).or_insert((Decimal::ZERO, Decimal::ZERO));
+            let entry = by_resource
+                .entry(key)
+                .or_insert((Decimal::ZERO, Decimal::ZERO));
             entry.0 += record.amount;
             entry.1 += record.final_cost;
         }
@@ -258,7 +260,8 @@ impl CostSummaryBuilder {
         let by_resource_type: Vec<ResourceCostBreakdown> = by_resource
             .into_iter()
             .map(|(type_str, (amount, cost))| {
-                let resource_type = ResourceType::from_str(&type_str).unwrap_or(ResourceType::GpuHours);
+                let resource_type =
+                    ResourceType::from_str(&type_str).unwrap_or(ResourceType::GpuHours);
                 let average_rate = if amount > Decimal::ZERO {
                     cost / amount
                 } else {
@@ -342,7 +345,7 @@ impl EphemeralCostRates {
             rates: vec![
                 ResourceCostRate {
                     resource_type: ResourceType::GpuHours,
-                    base_rate: Decimal::from(2), // $2/GPU-hour
+                    base_rate: Decimal::from(2),  // $2/GPU-hour
                     burst_rate: Decimal::from(3), // $3/GPU-hour for burst
                     discount_tier: Some(DiscountTier {
                         tier_name: "Volume".to_string(),
@@ -381,7 +384,11 @@ impl EphemeralCostRates {
         is_burst: bool,
     ) -> Option<Decimal> {
         self.get_rate(resource_type).map(|rate| {
-            let unit_rate = if is_burst { rate.burst_rate } else { rate.base_rate };
+            let unit_rate = if is_burst {
+                rate.burst_rate
+            } else {
+                rate.base_rate
+            };
             amount * unit_rate
         })
     }
@@ -545,10 +552,11 @@ mod tests {
             now + chrono::Duration::hours(1),
         );
 
-        let summary = CostSummaryBuilder::new("sponsor1", tenant_id, now, now + chrono::Duration::days(30))
-            .add_record(record1)
-            .add_record(record2)
-            .build();
+        let summary =
+            CostSummaryBuilder::new("sponsor1", tenant_id, now, now + chrono::Duration::days(30))
+                .add_record(record1)
+                .add_record(record2)
+                .build();
 
         assert_eq!(summary.total_records, 2);
         assert_eq!(summary.total_cost, dec!(30));
@@ -575,9 +583,10 @@ mod tests {
         );
         record1.apply_discount(dec!(5));
 
-        let summary = CostSummaryBuilder::new("sponsor1", tenant_id, now, now + chrono::Duration::days(30))
-            .add_record(record1)
-            .build();
+        let summary =
+            CostSummaryBuilder::new("sponsor1", tenant_id, now, now + chrono::Duration::days(30))
+                .add_record(record1)
+                .build();
 
         assert_eq!(summary.total_cost, dec!(20));
         assert_eq!(summary.total_discount, dec!(5));

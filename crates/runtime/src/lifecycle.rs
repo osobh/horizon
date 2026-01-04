@@ -8,7 +8,7 @@ use crate::{ContainerConfig, ContainerRuntime, ContainerStats, GpuContainer, Run
 use stratoswarm_memory::MemoryManager;
 
 #[cfg(feature = "hpc-channels")]
-use crate::hpc_bridge::{SharedRuntimeChannelBridge, shared_channel_bridge};
+use crate::hpc_bridge::{shared_channel_bridge, SharedRuntimeChannelBridge};
 
 /// Container lifecycle states
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -127,7 +127,8 @@ impl ContainerRuntime for ContainerLifecycle {
 
         // Publish container started event
         #[cfg(feature = "hpc-channels")]
-        self.event_bridge.publish_container_started(container_id, "Running");
+        self.event_bridge
+            .publish_container_started(container_id, "Running");
 
         Ok(())
     }
@@ -151,7 +152,8 @@ impl ContainerRuntime for ContainerLifecycle {
 
         // Publish container stopped event
         #[cfg(feature = "hpc-channels")]
-        self.event_bridge.publish_container_stopped(container_id, "Stopped");
+        self.event_bridge
+            .publish_container_stopped(container_id, "Stopped");
 
         Ok(())
     }

@@ -1,11 +1,11 @@
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::{EntityType, Quota, ResourceType};
-use crate::error::{HpcError, Result, QuotaErrorExt};
+use crate::error::{HpcError, QuotaErrorExt, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct QuotaHierarchy {
@@ -82,10 +82,7 @@ impl QuotaHierarchy {
     }
 
     pub fn total_children_quota(&self) -> Decimal {
-        self.children
-            .iter()
-            .map(|c| c.quota.limit_value)
-            .sum()
+        self.children.iter().map(|c| c.quota.limit_value).sum()
     }
 
     pub fn has_capacity_for_child(&self, child_limit: Decimal) -> bool {
@@ -157,8 +154,7 @@ mod tests {
     #[test]
     fn test_hierarchy_validation_valid() {
         let parent = create_test_hierarchy(EntityType::Organization, dec!(100.0));
-        let child = create_test_hierarchy(EntityType::Team, dec!(50.0))
-            .with_parent(parent);
+        let child = create_test_hierarchy(EntityType::Team, dec!(50.0)).with_parent(parent);
 
         assert!(child.validate_hierarchy().is_ok());
     }
@@ -166,8 +162,7 @@ mod tests {
     #[test]
     fn test_hierarchy_validation_invalid_parent_type() {
         let parent = create_test_hierarchy(EntityType::User, dec!(100.0));
-        let child = create_test_hierarchy(EntityType::Team, dec!(50.0))
-            .with_parent(parent);
+        let child = create_test_hierarchy(EntityType::Team, dec!(50.0)).with_parent(parent);
 
         assert!(child.validate_hierarchy().is_err());
     }
@@ -175,8 +170,7 @@ mod tests {
     #[test]
     fn test_hierarchy_validation_exceeds_parent_limit() {
         let parent = create_test_hierarchy(EntityType::Organization, dec!(100.0));
-        let child = create_test_hierarchy(EntityType::Team, dec!(150.0))
-            .with_parent(parent);
+        let child = create_test_hierarchy(EntityType::Team, dec!(150.0)).with_parent(parent);
 
         assert!(child.validate_hierarchy().is_err());
     }

@@ -404,10 +404,7 @@ async fn test_e2e_workflow_database_service_creation() {
     let goal = "Create a database service with PostgreSQL connection pooling";
     let config = WorkflowConfig::default();
 
-    let result = orchestrator
-        .execute_complete_workflow(goal, config)
-        .await
-        ?;
+    let result = orchestrator.execute_complete_workflow(goal, config).await?;
 
     assert!(result.consensus_achieved);
     assert!(result.final_code.contains("PgPool"));

@@ -115,10 +115,7 @@ mod tests {
         .with_metadata(serde_json::json!({"instance_type": "p5.48xlarge"}))
         .with_status(AssetStatus::Available);
 
-        assert_eq!(
-            asset.provider_id,
-            Some("i-1234567890abcdef0".to_string())
-        );
+        assert_eq!(asset.provider_id, Some("i-1234567890abcdef0".to_string()));
         assert_eq!(asset.location, Some("us-west-2a".to_string()));
         assert_eq!(asset.status, AssetStatus::Available);
         assert!(asset.is_available());

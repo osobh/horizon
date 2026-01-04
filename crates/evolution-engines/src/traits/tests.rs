@@ -5,8 +5,8 @@ use crate::traits::{
     AgentGenome, ArchitectureGenes, BehaviorGenes, EngineConfig, EvolutionEngine, Evolvable,
     EvolvableAgent,
 };
-use stratoswarm_agent_core::GoalPriority;
 use serde::{Deserialize, Serialize};
+use stratoswarm_agent_core::GoalPriority;
 
 #[derive(Debug, Clone)]
 struct TestEntity {
@@ -25,7 +25,7 @@ impl Evolvable for TestEntity {
 
     fn genome(&self) -> &Self::Genome {
         // For test purposes, we need to store a genome reference
-        // This is a test limitation - in real implementations, 
+        // This is a test limitation - in real implementations,
         // the genome would be part of the entity structure
         static TEST_GENOME: TestGenome = TestGenome { value: 0.0 };
         &TEST_GENOME
@@ -101,7 +101,10 @@ fn test_agent_genome_serialization() {
 #[tokio::test]
 async fn test_evolving_agent_fitness() {
     let genome = AgentGenome {
-        goal: stratoswarm_agent_core::Goal::new("Optimization goal".to_string(), GoalPriority::High),
+        goal: stratoswarm_agent_core::Goal::new(
+            "Optimization goal".to_string(),
+            GoalPriority::High,
+        ),
         architecture: ArchitectureGenes {
             memory_capacity: 2048,
             processing_units: 8,
@@ -677,7 +680,10 @@ async fn test_edge_case_mutations() {
 #[tokio::test]
 async fn test_zero_mutation_rate() {
     let genome = AgentGenome {
-        goal: stratoswarm_agent_core::Goal::new("Zero mutation test".to_string(), GoalPriority::Normal),
+        goal: stratoswarm_agent_core::Goal::new(
+            "Zero mutation test".to_string(),
+            GoalPriority::Normal,
+        ),
         architecture: ArchitectureGenes {
             memory_capacity: 1024,
             processing_units: 4,

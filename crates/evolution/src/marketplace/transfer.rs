@@ -1,10 +1,10 @@
 //! Knowledge transfer coordination with bandwidth management
 
-use std::sync::Arc;
+use dashmap::DashMap;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use tokio::sync::{RwLock, Semaphore};
 use uuid::Uuid;
-use dashmap::DashMap;
 
 /// Knowledge transfer coordinator with bandwidth management
 pub struct KnowledgeTransferCoordinator {
@@ -54,26 +54,27 @@ impl KnowledgeTransferCoordinator {
             encryption_enabled: true,
         }
     }
-    
+
     pub async fn enqueue_transfer(&self, request: TransferRequest) {
         let mut queue = self.transfer_queue.write().await;
-        
+
         // Insert based on priority
         let position = queue
             .iter()
             .position(|r| r.priority < request.priority)
             .unwrap_or(queue.len());
-        
+
         queue.insert(position, request);
     }
-    
+
     pub async fn get_next_transfer(&self) -> Option<TransferRequest> {
         let mut queue = self.transfer_queue.write().await;
         queue.pop_front()
     }
-    
+
     pub async fn update_stats(&self, cluster_id: &str, success: bool, bytes: u64, speed_mbps: f64) {
-        let mut entry = self.transfer_stats
+        let mut entry = self
+            .transfer_stats
             .entry(cluster_id.to_string())
             .or_insert_with(TransferStats::default);
 

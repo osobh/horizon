@@ -154,7 +154,7 @@ impl WorkspaceValidator {
                     summary.critical_issues.len() - 20
                 ));
             }
-            report.push_str("\n");
+            report.push('\n');
         }
 
         report.push_str("## Crate Details\n\n");
@@ -180,7 +180,7 @@ impl WorkspaceValidator {
                         crate_report.issues.len() - 5
                     ));
                 }
-                report.push_str("\n");
+                report.push('\n');
             }
         }
 

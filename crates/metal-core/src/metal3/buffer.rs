@@ -54,7 +54,9 @@ impl Metal3Buffer {
         let buffer = device
             .raw()
             .newBufferWithLength_options(size_bytes, options)
-            .ok_or_else(|| MetalError::creation_failed("buffer", "Failed to allocate GPU buffer"))?;
+            .ok_or_else(|| {
+                MetalError::creation_failed("buffer", "Failed to allocate GPU buffer")
+            })?;
 
         let element_count = if element_size > 0 {
             size_bytes / element_size
@@ -74,12 +76,15 @@ impl Metal3Buffer {
     pub fn with_data<T: bytemuck::Pod>(device: &Metal3Device, data: &[T]) -> Result<Self> {
         use std::ptr::NonNull;
 
-        let size_bytes = data.len() * std::mem::size_of::<T>();
+        let size_bytes = std::mem::size_of_val(data);
         let options = MTLResourceOptions::StorageModeShared;
 
         let ptr = NonNull::new(data.as_ptr() as *mut std::ffi::c_void)
             .expect("data pointer should not be null");
 
+        // SAFETY: ptr is a NonNull created from a valid &[T] slice and points to
+        // size_bytes of readable memory. The Metal API copies the data during buffer
+        // creation, so the pointer only needs to be valid for this call.
         let buffer = unsafe {
             device
                 .raw()
@@ -118,12 +123,19 @@ impl MetalBuffer for Metal3Buffer {
     fn contents<T: bytemuck::Pod>(&self) -> &[T] {
         let ptr = self.buffer.contents().as_ptr() as *const T;
         let len = self.byte_len / std::mem::size_of::<T>();
+        // SAFETY: MTLBuffer.contents() returns a valid pointer to byte_len bytes
+        // of GPU-accessible memory. T: Pod ensures safe reinterpretation. The
+        // slice lifetime is tied to &self, ensuring the buffer remains valid.
         unsafe { std::slice::from_raw_parts(ptr, len) }
     }
 
     fn contents_mut<T: bytemuck::Pod>(&mut self) -> &mut [T] {
         let ptr = self.buffer.contents().as_ptr() as *mut T;
         let len = self.byte_len / std::mem::size_of::<T>();
+        // SAFETY: MTLBuffer.contents() returns a valid pointer to byte_len bytes
+        // of GPU-accessible memory. T: Pod ensures safe reinterpretation. &mut self
+        // ensures exclusive access, preventing data races. The slice lifetime is
+        // tied to &mut self, ensuring the buffer remains valid.
         unsafe { std::slice::from_raw_parts_mut(ptr, len) }
     }
 

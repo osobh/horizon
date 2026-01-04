@@ -46,7 +46,11 @@ pub trait AttributorErrorExt {
     fn invalid_time_range(start: impl Into<String>, end: impl Into<String>) -> HpcError {
         HpcError::invalid_input(
             "time_range",
-            format!("Invalid time range: start={}, end={}", start.into(), end.into()),
+            format!(
+                "Invalid time range: start={}, end={}",
+                start.into(),
+                end.into()
+            ),
         )
     }
 

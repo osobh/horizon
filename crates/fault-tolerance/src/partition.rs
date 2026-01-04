@@ -144,7 +144,8 @@ impl PartitionRecovery {
             .unwrap_or_default()
             .as_millis() as u64;
 
-        let disconnected_count = self.connectivity
+        let disconnected_count = self
+            .connectivity
             .iter()
             .filter(|entry| {
                 let c = entry.value();
@@ -237,7 +238,8 @@ impl PartitionRecovery {
             .unwrap_or_default()
             .as_millis() as u64;
 
-        let connected_count = self.connectivity
+        let connected_count = self
+            .connectivity
             .iter()
             .filter(|entry| {
                 let c = entry.value();
@@ -275,7 +277,8 @@ impl PartitionRecovery {
 
     /// Clear resolved partitions
     pub fn clear_resolved(&self) {
-        self.partitions.retain(|_, p| p.status != PartitionStatus::Resolved);
+        self.partitions
+            .retain(|_, p| p.status != PartitionStatus::Resolved);
     }
 }
 

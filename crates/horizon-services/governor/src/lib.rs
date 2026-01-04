@@ -10,8 +10,8 @@ pub use api::create_router;
 pub use config::Config;
 pub use db::{DbPool, PolicyRepository};
 pub use ephemeral::{
-    EphemeralPolicyConfig, EphemeralPolicyGenerator, GeneratedPolicy,
-    PolicyScope, RiskBasedAccess, TimeWindowConfig,
+    EphemeralPolicyConfig, EphemeralPolicyGenerator, GeneratedPolicy, PolicyScope, RiskBasedAccess,
+    TimeWindowConfig,
 };
 pub use error::{GovernorErrorExt, HpcError, Result};
 pub use service::PolicyService;

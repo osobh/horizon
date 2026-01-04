@@ -12,26 +12,26 @@
 //! - Dynamic plan adaptation and cross-region coordination
 
 pub mod config;
-pub mod types;
-pub mod objectives;
-pub mod strategies;
 pub mod dependencies;
-pub mod resources;
 pub mod execution;
-pub mod validation;
 pub mod metrics;
-pub mod planner;
+pub mod objectives;
 pub mod optimization;
+pub mod planner;
+pub mod resources;
+pub mod strategies;
+pub mod types;
+pub mod validation;
 
 // Re-export main types for convenience
 pub use config::*;
-pub use types::*;
-pub use objectives::*;
-pub use strategies::*;
 pub use dependencies::*;
-pub use resources::*;
 pub use execution::*;
-pub use validation::*;
 pub use metrics::*;
-pub use planner::*;
+pub use objectives::*;
 pub use optimization::*;
+pub use planner::*;
+pub use resources::*;
+pub use strategies::*;
+pub use types::*;
+pub use validation::*;

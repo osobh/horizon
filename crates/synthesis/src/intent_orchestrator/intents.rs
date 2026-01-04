@@ -135,20 +135,22 @@ impl Intent {
     /// Validate intent has required entities
     pub fn validate(&self) -> Result<(), String> {
         let required = self.get_required_entities();
-        let entity_types: Vec<String> = self.entities.iter()
+        let entity_types: Vec<String> = self
+            .entities
+            .iter()
             .map(|e| e.entity_type.to_string())
             .collect();
-        
+
         for req in required {
             if !entity_types.contains(&req) {
                 return Err(format!("Missing required entity: {}", req));
             }
         }
-        
+
         if self.confidence < 0.5 {
             return Err(format!("Confidence too low: {}", self.confidence));
         }
-        
+
         Ok(())
     }
 }
@@ -184,7 +186,9 @@ impl ClassificationResult {
 
     /// Calculate top k predictions
     pub fn calculate_top_k(&mut self, k: usize) {
-        let mut scores: Vec<(IntentType, f32)> = self.scores.iter()
+        let mut scores: Vec<(IntentType, f32)> = self
+            .scores
+            .iter()
             .map(|(intent_str, &score)| {
                 let intent_type = match intent_str.as_str() {
                     "deploy" => IntentType::Deploy,
@@ -203,16 +207,14 @@ impl ClassificationResult {
                 (intent_type, score)
             })
             .collect();
-        
+
         scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         self.top_k = scores.into_iter().take(k).collect();
     }
 
     /// Get confidence for predicted intent
     pub fn get_confidence(&self) -> f32 {
-        self.top_k.first()
-            .map(|(_, score)| *score)
-            .unwrap_or(0.0)
+        self.top_k.first().map(|(_, score)| *score).unwrap_or(0.0)
     }
 }
 

@@ -117,8 +117,7 @@ async fn test_checkpoint_compression_performance() {
     let temp_dir = TempDir::new().unwrap();
 
     // Test with compression enabled
-    let compressed_manager =
-        CheckpointManager::with_path(temp_dir.path().join("compressed"))?;
+    let compressed_manager = CheckpointManager::with_path(temp_dir.path().join("compressed"))?;
     assert!(compressed_manager.compression_enabled);
 
     let start = Instant::now();

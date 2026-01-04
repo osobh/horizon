@@ -50,7 +50,13 @@ impl ClusterDiscovery {
 
         // Run all discovery methods concurrently with a global timeout
         let all_discoveries = async {
-            let (mdns_result, broadcast_result, subnet_result, ipv6_multicast_result, ipv6_neighbor_result) = tokio::join!(
+            let (
+                mdns_result,
+                broadcast_result,
+                subnet_result,
+                ipv6_multicast_result,
+                ipv6_neighbor_result,
+            ) = tokio::join!(
                 self.discover_via_mdns(discovery_timeout),
                 self.discover_via_broadcast(discovery_timeout),
                 self.discover_via_subnet_scan(discovery_timeout),
@@ -126,9 +132,7 @@ impl ClusterDiscovery {
             }
             Err(e) => {
                 warn!("Connection test failed: {}", e);
-                Err(SwarmletError::Discovery(format!(
-                    "Connection failed: {e}"
-                )))
+                Err(SwarmletError::Discovery(format!("Connection failed: {e}")))
             }
         }
     }
@@ -176,8 +180,10 @@ impl ClusterDiscovery {
                 tokio::task::spawn_blocking({
                     let receiver = receiver.clone();
                     move || receiver.recv_timeout(Duration::from_millis(50))
-                })
-            ).await {
+                }),
+            )
+            .await
+            {
                 Ok(Ok(Ok(event))) => {
                     match event {
                         ServiceEvent::ServiceResolved(info) => {
@@ -189,7 +195,9 @@ impl ClusterDiscovery {
                             let cluster_name = properties
                                 .get("cluster_name")
                                 .map(|v| v.val_str().to_string())
-                                .unwrap_or_else(|| info.get_hostname().trim_end_matches('.').to_string());
+                                .unwrap_or_else(|| {
+                                    info.get_hostname().trim_end_matches('.').to_string()
+                                });
 
                             let version = properties
                                 .get("version")
@@ -266,7 +274,10 @@ impl ClusterDiscovery {
             debug!("Failed to stop mDNS browse: {}", e);
         }
 
-        debug!("mDNS discovery completed, found {} cluster(s)", clusters.len());
+        debug!(
+            "mDNS discovery completed, found {} cluster(s)",
+            clusters.len()
+        );
         Ok(clusters)
     }
 
@@ -388,7 +399,9 @@ impl ClusterDiscovery {
             return Ok(IpAddr::V6(ip));
         }
 
-        Err(SwarmletError::Discovery("Could not determine local IP address".to_string()))
+        Err(SwarmletError::Discovery(
+            "Could not determine local IP address".to_string(),
+        ))
     }
 
     /// Get local IPv4 address
@@ -401,7 +414,9 @@ impl ClusterDiscovery {
 
         match local_addr.ip() {
             IpAddr::V4(ipv4) => Ok(ipv4),
-            IpAddr::V6(_) => Err(SwarmletError::Discovery("Expected IPv4 address".to_string())),
+            IpAddr::V6(_) => Err(SwarmletError::Discovery(
+                "Expected IPv4 address".to_string(),
+            )),
         }
     }
 
@@ -419,7 +434,9 @@ impl ClusterDiscovery {
             }
         }
 
-        Err(SwarmletError::Discovery("Could not determine IPv6 address".to_string()))
+        Err(SwarmletError::Discovery(
+            "Could not determine IPv6 address".to_string(),
+        ))
     }
 
     /// Get all local IP addresses (both IPv4 and IPv6)
@@ -435,7 +452,9 @@ impl ClusterDiscovery {
         // Try to get IPs from hostname resolution
         if let Ok(hostname) = hostname::get() {
             if let Ok(hostname_str) = hostname.into_string() {
-                if let Ok(addrs) = std::net::ToSocketAddrs::to_socket_addrs(&(hostname_str.as_str(), 0)) {
+                if let Ok(addrs) =
+                    std::net::ToSocketAddrs::to_socket_addrs(&(hostname_str.as_str(), 0))
+                {
                     for addr in addrs {
                         let ip = addr.ip();
                         if !ip.is_loopback() && !ips.contains(&ip) {
@@ -467,7 +486,10 @@ impl ClusterDiscovery {
                 // For IPv6, return the /64 prefix as a string
                 // Link-local addresses start with fe80::
                 let segments = ipv6.segments();
-                format!("{:x}:{:x}:{:x}:{:x}", segments[0], segments[1], segments[2], segments[3])
+                format!(
+                    "{:x}:{:x}:{:x}:{:x}",
+                    segments[0], segments[1], segments[2], segments[3]
+                )
             }
         }
     }
@@ -475,9 +497,12 @@ impl ClusterDiscovery {
     /// Discover clusters via IPv6 multicast
     ///
     /// Uses link-local multicast for local network discovery
-    async fn discover_via_ipv6_multicast(&self, timeout_duration: Duration) -> Result<Vec<ClusterInfo>> {
-        use tokio::net::UdpSocket;
+    async fn discover_via_ipv6_multicast(
+        &self,
+        timeout_duration: Duration,
+    ) -> Result<Vec<ClusterInfo>> {
         use std::net::{Ipv6Addr, SocketAddrV6};
+        use tokio::net::UdpSocket;
 
         debug!("Starting IPv6 multicast discovery");
 
@@ -547,14 +572,20 @@ impl ClusterDiscovery {
             }
         }
 
-        debug!("IPv6 multicast discovery found {} cluster(s)", clusters.len());
+        debug!(
+            "IPv6 multicast discovery found {} cluster(s)",
+            clusters.len()
+        );
         Ok(clusters)
     }
 
     /// Scan IPv6 link-local neighbors for clusters
     ///
     /// This scans known link-local addresses (fe80::) from the neighbor cache
-    async fn discover_via_ipv6_neighbors(&self, timeout_duration: Duration) -> Result<Vec<ClusterInfo>> {
+    async fn discover_via_ipv6_neighbors(
+        &self,
+        timeout_duration: Duration,
+    ) -> Result<Vec<ClusterInfo>> {
         debug!("Starting IPv6 neighbor discovery");
 
         // On Linux, we could read /proc/net/ipv6_route or use netlink
@@ -570,9 +601,7 @@ impl ClusterDiscovery {
         // Common suffixes for link-local addresses (derived from MAC addresses)
         // We'll scan a small set of common patterns
         let common_suffixes = vec![
-            "1", "2", "3", "4", "5",
-            "1:1", "1:2", "1:3",
-            "200:1", "200:2",
+            "1", "2", "3", "4", "5", "1:1", "1:2", "1:3", "200:1", "200:2",
         ];
 
         for suffix in common_suffixes {
@@ -612,7 +641,10 @@ impl ClusterDiscovery {
             }
         }
 
-        debug!("IPv6 neighbor discovery found {} cluster(s)", clusters.len());
+        debug!(
+            "IPv6 neighbor discovery found {} cluster(s)",
+            clusters.len()
+        );
         Ok(clusters)
     }
 }
@@ -831,7 +863,10 @@ mod tests {
         let result = discovery.get_local_ipv4().await;
         match result {
             Ok(ip) => println!("Local IPv4: {}", ip),
-            Err(e) => println!("Could not get local IPv4 (expected in some environments): {}", e),
+            Err(e) => println!(
+                "Could not get local IPv4 (expected in some environments): {}",
+                e
+            ),
         }
     }
 
@@ -842,7 +877,10 @@ mod tests {
         let result = discovery.get_local_ipv6().await;
         match result {
             Ok(ip) => println!("Local IPv6: {}", ip),
-            Err(e) => println!("Could not get local IPv6 (expected in some environments): {}", e),
+            Err(e) => println!(
+                "Could not get local IPv6 (expected in some environments): {}",
+                e
+            ),
         }
     }
 

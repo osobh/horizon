@@ -4,11 +4,11 @@
 //! for accelerated graph operations.
 
 use crate::error::KnowledgeGraphResult;
+use std::collections::HashMap;
 use stratoswarm_cuda::{
     kernel::{CompileOptions, KernelMetadata, SourceType},
     Kernel,
 };
-use std::collections::HashMap;
 
 /// GPU kernel manager for graph operations
 pub struct GpuKernelManager {
@@ -155,7 +155,7 @@ impl GpuKernelManager {
             registers_used: metadata.registers_used,
             shared_memory: metadata.shared_memory,
             max_threads: metadata.max_threads,
-            source_type: metadata.source_type.clone(),
+            source_type: metadata.source_type,
         })
     }
 

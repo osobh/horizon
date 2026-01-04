@@ -81,10 +81,7 @@ mod tests {
     #[test]
     fn test_error_provisioning_failed() {
         let err = ProviderError::ProvisioningFailed("capacity unavailable".to_string());
-        assert_eq!(
-            err.to_string(),
-            "Provisioning failed: capacity unavailable"
-        );
+        assert_eq!(err.to_string(), "Provisioning failed: capacity unavailable");
     }
 
     #[test]

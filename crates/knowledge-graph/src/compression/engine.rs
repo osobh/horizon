@@ -1,14 +1,12 @@
 //! Main compression engine implementation
 
 use super::{
-    CompressionConfig, CompressionGpuConfig, CompressionAlgorithm,
-    SemanticPreservationConfig, CompressedKnowledgeGraph, CompressionMetadata,
-    CompressionQualityMetrics, CompressionPerformanceMetrics,
-    GraphStatistics, GpuUtilizationStats,
+    CompressedKnowledgeGraph, CompressionAlgorithm, CompressionConfig, CompressionMetadata,
+    CompressionPerformanceMetrics, CompressionQualityMetrics,
 };
-use crate::{KnowledgeGraph, KnowledgeGraphError, KnowledgeGraphResult, Node, Edge};
+use crate::{Edge, KnowledgeGraph, KnowledgeGraphError, KnowledgeGraphResult, Node};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
@@ -38,9 +36,12 @@ impl KnowledgeCompressionEngine {
     }
 
     /// Compress a knowledge graph
-    pub async fn compress(&self, graph: &KnowledgeGraph) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
+    pub async fn compress(
+        &self,
+        graph: &KnowledgeGraph,
+    ) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
         let start = Instant::now();
-        
+
         // Select compression algorithm
         let compressed_data = match self.config.compression_algorithm {
             CompressionAlgorithm::Lossless => self.compress_lossless(graph).await?,
@@ -50,8 +51,7 @@ impl KnowledgeCompressionEngine {
             CompressionAlgorithm::Spectral => self.compress_spectral(graph).await?,
             CompressionAlgorithm::Custom => {
                 return Err(KnowledgeGraphError::Compression {
-                    message:
-                    "Custom compression not implemented".to_string(),
+                    message: "Custom compression not implemented".to_string(),
                 });
             }
         };
@@ -59,14 +59,17 @@ impl KnowledgeCompressionEngine {
         // Update metrics
         let mut metrics = self.metrics.write().await;
         metrics.compression_time = start.elapsed();
-        
+
         Ok(compressed_data)
     }
 
     /// Decompress a compressed graph
-    pub async fn decompress(&self, compressed: &CompressedKnowledgeGraph) -> KnowledgeGraphResult<KnowledgeGraph> {
+    pub async fn decompress(
+        &self,
+        compressed: &CompressedKnowledgeGraph,
+    ) -> KnowledgeGraphResult<KnowledgeGraph> {
         let start = Instant::now();
-        
+
         // Decompress based on algorithm
         let graph = match compressed.metadata.algorithm {
             CompressionAlgorithm::Lossless => self.decompress_lossless(compressed).await?,
@@ -76,8 +79,7 @@ impl KnowledgeCompressionEngine {
             CompressionAlgorithm::Spectral => self.decompress_spectral(compressed).await?,
             CompressionAlgorithm::Custom => {
                 return Err(KnowledgeGraphError::Compression {
-                    message:
-                    "Custom decompression not implemented".to_string(),
+                    message: "Custom decompression not implemented".to_string(),
                 });
             }
         };
@@ -85,7 +87,7 @@ impl KnowledgeCompressionEngine {
         // Update metrics
         let mut metrics = self.metrics.write().await;
         metrics.decompression_time = start.elapsed();
-        
+
         Ok(graph)
     }
 
@@ -95,7 +97,10 @@ impl KnowledgeCompressionEngine {
     }
 
     // Private compression methods
-    async fn compress_lossless(&self, graph: &KnowledgeGraph) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
+    async fn compress_lossless(
+        &self,
+        graph: &KnowledgeGraph,
+    ) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
         // Get nodes and edges, cloning for serialization
         let nodes: Vec<Node> = graph.get_all_nodes()?.into_iter().cloned().collect();
         let edges: Vec<Edge> = graph.get_all_edges()?.into_iter().cloned().collect();
@@ -121,35 +126,50 @@ impl KnowledgeCompressionEngine {
         })
     }
 
-    async fn compress_adaptive(&self, _graph: &KnowledgeGraph) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
+    async fn compress_adaptive(
+        &self,
+        _graph: &KnowledgeGraph,
+    ) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
         // Placeholder implementation
         Err(KnowledgeGraphError::Compression {
             message: "Adaptive compression not yet implemented".to_string(),
         })
     }
 
-    async fn compress_neural(&self, _graph: &KnowledgeGraph) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
+    async fn compress_neural(
+        &self,
+        _graph: &KnowledgeGraph,
+    ) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
         // Placeholder implementation
         Err(KnowledgeGraphError::Compression {
             message: "Neural compression not yet implemented".to_string(),
         })
     }
 
-    async fn compress_hierarchical(&self, _graph: &KnowledgeGraph) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
+    async fn compress_hierarchical(
+        &self,
+        _graph: &KnowledgeGraph,
+    ) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
         // Placeholder implementation
         Err(KnowledgeGraphError::Compression {
             message: "Hierarchical compression not yet implemented".to_string(),
         })
     }
 
-    async fn compress_spectral(&self, _graph: &KnowledgeGraph) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
+    async fn compress_spectral(
+        &self,
+        _graph: &KnowledgeGraph,
+    ) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
         // Placeholder implementation
         Err(KnowledgeGraphError::Compression {
             message: "Spectral compression not yet implemented".to_string(),
         })
     }
 
-    async fn decompress_lossless(&self, compressed: &CompressedKnowledgeGraph) -> KnowledgeGraphResult<KnowledgeGraph> {
+    async fn decompress_lossless(
+        &self,
+        compressed: &CompressedKnowledgeGraph,
+    ) -> KnowledgeGraphResult<KnowledgeGraph> {
         use crate::graph::KnowledgeGraphConfig;
 
         // Simplified decompression
@@ -173,25 +193,37 @@ impl KnowledgeCompressionEngine {
         Ok(graph)
     }
 
-    async fn decompress_adaptive(&self, _compressed: &CompressedKnowledgeGraph) -> KnowledgeGraphResult<KnowledgeGraph> {
+    async fn decompress_adaptive(
+        &self,
+        _compressed: &CompressedKnowledgeGraph,
+    ) -> KnowledgeGraphResult<KnowledgeGraph> {
         Err(KnowledgeGraphError::Compression {
             message: "Adaptive decompression not yet implemented".to_string(),
         })
     }
 
-    async fn decompress_neural(&self, _compressed: &CompressedKnowledgeGraph) -> KnowledgeGraphResult<KnowledgeGraph> {
+    async fn decompress_neural(
+        &self,
+        _compressed: &CompressedKnowledgeGraph,
+    ) -> KnowledgeGraphResult<KnowledgeGraph> {
         Err(KnowledgeGraphError::Compression {
             message: "Neural decompression not yet implemented".to_string(),
         })
     }
 
-    async fn decompress_hierarchical(&self, _compressed: &CompressedKnowledgeGraph) -> KnowledgeGraphResult<KnowledgeGraph> {
+    async fn decompress_hierarchical(
+        &self,
+        _compressed: &CompressedKnowledgeGraph,
+    ) -> KnowledgeGraphResult<KnowledgeGraph> {
         Err(KnowledgeGraphError::Compression {
             message: "Hierarchical decompression not yet implemented".to_string(),
         })
     }
 
-    async fn decompress_spectral(&self, _compressed: &CompressedKnowledgeGraph) -> KnowledgeGraphResult<KnowledgeGraph> {
+    async fn decompress_spectral(
+        &self,
+        _compressed: &CompressedKnowledgeGraph,
+    ) -> KnowledgeGraphResult<KnowledgeGraph> {
         Err(KnowledgeGraphError::Compression {
             message: "Spectral decompression not yet implemented".to_string(),
         })

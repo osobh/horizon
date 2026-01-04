@@ -976,8 +976,7 @@ mod tests {
         // Multiple updates from different regions
         manager
             .update_resource("node-123", ResourceType::Node, "us-east-1", 1)
-            .await
-            ?;
+            .await?;
         manager
             .update_resource("node-123", ResourceType::Node, "eu-west-1", 2)
             .await

@@ -74,8 +74,8 @@ pub struct CertificateWithKey {
 impl Clone for CertificateWithKey {
     fn clone(&self) -> Self {
         // Parse the private key from PEM
-        let key_pem_data = ::pem::parse(&self.key_pem)
-            .expect("Failed to parse key PEM during clone");
+        let key_pem_data =
+            ::pem::parse(&self.key_pem).expect("Failed to parse key PEM during clone");
         let key_pair = KeyPair::try_from(key_pem_data.contents())
             .expect("Failed to parse key pair during clone");
 
@@ -84,8 +84,8 @@ impl Clone for CertificateWithKey {
         params.key_pair = Some(key_pair);
 
         // Create new Certificate with the params
-        let cert = Certificate::from_params(params)
-            .expect("Failed to create certificate during clone");
+        let cert =
+            Certificate::from_params(params).expect("Failed to create certificate during clone");
 
         Self {
             cert,
@@ -98,9 +98,9 @@ impl Clone for CertificateWithKey {
 impl CertificateWithKey {
     /// Create from rcgen Certificate
     fn from_rcgen(cert: Certificate) -> Result<Self> {
-        let cert_pem = cert.serialize_pem().map_err(|e| {
-            AuthError::CertGeneration(format!("Failed to serialize cert: {}", e))
-        })?;
+        let cert_pem = cert
+            .serialize_pem()
+            .map_err(|e| AuthError::CertGeneration(format!("Failed to serialize cert: {}", e)))?;
         let key_pem = cert.serialize_private_key_pem();
 
         Ok(Self {
@@ -148,17 +148,15 @@ impl CertificateWithKey {
     /// Verify certificate was signed by the given CA
     pub fn verify_with_ca(&self, ca: &CertificateWithKey) -> Result<bool> {
         // Parse the certificate from PEM (which has the signed version with correct issuer)
-        let pem_data = ::pem::parse(self.cert_pem.as_bytes()).map_err(|e| {
-            AuthError::CertParsing(format!("Failed to parse PEM: {}", e))
-        })?;
+        let pem_data = ::pem::parse(self.cert_pem.as_bytes())
+            .map_err(|e| AuthError::CertParsing(format!("Failed to parse PEM: {}", e)))?;
 
         let (_, cert_parsed) = X509Certificate::from_der(pem_data.contents())
             .map_err(|e| AuthError::CertParsing(format!("Failed to parse cert: {}", e)))?;
 
         // Parse the CA certificate from PEM
-        let ca_pem_data = ::pem::parse(ca.cert_pem.as_bytes()).map_err(|e| {
-            AuthError::CertParsing(format!("Failed to parse CA PEM: {}", e))
-        })?;
+        let ca_pem_data = ::pem::parse(ca.cert_pem.as_bytes())
+            .map_err(|e| AuthError::CertParsing(format!("Failed to parse CA PEM: {}", e)))?;
 
         let (_, ca_parsed) = X509Certificate::from_der(ca_pem_data.contents())
             .map_err(|e| AuthError::CertParsing(format!("Failed to parse CA: {}", e)))?;
@@ -202,9 +200,7 @@ pub fn generate_self_signed_cert(identity: &ServiceIdentity) -> Result<Certifica
         .unwrap_or(::time::OffsetDateTime::now_utc());
     params.not_after = ::time::OffsetDateTime::now_utc()
         .checked_add(::time::Duration::days(365))
-        .ok_or_else(|| {
-            AuthError::CertGeneration("Failed to set certificate expiry".to_string())
-        })?;
+        .ok_or_else(|| AuthError::CertGeneration("Failed to set certificate expiry".to_string()))?;
 
     let cert = Certificate::from_params(params)?;
     CertificateWithKey::from_rcgen(cert)
@@ -227,9 +223,7 @@ pub fn generate_ca_cert(ca_name: &str) -> Result<CertificateWithKey> {
         .unwrap_or(::time::OffsetDateTime::now_utc());
     params.not_after = ::time::OffsetDateTime::now_utc()
         .checked_add(::time::Duration::days(365))
-        .ok_or_else(|| {
-            AuthError::CertGeneration("Failed to set certificate expiry".to_string())
-        })?;
+        .ok_or_else(|| AuthError::CertGeneration("Failed to set certificate expiry".to_string()))?;
 
     let cert = Certificate::from_params(params)?;
     CertificateWithKey::from_rcgen(cert)
@@ -252,16 +246,14 @@ pub fn generate_signed_cert(
         .unwrap_or(::time::OffsetDateTime::now_utc());
     params.not_after = ::time::OffsetDateTime::now_utc()
         .checked_add(::time::Duration::days(365))
-        .ok_or_else(|| {
-            AuthError::CertGeneration("Failed to set certificate expiry".to_string())
-        })?;
+        .ok_or_else(|| AuthError::CertGeneration("Failed to set certificate expiry".to_string()))?;
 
     let cert = Certificate::from_params(params)?;
 
     // Sign with CA
-    let signed_cert_pem = cert.serialize_pem_with_signer(ca.rcgen_cert()).map_err(|e| {
-        AuthError::CertGeneration(format!("Failed to sign certificate: {}", e))
-    })?;
+    let signed_cert_pem = cert
+        .serialize_pem_with_signer(ca.rcgen_cert())
+        .map_err(|e| AuthError::CertGeneration(format!("Failed to sign certificate: {}", e)))?;
 
     let key_pem = cert.serialize_private_key_pem();
 
@@ -275,13 +267,11 @@ pub fn generate_signed_cert(
 /// Parse certificate information from PEM
 fn parse_cert_info(cert_pem: &str) -> Result<CertificateInfo> {
     // Extract DER from PEM
-    let pem_data = ::pem::parse(cert_pem.as_bytes()).map_err(|e| {
-        AuthError::CertParsing(format!("Failed to parse PEM: {}", e))
-    })?;
+    let pem_data = ::pem::parse(cert_pem.as_bytes())
+        .map_err(|e| AuthError::CertParsing(format!("Failed to parse PEM: {}", e)))?;
 
-    let (_, cert) = X509Certificate::from_der(pem_data.contents()).map_err(|e| {
-        AuthError::CertParsing(format!("Failed to parse X.509: {}", e))
-    })?;
+    let (_, cert) = X509Certificate::from_der(pem_data.contents())
+        .map_err(|e| AuthError::CertParsing(format!("Failed to parse X.509: {}", e)))?;
 
     // Extract common name
     let common_name = cert
@@ -317,12 +307,14 @@ fn parse_cert_info(cert_pem: &str) -> Result<CertificateInfo> {
     let not_before = DateTime::<Utc>::from_timestamp(
         not_before_time.unix_timestamp(),
         not_before_time.nanosecond(),
-    ).ok_or_else(|| AuthError::CertParsing("Invalid not_before timestamp".to_string()))?;
+    )
+    .ok_or_else(|| AuthError::CertParsing("Invalid not_before timestamp".to_string()))?;
 
     let not_after = DateTime::<Utc>::from_timestamp(
         not_after_time.unix_timestamp(),
         not_after_time.nanosecond(),
-    ).ok_or_else(|| AuthError::CertParsing("Invalid not_after timestamp".to_string()))?;
+    )
+    .ok_or_else(|| AuthError::CertParsing("Invalid not_after timestamp".to_string()))?;
 
     // Get key info
     let key_algorithm = cert.public_key().algorithm.algorithm.to_string();
@@ -352,8 +344,8 @@ mod tests {
 
     #[test]
     fn test_service_identity_with_dns() {
-        let identity = ServiceIdentity::new("test")
-            .with_dns_names(vec!["test.local", "test.cluster.local"]);
+        let identity =
+            ServiceIdentity::new("test").with_dns_names(vec!["test.local", "test.cluster.local"]);
 
         assert_eq!(identity.dns_names().len(), 3);
         assert!(identity.dns_names().contains(&"test".to_string()));

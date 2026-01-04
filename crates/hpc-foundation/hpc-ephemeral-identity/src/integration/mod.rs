@@ -3,6 +3,6 @@
 pub mod session_adapter;
 
 pub use session_adapter::{
-    EphemeralSessionAdapter, EphemeralSessionConfig, EphemeralSessionBinding,
-    EphemeralVerificationResult, EphemeralSessionActivity,
+    EphemeralSessionActivity, EphemeralSessionAdapter, EphemeralSessionBinding,
+    EphemeralSessionConfig, EphemeralVerificationResult,
 };

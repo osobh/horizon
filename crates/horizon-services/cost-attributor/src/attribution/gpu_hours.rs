@@ -38,7 +38,10 @@ pub fn calculate_gpu_hours(
 }
 
 /// Calculate GPU cost from GPU hours and hourly rate
-pub fn calculate_gpu_cost(gpu_hours: Decimal, hourly_rate: Decimal) -> crate::error::Result<Decimal> {
+pub fn calculate_gpu_cost(
+    gpu_hours: Decimal,
+    hourly_rate: Decimal,
+) -> crate::error::Result<Decimal> {
     use crate::error::AttributorErrorExt;
 
     if gpu_hours < Decimal::ZERO {
@@ -123,7 +126,10 @@ mod tests {
 
         let result = calculate_gpu_hours(start, end, 1);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid time range"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid time range"));
     }
 
     #[test]

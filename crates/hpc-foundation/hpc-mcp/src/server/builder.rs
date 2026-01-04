@@ -30,9 +30,7 @@ impl McpServer {
         };
 
         let response = self.handle_request(request).await;
-        self.codec
-            .encode_response(&response)
-            .unwrap_or_default()
+        self.codec.encode_response(&response).unwrap_or_default()
     }
 
     async fn handle_request(&self, request: JsonRpcRequest) -> JsonRpcResponse {
@@ -94,10 +92,7 @@ impl McpServer {
             }
             Err(e) => {
                 error!("Tool execution failed: {}", e);
-                JsonRpcResponse::error(
-                    request.id,
-                    JsonRpcError::custom(-32000, e.to_string()),
-                )
+                JsonRpcResponse::error(request.id, JsonRpcError::custom(-32000, e.to_string()))
             }
         }
     }
@@ -116,11 +111,7 @@ impl ServerBuilder {
     }
 
     /// Register a tool with its handler
-    pub fn register_tool<H: ToolHandler + 'static>(
-        mut self,
-        tool: Tool,
-        handler: H,
-    ) -> Self {
+    pub fn register_tool<H: ToolHandler + 'static>(mut self, tool: Tool, handler: H) -> Self {
         self.router = self.router.register(tool, handler);
         self
     }

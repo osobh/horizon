@@ -124,13 +124,8 @@ fn test_cost_breakdown_aggregation() {
 
 #[test]
 fn test_trend_analysis_creation() {
-    let trend = TrendAnalysis::new(
-        TrendDirection::Increasing,
-        dec!(15.5),
-        dec!(100.00),
-        0.5,
-    )
-    .with_confidence(0.85);
+    let trend = TrendAnalysis::new(TrendDirection::Increasing, dec!(15.5), dec!(100.00), 0.5)
+        .with_confidence(0.85);
 
     assert_eq!(trend.direction, TrendDirection::Increasing);
     assert_eq!(trend.growth_rate, dec!(15.5));
@@ -139,23 +134,13 @@ fn test_trend_analysis_creation() {
 
 #[test]
 fn test_trend_confidence_clamping() {
-    let trend = TrendAnalysis::new(
-        TrendDirection::Stable,
-        dec!(0.0),
-        dec!(50.00),
-        0.0,
-    )
-    .with_confidence(1.5);
+    let trend = TrendAnalysis::new(TrendDirection::Stable, dec!(0.0), dec!(50.00), 0.0)
+        .with_confidence(1.5);
 
     assert_eq!(trend.confidence, 1.0); // Clamped to 1.0
 
-    let trend2 = TrendAnalysis::new(
-        TrendDirection::Stable,
-        dec!(0.0),
-        dec!(50.00),
-        0.0,
-    )
-    .with_confidence(-0.5);
+    let trend2 = TrendAnalysis::new(TrendDirection::Stable, dec!(0.0), dec!(50.00), 0.0)
+        .with_confidence(-0.5);
 
     assert_eq!(trend2.confidence, 0.0); // Clamped to 0.0
 }
@@ -182,14 +167,7 @@ fn test_cost_forecast_avg_confidence() {
         ForecastPoint::new(now, dec!(120.00), 0.7),
     ];
 
-    let forecast = CostForecast::new(
-        now,
-        now,
-        now,
-        now,
-        "linear_regression".to_string(),
-        points,
-    );
+    let forecast = CostForecast::new(now, now, now, now, "linear_regression".to_string(), points);
 
     assert!((forecast.avg_confidence - 0.8).abs() < 0.001);
 }

@@ -55,17 +55,11 @@ pub enum SwarmEngineRequest {
         reply: oneshot::Sender<EvolutionEngineResult<()>>,
     },
     /// Get node ID
-    GetNodeId {
-        reply: oneshot::Sender<String>,
-    },
+    GetNodeId { reply: oneshot::Sender<String> },
     /// Get local particle count
-    GetLocalParticleCount {
-        reply: oneshot::Sender<usize>,
-    },
+    GetLocalParticleCount { reply: oneshot::Sender<usize> },
     /// Get peer count
-    GetPeerCount {
-        reply: oneshot::Sender<usize>,
-    },
+    GetPeerCount { reply: oneshot::Sender<usize> },
     /// Set local population
     SetLocalPopulation {
         particles: Vec<MockEvolvableAgent>,
@@ -84,9 +78,7 @@ pub enum SwarmEngineRequest {
         reply: oneshot::Sender<EvolutionEngineResult<()>>,
     },
     /// Get global best fitness
-    GetGlobalBestFitness {
-        reply: oneshot::Sender<Option<f64>>,
-    },
+    GetGlobalBestFitness { reply: oneshot::Sender<Option<f64>> },
     /// Graceful shutdown
     Shutdown,
 }
@@ -209,8 +201,10 @@ impl DistributedSwarmActor {
         );
         self.message_bus
             .register_handler("particle_migration".to_string(), Box::new(MigrationHandler));
-        self.message_bus
-            .register_handler("global_best_update".to_string(), Box::new(GlobalBestHandler));
+        self.message_bus.register_handler(
+            "global_best_update".to_string(),
+            Box::new(GlobalBestHandler),
+        );
 
         Ok(())
     }
@@ -388,7 +382,10 @@ impl DistributedSwarmActor {
         // Clone the results to avoid holding immutable borrow during mutable operations
         let (overloaded, underloaded): (Vec<String>, Vec<String>) = {
             let (o, u) = self.node_manager.find_rebalance_candidates(threshold);
-            (o.into_iter().map(String::from).collect(), u.into_iter().map(String::from).collect())
+            (
+                o.into_iter().map(String::from).collect(),
+                u.into_iter().map(String::from).collect(),
+            )
         };
 
         // If this node is overloaded, migrate some particles
@@ -575,7 +572,10 @@ impl DistributedSwarmHandle {
     ) -> EvolutionEngineResult<()> {
         let (tx, rx) = oneshot::channel();
         self.sender
-            .send(SwarmEngineRequest::SetLocalPopulation { particles, reply: tx })
+            .send(SwarmEngineRequest::SetLocalPopulation {
+                particles,
+                reply: tx,
+            })
             .await
             .map_err(|_| EvolutionEngineError::DistributedError("Actor stopped".to_string()))?;
 

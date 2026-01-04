@@ -500,8 +500,7 @@ mod safeguards_tests {
         let intervention = SafeguardIntervention::EmergencyReset;
         safeguards
             .execute_intervention(intervention, population)
-            .await
-            ?;
+            .await?;
 
         assert!(safeguards.is_emergency_mode());
     }
@@ -646,8 +645,7 @@ mod agent_tests {
 
         let offspring = agent1
             .replicate(Some(&agent2 as &dyn TemplateAgent), 0.2)
-            .await
-            ?;
+            .await?;
 
         assert_ne!(offspring.dna().id, agent1.dna().id);
         assert_ne!(offspring.dna().id, agent2.dna().id);

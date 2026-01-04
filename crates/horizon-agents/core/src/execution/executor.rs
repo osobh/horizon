@@ -173,8 +173,8 @@ mod tests {
     #[test]
     fn test_execution_request_with_context() {
         let tool = Tool::new("test-tool".to_string(), "A test tool".to_string());
-        let req = ExecutionRequest::new(tool)
-            .with_context("key1".to_string(), "value1".to_string());
+        let req =
+            ExecutionRequest::new(tool).with_context("key1".to_string(), "value1".to_string());
 
         assert_eq!(req.context.len(), 1);
         assert_eq!(req.context.get("key1").unwrap(), "value1");

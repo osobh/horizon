@@ -3,16 +3,16 @@
 //! This module provides the stable Metal 3 backend for macOS 14+.
 //! It uses `objc2-metal` for Rust bindings to the Metal API.
 
-mod device;
 mod buffer;
 mod command;
 mod compute;
+mod device;
 mod tensor;
 
-pub use device::Metal3Device;
 pub use buffer::Metal3Buffer;
-pub use command::{Metal3CommandQueue, Metal3CommandBuffer, Metal3ComputeEncoder};
+pub use command::{Metal3CommandBuffer, Metal3CommandQueue, Metal3ComputeEncoder};
 pub use compute::Metal3ComputePipeline;
+pub use device::Metal3Device;
 pub use tensor::Metal3Tensor;
 
 use crate::backend::{MetalBackend, MetalDevice, MetalVersion};

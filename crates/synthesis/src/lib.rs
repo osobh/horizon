@@ -14,31 +14,31 @@ pub mod compiler;
 pub mod error;
 pub mod executor;
 pub mod improvement;
+pub mod intent_orchestrator;
 pub mod interpreter;
 pub mod pipeline;
 pub mod synthesizer;
 pub mod templates;
-pub mod intent_orchestrator;
 
 pub use compiler::{CompiledKernel, RuntimeCompiler};
 pub use error::{SynthesisError, SynthesisResult};
 pub use executor::{ExecutionEngine, ExecutionResult};
 pub use improvement::{ImprovedKernel, ImprovementEngine};
+pub use intent_orchestrator::{
+    ActionPlan, ActionStep, ActionType, Entity, EntityType, ExecutionRecord, ExecutionStatus,
+    Intent, IntentOrchestrator, IntentType, OrchestrationMetrics,
+};
 pub use interpreter::{GoalInterpreter, KernelSpecification};
 pub use pipeline::{PipelineConfig, SynthesisPipeline};
 pub use synthesizer::{KernelSynthesizer, SynthesizedKernel};
-pub use intent_orchestrator::{
-    IntentOrchestrator, Intent, IntentType, Entity, EntityType,
-    ActionPlan, ActionStep, ActionType, ExecutionRecord, ExecutionStatus, OrchestrationMetrics
-};
 
 /// Re-export common types
 pub mod prelude {
     pub use crate::{
-        CompiledKernel, ExecutionEngine, ExecutionResult, GoalInterpreter, ImprovementEngine,
-        KernelSpecification, KernelSynthesizer, PipelineConfig, RuntimeCompiler, SynthesisError,
-        SynthesisPipeline, SynthesisResult, SynthesizedKernel, IntentOrchestrator, Intent, 
-        IntentType, Entity, ActionPlan, ExecutionRecord, OrchestrationMetrics,
+        ActionPlan, CompiledKernel, Entity, ExecutionEngine, ExecutionRecord, ExecutionResult,
+        GoalInterpreter, ImprovementEngine, Intent, IntentOrchestrator, IntentType,
+        KernelSpecification, KernelSynthesizer, OrchestrationMetrics, PipelineConfig,
+        RuntimeCompiler, SynthesisError, SynthesisPipeline, SynthesisResult, SynthesizedKernel,
     };
 }
 
@@ -381,6 +381,9 @@ mod tests {
 
         let result = outer_function();
         assert!(result.is_err());
-        assert!(result.expect_err("Expected error").to_string().contains("Inner error"));
+        assert!(result
+            .expect_err("Expected error")
+            .to_string()
+            .contains("Inner error"));
     }
 }

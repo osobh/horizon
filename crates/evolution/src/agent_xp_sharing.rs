@@ -4,13 +4,13 @@
 //! creating emergent collective intelligence through XP distribution and knowledge transfer.
 
 use crate::EvolutionError;
-use stratoswarm_agent_core::agent::{Agent, AgentId, AgentStats, XPGainRecord};
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::sync::Arc;
+use stratoswarm_agent_core::agent::{Agent, AgentId};
+use tokio::sync::RwLock;
 
 /// Type of knowledge that can be shared between agents
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -95,7 +95,7 @@ impl Default for XPSharingConfig {
     fn default() -> Self {
         Self {
             collective_share_percentage: 0.05, // 5% to collective pool
-            mentor_share_percentage: 0.10, // 10% to mentors
+            mentor_share_percentage: 0.10,     // 10% to mentors
             teaching_bonus_multiplier: 1.5,
             learning_bonus_multiplier: 1.2,
             max_share_amount: 100,
@@ -202,7 +202,7 @@ impl AgentXPSharingCoordinator {
     ) -> Result<XPSharingResult, EvolutionError> {
         let agent_id = agent.id();
         let stats = agent.stats().await;
-        
+
         let mut result = XPSharingResult {
             original_xp: xp_gained,
             shared_to_collective: 0,
@@ -213,7 +213,8 @@ impl AgentXPSharingCoordinator {
         };
 
         // Calculate sharing amounts
-        let collective_share = ((xp_gained as f64) * self.config.collective_share_percentage) as u64;
+        let collective_share =
+            ((xp_gained as f64) * self.config.collective_share_percentage) as u64;
         let collective_share = collective_share.min(self.config.max_share_amount);
 
         if collective_share > 0 {
@@ -239,7 +240,8 @@ impl AgentXPSharingCoordinator {
         // Share with mentors if agent has them
         if let Some(profile) = self.learning_network.get(&agent_id) {
             let mentor_share_each = if !profile.mentor_agents.is_empty() {
-                let total_mentor_share = ((xp_gained as f64) * self.config.mentor_share_percentage) as u64;
+                let total_mentor_share =
+                    ((xp_gained as f64) * self.config.mentor_share_percentage) as u64;
                 let total_mentor_share = total_mentor_share.min(self.config.max_share_amount);
                 total_mentor_share / profile.mentor_agents.len() as u64
             } else {
@@ -270,19 +272,22 @@ impl AgentXPSharingCoordinator {
         if stats.level >= self.config.mentor_threshold_level {
             if let Some(profile) = self.learning_network.get(&agent_id) {
                 if !profile.mentee_agents.is_empty() {
-                    let teaching_bonus = ((xp_gained as f64) *
-                        (self.config.teaching_bonus_multiplier - 1.0)) as u64;
+                    let teaching_bonus =
+                        ((xp_gained as f64) * (self.config.teaching_bonus_multiplier - 1.0)) as u64;
                     if teaching_bonus > 0 {
                         result.teaching_bonus = teaching_bonus;
                         result.net_xp_retained += teaching_bonus;
 
-                        agent.award_xp(
-                            teaching_bonus,
-                            format!("Teaching bonus for {} experience", experience_type),
-                            "teaching_bonus".to_string(),
-                        ).await.map_err(|e| EvolutionError::FitnessEvaluationFailed {
-                            reason: format!("Failed to award teaching bonus: {}", e),
-                        })?;
+                        agent
+                            .award_xp(
+                                teaching_bonus,
+                                format!("Teaching bonus for {} experience", experience_type),
+                                "teaching_bonus".to_string(),
+                            )
+                            .await
+                            .map_err(|e| EvolutionError::FitnessEvaluationFailed {
+                                reason: format!("Failed to award teaching bonus: {}", e),
+                            })?;
                     }
                 }
             }
@@ -302,7 +307,7 @@ impl AgentXPSharingCoordinator {
     ) -> Result<String, EvolutionError> {
         let package_id = uuid::Uuid::new_v4().to_string();
         let agent_id = agent.id();
-        
+
         let package = KnowledgePackage {
             id: package_id.clone(),
             knowledge_type: knowledge_type.clone(),
@@ -317,7 +322,8 @@ impl AgentXPSharingCoordinator {
         };
 
         // Store the package
-        self.knowledge_repository.insert(package_id.clone(), package);
+        self.knowledge_repository
+            .insert(package_id.clone(), package);
 
         // Update agent's learning profile
         if let Some(mut profile) = self.learning_network.get_mut(&agent_id) {
@@ -327,13 +333,16 @@ impl AgentXPSharingCoordinator {
         }
 
         // Award XP for knowledge contribution
-        agent.award_xp(
-            50,
-            "Knowledge package contribution".to_string(),
-            "knowledge_sharing".to_string(),
-        ).await.map_err(|e| EvolutionError::FitnessEvaluationFailed {
-            reason: format!("Failed to award knowledge contribution XP: {}", e),
-        })?;
+        agent
+            .award_xp(
+                50,
+                "Knowledge package contribution".to_string(),
+                "knowledge_sharing".to_string(),
+            )
+            .await
+            .map_err(|e| EvolutionError::FitnessEvaluationFailed {
+                reason: format!("Failed to award knowledge contribution XP: {}", e),
+            })?;
 
         Ok(package_id)
     }
@@ -371,7 +380,9 @@ impl AgentXPSharingCoordinator {
         relevant_packages.sort_by(|a, b| {
             let score_a = a.effectiveness_rating + (a.usage_count as f64 * 0.01);
             let score_b = b.effectiveness_rating + (b.usage_count as f64 * 0.01);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         relevant_packages.into_iter().take(10).collect() // Limit to top 10
@@ -387,7 +398,8 @@ impl AgentXPSharingCoordinator {
         let learning_start = std::time::Instant::now();
 
         // Get the knowledge package
-        let package = self.knowledge_repository
+        let package = self
+            .knowledge_repository
             .get(package_id)
             .map(|r| r.clone())
             .ok_or_else(|| EvolutionError::FitnessEvaluationFailed {
@@ -396,7 +408,7 @@ impl AgentXPSharingCoordinator {
 
         // Simulate learning process (in real implementation, this would involve
         // applying the knowledge to the agent's behavior or capabilities)
-        let stats_before = agent.stats().await;
+        let _stats_before = agent.stats().await;
         let success_probability = package.success_metrics.applicability_score;
         let learning_success = rand::random::<f64>() < success_probability;
 
@@ -412,21 +424,24 @@ impl AgentXPSharingCoordinator {
         let learning_xp = base_xp + effectiveness_bonus;
 
         // Award learning XP
-        agent.award_xp(
-            learning_xp,
-            format!("Learning from {} knowledge package", package.source_agent),
-            "knowledge_learning".to_string(),
-        ).await.map_err(|e| EvolutionError::FitnessEvaluationFailed {
-            reason: format!("Failed to award learning XP: {}", e),
-        })?;
+        agent
+            .award_xp(
+                learning_xp,
+                format!("Learning from {} knowledge package", package.source_agent),
+                "knowledge_learning".to_string(),
+            )
+            .await
+            .map_err(|e| EvolutionError::FitnessEvaluationFailed {
+                reason: format!("Failed to award learning XP: {}", e),
+            })?;
 
         // Update package usage
         if let Some(mut pkg) = self.knowledge_repository.get_mut(package_id) {
             pkg.usage_count += 1;
             // Update effectiveness based on success
             let weight = 1.0 / (pkg.usage_count as f64).max(1.0);
-            pkg.effectiveness_rating = pkg.effectiveness_rating * (1.0 - weight) +
-                                      (if learning_success { 1.0 } else { 0.0 }) * weight;
+            pkg.effectiveness_rating = pkg.effectiveness_rating * (1.0 - weight)
+                + (if learning_success { 1.0 } else { 0.0 }) * weight;
         }
 
         // Update learning profile
@@ -441,13 +456,16 @@ impl AgentXPSharingCoordinator {
         let royalty_xp = learning_xp / 4; // 25% royalty
         if let Ok(creator_agents) = self.find_agents_by_id(&[package.source_agent]).await {
             if let Some(creator) = creator_agents.first() {
-                creator.award_xp(
-                    royalty_xp,
-                    format!("Royalty from knowledge package usage by {}", agent_id),
-                    "knowledge_royalty".to_string(),
-                ).await.map_err(|_| EvolutionError::FitnessEvaluationFailed {
-                    reason: "Failed to award royalty XP".to_string(),
-                })?;
+                creator
+                    .award_xp(
+                        royalty_xp,
+                        format!("Royalty from knowledge package usage by {}", agent_id),
+                        "knowledge_royalty".to_string(),
+                    )
+                    .await
+                    .map_err(|_| EvolutionError::FitnessEvaluationFailed {
+                        reason: "Failed to award royalty XP".to_string(),
+                    })?;
             }
         }
 
@@ -497,13 +515,16 @@ impl AgentXPSharingCoordinator {
         }
 
         // Award XP for establishing mentorship
-        mentor_agent.award_xp(
-            75,
-            format!("Established mentorship with agent {}", mentee_id),
-            "mentorship".to_string(),
-        ).await.map_err(|e| EvolutionError::FitnessEvaluationFailed {
-            reason: format!("Failed to award mentorship XP: {}", e),
-        })?;
+        mentor_agent
+            .award_xp(
+                75,
+                format!("Established mentorship with agent {}", mentee_id),
+                "mentorship".to_string(),
+            )
+            .await
+            .map_err(|e| EvolutionError::FitnessEvaluationFailed {
+                reason: format!("Failed to award mentorship XP: {}", e),
+            })?;
 
         Ok(())
     }
@@ -525,7 +546,8 @@ impl AgentXPSharingCoordinator {
         }
 
         // Find agents eligible for collective distribution
-        let mut eligible_agents: Vec<(AgentId, f64)> = self.learning_network
+        let mut eligible_agents: Vec<(AgentId, f64)> = self
+            .learning_network
             .iter()
             .map(|entry| (entry.value().agent_id, entry.value().reputation_score))
             .collect();
@@ -541,7 +563,8 @@ impl AgentXPSharingCoordinator {
         // Distribute based on reputation (top performers get more)
         let total_reputation: f64 = eligible_agents.iter().map(|(_, rep)| *rep).sum();
         if total_reputation > 0.0 {
-            for (agent_id, reputation) in eligible_agents.iter().take(10) { // Top 10 agents
+            for (agent_id, reputation) in eligible_agents.iter().take(10) {
+                // Top 10 agents
                 let share = ((*reputation / total_reputation) * pool_amount as f64) as u64;
                 if share > 0 {
                     // In a real implementation, you'd need a way to get Agent instances by ID
@@ -597,7 +620,10 @@ impl AgentXPSharingCoordinator {
     }
 
     // Helper method to find agents by ID (would need proper implementation)
-    async fn find_agents_by_id(&self, _agent_ids: &[AgentId]) -> Result<Vec<Agent>, EvolutionError> {
+    async fn find_agents_by_id(
+        &self,
+        _agent_ids: &[AgentId],
+    ) -> Result<Vec<Agent>, EvolutionError> {
         // This is a placeholder - in a real implementation, you'd have a registry
         // or database of agents that you could query by ID
         Ok(Vec::new())
@@ -675,10 +701,10 @@ mod tests {
             name: name.to_string(),
             ..Default::default()
         };
-        
+
         let agent = Agent::new(config).unwrap();
         agent.initialize().await.unwrap();
-        
+
         // Award XP to reach desired level
         if level > 1 {
             let xp_needed = match level {
@@ -688,9 +714,12 @@ mod tests {
                 5 => 1000,
                 _ => 1000 + (level - 5) as u64 * 500,
             };
-            agent.award_xp(xp_needed, "Level setup".to_string(), "test".to_string()).await.unwrap();
+            agent
+                .award_xp(xp_needed, "Level setup".to_string(), "test".to_string())
+                .await
+                .unwrap();
         }
-        
+
         agent
     }
 
@@ -698,9 +727,9 @@ mod tests {
     async fn test_agent_registration() {
         let coordinator = AgentXPSharingCoordinator::default();
         let agent = create_test_agent("test_agent", 1).await;
-        
+
         coordinator.register_agent(&agent).await.unwrap();
-        
+
         let stats = coordinator.get_learning_stats(&agent.id()).await;
         assert!(stats.is_some());
         assert_eq!(stats.unwrap().reputation_score, 1.0);
@@ -710,11 +739,14 @@ mod tests {
     async fn test_xp_sharing() {
         let coordinator = AgentXPSharingCoordinator::default();
         let agent = create_test_agent("sharing_agent", 3).await;
-        
+
         coordinator.register_agent(&agent).await.unwrap();
-        
-        let result = coordinator.process_xp_gain(&agent, 100, "test_experience").await.unwrap();
-        
+
+        let result = coordinator
+            .process_xp_gain(&agent, 100, "test_experience")
+            .await
+            .unwrap();
+
         assert_eq!(result.original_xp, 100);
         assert!(result.shared_to_collective > 0);
         assert!(result.net_xp_retained < 100);
@@ -725,9 +757,9 @@ mod tests {
     async fn test_knowledge_package_creation() {
         let coordinator = AgentXPSharingCoordinator::default();
         let agent = create_test_agent("knowledge_creator", 2).await;
-        
+
         coordinator.register_agent(&agent).await.unwrap();
-        
+
         let metrics = KnowledgeMetrics {
             success_rate: 0.8,
             performance_improvement: 0.15,
@@ -735,21 +767,24 @@ mod tests {
             applicability_score: 0.7,
             learning_curve_steepness: 0.6,
         };
-        
+
         let mut context_tags = HashSet::new();
         context_tags.insert("optimization".to_string());
         context_tags.insert("performance".to_string());
-        
-        let package_id = coordinator.create_knowledge_package(
-            &agent,
-            KnowledgeType::Optimization,
-            "Efficient resource allocation strategy".to_string(),
-            metrics,
-            context_tags,
-        ).await.unwrap();
-        
+
+        let package_id = coordinator
+            .create_knowledge_package(
+                &agent,
+                KnowledgeType::Optimization,
+                "Efficient resource allocation strategy".to_string(),
+                metrics,
+                context_tags,
+            )
+            .await
+            .unwrap();
+
         assert!(!package_id.is_empty());
-        
+
         // Verify package was stored
         assert!(coordinator.knowledge_repository.contains_key(&package_id));
     }
@@ -759,10 +794,10 @@ mod tests {
         let coordinator = AgentXPSharingCoordinator::default();
         let creator = create_test_agent("creator", 3).await;
         let learner = create_test_agent("learner", 2).await;
-        
+
         coordinator.register_agent(&creator).await.unwrap();
         coordinator.register_agent(&learner).await.unwrap();
-        
+
         // Create knowledge package
         let metrics = KnowledgeMetrics {
             success_rate: 0.9,
@@ -771,18 +806,24 @@ mod tests {
             applicability_score: 0.8,
             learning_curve_steepness: 0.7,
         };
-        
-        let package_id = coordinator.create_knowledge_package(
-            &creator,
-            KnowledgeType::ProblemSolving,
-            "Advanced problem-solving technique".to_string(),
-            metrics,
-            HashSet::new(),
-        ).await.unwrap();
-        
+
+        let package_id = coordinator
+            .create_knowledge_package(
+                &creator,
+                KnowledgeType::ProblemSolving,
+                "Advanced problem-solving technique".to_string(),
+                metrics,
+                HashSet::new(),
+            )
+            .await
+            .unwrap();
+
         // Learner applies knowledge
-        let result = coordinator.apply_knowledge(&learner, &package_id).await.unwrap();
-        
+        let result = coordinator
+            .apply_knowledge(&learner, &package_id)
+            .await
+            .unwrap();
+
         assert_eq!(result.learner_agent, learner.id());
         assert_eq!(result.knowledge_package_id, package_id);
         assert!(result.xp_gained > 0);
@@ -793,16 +834,19 @@ mod tests {
         let coordinator = AgentXPSharingCoordinator::default();
         let mentor = create_test_agent("mentor", 4).await; // High level
         let mentee = create_test_agent("mentee", 1).await;
-        
+
         coordinator.register_agent(&mentor).await.unwrap();
         coordinator.register_agent(&mentee).await.unwrap();
-        
-        coordinator.create_mentorship(&mentor, &mentee).await.unwrap();
-        
+
+        coordinator
+            .create_mentorship(&mentor, &mentee)
+            .await
+            .unwrap();
+
         // Verify mentorship was established
         let mentor_stats = coordinator.get_learning_stats(&mentor.id()).await.unwrap();
         let mentee_stats = coordinator.get_learning_stats(&mentee.id()).await.unwrap();
-        
+
         assert_eq!(mentor_stats.mentee_count, 1);
         assert_eq!(mentee_stats.mentor_count, 1);
     }
@@ -811,14 +855,14 @@ mod tests {
     async fn test_collective_xp_distribution() {
         let coordinator = AgentXPSharingCoordinator::default();
         let agent = create_test_agent("contributor", 3).await;
-        
+
         coordinator.register_agent(&agent).await.unwrap();
-        
+
         // Add some XP to collective pool
         *coordinator.collective_xp_pool.write().await = 500;
-        
+
         let distribution = coordinator.distribute_collective_xp().await.unwrap();
-        
+
         assert!(distribution.total_distributed <= 500);
         // Pool should be reset
         assert_eq!(*coordinator.collective_xp_pool.read().await, 0);
@@ -829,10 +873,10 @@ mod tests {
         let coordinator = AgentXPSharingCoordinator::default();
         let creator = create_test_agent("creator", 3).await;
         let seeker = create_test_agent("seeker", 2).await;
-        
+
         coordinator.register_agent(&creator).await.unwrap();
         coordinator.register_agent(&seeker).await.unwrap();
-        
+
         // Create relevant knowledge packages
         let metrics = KnowledgeMetrics {
             success_rate: 0.8,
@@ -841,26 +885,27 @@ mod tests {
             applicability_score: 0.75,
             learning_curve_steepness: 0.6,
         };
-        
+
         let mut context_tags = HashSet::new();
         context_tags.insert("performance".to_string());
-        
-        coordinator.create_knowledge_package(
-            &creator,
-            KnowledgeType::Optimization,
-            "Performance optimization technique".to_string(),
-            metrics,
-            context_tags.clone(),
-        ).await.unwrap();
-        
+
+        coordinator
+            .create_knowledge_package(
+                &creator,
+                KnowledgeType::Optimization,
+                "Performance optimization technique".to_string(),
+                metrics,
+                context_tags.clone(),
+            )
+            .await
+            .unwrap();
+
         // Find relevant knowledge
         let interests = vec![KnowledgeType::Optimization];
-        let packages = coordinator.find_relevant_knowledge(
-            &seeker,
-            &interests,
-            &context_tags,
-        ).await;
-        
+        let packages = coordinator
+            .find_relevant_knowledge(&seeker, &interests, &context_tags)
+            .await;
+
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].knowledge_type, KnowledgeType::Optimization);
     }
@@ -870,7 +915,7 @@ mod tests {
         let mut specializations = HashSet::new();
         specializations.insert(KnowledgeType::Optimization);
         specializations.insert(KnowledgeType::ProblemSolving);
-        
+
         let stats = LearningStats {
             agent_id: AgentId::new(),
             reputation_score: 4.5,
@@ -882,7 +927,7 @@ mod tests {
             learning_success_rate: 0.75,
             specialization_areas: specializations,
         };
-        
+
         let summary = stats.summary();
         assert!(summary.contains("4.5"));
         assert!(summary.contains("3 contributed"));

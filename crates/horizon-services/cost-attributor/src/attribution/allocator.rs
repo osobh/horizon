@@ -69,7 +69,8 @@ impl CostAllocator {
             job.end_time,
             job.gpu_count,
         )?;
-        let gpu_cost = crate::attribution::gpu_hours::calculate_gpu_cost(gpu_hours, rates.gpu_hourly_rate)?;
+        let gpu_cost =
+            crate::attribution::gpu_hours::calculate_gpu_cost(gpu_hours, rates.gpu_hourly_rate)?;
 
         // Calculate CPU cost (if applicable)
         let cpu_cost = Decimal::ZERO; // TODO: implement if needed
@@ -89,16 +90,13 @@ impl CostAllocator {
             rates.storage_rate_per_gb_hour,
         )?;
 
-        let mut attribution = CreateCostAttribution::new(
-            job.user_id.clone(),
-            job.start_time,
-            job.end_time,
-        )
-        .with_job_id(job.job_id)
-        .with_gpu_cost(gpu_cost)
-        .with_cpu_cost(cpu_cost)
-        .with_network_cost(network_cost)
-        .with_storage_cost(storage_cost);
+        let mut attribution =
+            CreateCostAttribution::new(job.user_id.clone(), job.start_time, job.end_time)
+                .with_job_id(job.job_id)
+                .with_gpu_cost(gpu_cost)
+                .with_cpu_cost(cpu_cost)
+                .with_network_cost(network_cost)
+                .with_storage_cost(storage_cost);
 
         if let Some(team_id) = &job.team_id {
             attribution = attribution.with_team_id(team_id.clone());
@@ -128,10 +126,13 @@ impl CostAllocator {
             ));
         }
 
-        let variance = ((attributed_total - actual_billing).abs() / actual_billing) * Decimal::from(100);
+        let variance =
+            ((attributed_total - actual_billing).abs() / actual_billing) * Decimal::from(100);
 
         if variance > threshold_percent {
-            return Err(crate::error::HpcError::accuracy_threshold_exceeded(variance));
+            return Err(crate::error::HpcError::accuracy_threshold_exceeded(
+                variance,
+            ));
         }
 
         Ok(variance)
@@ -213,7 +214,7 @@ mod tests {
 
         assert_eq!(result.gpu_cost, dec!(14.00));
         assert_eq!(result.storage_cost, dec!(0.001368)); // 100 GB * 1 hour * $0.00001368
-        // Total should be GPU + storage
+                                                         // Total should be GPU + storage
         assert!(result.total_cost > dec!(14.00));
         assert!(result.total_cost < dec!(14.01));
     }
@@ -234,7 +235,8 @@ mod tests {
         assert_eq!(result.network_cost, dec!(5.40));
         assert!(result.storage_cost > Decimal::ZERO);
         // Total should be sum of all components
-        let expected_total = result.gpu_cost + result.cpu_cost + result.network_cost + result.storage_cost;
+        let expected_total =
+            result.gpu_cost + result.cpu_cost + result.network_cost + result.storage_cost;
         assert_eq!(result.total_cost, expected_total);
     }
 
@@ -251,7 +253,9 @@ mod tests {
             storage_rate_per_gb_hour: dec!(0.00002),
         };
 
-        let result = allocator.allocate_job_cost(&job, &usage, Some(&custom_rates)).unwrap();
+        let result = allocator
+            .allocate_job_cost(&job, &usage, Some(&custom_rates))
+            .unwrap();
 
         assert_eq!(result.gpu_cost, dec!(20.00)); // 4 GPUs * 1 hour * $5.00
     }
@@ -294,7 +298,10 @@ mod tests {
         let result = allocator.validate_attribution_accuracy(attributed, actual, threshold);
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Accuracy threshold exceeded"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Accuracy threshold exceeded"));
     }
 
     #[test]
@@ -321,7 +328,10 @@ mod tests {
         let result = allocator.validate_attribution_accuracy(attributed, actual, threshold);
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Actual billing cannot be zero"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Actual billing cannot be zero"));
     }
 
     #[test]

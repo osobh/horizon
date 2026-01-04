@@ -70,7 +70,8 @@ fn test_gcp_billing_normalization() {
 #[test]
 fn test_azure_ea_normalization() {
     let normalizer = AzureEaNormalizer::new();
-    let data = serde_json::Value::String(r#"[{
+    let data = serde_json::Value::String(
+        r#"[{
         "SubscriptionId": "12345678-1234-1234-1234-123456789abc",
         "ResourceGroup": "my-resource-group",
         "ResourceId": "/subscriptions/.../virtualMachines/vm1",
@@ -81,7 +82,9 @@ fn test_azure_ea_normalization() {
         "MeterName": "D4s v3",
         "Quantity": 1.0,
         "UnitOfMeasure": "Hour"
-    }]"#.to_string());
+    }]"#
+        .to_string(),
+    );
 
     let raw = RawBillingData {
         provider: Provider::Azure,

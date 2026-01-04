@@ -258,10 +258,8 @@ mod tests {
 
     #[test]
     fn test_calculate_pattern_from_empty_data() {
-        let result = UptimePatternAnalyzer::calculate_pattern_from_data(
-            "node-1".to_string(),
-            vec![],
-        );
+        let result =
+            UptimePatternAnalyzer::calculate_pattern_from_data("node-1".to_string(), vec![]);
 
         assert!(result.is_ok());
         let pattern = result.unwrap();
@@ -273,10 +271,8 @@ mod tests {
     fn test_calculate_pattern_from_single_session() {
         let sessions = vec![UptimeSession::new(480, vec![9, 10, 11, 12, 13, 14, 15, 16])];
 
-        let result = UptimePatternAnalyzer::calculate_pattern_from_data(
-            "node-1".to_string(),
-            sessions,
-        );
+        let result =
+            UptimePatternAnalyzer::calculate_pattern_from_data("node-1".to_string(), sessions);
 
         assert!(result.is_ok());
         let pattern = result.unwrap();
@@ -292,10 +288,8 @@ mod tests {
             UptimeSession::new(360, vec![9, 10]),
         ];
 
-        let result = UptimePatternAnalyzer::calculate_pattern_from_data(
-            "node-1".to_string(),
-            sessions,
-        );
+        let result =
+            UptimePatternAnalyzer::calculate_pattern_from_data("node-1".to_string(), sessions);
 
         assert!(result.is_ok());
         let pattern = result.unwrap();
@@ -314,10 +308,8 @@ mod tests {
             UptimeSession::new(180, vec![9, 10, 11]),
         ];
 
-        let result = UptimePatternAnalyzer::calculate_pattern_from_data(
-            "node-1".to_string(),
-            sessions,
-        );
+        let result =
+            UptimePatternAnalyzer::calculate_pattern_from_data("node-1".to_string(), sessions);
 
         let pattern = result.unwrap();
         // All three hours appear in 100% of sessions (> 30% threshold)

@@ -18,10 +18,9 @@ use crate::{
     db::QuotaRepository,
     error::{HpcError, QuotaErrorExt, Result},
     models::{
-        EphemeralOperationType, EphemeralQuota, EphemeralQuotaCheckResult,
-        EphemeralQuotaStatus, EphemeralQuotaUsage, CreateEphemeralQuotaRequest,
-        UpdateEphemeralQuotaRequest, ResourceType, TimeWindow, SponsorUsageSummary,
-        ResourceTypeSummary,
+        CreateEphemeralQuotaRequest, EphemeralQuota, EphemeralQuotaCheckResult,
+        EphemeralQuotaStatus, EphemeralQuotaUsage, ResourceType, ResourceTypeSummary,
+        SponsorUsageSummary, TimeWindow, UpdateEphemeralQuotaRequest,
     },
 };
 
@@ -217,7 +216,10 @@ impl EphemeralQuotaService {
     }
 
     /// Get quotas by beneficiary.
-    pub async fn get_quotas_by_beneficiary(&self, beneficiary_id: &str) -> Result<Vec<EphemeralQuota>> {
+    pub async fn get_quotas_by_beneficiary(
+        &self,
+        beneficiary_id: &str,
+    ) -> Result<Vec<EphemeralQuota>> {
         let cache = self.cache.read().await;
         Ok(cache
             .values()
@@ -372,7 +374,9 @@ impl EphemeralQuotaService {
         let check = self.check_usage(quota_id, amount).await?;
         if !check.allowed {
             return Err(HpcError::quota_exceeded(
-                check.denial_reason.unwrap_or_else(|| "Usage not allowed".to_string()),
+                check
+                    .denial_reason
+                    .unwrap_or_else(|| "Usage not allowed".to_string()),
             ));
         }
 
@@ -401,7 +405,9 @@ impl EphemeralQuotaService {
         let quota = self.get_quota(quota_id).await?;
 
         if !quota.burst_enabled {
-            let usage = self.record_usage(quota_id, amount, job_id, description).await?;
+            let usage = self
+                .record_usage(quota_id, amount, job_id, description)
+                .await?;
             return Ok((usage, false));
         }
 
@@ -409,7 +415,9 @@ impl EphemeralQuotaService {
         let normal_available = quota.limit_value - quota.used_value - quota.reserved_value;
         let using_burst = amount > normal_available;
 
-        let usage = self.record_usage(quota_id, amount, job_id, description).await?;
+        let usage = self
+            .record_usage(quota_id, amount, job_id, description)
+            .await?;
         Ok((usage, using_burst))
     }
 
@@ -491,7 +499,11 @@ impl EphemeralQuotaService {
     }
 
     /// Increase quota limit.
-    pub async fn increase_limit(&self, quota_id: Uuid, additional: Decimal) -> Result<EphemeralQuota> {
+    pub async fn increase_limit(
+        &self,
+        quota_id: Uuid,
+        additional: Decimal,
+    ) -> Result<EphemeralQuota> {
         let mut quota = self.get_quota(quota_id).await?;
         quota.increase_limit(additional);
 
@@ -582,9 +594,7 @@ impl EphemeralQuotaService {
         let mut cache = self.cache.write().await;
         let before = cache.len();
 
-        cache.retain(|_, q| {
-            !(q.status.is_terminal() && q.updated_at < cutoff)
-        });
+        cache.retain(|_, q| !(q.status.is_terminal() && q.updated_at < cutoff));
 
         Ok(before - cache.len())
     }
@@ -594,10 +604,22 @@ impl EphemeralQuotaService {
         let cache = self.cache.read().await;
 
         let total = cache.len();
-        let active = cache.values().filter(|q| q.status == EphemeralQuotaStatus::Active).count();
-        let pending = cache.values().filter(|q| q.status == EphemeralQuotaStatus::Pending).count();
-        let expired = cache.values().filter(|q| q.status == EphemeralQuotaStatus::Expired).count();
-        let exhausted = cache.values().filter(|q| q.status == EphemeralQuotaStatus::Exhausted).count();
+        let active = cache
+            .values()
+            .filter(|q| q.status == EphemeralQuotaStatus::Active)
+            .count();
+        let pending = cache
+            .values()
+            .filter(|q| q.status == EphemeralQuotaStatus::Pending)
+            .count();
+        let expired = cache
+            .values()
+            .filter(|q| q.status == EphemeralQuotaStatus::Expired)
+            .count();
+        let exhausted = cache
+            .values()
+            .filter(|q| q.status == EphemeralQuotaStatus::Exhausted)
+            .count();
 
         let total_allocated: Decimal = cache.values().map(|q| q.limit_value).sum();
         let total_used: Decimal = cache.values().map(|q| q.used_value).sum();
@@ -753,9 +775,7 @@ mod tests {
         let quota = service.create_quota(req).await.unwrap();
         service.activate_quota(quota.id).await.unwrap();
 
-        let result = service
-            .record_usage(quota.id, dec!(150), None, None)
-            .await;
+        let result = service.record_usage(quota.id, dec!(150), None, None).await;
 
         assert!(result.is_err());
     }
@@ -792,7 +812,10 @@ mod tests {
         assert_eq!(reserved.reserved_value, dec!(30));
         assert_eq!(reserved.available(), dec!(70));
 
-        let usage = service.commit_reservation(quota.id, dec!(30)).await.unwrap();
+        let usage = service
+            .commit_reservation(quota.id, dec!(30))
+            .await
+            .unwrap();
         assert_eq!(usage.amount, dec!(30));
 
         let committed = service.get_quota(quota.id).await.unwrap();
@@ -807,7 +830,10 @@ mod tests {
         let quota = service.create_quota(req).await.unwrap();
         service.activate_quota(quota.id).await.unwrap();
 
-        service.record_usage(quota.id, dec!(50), None, None).await.unwrap();
+        service
+            .record_usage(quota.id, dec!(50), None, None)
+            .await
+            .unwrap();
         service.release_usage(quota.id, dec!(20)).await.unwrap();
 
         let updated = service.get_quota(quota.id).await.unwrap();
@@ -845,7 +871,10 @@ mod tests {
         let quota = service.create_quota(req).await.unwrap();
         service.activate_quota(quota.id).await.unwrap();
 
-        let suspended = service.suspend_quota(quota.id, "Policy violation").await.unwrap();
+        let suspended = service
+            .suspend_quota(quota.id, "Policy violation")
+            .await
+            .unwrap();
         assert_eq!(suspended.status, EphemeralQuotaStatus::Suspended);
 
         // Create another quota to test revoke
@@ -853,7 +882,10 @@ mod tests {
         let quota2 = service.create_quota(req2).await.unwrap();
         service.activate_quota(quota2.id).await.unwrap();
 
-        let revoked = service.revoke_quota(quota2.id, "Sponsor request").await.unwrap();
+        let revoked = service
+            .revoke_quota(quota2.id, "Sponsor request")
+            .await
+            .unwrap();
         assert_eq!(revoked.status, EphemeralQuotaStatus::Revoked);
     }
 
@@ -877,7 +909,10 @@ mod tests {
         service.activate_quota(quota1.id).await.unwrap();
         service.activate_quota(quota2.id).await.unwrap();
 
-        service.record_usage(quota1.id, dec!(25), None, None).await.unwrap();
+        service
+            .record_usage(quota1.id, dec!(25), None, None)
+            .await
+            .unwrap();
 
         let summary = service.get_sponsor_summary("sponsor1").await.unwrap();
 
@@ -922,7 +957,10 @@ mod tests {
         assert!(!check.using_burst);
 
         // Check more than available
-        service.record_usage(quota.id, dec!(80), None, None).await.unwrap();
+        service
+            .record_usage(quota.id, dec!(80), None, None)
+            .await
+            .unwrap();
         let check2 = service.check_usage(quota.id, dec!(30)).await.unwrap();
         assert!(!check2.allowed);
     }

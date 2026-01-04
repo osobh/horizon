@@ -1,7 +1,6 @@
 use hpc_provider::{
     Availability, CapacityProvider, HealthStatus, Instance, InstanceState, ProviderError,
-    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas,
-    SpotPrices,
+    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas, SpotPrices,
 };
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -177,7 +176,9 @@ impl CapacityProvider for BareMetalProvider {
             // Find an available server
             let server_id = inventory
                 .iter()
-                .find(|(_, s)| s.status == ServerStatus::Available && s.gpu_type == spec.instance_type)
+                .find(|(_, s)| {
+                    s.status == ServerStatus::Available && s.gpu_type == spec.instance_type
+                })
                 .map(|(id, _)| id.clone())
                 .ok_or_else(|| ProviderError::Unavailable("no available servers".to_string()))?;
 
@@ -218,9 +219,9 @@ impl CapacityProvider for BareMetalProvider {
         }
 
         let mut allocations = self.allocations.lock().unwrap();
-        let server_id = allocations
-            .remove(instance_id)
-            .ok_or_else(|| ProviderError::NotFound(format!("instance {} not found", instance_id)))?;
+        let server_id = allocations.remove(instance_id).ok_or_else(|| {
+            ProviderError::NotFound(format!("instance {} not found", instance_id))
+        })?;
 
         let mut inventory = self.inventory.lock().unwrap();
         if let Some(server) = inventory.get_mut(&server_id) {

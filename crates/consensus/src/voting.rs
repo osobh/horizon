@@ -14,18 +14,21 @@ pub struct RoundId(pub Uuid);
 
 impl RoundId {
     /// Create new round ID
+    #[inline]
     #[must_use = "RoundId must be stored for round tracking"]
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
 
     /// Create from UUID
+    #[inline]
     #[must_use = "RoundId must be stored for round tracking"]
     pub fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
 
     /// Get underlying UUID
+    #[inline]
     #[must_use]
     pub fn as_uuid(&self) -> Uuid {
         self.0
@@ -171,26 +174,31 @@ impl VotingRound {
     }
 
     /// Get round ID
+    #[inline]
     pub fn round_id(&self) -> &RoundId {
         &self.round_id
     }
 
     /// Get current height
+    #[inline]
     pub fn height(&self) -> u64 {
         self.height
     }
 
     /// Get round number
+    #[inline]
     pub fn round_number(&self) -> u32 {
         self.round_number
     }
 
     /// Get round status
+    #[inline]
     pub fn status(&self) -> &RoundStatus {
         &self.status
     }
 
     /// Check if round has timed out
+    #[inline]
     pub fn is_timed_out(&self) -> bool {
         SystemTime::now()
             .duration_since(self.start_time)
@@ -276,6 +284,10 @@ impl VotingRound {
 
     /// Check if we have majority for pre-vote phase
     fn has_pre_vote_majority(&self) -> ConsensusResult<bool> {
+        debug_assert!(
+            self.voting_threshold > 0,
+            "Voting threshold must be positive for consensus"
+        );
         let stake = self.count_votes_by_type(VoteType::PreVote);
         Ok(stake >= self.voting_threshold)
     }
@@ -308,9 +320,7 @@ impl VotingRound {
         votes
             .par_iter()
             .filter(|((_, v_type), _)| *v_type == vote_type)
-            .map(|((validator_id, _), _)| {
-                self.validators.get(validator_id).copied().unwrap_or(0)
-            })
+            .map(|((validator_id, _), _)| self.validators.get(validator_id).copied().unwrap_or(0))
             .sum()
     }
 

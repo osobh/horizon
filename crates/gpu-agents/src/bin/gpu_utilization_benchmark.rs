@@ -287,9 +287,10 @@ async fn benchmark_scheduler(device: Arc<CudaDevice>, config: SchedulerConfig) -
 /// Generate sample workload for testing
 async fn generate_workload(device: Arc<CudaDevice>) {
     let scheduler_config = SchedulerConfig::default();
-    let scheduler = Arc::new(tokio::sync::RwLock::new(
-        AdvancedKernelScheduler::new(Arc::clone(&device), scheduler_config)?,
-    ));
+    let scheduler = Arc::new(tokio::sync::RwLock::new(AdvancedKernelScheduler::new(
+        Arc::clone(&device),
+        scheduler_config,
+    )?));
 
     // Continuous kernel submission
     let scheduler_clone = scheduler.clone();

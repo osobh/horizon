@@ -289,16 +289,13 @@ pub async fn join_request_handler(
     Json(request): Json<JoinRequest>,
 ) -> Result<impl IntoResponse, ErrorResponse> {
     // 1. Validate the join token
-    let token_info = state
-        .validate_token(&request.token)
-        .await
-        .map_err(|e| {
-            tracing::warn!("Join request failed - invalid token: {}", e);
-            ErrorResponse {
-                error: e.to_string(),
-                code: "INVALID_TOKEN".to_string(),
-            }
-        })?;
+    let token_info = state.validate_token(&request.token).await.map_err(|e| {
+        tracing::warn!("Join request failed - invalid token: {}", e);
+        ErrorResponse {
+            error: e.to_string(),
+            code: "INVALID_TOKEN".to_string(),
+        }
+    })?;
 
     if token_info.is_expired() {
         return Err(ErrorResponse {
@@ -321,29 +318,42 @@ pub async fn join_request_handler(
     // 4. Assign subnet and IP
     // In a full implementation, this would call the subnet-manager
     // For now, we use a simple allocation from a default subnet
-    let subnet_assignment = state.assign_node_to_subnet(
-        node_id,
-        &request.hostname,
-        &request.wg_public_key,
-        request.public_endpoint.as_deref(),
-    ).await.map_err(|e| {
-        tracing::error!("Failed to assign subnet: {}", e);
-        ErrorResponse {
-            error: format!("Failed to assign subnet: {}", e),
-            code: "SUBNET_ASSIGNMENT_FAILED".to_string(),
-        }
-    })?;
+    let subnet_assignment = state
+        .assign_node_to_subnet(
+            node_id,
+            &request.hostname,
+            &request.wg_public_key,
+            request.public_endpoint.as_deref(),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to assign subnet: {}", e);
+            ErrorResponse {
+                error: format!("Failed to assign subnet: {}", e),
+                code: "SUBNET_ASSIGNMENT_FAILED".to_string(),
+            }
+        })?;
 
     // 5. Get existing peers in the subnet
-    let peers = state.get_subnet_peers(subnet_assignment.subnet_id, node_id).await;
+    let peers = state
+        .get_subnet_peers(subnet_assignment.subnet_id, node_id)
+        .await;
 
     // 6. Build WireGuard configuration for the node
     let wireguard_config = WireGuardJoinConfig {
-        interface_name: format!("wg-{}", subnet_assignment.subnet_name.replace(' ', "-").to_lowercase()),
+        interface_name: format!(
+            "wg-{}",
+            subnet_assignment
+                .subnet_name
+                .replace(' ', "-")
+                .to_lowercase()
+        ),
         listen_port: request.wg_listen_port.unwrap_or(51820),
         address: format!("{}/24", subnet_assignment.assigned_ip),
         mtu: 1420,
-        gateway_public_key: state.get_subnet_gateway_key(subnet_assignment.subnet_id).await,
+        gateway_public_key: state
+            .get_subnet_gateway_key(subnet_assignment.subnet_id)
+            .await,
     };
 
     // 7. Generate API token for subsequent calls
@@ -367,7 +377,9 @@ pub async fn join_request_handler(
     let state_clone = state.clone();
     let subnet_id = subnet_assignment.subnet_id;
     tokio::spawn(async move {
-        state_clone.notify_peers_of_new_node(subnet_id, new_peer_info).await;
+        state_clone
+            .notify_peers_of_new_node(subnet_id, new_peer_info)
+            .await;
     });
 
     tracing::info!(

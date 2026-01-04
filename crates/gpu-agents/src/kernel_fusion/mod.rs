@@ -289,7 +289,8 @@ impl KernelFusionEngine {
         outputs: &mut [CudaSlice<f32>],
         stream: &CudaStream,
     ) -> Result<FusionExecutionResult> {
-        let runtime = fusion_runtime::FusionRuntime::new(Arc::clone(&self.device), self.config.clone());
+        let runtime =
+            fusion_runtime::FusionRuntime::new(Arc::clone(&self.device), self.config.clone());
 
         let start_time = Instant::now();
 

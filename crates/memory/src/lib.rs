@@ -15,8 +15,8 @@ pub mod pool;
 // GPU Memory Tier modules
 pub mod gpu_memory_tier;
 pub mod memory_pool;
-pub mod unified_memory;
 pub mod multi_gpu;
+pub mod unified_memory;
 
 #[cfg(test)]
 mod test_helpers;
@@ -29,7 +29,7 @@ pub use error::MemoryError;
 pub use pool::MemoryPool;
 
 // Export GPU Memory Tier types
-pub use gpu_memory_tier::{GpuMemoryTier, MemoryConfig, AllocationStrategy, MemoryMetrics};
+pub use gpu_memory_tier::{AllocationStrategy, GpuMemoryTier, MemoryConfig, MemoryMetrics};
 
 /// GPU memory allocation interface for containers
 #[async_trait::async_trait]

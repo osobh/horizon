@@ -51,5 +51,9 @@ fn benchmark_gcp_billing_parsing(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, benchmark_aws_cur_parsing, benchmark_gcp_billing_parsing);
+criterion_group!(
+    benches,
+    benchmark_aws_cur_parsing,
+    benchmark_gcp_billing_parsing
+);
 criterion_main!(benches);

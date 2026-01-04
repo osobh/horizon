@@ -138,6 +138,10 @@ impl BandwidthProfiler {
     ) -> Result<BandwidthMetrics> {
         // Allocate buffers
         let mut host_buffer = vec![0u8; size_bytes];
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+        // for bandwidth measurement because we either:
+        // - Copy host data to device (H2D), initializing the memory
+        // - Don't read from uninitialized memory (D2H reads after H2D warmup)
         let mut device_buffer = unsafe { self.device.alloc::<u8>(size_bytes) }
             .context("Failed to allocate device buffer")?;
 
@@ -153,6 +157,8 @@ impl BandwidthProfiler {
                         .dtoh_sync_copy_into(&device_buffer, &mut host_buffer)?;
                 }
                 MemoryDirection::DeviceToDevice => {
+                    // SAFETY: Destination buffer doesn't need initialization as
+                    // dtod_copy will write the entire buffer from source.
                     let mut device_buffer2 = unsafe { self.device.alloc::<u8>(size_bytes) }?;
                     self.device.dtod_copy(&device_buffer, &mut device_buffer2)?;
                 }
@@ -172,6 +178,8 @@ impl BandwidthProfiler {
                         .dtoh_sync_copy_into(&device_buffer, &mut host_buffer)?;
                 }
                 MemoryDirection::DeviceToDevice => {
+                    // SAFETY: Destination buffer doesn't need initialization as
+                    // dtod_copy will write the entire buffer from source.
                     let mut device_buffer2 = unsafe { self.device.alloc::<u8>(size_bytes) }?;
                     self.device.dtod_copy(&device_buffer, &mut device_buffer2)?;
                 }
@@ -245,7 +253,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_bandwidth_profiler_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_bandwidth_profiler_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let config = BandwidthConfig::default();
         let profiler = BandwidthProfiler::new(device, config);
@@ -253,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pattern_matching_bandwidth() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_pattern_matching_bandwidth() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let profiler = BandwidthProfiler::new(device, BandwidthConfig::default())?;
 
@@ -265,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_copy_bandwidth() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_memory_copy_bandwidth() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let profiler = BandwidthProfiler::new(device, BandwidthConfig::default())?;
 
@@ -277,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn test_access_pattern_profiling() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_access_pattern_profiling() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let profiler = BandwidthProfiler::new(device, BandwidthConfig::default())?;
 

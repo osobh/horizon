@@ -69,9 +69,7 @@ fn test_calculate_attribution_request_serialization() {
 #[test]
 fn test_pricing_request_serialization() {
     use chrono::Utc;
-    use cost_attributor::{
-        api::handlers::pricing::CreatePricingRequest, models::PricingModel,
-    };
+    use cost_attributor::{api::handlers::pricing::CreatePricingRequest, models::PricingModel};
     use rust_decimal_macros::dec;
 
     let now = Utc::now();

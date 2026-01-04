@@ -1,4 +1,4 @@
-use crate::error::{HpcError, Result, CapacityErrorExt};
+use crate::error::{CapacityErrorExt, HpcError, Result};
 use crate::forecaster::UptimePattern;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -139,7 +139,9 @@ impl IntermittentCapacityEstimator {
         let uptime_factor = pattern.avg_uptime_percent / 100.0;
 
         // Combined confidence
-        (session_factor * 0.5 + uptime_factor * 0.5).max(0.0).min(1.0)
+        (session_factor * 0.5 + uptime_factor * 0.5)
+            .max(0.0)
+            .min(1.0)
     }
 
     /// Get all node IDs with patterns

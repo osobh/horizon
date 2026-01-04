@@ -654,8 +654,7 @@ impl IsolationValidator {
         // Simulate GPU memory measurement
         Ok(1024.0
             + (std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                ?
+                .duration_since(std::time::UNIX_EPOCH)?
                 .as_millis()
                 % 100) as f64)
     }
@@ -664,8 +663,7 @@ impl IsolationValidator {
         // Simulate CPU memory measurement
         Ok(2048.0
             + (std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                ?
+                .duration_since(std::time::UNIX_EPOCH)?
                 .as_millis()
                 % 500) as f64)
     }
@@ -674,8 +672,7 @@ impl IsolationValidator {
         // Simulate GPU utilization measurement
         Ok(5.0
             + (std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                ?
+                .duration_since(std::time::UNIX_EPOCH)?
                 .as_millis()
                 % 20) as f64)
     }

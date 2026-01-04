@@ -14,16 +14,8 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use super::{
-    config::*,
-    types::*,
-    objectives::*,
-    strategies::*,
-    dependencies::*,
-    resources::*,
-    execution::*,
-    validation::*,
-    metrics::*,
-    optimization::*,
+    config::*, dependencies::*, execution::*, metrics::*, objectives::*, optimization::*,
+    resources::*, strategies::*, types::*, validation::*,
 };
 
 /// Service recovery plan definition
@@ -197,12 +189,13 @@ impl RecoveryPlanner {
 
     /// Execute recovery plan
     pub async fn execute_plan(&self, plan_id: Uuid) -> DisasterRecoveryResult<Uuid> {
-        let plan = self.plans.get(&plan_id).ok_or_else(|| {
-            DisasterRecoveryError::ResourceUnavailable {
-                resource: "recovery_plan".to_string(),
-                reason: "plan not found".to_string(),
-            }
-        })?;
+        let plan =
+            self.plans
+                .get(&plan_id)
+                .ok_or_else(|| DisasterRecoveryError::ResourceUnavailable {
+                    resource: "recovery_plan".to_string(),
+                    reason: "plan not found".to_string(),
+                })?;
 
         let execution_id = Uuid::new_v4();
         let mut execution = RecoveryExecution::new(plan_id);
@@ -210,10 +203,9 @@ impl RecoveryPlanner {
 
         // Initialize step executions
         for step in &plan.recovery_steps {
-            execution.step_executions.insert(
-                step.id,
-                StepExecution::new(step.id),
-            );
+            execution
+                .step_executions
+                .insert(step.id, StepExecution::new(step.id));
         }
 
         execution.state = ExecutionState::Running;
@@ -228,7 +220,9 @@ impl RecoveryPlanner {
         info!("Started execution {} for plan {}", execution_id, plan_id);
 
         // Send command to execute
-        self.command_tx.send(PlannerCommand::ExecutePlan(execution_id)).await
+        self.command_tx
+            .send(PlannerCommand::ExecutePlan(execution_id))
+            .await
             .map_err(|e| DisasterRecoveryError::Other(format!("Command send failed: {}", e)))?;
 
         Ok(execution_id)
@@ -241,12 +235,17 @@ impl RecoveryPlanner {
 
     /// List all recovery plans
     pub fn list_plans(&self) -> Vec<ServiceRecoveryPlan> {
-        self.plans.iter().map(|entry| entry.value().clone()).collect()
+        self.plans
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 
     /// Get execution status
     pub fn get_execution(&self, execution_id: Uuid) -> Option<RecoveryExecution> {
-        self.executions.get(&execution_id).map(|entry| entry.value().clone())
+        self.executions
+            .get(&execution_id)
+            .map(|entry| entry.value().clone())
     }
 
     /// Get metrics
@@ -264,7 +263,7 @@ impl RecoveryPlanner {
 
         tokio::spawn(async move {
             let mut receiver = command_rx.lock().await;
-            
+
             while !*shutdown.read() {
                 if let Some(command) = receiver.recv().await {
                     match command {
@@ -292,7 +291,7 @@ impl RecoveryPlanner {
 
         tokio::spawn(async move {
             let mut interval = interval(std::time::Duration::from_secs(30));
-            
+
             while !*shutdown.read() {
                 interval.tick().await;
                 Self::update_metrics(&metrics, &executions).await;
@@ -317,10 +316,10 @@ impl RecoveryPlanner {
                 for step in &plan.recovery_steps {
                     if let Some(step_execution) = execution.step_executions.get_mut(&step.id) {
                         step_execution.start();
-                        
+
                         // Simulate step execution
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                        
+
                         step_execution.complete(Some("Step completed successfully".to_string()));
                     }
                 }
@@ -328,20 +327,25 @@ impl RecoveryPlanner {
                 execution.state = ExecutionState::Completed;
                 execution.completed_at = Some(Utc::now());
                 execution.update_progress();
-                execution.add_log(LogLevel::Info, "Execution completed successfully".to_string(), None);
+                execution.add_log(
+                    LogLevel::Info,
+                    "Execution completed successfully".to_string(),
+                    None,
+                );
             }
         }
     }
 
-    async fn cancel_execution(
-        execution_id: Uuid,
-        executions: &DashMap<Uuid, RecoveryExecution>,
-    ) {
+    async fn cancel_execution(execution_id: Uuid, executions: &DashMap<Uuid, RecoveryExecution>) {
         if let Some(mut execution_entry) = executions.get_mut(&execution_id) {
             let execution = execution_entry.value_mut();
             execution.state = ExecutionState::Cancelled;
             execution.completed_at = Some(Utc::now());
-            execution.add_log(LogLevel::Info, "Execution cancelled by user".to_string(), None);
+            execution.add_log(
+                LogLevel::Info,
+                "Execution cancelled by user".to_string(),
+                None,
+            );
         }
     }
 
@@ -350,11 +354,12 @@ impl RecoveryPlanner {
         executions: &DashMap<Uuid, RecoveryExecution>,
     ) {
         let mut metrics_guard = metrics.write();
-        
-        let active_count = executions.iter()
+
+        let active_count = executions
+            .iter()
             .filter(|entry| entry.value().state == ExecutionState::Running)
             .count() as u64;
-        
+
         metrics_guard.active_executions = active_count;
         metrics_guard.last_updated = Utc::now();
     }
@@ -392,7 +397,7 @@ impl RecoveryPlanner {
 
     async fn update_dependency_graph(&self, plan: &ServiceRecoveryPlan) {
         let mut graph = self.dependency_graph.write();
-        
+
         for dependency in &plan.dependencies {
             graph.add_dependency(
                 dependency.dependent_service_id,

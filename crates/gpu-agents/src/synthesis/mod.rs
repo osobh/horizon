@@ -46,7 +46,10 @@ pub enum NodeType {
 }
 
 // Make NodeType GPU-compatible
+// SAFETY: NodeType is #[repr(C)] enum with explicit discriminants 0-9.
+// All discriminant values are valid and the type has no padding.
 unsafe impl bytemuck::Pod for NodeType {}
+// SAFETY: Zero-initialization yields NodeType::Function (= 0), which is valid.
 unsafe impl bytemuck::Zeroable for NodeType {}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

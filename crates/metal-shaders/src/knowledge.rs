@@ -660,8 +660,8 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_graph_shader_compilation() {
-        use stratoswarm_metal_core::metal3::{is_available, Metal3Backend};
         use stratoswarm_metal_core::backend::MetalBackend;
+        use stratoswarm_metal_core::metal3::{is_available, Metal3Backend};
 
         if !is_available() {
             println!("Skipping test - Metal not available");
@@ -679,17 +679,25 @@ mod tests {
         );
 
         let result = backend.create_compute_pipeline(&source, "compute_similarities");
-        assert!(result.is_ok(), "Failed to compile graph shader: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to compile graph shader: {:?}",
+            result.err()
+        );
 
         let result = backend.create_compute_pipeline(&source, "bfs_expand");
-        assert!(result.is_ok(), "Failed to compile bfs_expand: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to compile bfs_expand: {:?}",
+            result.err()
+        );
     }
 
     #[test]
     #[cfg(target_os = "macos")]
     fn test_gnn_shader_compilation() {
-        use stratoswarm_metal_core::metal3::{is_available, Metal3Backend};
         use stratoswarm_metal_core::backend::MetalBackend;
+        use stratoswarm_metal_core::metal3::{is_available, Metal3Backend};
 
         if !is_available() {
             println!("Skipping test - Metal not available");
@@ -708,6 +716,10 @@ mod tests {
         );
 
         let result = backend.create_compute_pipeline(&source, "gnn_message_passing");
-        assert!(result.is_ok(), "Failed to compile gnn shader: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to compile gnn shader: {:?}",
+            result.err()
+        );
     }
 }

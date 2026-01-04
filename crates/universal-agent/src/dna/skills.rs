@@ -79,7 +79,13 @@ impl Skill {
     /// Check if skill needs refreshing (not used recently)
     pub fn needs_refresh(&self, threshold: Duration) -> bool {
         match self.last_used {
-            Some(last) => Utc::now().signed_duration_since(last).to_std().unwrap_or_default() > threshold,
+            Some(last) => {
+                Utc::now()
+                    .signed_duration_since(last)
+                    .to_std()
+                    .unwrap_or_default()
+                    > threshold
+            }
             None => true,
         }
     }
@@ -188,12 +194,20 @@ impl SkillEvidence {
         if self.performance_history.len() < 2 {
             return 0.0;
         }
-        let recent: Vec<f64> = self.performance_history.iter().rev().take(10).map(|p| p.score).collect();
+        let recent: Vec<f64> = self
+            .performance_history
+            .iter()
+            .rev()
+            .take(10)
+            .map(|p| p.score)
+            .collect();
         if recent.len() < 2 {
             return 0.0;
         }
-        let first_half: f64 = recent[recent.len() / 2..].iter().sum::<f64>() / (recent.len() / 2) as f64;
-        let second_half: f64 = recent[..recent.len() / 2].iter().sum::<f64>() / (recent.len() / 2) as f64;
+        let first_half: f64 =
+            recent[recent.len() / 2..].iter().sum::<f64>() / (recent.len() / 2) as f64;
+        let second_half: f64 =
+            recent[..recent.len() / 2].iter().sum::<f64>() / (recent.len() / 2) as f64;
         second_half - first_half
     }
 }
@@ -226,7 +240,10 @@ pub enum SkillExecution {
         parameters: HashMap<String, serde_json::Value>,
     },
     /// Pattern-based execution (from GrowthPattern)
-    PatternBased { pattern_id: String, template: String },
+    PatternBased {
+        pattern_id: String,
+        template: String,
+    },
     /// LLM-powered execution with prompt
     LLMPowered {
         system_prompt: String,

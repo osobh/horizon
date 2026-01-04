@@ -307,6 +307,8 @@ fn test_memory_pressure() {
 // Helper functions
 
 fn is_root() -> bool {
+    // SAFETY: geteuid() is a simple syscall that returns the effective user ID.
+    // It has no preconditions and cannot fail. The return value is a u32.
     unsafe { libc::geteuid() == 0 }
 }
 

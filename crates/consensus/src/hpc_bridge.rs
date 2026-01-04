@@ -184,7 +184,9 @@ mod tests {
     #[test]
     fn test_bridge_creation() {
         let bridge = ConsensusChannelBridge::new();
-        assert!(hpc_channels::exists(hpc_channels::channels::CONSENSUS_PROPOSAL));
+        assert!(hpc_channels::exists(
+            hpc_channels::channels::CONSENSUS_PROPOSAL
+        ));
         let _ = bridge;
     }
 

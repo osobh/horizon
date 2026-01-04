@@ -28,27 +28,26 @@
 //! let response = agent.execute_skill("detect_idle_resources", request).await?;
 //! ```
 
-pub mod dna;
 pub mod agent;
+pub mod dna;
+mod error;
+pub mod integration;
 pub mod learning;
 pub mod registry;
-pub mod integration;
-mod error;
 
 // Re-exports for convenience
-pub use dna::{
-    AgentDNA, DNAId, DNAVersion, DNALineage, Modification, ModificationType, ModificationSource,
-    Skill, SkillCategory, SkillEvidence, SkillExecution, SkillRepertoire,
-    BehaviorGenome, ArchitectureGenome,
-    Capability, FitnessProfile, FitnessDimension, BenchmarkEvidence,
-};
 pub use agent::{UniversalAgent, UniversalAgentConfig};
+pub use dna::{
+    AgentDNA, ArchitectureGenome, BehaviorGenome, BenchmarkEvidence, Capability, DNAId, DNALineage,
+    DNAVersion, FitnessDimension, FitnessProfile, Modification, ModificationSource,
+    ModificationType, Skill, SkillCategory, SkillEvidence, SkillExecution, SkillRepertoire,
+};
+pub use error::{Result, UniversalAgentError};
 pub use learning::LearningEngine;
 pub use registry::{AgentRegistry, CapabilityRequirements};
-pub use error::{UniversalAgentError, Result};
 
 // Re-export core agent types for compatibility
 pub use horizon_agents_core::{
-    Agent, AgentConfig, AgentRequest, AgentResponse, AutonomyLevel,
-    HealthStatus, Lifecycle, AgentState, SafetyThresholds,
+    Agent, AgentConfig, AgentRequest, AgentResponse, AgentState, AutonomyLevel, HealthStatus,
+    Lifecycle, SafetyThresholds,
 };

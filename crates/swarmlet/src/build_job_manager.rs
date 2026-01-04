@@ -3,7 +3,7 @@
 //! This module handles the orchestration of Rust/cargo build jobs,
 //! including job submission, execution, and status tracking.
 
-use crate::build_backend::{BuildBackend, BuildContext, detect_backend};
+use crate::build_backend::{detect_backend, BuildBackend, BuildContext};
 use crate::build_job::{
     ActiveBuildJob, BuildJob, BuildJobStatus, BuildLogEntry, BuildSource, LogStream,
 };
@@ -13,8 +13,8 @@ use crate::build_metrics::{
 };
 use crate::cache_manager::CacheManager;
 use crate::config::Config;
-use crate::toolchain_manager::ToolchainManager;
 use crate::error::BuildPhase;
+use crate::toolchain_manager::ToolchainManager;
 use crate::{Result, SwarmletError};
 use chrono::Utc;
 use flate2::read::GzDecoder;
@@ -112,7 +112,9 @@ impl BuildJobManager {
 
     /// Get build summary for a time window (in hours)
     pub async fn get_build_summary(&self, hours: i64) -> crate::build_metrics::BuildSummary {
-        self.metrics.get_summary(chrono::Duration::hours(hours)).await
+        self.metrics
+            .get_summary(chrono::Duration::hours(hours))
+            .await
     }
 
     /// Submit a new build job
@@ -197,7 +199,10 @@ impl BuildJobManager {
         self.log(job_id, LogStream::System, "Preparing build environment")
             .await;
 
-        let workspace = self.backend.create_workspace(&job_id.to_string()).await
+        let workspace = self
+            .backend
+            .create_workspace(&job_id.to_string())
+            .await
             .map_err(|e| {
                 SwarmletError::build_error_with_source(
                     BuildPhase::PreparingEnvironment,
@@ -212,7 +217,10 @@ impl BuildJobManager {
         self.log(job_id, LogStream::System, "Fetching source code")
             .await;
 
-        if let Err(e) = self.fetch_source_with_retry(&job.source, &workspace, job_id, 3).await {
+        if let Err(e) = self
+            .fetch_source_with_retry(&job.source, &workspace, job_id, 3)
+            .await
+        {
             // Cleanup workspace on failure
             self.cleanup_on_error(job_id, &workspace).await;
             return Err(SwarmletError::build_error_with_source(
@@ -228,17 +236,27 @@ impl BuildJobManager {
         self.log(
             job_id,
             LogStream::System,
-            &format!("Provisioning toolchain: {}", job.toolchain.toolchain_string()),
+            &format!(
+                "Provisioning toolchain: {}",
+                job.toolchain.toolchain_string()
+            ),
         )
         .await;
 
-        let toolchain_path = match self.toolchain_manager.ensure_toolchain(&job.toolchain).await {
+        let toolchain_path = match self
+            .toolchain_manager
+            .ensure_toolchain(&job.toolchain)
+            .await
+        {
             Ok(path) => path,
             Err(e) => {
                 self.cleanup_on_error(job_id, &workspace).await;
                 return Err(SwarmletError::build_error_with_source(
                     BuildPhase::ProvisioningToolchain,
-                    format!("Failed to provision toolchain: {}", job.toolchain.toolchain_string()),
+                    format!(
+                        "Failed to provision toolchain: {}",
+                        job.toolchain.toolchain_string()
+                    ),
                     e,
                 ));
             }
@@ -263,9 +281,9 @@ impl BuildJobManager {
             .with_environment(job.environment.clone());
 
         // Add cache mounts
-        let context = cache_mounts.into_iter().fold(context, |ctx, mount| {
-            ctx.with_cache_mount(mount)
-        });
+        let context = cache_mounts
+            .into_iter()
+            .fold(context, |ctx, mount| ctx.with_cache_mount(mount));
 
         // Execute
         let result = self.backend.execute_cargo(&job.command, &context).await?;
@@ -396,7 +414,8 @@ impl BuildJobManager {
                         }
 
                         // Wait before retry with exponential backoff
-                        tokio::time::sleep(std::time::Duration::from_secs(2_u64.pow(attempt - 1))).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(2_u64.pow(attempt - 1)))
+                            .await;
                         last_error = Some(e);
                     } else {
                         // Non-recoverable error or last attempt
@@ -408,7 +427,10 @@ impl BuildJobManager {
                             self.log(
                                 job_id,
                                 LogStream::System,
-                                &format!("Source fetch failed after {} attempts: {}", max_retries, e),
+                                &format!(
+                                    "Source fetch failed after {} attempts: {}",
+                                    max_retries, e
+                                ),
                             )
                             .await;
                         }
@@ -593,27 +615,24 @@ impl BuildJobManager {
                     )));
                 }
 
-                debug!(
-                    "Extracting cached source {} from {:?}",
-                    hash, archive_path
-                );
+                debug!("Extracting cached source {} from {:?}", hash, archive_path);
 
                 // Extract the cached archive
                 let file = std::fs::File::open(&archive_path).map_err(|e| {
-                    SwarmletError::Io(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("Failed to open cached archive: {}", e),
-                    ))
+                    SwarmletError::Io(std::io::Error::other(format!(
+                        "Failed to open cached archive: {}",
+                        e
+                    )))
                 })?;
                 let decoder = GzDecoder::new(file);
                 let mut archive = Archive::new(decoder);
 
                 // Extract directly (no stripping needed - cached sources are stored flat)
                 archive.unpack(workspace).map_err(|e| {
-                    SwarmletError::Io(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("Failed to extract cached archive: {}", e),
-                    ))
+                    SwarmletError::Io(std::io::Error::other(format!(
+                        "Failed to extract cached archive: {}",
+                        e
+                    )))
                 })?;
 
                 // Update last_used timestamp
@@ -671,9 +690,7 @@ impl BuildJobManager {
     /// Get the number of active jobs
     pub async fn active_job_count(&self) -> usize {
         let jobs = self.active_jobs.read().await;
-        jobs.values()
-            .filter(|j| !j.status.is_terminal())
-            .count()
+        jobs.values().filter(|j| !j.status.is_terminal()).count()
     }
 
     /// Get a job's status

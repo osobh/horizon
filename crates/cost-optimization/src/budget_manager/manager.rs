@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use super::alerts::{BudgetAlert, AlertSeverity};
+use super::alerts::{AlertSeverity, BudgetAlert};
 use super::budget::{Budget, BudgetStatus};
 use super::chargeback::ChargebackReport;
 use super::config::BudgetManagerConfig;
@@ -38,7 +38,7 @@ impl BudgetManager {
     /// Create a new budget
     pub fn create_budget(&self, budget: Budget) -> CostOptimizationResult<String> {
         let budget_id = budget.id.clone();
-        
+
         // Initialize budget status
         let status = BudgetStatus {
             budget_id: budget_id.clone(),
@@ -54,36 +54,33 @@ impl BudgetManager {
             is_over_budget: false,
             last_updated: Utc::now(),
         };
-        
+
         self.budgets.insert(budget_id.clone(), budget);
         self.budget_status.insert(budget_id.clone(), status);
-        
+
         let mut metrics = self.metrics.write();
         metrics.total_budgets += 1;
         metrics.active_budgets += 1;
         metrics.total_allocated += budget.amount;
-        
+
         info!("Created budget: {}", budget_id);
         Ok(budget_id)
     }
 
     /// Update budget spend
-    pub fn update_spend(
-        &self,
-        budget_id: &str,
-        amount: f64,
-    ) -> CostOptimizationResult<()> {
-        let mut status = self.budget_status.get_mut(budget_id)
-            .ok_or_else(|| CostOptimizationError::BudgetNotFound {
+    pub fn update_spend(&self, budget_id: &str, amount: f64) -> CostOptimizationResult<()> {
+        let mut status = self.budget_status.get_mut(budget_id).ok_or_else(|| {
+            CostOptimizationError::BudgetNotFound {
                 budget_id: budget_id.to_string(),
-            })?;
-        
+            }
+        })?;
+
         status.current_spend += amount;
         status.remaining_budget = status.allocated_budget - status.current_spend;
         status.utilization_percent = (status.current_spend / status.allocated_budget) * 100.0;
         status.is_over_budget = status.current_spend > status.allocated_budget;
         status.last_updated = Utc::now();
-        
+
         // Check for alerts
         if let Some(budget) = self.budgets.get(budget_id) {
             for threshold in &budget.alert_thresholds {
@@ -92,19 +89,20 @@ impl BudgetManager {
                 }
             }
         }
-        
+
         let mut metrics = self.metrics.write();
         metrics.total_spend += amount;
         if status.is_over_budget {
             metrics.over_budget_count += 1;
         }
-        
+
         Ok(())
     }
 
     /// Get budget status
     pub fn get_budget_status(&self, budget_id: &str) -> CostOptimizationResult<BudgetStatus> {
-        self.budget_status.get(budget_id)
+        self.budget_status
+            .get(budget_id)
             .map(|s| s.clone())
             .ok_or_else(|| CostOptimizationError::BudgetNotFound {
                 budget_id: budget_id.to_string(),
@@ -117,8 +115,11 @@ impl BudgetManager {
         period_start: DateTime<Utc>,
         period_end: DateTime<Utc>,
     ) -> CostOptimizationResult<ChargebackReport> {
-        info!("Generating chargeback report for {} to {}", period_start, period_end);
-        
+        info!(
+            "Generating chargeback report for {} to {}",
+            period_start, period_end
+        );
+
         let report = ChargebackReport {
             id: Uuid::new_v4(),
             period_start,
@@ -130,9 +131,9 @@ impl BudgetManager {
             approved: false,
             approved_by: None,
         };
-        
+
         self.metrics.write().chargeback_reports_generated += 1;
-        
+
         Ok(report)
     }
 
@@ -142,7 +143,7 @@ impl BudgetManager {
     }
 
     // Helper methods
-    
+
     fn trigger_alert(
         &self,
         budget_id: &str,
@@ -165,7 +166,10 @@ impl BudgetManager {
             threshold_triggered: threshold,
             current_spend: status.current_spend,
             budget_amount: status.allocated_budget,
-            message: format!("Budget {} has reached {}% utilization", budget_id, threshold),
+            message: format!(
+                "Budget {} has reached {}% utilization",
+                budget_id, threshold
+            ),
             recommendations: vec![],
             notification_sent: false,
             actions_taken: vec![],
@@ -173,11 +177,14 @@ impl BudgetManager {
             acknowledged_by: None,
             acknowledged_at: None,
         };
-        
+
         self.alerts.write().push(alert);
         self.metrics.write().alerts_triggered += 1;
-        
-        warn!("Budget alert triggered for {}: {}% threshold", budget_id, threshold);
+
+        warn!(
+            "Budget alert triggered for {}: {}% threshold",
+            budget_id, threshold
+        );
         Ok(())
     }
 }

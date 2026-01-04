@@ -24,7 +24,10 @@ fn main() -> anyhow::Result<()> {
     let info = device.info();
 
     println!("Device: {}", info.name);
-    println!("Max Threads/Threadgroup: {}", info.max_threads_per_threadgroup);
+    println!(
+        "Max Threads/Threadgroup: {}",
+        info.max_threads_per_threadgroup
+    );
     println!();
 
     // ========================================================================
@@ -201,16 +204,19 @@ fn main() -> anyhow::Result<()> {
     // ========================================================================
     println!("3. Dispatch Latency (kernel execution overhead)");
     println!("{}", "-".repeat(70));
-    println!("{:>15} {:>12} {:>12} {:>12} {:>15}", "Threads", "Avg", "P50", "P99", "Throughput");
+    println!(
+        "{:>15} {:>12} {:>12} {:>12} {:>15}",
+        "Threads", "Avg", "P50", "P99", "Throughput"
+    );
 
     let dispatch_sizes: [u64; 7] = [
-        1,           // Single thread
-        32,          // Single SIMD group
-        256,         // Single threadgroup
-        1024,        // Multiple threadgroups
-        65536,       // 64K threads
-        1048576,     // 1M threads
-        16777216,    // 16M threads
+        1,        // Single thread
+        32,       // Single SIMD group
+        256,      // Single threadgroup
+        1024,     // Multiple threadgroups
+        65536,    // 64K threads
+        1048576,  // 1M threads
+        16777216, // 16M threads
     ];
 
     for threads in dispatch_sizes {
@@ -347,8 +353,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     batch_times.sort();
-    let avg_per_dispatch =
-        batch_times.iter().sum::<Duration>() / batch_times.len() as u32 / 10;
+    let avg_per_dispatch = batch_times.iter().sum::<Duration>() / batch_times.len() as u32 / 10;
     println!(
         "  Batched (10 dispatches): {:>8.2?} per dispatch",
         avg_per_dispatch

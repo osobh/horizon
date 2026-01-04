@@ -1,11 +1,11 @@
-pub mod job;
-pub mod resource;
-pub mod placement;
-pub mod topology;
 pub mod checkpoint;
+pub mod job;
+pub mod placement;
+pub mod resource;
+pub mod topology;
 
-pub use job::{Job, JobState, Priority};
-pub use resource::{ResourceRequest, ResourceAllocation};
-pub use placement::PlacementDecision;
-pub use topology::{Topology, Node, NumaNode, Gpu, LinkType};
 pub use checkpoint::Checkpoint;
+pub use job::{Job, JobState, Priority};
+pub use placement::PlacementDecision;
+pub use resource::{ResourceAllocation, ResourceRequest};
+pub use topology::{Gpu, LinkType, Node, NumaNode, Topology};

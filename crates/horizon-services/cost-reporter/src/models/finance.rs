@@ -99,7 +99,7 @@ pub struct BudgetDb {
     pub team_name: String,
     pub amount: sqlx::types::Decimal,
     pub spent: sqlx::types::Decimal,
-    pub remaining: sqlx::types::Decimal,  // Generated column
+    pub remaining: sqlx::types::Decimal, // Generated column
     pub period: String,
     pub alert_threshold: sqlx::types::Decimal,
     pub created_at: DateTime<Utc>,
@@ -109,9 +109,8 @@ pub struct BudgetDb {
 impl From<BudgetDb> for Budget {
     fn from(db: BudgetDb) -> Self {
         use std::str::FromStr;
-        let to_f64 = |bd: sqlx::types::Decimal| -> f64 {
-            f64::from_str(&bd.to_string()).unwrap_or(0.0)
-        };
+        let to_f64 =
+            |bd: sqlx::types::Decimal| -> f64 { f64::from_str(&bd.to_string()).unwrap_or(0.0) };
 
         Self {
             id: db.id,
@@ -166,7 +165,7 @@ pub struct ChargebackReportDb {
     pub start_date: String,
     pub end_date: String,
     pub total_amount: sqlx::types::Decimal,
-    pub line_items: sqlx::types::JsonValue,  // JSONB array
+    pub line_items: sqlx::types::JsonValue, // JSONB array
     pub status: String,
     pub generated_at: DateTime<Utc>,
 }
@@ -251,7 +250,7 @@ pub struct CostOptimizationDb {
     pub effort: String,
     pub priority: String,
     pub status: String,
-    pub implementation_steps: sqlx::types::JsonValue,  // JSONB array
+    pub implementation_steps: sqlx::types::JsonValue, // JSONB array
     pub created_at: DateTime<Utc>,
 }
 
@@ -340,9 +339,8 @@ pub struct CostAlertDb {
 impl From<CostAlertDb> for CostAlert {
     fn from(db: CostAlertDb) -> Self {
         use std::str::FromStr;
-        let to_f64 = |bd: sqlx::types::Decimal| -> f64 {
-            f64::from_str(&bd.to_string()).unwrap_or(0.0)
-        };
+        let to_f64 =
+            |bd: sqlx::types::Decimal| -> f64 { f64::from_str(&bd.to_string()).unwrap_or(0.0) };
 
         Self {
             id: db.id,
@@ -407,7 +405,7 @@ pub struct AlertConfigurationDb {
     pub condition_type: String,
     pub threshold: sqlx::types::Decimal,
     pub enabled: bool,
-    pub notification_channels: sqlx::types::JsonValue,  // JSONB array
+    pub notification_channels: sqlx::types::JsonValue, // JSONB array
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

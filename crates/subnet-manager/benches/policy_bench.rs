@@ -239,7 +239,10 @@ fn bench_batch_evaluation(c: &mut Criterion) {
                     2 => NodeType::Laptop,
                     _ => NodeType::Edge,
                 };
-                (Some(Uuid::new_v4()), NodeAttributes::new().with_node_type(node_type))
+                (
+                    Some(Uuid::new_v4()),
+                    NodeAttributes::new().with_node_type(node_type),
+                )
             })
             .collect();
 

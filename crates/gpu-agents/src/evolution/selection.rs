@@ -53,9 +53,10 @@ impl GpuSelectionStrategy {
         selection_size: usize,
     ) -> Result<CudaSlice<u32>> {
         // Allocate selection buffer if needed
-        if self.selected_indices.is_none()
-            || self.selected_indices.as_ref()?.len() < selection_size
+        if self.selected_indices.is_none() || self.selected_indices.as_ref()?.len() < selection_size
         {
+            // SAFETY: alloc returns uninitialized memory. selected_indices will be
+            // written by selection kernels before any reads.
             self.selected_indices = Some(unsafe { self.device.alloc::<u32>(selection_size)? });
         }
 
@@ -109,6 +110,11 @@ impl GpuSelectionStrategy {
         selection_size: usize,
         tournament_size: u32,
     ) -> Result<()> {
+        // SAFETY: All pointers are valid device pointers:
+        // - fitness_scores from PopulationPointers (from GpuPopulation allocation)
+        // - selected from CudaSlice allocation
+        // - population_size and selection_size match actual array sizes
+        // - rng_states is null (kernel handles its own RNG)
         unsafe {
             crate::evolution::kernels::launch_tournament_selection(
                 pointers.fitness_scores,
@@ -130,6 +136,9 @@ impl GpuSelectionStrategy {
         selected: &mut CudaSlice<u32>,
         elite_count: u32,
     ) -> Result<()> {
+        // SAFETY: All pointers are valid device pointers from PopulationPointers
+        // (from GpuPopulation allocation). selected is from CudaSlice allocation.
+        // population_size matches actual array size. elite_count <= population_size.
         unsafe {
             crate::evolution::kernels::launch_elite_preservation(
                 pointers.fitness_scores,
@@ -150,6 +159,9 @@ impl GpuSelectionStrategy {
         selection_size: usize,
     ) -> Result<()> {
         // Use NSGA-II kernel from evolution_kernel.cu
+        // SAFETY: fitness_scores and selected are valid device pointers.
+        // GPUAgent pointer is null (not used in this simplified implementation).
+        // population_size and selection_size match actual array sizes.
         unsafe {
             crate::ffi::launch_nsga2_selection(
                 std::ptr::null_mut(),                // GPUAgent pointer (not used here)
@@ -171,9 +183,10 @@ impl GpuSelectionStrategy {
         methods: &[(SelectionMethod, f32)],
     ) -> Result<CudaSlice<u32>> {
         // Allocate combined selection buffer
-        if self.selected_indices.is_none()
-            || self.selected_indices.as_ref()?.len() < selection_size
+        if self.selected_indices.is_none() || self.selected_indices.as_ref()?.len() < selection_size
         {
+            // SAFETY: alloc returns uninitialized memory. selected_indices will be
+            // written by selection kernels and dtod_copy before any reads.
             self.selected_indices = Some(unsafe { self.device.alloc::<u32>(selection_size)? });
         }
 
@@ -233,7 +246,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_selection_strategy_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_selection_strategy_creation() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let strategy = GpuSelectionStrategy::new(device, 0.1)?;
@@ -242,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn test_elite_percentage_clamping() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_elite_percentage_clamping() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let strategy = GpuSelectionStrategy::new(device.clone(), 1.5)?;

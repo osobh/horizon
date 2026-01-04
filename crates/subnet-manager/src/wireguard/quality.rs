@@ -112,7 +112,7 @@ impl ConnectionQuality {
             .rtt_samples
             .iter()
             .map(|&x| {
-                let diff = if x > avg { x - avg } else { avg - x };
+                let diff = x.abs_diff(avg);
                 diff * diff
             })
             .sum::<u64>()

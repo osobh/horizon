@@ -1,5 +1,5 @@
+use hpc_types::{CpuMetric, GpuMetric, MetricBatch, NicMetric, Timestamp};
 use telemetry_collector::cardinality::CardinalityTracker;
-use hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch, Timestamp};
 
 fn create_test_gpu_metric(host_id: &str, gpu_id: &str) -> GpuMetric {
     GpuMetric {
@@ -154,12 +154,8 @@ fn test_track_metric_batch() {
             create_test_gpu_metric("host1", "gpu0"),
             create_test_gpu_metric("host1", "gpu1"),
         ],
-        cpu_metrics: vec![
-            create_test_cpu_metric("host1", 0),
-        ],
-        nic_metrics: vec![
-            create_test_nic_metric("host1", "eth0"),
-        ],
+        cpu_metrics: vec![create_test_cpu_metric("host1", 0)],
+        nic_metrics: vec![create_test_nic_metric("host1", "eth0")],
     };
 
     let result = tracker.track_batch(&batch);
@@ -223,7 +219,9 @@ fn test_get_series_info() {
 
     let series = tracker.get_all_series();
     assert_eq!(series.len(), 1);
-    assert!(series.iter().any(|s| s.contains("host1") && s.contains("gpu0")));
+    assert!(series
+        .iter()
+        .any(|s| s.contains("host1") && s.contains("gpu0")));
 }
 
 #[test]

@@ -128,8 +128,7 @@ enable_tls: false
     env::set_var("TESTSERVICE__MAX_CONNECTIONS", "500");
     env::set_var("TESTSERVICE__ENABLE_TLS", "true");
 
-    let config: TestServiceConfig =
-        hpc_config::load_with_env(&config_path, "TESTSERVICE").unwrap();
+    let config: TestServiceConfig = hpc_config::load_with_env(&config_path, "TESTSERVICE").unwrap();
 
     assert_eq!(config.listen_addr, "0.0.0.0:9999");
     assert_eq!(config.log_level, "debug");
@@ -516,8 +515,7 @@ enable_tls: false
     env::set_var("CASETEST__LISTEN_ADDR", "0.0.0.0:9999");
     env::set_var("CASETEST__LOG_LEVEL", "warn");
 
-    let config: TestServiceConfig =
-        hpc_config::load_with_env(&config_path, "CASETEST").unwrap();
+    let config: TestServiceConfig = hpc_config::load_with_env(&config_path, "CASETEST").unwrap();
 
     assert_eq!(config.listen_addr, "0.0.0.0:9999");
     assert_eq!(config.log_level, "warn");

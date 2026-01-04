@@ -55,7 +55,10 @@ pub enum ResolutionStrategy {
 /// Trait for conflict resolution
 #[async_trait::async_trait]
 pub trait ConflictResolver: Send + Sync {
-    async fn detect_conflicts(&self, operations: &[KnowledgeOperation]) -> Vec<ConflictingOperation>;
+    async fn detect_conflicts(
+        &self,
+        operations: &[KnowledgeOperation],
+    ) -> Vec<ConflictingOperation>;
     async fn resolve(&self, conflict: ConflictingOperation) -> Resolution;
     async fn apply_resolution(&self, resolution: Resolution);
 }
@@ -75,30 +78,41 @@ impl DefaultConflictResolver {
 
 #[async_trait::async_trait]
 impl ConflictResolver for DefaultConflictResolver {
-    async fn detect_conflicts(&self, operations: &[KnowledgeOperation]) -> Vec<ConflictingOperation> {
+    async fn detect_conflicts(
+        &self,
+        operations: &[KnowledgeOperation],
+    ) -> Vec<ConflictingOperation> {
         let mut conflicts = Vec::new();
-        
+
         // Check for conflicts between all pairs of operations
         for i in 0..operations.len() {
             for j in i + 1..operations.len() {
                 let op1 = &operations[i];
                 let op2 = &operations[j];
-                
+
                 // Check if operations are concurrent
                 if op1.vector_clock.concurrent_with(&op2.vector_clock) {
                     // Detect conflict type based on operation types
                     let conflict_type = match (&op1.operation_type, &op2.operation_type) {
-                        (crate::sync_protocol::types::OperationType::Update, 
-                         crate::sync_protocol::types::OperationType::Update) => ConflictType::WriteWrite,
-                        (crate::sync_protocol::types::OperationType::Update, 
-                         crate::sync_protocol::types::OperationType::Delete) |
-                        (crate::sync_protocol::types::OperationType::Delete, 
-                         crate::sync_protocol::types::OperationType::Update) => ConflictType::WriteDelete,
-                        (crate::sync_protocol::types::OperationType::Delete, 
-                         crate::sync_protocol::types::OperationType::Delete) => ConflictType::DeleteDelete,
+                        (
+                            crate::sync_protocol::types::OperationType::Update,
+                            crate::sync_protocol::types::OperationType::Update,
+                        ) => ConflictType::WriteWrite,
+                        (
+                            crate::sync_protocol::types::OperationType::Update,
+                            crate::sync_protocol::types::OperationType::Delete,
+                        )
+                        | (
+                            crate::sync_protocol::types::OperationType::Delete,
+                            crate::sync_protocol::types::OperationType::Update,
+                        ) => ConflictType::WriteDelete,
+                        (
+                            crate::sync_protocol::types::OperationType::Delete,
+                            crate::sync_protocol::types::OperationType::Delete,
+                        ) => ConflictType::DeleteDelete,
                         _ => continue,
                     };
-                    
+
                     conflicts.push(ConflictingOperation {
                         operation1: op1.clone(),
                         operation2: op2.clone(),
@@ -108,7 +122,7 @@ impl ConflictResolver for DefaultConflictResolver {
                 }
             }
         }
-        
+
         conflicts
     }
 
@@ -119,18 +133,18 @@ impl ConflictResolver for DefaultConflictResolver {
         } else {
             Some(conflict.operation2)
         };
-        
+
         let resolution = Resolution {
             conflict_id: Uuid::new_v4(),
             strategy: ResolutionStrategy::LastWriterWins,
             winning_operation,
             merged_operation: None,
         };
-        
+
         // Store resolution in history
         let mut history = self.resolution_history.write().await;
         history.push(resolution.clone());
-        
+
         resolution
     }
 

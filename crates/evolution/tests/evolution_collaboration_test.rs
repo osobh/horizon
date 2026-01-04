@@ -3,20 +3,20 @@
 //! Tests advanced collaboration features including distributed consensus, knowledge transfer,
 //! algorithm replication, and collaborative evolution across GPU clusters.
 
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::collections::{HashMap, HashSet, BTreeMap, VecDeque};
 use tokio::sync::{mpsc, RwLock, Semaphore};
-use tokio::time::{sleep, timeout, interval};
-use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
+use tokio::time::{interval, sleep, timeout};
 use uuid::Uuid;
 
 // Re-import types from the main marketplace module
 // In a real application, these would be imported from the main crate
 use super::evolution_marketplace_test::{
-    EvolutionPackage, BenchmarkResults, CompatibilityMatrix, UsageStatistics,
-    EvolutionMarketplace, ClusterInfo, SyncCommand
+    BenchmarkResults, ClusterInfo, CompatibilityMatrix, EvolutionMarketplace, EvolutionPackage,
+    SyncCommand, UsageStatistics,
 };
 
 #[derive(Debug, Clone)]
@@ -66,16 +66,17 @@ impl DistributedConsensus {
     /// Check consensus on algorithm validation
     pub async fn check_consensus(&self, package_id: Uuid) -> Result<bool> {
         let results = self.validation_results.read().await;
-        
+
         if let Some(validations) = results.get(&package_id) {
             if validations.len() < 3 {
                 return Ok(false); // Need at least 3 validators
             }
-            
-            let consensus_count = validations.iter()
+
+            let consensus_count = validations
+                .iter()
                 .filter(|v| v.performance_score > self.consensus_threshold)
                 .count();
-            
+
             Ok(consensus_count as f64 / validations.len() as f64 > 0.66)
         } else {
             Ok(false)
@@ -83,7 +84,9 @@ impl DistributedConsensus {
     }
 
     async fn initiate_distributed_validation(&self, _package: EvolutionPackage) -> Result<()> {
-        Err(anyhow!("Distributed validation not implemented - RED phase failure"))
+        Err(anyhow!(
+            "Distributed validation not implemented - RED phase failure"
+        ))
     }
 }
 
@@ -123,12 +126,13 @@ impl KnowledgeTransferCoordinator {
     /// Queue knowledge transfer between clusters
     pub async fn queue_transfer(&self, request: TransferRequest) -> Result<()> {
         let mut queue = self.transfer_queue.write().await;
-        
+
         // Insert based on priority
-        let insert_pos = queue.iter()
+        let insert_pos = queue
+            .iter()
             .position(|r| r.priority < request.priority)
             .unwrap_or(queue.len());
-        
+
         queue.insert(insert_pos, request);
         Ok(())
     }
@@ -141,16 +145,18 @@ impl KnowledgeTransferCoordinator {
         } {
             // Acquire bandwidth permit
             let _permit = self.bandwidth_limiter.acquire().await?;
-            
+
             // This will fail in RED phase - no actual transfer implementation
             self.execute_transfer(request).await?;
         }
-        
+
         Ok(())
     }
 
     async fn execute_transfer(&self, _request: TransferRequest) -> Result<()> {
-        Err(anyhow!("Knowledge transfer execution not implemented - RED phase failure"))
+        Err(anyhow!(
+            "Knowledge transfer execution not implemented - RED phase failure"
+        ))
     }
 }
 
@@ -166,9 +172,9 @@ impl EvolutionMarketplace {
             let target_clusters: Vec<String> = cluster_registry
                 .values()
                 .filter(|cluster| {
-                    cluster.cluster_id != self.cluster_id && 
-                    cluster.reputation > 0.7 &&
-                    self.cluster_supports_package(cluster, package)
+                    cluster.cluster_id != self.cluster_id
+                        && cluster.reputation > 0.7
+                        && self.cluster_supports_package(cluster, package)
                 })
                 .take(self.replication_factor)
                 .map(|c| c.cluster_id.clone())
@@ -192,25 +198,30 @@ impl EvolutionMarketplace {
         evolution_parameters: EvolutionParameters,
     ) -> Result<Uuid> {
         // This will fail in RED phase - no collaborative evolution implemented
-        let evolved_algorithm = self.perform_distributed_evolution(
-            base_package_id, 
-            evolution_parameters
-        ).await?;
+        let evolved_algorithm = self
+            .perform_distributed_evolution(base_package_id, evolution_parameters)
+            .await?;
 
         Ok(evolved_algorithm.id)
     }
 
-    fn cluster_supports_package(&self, _cluster: &ClusterInfo, _package: &EvolutionPackage) -> bool {
+    fn cluster_supports_package(
+        &self,
+        _cluster: &ClusterInfo,
+        _package: &EvolutionPackage,
+    ) -> bool {
         // Placeholder - real implementation would check cluster capabilities
         true
     }
 
     async fn perform_distributed_evolution(
-        &self, 
-        _base_package_id: Uuid, 
-        _parameters: EvolutionParameters
+        &self,
+        _base_package_id: Uuid,
+        _parameters: EvolutionParameters,
     ) -> Result<EvolutionPackage> {
-        Err(anyhow!("Distributed evolution not implemented - RED phase failure"))
+        Err(anyhow!(
+            "Distributed evolution not implemented - RED phase failure"
+        ))
     }
 }
 
@@ -223,7 +234,7 @@ mod tests {
     #[tokio::test]
     async fn test_distributed_consensus_validation() {
         let consensus = DistributedConsensus::new("consensus_cluster".to_string(), 80.0);
-        
+
         let test_package = EvolutionPackage {
             id: Uuid::new_v4(),
             algorithm_name: "TestAlgorithm".to_string(),
@@ -256,11 +267,13 @@ mod tests {
             usage_statistics: UsageStatistics::default(),
             reputation_score: 1.0,
         };
-        
+
         // Try to validate algorithm - should fail in RED phase
         let validation_result = consensus.validate_algorithm(test_package).await;
-        assert!(validation_result.is_err(), 
-            "Distributed validation should fail in RED phase");
+        assert!(
+            validation_result.is_err(),
+            "Distributed validation should fail in RED phase"
+        );
     }
 
     /// Test knowledge transfer coordination
@@ -271,12 +284,12 @@ mod tests {
             "transfer_node".to_string(),
             2,
         );
-        
+
         let coordinator = KnowledgeTransferCoordinator::new(
             Arc::new(marketplace),
             3, // Max concurrent transfers
         );
-        
+
         // Queue multiple transfer requests
         let requests = vec![
             TransferRequest {
@@ -301,28 +314,30 @@ mod tests {
                 estimated_size_mb: 100.0,
             },
         ];
-        
+
         // Queue all requests
         for request in requests {
             let queue_result = coordinator.queue_transfer(request).await;
             assert!(queue_result.is_ok(), "Queueing transfer should succeed");
         }
-        
+
         // Verify queue ordering by priority
         {
             let queue = coordinator.transfer_queue.read().await;
             assert_eq!(queue.len(), 3, "Should have 3 queued transfers");
-            
+
             // Critical priority should be first
             assert_eq!(queue[0].priority, TransferPriority::Critical);
             assert_eq!(queue[1].priority, TransferPriority::High);
             assert_eq!(queue[2].priority, TransferPriority::Low);
         }
-        
+
         // Try to process transfers - should fail in RED phase
         let process_result = coordinator.process_transfers().await;
-        assert!(process_result.is_err(), 
-            "Transfer processing should fail in RED phase");
+        assert!(
+            process_result.is_err(),
+            "Transfer processing should fail in RED phase"
+        );
     }
 
     /// Test algorithm replication for fault tolerance
@@ -333,33 +348,45 @@ mod tests {
             "replication_node".to_string(),
             3, // Replication factor
         );
-        
+
         // Add test clusters to registry
         {
             let mut registry = marketplace.cluster_registry.write().await;
-            registry.insert("cluster_1".to_string(), ClusterInfo {
-                cluster_id: "cluster_1".to_string(),
-                endpoint: "http://cluster1:8080".to_string(),
-                gpu_count: 8,
-                total_memory_gb: 64.0,
-                compute_capabilities: vec!["sm_80".to_string()],
-                last_seen: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-                reputation: 0.9,
-                available_algorithms: 50,
-            });
-            
-            registry.insert("cluster_2".to_string(), ClusterInfo {
-                cluster_id: "cluster_2".to_string(),
-                endpoint: "http://cluster2:8080".to_string(),
-                gpu_count: 16,
-                total_memory_gb: 128.0,
-                compute_capabilities: vec!["sm_80".to_string(), "sm_86".to_string()],
-                last_seen: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-                reputation: 0.85,
-                available_algorithms: 75,
-            });
+            registry.insert(
+                "cluster_1".to_string(),
+                ClusterInfo {
+                    cluster_id: "cluster_1".to_string(),
+                    endpoint: "http://cluster1:8080".to_string(),
+                    gpu_count: 8,
+                    total_memory_gb: 64.0,
+                    compute_capabilities: vec!["sm_80".to_string()],
+                    last_seen: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
+                    reputation: 0.9,
+                    available_algorithms: 50,
+                },
+            );
+
+            registry.insert(
+                "cluster_2".to_string(),
+                ClusterInfo {
+                    cluster_id: "cluster_2".to_string(),
+                    endpoint: "http://cluster2:8080".to_string(),
+                    gpu_count: 16,
+                    total_memory_gb: 128.0,
+                    compute_capabilities: vec!["sm_80".to_string(), "sm_86".to_string()],
+                    last_seen: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
+                    reputation: 0.85,
+                    available_algorithms: 75,
+                },
+            );
         }
-        
+
         // Add test algorithm
         let test_package = EvolutionPackage {
             id: Uuid::new_v4(),
@@ -367,7 +394,10 @@ mod tests {
             version: 1,
             cluster_id: marketplace.cluster_id.clone(),
             author_node: marketplace.node_id.clone(),
-            creation_timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            creation_timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             performance_score: 88.0,
             complexity_score: 1.8,
             gpu_architecture: "sm_80".to_string(),
@@ -393,16 +423,18 @@ mod tests {
             usage_statistics: UsageStatistics::default(),
             reputation_score: 1.0,
         };
-        
+
         {
             let mut local_packages = marketplace.local_packages.write().await;
             local_packages.insert(test_package.id, test_package);
         }
-        
+
         // Try to replicate algorithms - should succeed for queueing commands
         let replication_result = marketplace.replicate_algorithms().await;
-        assert!(replication_result.is_ok(), 
-            "Algorithm replication queueing should succeed");
+        assert!(
+            replication_result.is_ok(),
+            "Algorithm replication queueing should succeed"
+        );
     }
 
     /// Test collaborative evolution across clusters
@@ -413,7 +445,7 @@ mod tests {
             "evolution_node".to_string(),
             2,
         );
-        
+
         let base_package_id = Uuid::new_v4();
         let evolution_params = EvolutionParameters {
             mutation_rate: 0.02,
@@ -428,24 +460,25 @@ mod tests {
                 constraints
             },
         };
-        
+
         // Try collaborative evolution - should fail in RED phase
-        let evolution_result = marketplace.collaborative_evolution(
-            base_package_id,
-            evolution_params,
-        ).await;
-        
-        assert!(evolution_result.is_err(), 
-            "Collaborative evolution should fail in RED phase");
+        let evolution_result = marketplace
+            .collaborative_evolution(base_package_id, evolution_params)
+            .await;
+
+        assert!(
+            evolution_result.is_err(),
+            "Collaborative evolution should fail in RED phase"
+        );
     }
 
     /// Test consensus threshold behavior
     #[tokio::test]
     async fn test_consensus_threshold_behavior() {
         let consensus = DistributedConsensus::new("threshold_test".to_string(), 75.0);
-        
+
         let package_id = Uuid::new_v4();
-        
+
         // Manually add validation results
         {
             let mut results = consensus.validation_results.write().await;
@@ -456,7 +489,10 @@ mod tests {
                     performance_score: 80.0,
                     security_score: 85.0,
                     compatibility_score: 90.0,
-                    timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    timestamp: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     signature: "signature_1".to_string(),
                 },
                 ValidationResult {
@@ -465,7 +501,10 @@ mod tests {
                     performance_score: 78.0,
                     security_score: 82.0,
                     compatibility_score: 88.0,
-                    timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    timestamp: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     signature: "signature_2".to_string(),
                 },
                 ValidationResult {
@@ -474,18 +513,24 @@ mod tests {
                     performance_score: 72.0, // Below threshold
                     security_score: 75.0,
                     compatibility_score: 80.0,
-                    timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    timestamp: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     signature: "signature_3".to_string(),
                 },
             ];
             results.insert(package_id, validations);
         }
-        
+
         // Check consensus - should be false (only 2/3 above threshold)
         let consensus_result = consensus.check_consensus(package_id).await;
         assert!(consensus_result.is_ok());
-        assert!(!consensus_result.unwrap(), "Consensus should not be reached");
-        
+        assert!(
+            !consensus_result.unwrap(),
+            "Consensus should not be reached"
+        );
+
         // Add another validation above threshold
         {
             let mut results = consensus.validation_results.write().await;
@@ -496,11 +541,14 @@ mod tests {
                 performance_score: 85.0, // Above threshold
                 security_score: 87.0,
                 compatibility_score: 92.0,
-                timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                timestamp: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 signature: "signature_4".to_string(),
             });
         }
-        
+
         // Check consensus again - should be true (3/4 above threshold > 66%)
         let consensus_result = consensus.check_consensus(package_id).await;
         assert!(consensus_result.is_ok());
@@ -510,17 +558,11 @@ mod tests {
     /// Test transfer priority ordering
     #[tokio::test]
     async fn test_transfer_priority_ordering() {
-        let (marketplace, _sync_receiver) = EvolutionMarketplace::new(
-            "priority_test".to_string(),
-            "priority_node".to_string(),
-            2,
-        );
-        
-        let coordinator = KnowledgeTransferCoordinator::new(
-            Arc::new(marketplace),
-            2,
-        );
-        
+        let (marketplace, _sync_receiver) =
+            EvolutionMarketplace::new("priority_test".to_string(), "priority_node".to_string(), 2);
+
+        let coordinator = KnowledgeTransferCoordinator::new(Arc::new(marketplace), 2);
+
         // Add requests in mixed order
         let requests = vec![
             TransferRequest {
@@ -552,28 +594,29 @@ mod tests {
                 estimated_size_mb: 45.0,
             },
         ];
-        
+
         // Queue all requests
         for request in requests {
             coordinator.queue_transfer(request).await.unwrap();
         }
-        
+
         // Verify priority ordering
         {
             let queue = coordinator.transfer_queue.read().await;
             assert_eq!(queue.len(), 4);
-            
+
             // Should be ordered: Critical, High, Normal, Low
-            let priorities: Vec<&TransferPriority> = queue.iter()
-                .map(|r| &r.priority)
-                .collect();
-                
-            assert_eq!(priorities, vec![
-                &TransferPriority::Critical,
-                &TransferPriority::High,
-                &TransferPriority::Normal,
-                &TransferPriority::Low,
-            ]);
+            let priorities: Vec<&TransferPriority> = queue.iter().map(|r| &r.priority).collect();
+
+            assert_eq!(
+                priorities,
+                vec![
+                    &TransferPriority::Critical,
+                    &TransferPriority::High,
+                    &TransferPriority::Normal,
+                    &TransferPriority::Low,
+                ]
+            );
         }
     }
 
@@ -585,24 +628,30 @@ mod tests {
             "concurrent_node".to_string(),
             2,
         );
-        
+
         let coordinator = KnowledgeTransferCoordinator::new(
             Arc::new(marketplace),
             2, // Limit to 2 concurrent transfers
         );
-        
+
         // Verify semaphore has correct initial permits
         let available_permits = coordinator.bandwidth_limiter.available_permits();
-        assert_eq!(available_permits, 2, "Should have 2 available permits initially");
-        
+        assert_eq!(
+            available_permits, 2,
+            "Should have 2 available permits initially"
+        );
+
         // Acquire permits to simulate active transfers
         let _permit1 = coordinator.bandwidth_limiter.try_acquire().unwrap();
         let _permit2 = coordinator.bandwidth_limiter.try_acquire().unwrap();
-        
+
         // Should be no permits available now
         let available_permits = coordinator.bandwidth_limiter.available_permits();
-        assert_eq!(available_permits, 0, "Should have no permits after acquiring 2");
-        
+        assert_eq!(
+            available_permits, 0,
+            "Should have no permits after acquiring 2"
+        );
+
         // Third acquire should fail
         let permit3_result = coordinator.bandwidth_limiter.try_acquire();
         assert!(permit3_result.is_err(), "Third permit acquire should fail");
@@ -612,13 +661,16 @@ mod tests {
     #[tokio::test]
     async fn test_validation_result_aggregation() {
         let consensus = DistributedConsensus::new("aggregation_test".to_string(), 70.0);
-        
+
         let package_id = Uuid::new_v4();
-        
+
         // Test insufficient validators
         let insufficient_consensus = consensus.check_consensus(package_id).await?;
-        assert!(!insufficient_consensus, "Should not reach consensus with no validators");
-        
+        assert!(
+            !insufficient_consensus,
+            "Should not reach consensus with no validators"
+        );
+
         // Add exactly 3 validators (minimum)
         {
             let mut results = consensus.validation_results.write().await;
@@ -629,7 +681,10 @@ mod tests {
                     performance_score: 75.0,
                     security_score: 80.0,
                     compatibility_score: 85.0,
-                    timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    timestamp: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     signature: "sig_1".to_string(),
                 },
                 ValidationResult {
@@ -638,7 +693,10 @@ mod tests {
                     performance_score: 72.0,
                     security_score: 78.0,
                     compatibility_score: 82.0,
-                    timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    timestamp: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     signature: "sig_2".to_string(),
                 },
                 ValidationResult {
@@ -647,15 +705,21 @@ mod tests {
                     performance_score: 68.0, // Below threshold
                     security_score: 70.0,
                     compatibility_score: 75.0,
-                    timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    timestamp: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     signature: "sig_3".to_string(),
                 },
             ];
             results.insert(package_id, validations);
         }
-        
+
         // Check consensus - exactly 66% threshold (2/3)
         let exact_threshold_consensus = consensus.check_consensus(package_id).await.unwrap();
-        assert!(!exact_threshold_consensus, "Should not reach consensus with exactly 66%");
+        assert!(
+            !exact_threshold_consensus,
+            "Should not reach consensus with exactly 66%"
+        );
     }
 }

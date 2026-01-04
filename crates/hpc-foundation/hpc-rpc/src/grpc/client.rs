@@ -1,6 +1,6 @@
 //! gRPC client builder with connection pooling and timeout support
 
-use crate::error::{RpcError, Result};
+use crate::error::{Result, RpcError};
 use hpc_auth::cert::CertificateWithKey;
 use std::time::Duration;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity};
@@ -158,7 +158,8 @@ impl GrpcClientBuilder {
                 tls_config = tls_config.identity(identity);
             }
 
-            endpoint = endpoint.tls_config(tls_config)
+            endpoint = endpoint
+                .tls_config(tls_config)
                 .map_err(|e| RpcError::Config(format!("TLS config error: {}", e)))?;
         }
 
@@ -203,8 +204,7 @@ mod tests {
 
         let ca = generate_ca_cert("Test CA").unwrap();
 
-        let builder = GrpcClientBuilder::new("https://localhost:50051")
-            .with_server_ca(ca);
+        let builder = GrpcClientBuilder::new("https://localhost:50051").with_server_ca(ca);
 
         assert!(builder.server_ca.is_some());
     }

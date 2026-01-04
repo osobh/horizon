@@ -56,6 +56,10 @@ pub extern "C" fn gpu_dma_cuda_free_hook(alloc_id: u64) -> i32 {
 // Kernel panic handler
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
+    // SAFETY: This is the panic handler for a no_std kernel module. The inline
+    // assembly creates an infinite loop (jmp to self) which is the only safe
+    // thing to do when panicking in kernel space without external dependencies.
+    // The noreturn option correctly marks this as a diverging function.
     unsafe {
         core::arch::asm!("2: jmp 2b", options(noreturn));
     }

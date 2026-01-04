@@ -504,9 +504,7 @@ mod tests {
         let analyzer = TemporalAnalyzer::new(config);
 
         let empty_snapshots = Vec::new();
-        let (peaks, lows) = analyzer
-            .find_peak_and_low_periods(&empty_snapshots)
-            ?;
+        let (peaks, lows) = analyzer.find_peak_and_low_periods(&empty_snapshots)?;
 
         assert!(peaks.is_empty());
         assert!(lows.is_empty());

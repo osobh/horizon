@@ -1,16 +1,16 @@
 //! Neural Router Implementation for GPU-Accelerated Routing Decisions
-//! 
+//!
 //! This module provides a real neural network-based routing system
 //! for intelligent routing decisions with online learning capabilities.
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use dashmap::DashMap;
-use tokio::sync::RwLock;
 use rand::prelude::*;
-use wide::f32x4;  // SIMD primitives for 4-wide f32 operations
+use tokio::sync::RwLock;
+use wide::f32x4; // SIMD primitives for 4-wide f32 operations
 
 use crate::AgentId;
 
@@ -71,7 +71,7 @@ pub struct ConnectionMetrics {
     pub congestion_level: f32,
 }
 
-#[derive(Clone, Debug)]  
+#[derive(Clone, Debug)]
 pub struct ClusterRegion {
     pub id: String,
     pub agents: Vec<AgentId>,
@@ -140,14 +140,19 @@ impl NeuralRouter {
     }
 
     /// Predict routing based on neural network inference
-    pub async fn predict_routing(&self, source: AgentId, destination: AgentId, network_state: &[f32]) -> Result<RoutingChoice, Box<dyn std::error::Error>> {
+    pub async fn predict_routing(
+        &self,
+        source: AgentId,
+        destination: AgentId,
+        network_state: &[f32],
+    ) -> Result<RoutingChoice, Box<dyn std::error::Error>> {
         if network_state.len() != 5 {
             return Err("Network state must have 5 features".into());
         }
 
         // Simple forward pass through neural network
         let outputs = self.forward_pass(network_state).await?;
-        
+
         // Extract predictions
         let latency_pred = outputs[0].abs().max(0.001); // Ensure positive
         let bandwidth_pred = outputs[1].abs().max(0.1); // Ensure positive
@@ -157,14 +162,17 @@ impl NeuralRouter {
         let path = vec![source, destination];
 
         // Update routing table
-        self.routing_table.insert(destination, RoutingEntry {
+        self.routing_table.insert(
             destination,
-            latency_prediction: latency_pred,
-            bandwidth_prediction: bandwidth_pred,
-            reliability_score: reliability,
-            last_updated: Instant::now(),
-            confidence: 0.8, // Fixed confidence for simplicity
-        });
+            RoutingEntry {
+                destination,
+                latency_prediction: latency_pred,
+                bandwidth_prediction: bandwidth_pred,
+                reliability_score: reliability,
+                last_updated: Instant::now(),
+                confidence: 0.8, // Fixed confidence for simplicity
+            },
+        );
 
         // Update performance metrics
         {
@@ -181,11 +189,14 @@ impl NeuralRouter {
     }
 
     /// Update routing table with new training examples
-    pub async fn update_routing_table(&self, training_examples: Vec<TrainingExample>) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn update_routing_table(
+        &self,
+        training_examples: Vec<TrainingExample>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         {
             let mut data = self.training_data.write().await;
             data.extend(training_examples.clone());
-            
+
             // Keep only recent data (last 1000 examples)
             if data.len() > 1000 {
                 let drain_count = data.len() - 1000;
@@ -210,7 +221,10 @@ impl NeuralRouter {
     }
 
     /// Train the neural network with accumulated data
-    pub async fn train_network(&mut self, epochs: u32) -> Result<PerformanceMetrics, Box<dyn std::error::Error>> {
+    pub async fn train_network(
+        &mut self,
+        epochs: u32,
+    ) -> Result<PerformanceMetrics, Box<dyn std::error::Error>> {
         let training_data = {
             let data = self.training_data.read().await;
             data.clone()
@@ -230,11 +244,11 @@ impl NeuralRouter {
             for example in &training_data {
                 // Forward pass
                 let outputs = self.forward_pass(&example.network_features).await?;
-                
+
                 // Compute errors
                 let latency_error = (outputs[0] - example.actual_latency).abs();
                 let bandwidth_error = (outputs[1] - example.actual_bandwidth).abs();
-                
+
                 total_latency_error += latency_error;
                 total_bandwidth_error += bandwidth_error;
 
@@ -245,17 +259,23 @@ impl NeuralRouter {
                 }
 
                 // Simple weight update (gradient descent simulation)
-                self.update_weights(&example.network_features, &[
-                    example.actual_latency, 
-                    example.actual_bandwidth, 
-                    if example.success { 1.0 } else { 0.0 }
-                ], &outputs, 0.01).await?;
+                self.update_weights(
+                    &example.network_features,
+                    &[
+                        example.actual_latency,
+                        example.actual_bandwidth,
+                        if example.success { 1.0 } else { 0.0 },
+                    ],
+                    &outputs,
+                    0.01,
+                )
+                .await?;
             }
         }
 
-        let training_duration = start_time.elapsed();
+        let _training_duration = start_time.elapsed();
         let total_examples = (training_data.len() * epochs as usize) as u64;
-        
+
         let performance = PerformanceMetrics {
             accuracy: correct_predictions as f32 / total_examples as f32,
             latency_error: total_latency_error / total_examples as f32,
@@ -277,7 +297,10 @@ impl NeuralRouter {
 
     /// Get current routing table
     pub async fn get_routing_table(&self) -> HashMap<AgentId, RoutingEntry> {
-        self.routing_table.iter().map(|e| (*e.key(), e.value().clone())).collect()
+        self.routing_table
+            .iter()
+            .map(|e| (*e.key(), e.value().clone()))
+            .collect()
     }
 
     // Helper methods
@@ -390,16 +413,22 @@ impl NeuralRouter {
         Ok(final_outputs)
     }
 
-    async fn update_weights(&self, inputs: &[f32], targets: &[f32], outputs: &[f32], learning_rate: f32) -> Result<(), Box<dyn std::error::Error>> {
+    async fn update_weights(
+        &self,
+        _inputs: &[f32],
+        _targets: &[f32],
+        _outputs: &[f32],
+        learning_rate: f32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Simplified weight update (only update output layer)
         let mut weights = self.weights.write().await;
         let mut rng = thread_rng();
-        
+
         for i in 0..weights[2].len() {
             let error = rng.gen_range(-0.1..0.1); // Simplified error
             weights[2][i] += learning_rate * error;
         }
-        
+
         Ok(())
     }
 }
@@ -434,23 +463,30 @@ impl MultiGpuRoutingEngine {
     }
 
     /// Optimize routing across multiple GPUs with consensus
-    pub async fn optimize_routing(&self, topology: &NetworkTopology) -> Result<HashMap<(AgentId, AgentId), RoutingChoice>, Box<dyn std::error::Error>> {
+    pub async fn optimize_routing(
+        &self,
+        topology: &NetworkTopology,
+    ) -> Result<HashMap<(AgentId, AgentId), RoutingChoice>, Box<dyn std::error::Error>> {
         let mut routing_decisions = HashMap::new();
         let mut gpu_predictions = Vec::new();
 
         // Get predictions from each GPU
         for (gpu_idx, router) in self.neural_routers.iter().enumerate() {
             let mut predictions = HashMap::new();
-            
+
             // Generate predictions for all agent pairs
             for source in &topology.agents {
                 for destination in &topology.agents {
                     if source != destination {
                         // Use average network metrics for this connection
-                        let network_features = if let Some(metrics) = topology.connections.get(&(*source, *destination)) {
+                        let network_features = if let Some(metrics) =
+                            topology.connections.get(&(*source, *destination))
+                        {
                             vec![
-                                metrics.latency_history.iter().sum::<f32>() / metrics.latency_history.len() as f32,
-                                metrics.bandwidth_history.iter().sum::<f32>() / metrics.bandwidth_history.len() as f32,
+                                metrics.latency_history.iter().sum::<f32>()
+                                    / metrics.latency_history.len() as f32,
+                                metrics.bandwidth_history.iter().sum::<f32>()
+                                    / metrics.bandwidth_history.len() as f32,
                                 metrics.packet_loss_rate,
                                 metrics.jitter,
                                 metrics.congestion_level,
@@ -459,12 +495,14 @@ impl MultiGpuRoutingEngine {
                             vec![0.05, 50.0, 0.01, 0.005, 0.3] // Default values
                         };
 
-                        let prediction = router.predict_routing(*source, *destination, &network_features).await?;
+                        let prediction = router
+                            .predict_routing(*source, *destination, &network_features)
+                            .await?;
                         predictions.insert((*source, *destination), prediction);
                     }
                 }
             }
-            
+
             gpu_predictions.push((gpu_idx, predictions));
         }
 
@@ -484,9 +522,12 @@ impl MultiGpuRoutingEngine {
 
                     // Simple consensus: average the predictions
                     if !votes.is_empty() {
-                        let avg_latency = votes.iter().map(|v| v.expected_latency).sum::<f32>() / votes.len() as f32;
-                        let avg_bandwidth = votes.iter().map(|v| v.expected_bandwidth).sum::<f32>() / votes.len() as f32;
-                        let avg_reliability = votes.iter().map(|v| v.reliability).sum::<f32>() / votes.len() as f32;
+                        let avg_latency = votes.iter().map(|v| v.expected_latency).sum::<f32>()
+                            / votes.len() as f32;
+                        let avg_bandwidth = votes.iter().map(|v| v.expected_bandwidth).sum::<f32>()
+                            / votes.len() as f32;
+                        let avg_reliability =
+                            votes.iter().map(|v| v.reliability).sum::<f32>() / votes.len() as f32;
 
                         let consensus_choice = RoutingChoice {
                             path: vec![*source, *destination],
@@ -507,24 +548,27 @@ impl MultiGpuRoutingEngine {
     /// Rebalance load across GPUs
     pub async fn rebalance_load(&self) -> Result<(), Box<dyn std::error::Error>> {
         let mut load_balancer = self.load_balancer.write().await;
-        
+
         // Simple load balancing algorithm
-        let avg_load = load_balancer.gpu_loads.iter().sum::<f32>() / load_balancer.gpu_loads.len() as f32;
-        
+        let avg_load =
+            load_balancer.gpu_loads.iter().sum::<f32>() / load_balancer.gpu_loads.len() as f32;
+
         // Collect data first to avoid borrow conflicts
-        let gpu_count = load_balancer.gpu_loads.len();
+        let _gpu_count = load_balancer.gpu_loads.len();
         let rebalancing_threshold = load_balancer.rebalancing_threshold;
-        let overloaded_gpus: Vec<(usize, f32)> = load_balancer.gpu_loads
+        let overloaded_gpus: Vec<(usize, f32)> = load_balancer
+            .gpu_loads
             .iter()
             .enumerate()
             .filter(|(_, &load)| load > avg_load + rebalancing_threshold)
             .map(|(i, &load)| (i, load))
             .collect();
-        
+
         // Process each overloaded GPU
         for (overloaded_gpu_idx, _) in overloaded_gpus {
             // Find assignments to move from this overloaded GPU
-            let assignments_to_move: Vec<_> = load_balancer.routing_assignments
+            let assignments_to_move: Vec<_> = load_balancer
+                .routing_assignments
                 .iter()
                 .filter(|(_, &gpu_idx)| gpu_idx == overloaded_gpu_idx)
                 .take(5) // Move up to 5 assignments
@@ -543,7 +587,9 @@ impl MultiGpuRoutingEngine {
 
             // Move assignments
             for agent_id in assignments_to_move {
-                load_balancer.routing_assignments.insert(agent_id, min_load_gpu);
+                load_balancer
+                    .routing_assignments
+                    .insert(agent_id, min_load_gpu);
             }
 
             // Update load estimates (simplified)
@@ -575,10 +621,10 @@ mod tests {
         let source = AgentId::new();
         let destination = AgentId::new();
         let features = vec![0.05, 50.0, 0.01, 0.005, 0.3];
-        
+
         let result = router.predict_routing(source, destination, &features).await;
         assert!(result.is_ok());
-        
+
         let choice = result.unwrap();
         assert!(!choice.path.is_empty());
         assert!(choice.expected_latency > 0.0);
@@ -589,7 +635,7 @@ mod tests {
     async fn test_multi_gpu_engine() {
         let engine = MultiGpuRoutingEngine::new(2).await;
         assert!(engine.is_ok());
-        
+
         let engine = engine.unwrap();
         assert_eq!(engine.neural_routers.len(), 2);
     }

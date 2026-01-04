@@ -42,7 +42,8 @@ impl PricingSimulator {
         ];
 
         for (change_percent, name) in price_changes {
-            let simulated_price = current_price * (Decimal::ONE + change_percent / Decimal::from(100));
+            let simulated_price =
+                current_price * (Decimal::ONE + change_percent / Decimal::from(100));
 
             let request = CreateSimulationRequest {
                 customer_id: customer_id.to_string(),
@@ -69,8 +70,9 @@ mod tests {
 
     async fn setup_test_repo() -> MarginRepository {
         let config = DatabaseConfig {
-            url: std::env::var("TEST_DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/margin_test".to_string()),
+            url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+                "postgres://postgres:postgres@localhost/margin_test".to_string()
+            }),
             max_connections: 5,
         };
 

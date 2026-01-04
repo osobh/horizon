@@ -108,11 +108,7 @@ mod tests {
         // Create the test directory
         let _ = std::fs::create_dir_all("/tmp/test_checkpoints");
 
-        let job = Job::builder()
-            .user_id("test")
-            .gpu_count(4)
-            .build()
-            .unwrap();
+        let job = Job::builder().user_id("test").gpu_count(4).build().unwrap();
 
         let result = manager.create_checkpoint(&job).await;
         assert!(result.is_ok());

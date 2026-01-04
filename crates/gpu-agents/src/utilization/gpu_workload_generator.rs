@@ -122,6 +122,8 @@ impl GpuWorkloadGenerator {
         const NODE_SIZE: usize = 64;
 
         // Allocate pattern buffer if needed
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
+        // the buffers will be initialized via htod_copy_into before any kernel reads them.
         if self.pattern_buffer.is_none() {
             let pattern_buffer = unsafe { self.device.alloc::<u8>(MAX_PATTERNS * NODE_SIZE) }
                 .context("Failed to allocate pattern buffer")?;
@@ -129,6 +131,7 @@ impl GpuWorkloadGenerator {
         }
 
         // Allocate AST buffer if needed
+        // SAFETY: Same as above - initialized via htod_copy_into before kernel reads.
         if self.ast_buffer.is_none() {
             let ast_buffer = unsafe { self.device.alloc::<u8>(MAX_NODES * NODE_SIZE) }
                 .context("Failed to allocate AST buffer")?;
@@ -371,7 +374,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_workload_generator() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_workload_generator() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let mut generator = GpuWorkloadGenerator::new(Arc::new(device)).unwrap();
 

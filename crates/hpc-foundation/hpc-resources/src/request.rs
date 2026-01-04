@@ -71,11 +71,7 @@ impl ResourceRequest {
     }
 
     /// Helper: Add GPU with full constraints
-    pub fn add_gpu_with_constraints(
-        self,
-        count: f64,
-        constraints: ResourceConstraints,
-    ) -> Self {
+    pub fn add_gpu_with_constraints(self, count: f64, constraints: ResourceConstraints) -> Self {
         self.add_resource(
             ResourceType::Compute(ComputeType::Gpu),
             ResourceSpec::new(count, ResourceUnit::Count).with_constraints(constraints),
@@ -148,26 +144,25 @@ impl ResourceRequest {
 
     /// Get GPU spec if present
     pub fn get_gpu_spec(&self) -> Option<&ResourceSpec> {
-        self.resources
-            .get(&ResourceType::Compute(ComputeType::Gpu))
+        self.resources.get(&ResourceType::Compute(ComputeType::Gpu))
     }
 
     /// Get TPU spec if present
     pub fn get_tpu_spec(&self) -> Option<&ResourceSpec> {
-        self.resources
-            .get(&ResourceType::Compute(ComputeType::Tpu))
+        self.resources.get(&ResourceType::Compute(ComputeType::Tpu))
     }
 
     /// Get CPU spec if present
     pub fn get_cpu_spec(&self) -> Option<&ResourceSpec> {
-        self.resources
-            .get(&ResourceType::Compute(ComputeType::Cpu))
+        self.resources.get(&ResourceType::Compute(ComputeType::Cpu))
     }
 
     /// Validate that request has at least one resource
     pub fn validate(&self) -> Result<(), String> {
         if self.resources.is_empty() {
-            return Err("ResourceRequest must have at least one resource specification".to_string());
+            return Err(
+                "ResourceRequest must have at least one resource specification".to_string(),
+            );
         }
         Ok(())
     }
@@ -206,8 +201,7 @@ mod tests {
 
     #[test]
     fn test_add_gpu_nvidia_h100() {
-        let request = ResourceRequest::new()
-            .add_gpu(GpuVendor::Nvidia, "H100", 4.0);
+        let request = ResourceRequest::new().add_gpu(GpuVendor::Nvidia, "H100", 4.0);
 
         assert!(request.has_gpu());
         let gpu_spec = request.get_gpu_spec().unwrap();
@@ -220,8 +214,7 @@ mod tests {
 
     #[test]
     fn test_add_gpu_amd_mi300x() {
-        let request = ResourceRequest::new()
-            .add_gpu(GpuVendor::Amd, "MI300X", 8.0);
+        let request = ResourceRequest::new().add_gpu(GpuVendor::Amd, "MI300X", 8.0);
 
         let gpu_spec = request.get_gpu_spec().unwrap();
         assert_eq!(gpu_spec.amount, 8.0);
@@ -233,8 +226,7 @@ mod tests {
 
     #[test]
     fn test_add_tpu() {
-        let request = ResourceRequest::new()
-            .add_tpu(TpuVariant::GoogleV5e, 8.0);
+        let request = ResourceRequest::new().add_tpu(TpuVariant::GoogleV5e, 8.0);
 
         assert!(request.has_tpu());
         let tpu_spec = request.get_tpu_spec().unwrap();
@@ -256,10 +248,10 @@ mod tests {
 
     #[test]
     fn test_add_storage() {
-        let request = ResourceRequest::new()
-            .add_storage(StorageType::Nvme, 1024.0);
+        let request = ResourceRequest::new().add_storage(StorageType::Nvme, 1024.0);
 
-        let storage_spec = request.resources
+        let storage_spec = request
+            .resources
             .get(&ResourceType::Storage(StorageType::Nvme))
             .unwrap();
         assert_eq!(storage_spec.amount, 1024.0);
@@ -267,10 +259,10 @@ mod tests {
 
     #[test]
     fn test_add_network_bandwidth() {
-        let request = ResourceRequest::new()
-            .add_network_bandwidth(10000.0);
+        let request = ResourceRequest::new().add_network_bandwidth(10000.0);
 
-        let network_spec = request.resources
+        let network_spec = request
+            .resources
             .get(&ResourceType::Network(NetworkType::Bandwidth))
             .unwrap();
         assert_eq!(network_spec.amount, 10000.0);
@@ -279,10 +271,10 @@ mod tests {
 
     #[test]
     fn test_add_custom_resource() {
-        let request = ResourceRequest::new()
-            .add_custom("software_licenses", 5.0);
+        let request = ResourceRequest::new().add_custom("software_licenses", 5.0);
 
-        let custom_spec = request.resources
+        let custom_spec = request
+            .resources
             .get(&ResourceType::Custom("software_licenses".to_string()))
             .unwrap();
         assert_eq!(custom_spec.amount, 5.0);
@@ -347,8 +339,7 @@ mod tests {
 
     #[test]
     fn test_intel_gpu_request() {
-        let request = ResourceRequest::new()
-            .add_gpu(GpuVendor::Intel, "Max-1550", 2.0);
+        let request = ResourceRequest::new().add_gpu(GpuVendor::Intel, "Max-1550", 2.0);
 
         let gpu_spec = request.get_gpu_spec().unwrap();
         let constraints = gpu_spec.constraints.as_ref().unwrap();
@@ -358,8 +349,7 @@ mod tests {
 
     #[test]
     fn test_apple_gpu_request() {
-        let request = ResourceRequest::new()
-            .add_gpu(GpuVendor::Apple, "M3-Max", 1.0);
+        let request = ResourceRequest::new().add_gpu(GpuVendor::Apple, "M3-Max", 1.0);
 
         let gpu_spec = request.get_gpu_spec().unwrap();
         let constraints = gpu_spec.constraints.as_ref().unwrap();

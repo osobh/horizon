@@ -3,11 +3,11 @@
 use crate::error::{OperationalError, OperationalResult};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use stratoswarm_agent_core::AgentId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use stratoswarm_agent_core::AgentId;
 use tokio::sync::RwLock;
 
 /// Deployment strategy types

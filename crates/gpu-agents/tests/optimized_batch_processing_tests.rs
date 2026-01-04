@@ -105,18 +105,18 @@ impl OptimizedBatchProcessor {
         batch_size: usize,
     ) -> Result<BatchPerformanceMetrics> {
         let start = Instant::now();
-        
+
         // Simulate optimized batch processing with minimal overhead
         let kernel_start = Instant::now();
         // Process in batches to reduce kernel launch overhead
         let num_batches = (ast_nodes.len() + batch_size - 1) / batch_size;
         let mut total_matches = 0;
-        
+
         for batch_idx in 0..num_batches {
             let start_idx = batch_idx * batch_size;
             let end_idx = (start_idx + batch_size).min(ast_nodes.len());
             let batch_nodes = &ast_nodes[start_idx..end_idx];
-            
+
             // Simulate GPU kernel processing
             for node in batch_nodes {
                 for pattern in patterns {
@@ -126,20 +126,20 @@ impl OptimizedBatchProcessor {
                 }
             }
         }
-        
+
         let kernel_time = kernel_start.elapsed();
-        
+
         // Simulate minimal transfer and serialization overhead
         let transfer_time = Duration::from_nanos(100); // Optimized to ~100ns
         let serialization_time = Duration::from_nanos(50); // Optimized serialization
-        
+
         let total_time = start.elapsed();
         let throughput = (ast_nodes.len() as f64) / total_time.as_secs_f64();
-        
+
         // Calculate overhead as percentage of total time not spent in kernel
         let overhead_time = total_time.saturating_sub(kernel_time);
         let overhead_percentage = (overhead_time.as_secs_f64() / total_time.as_secs_f64()) * 100.0;
-        
+
         Ok(BatchPerformanceMetrics {
             total_time,
             throughput,
@@ -157,20 +157,22 @@ impl OptimizedBatchProcessor {
         batch_sizes: &[usize],
     ) -> Result<Vec<(usize, BatchPerformanceMetrics)>> {
         let mut results = Vec::new();
-        
+
         for &batch_size in batch_sizes {
-            let metrics = self.process_optimized_batches(
-                &load.patterns,
-                &load.ast_nodes,
-                batch_size,
-            ).await?;
-            
+            let metrics = self
+                .process_optimized_batches(&load.patterns, &load.ast_nodes, batch_size)
+                .await?;
+
             results.push((batch_size, metrics));
         }
-        
+
         // Sort by throughput (best first)
-        results.sort_by(|a, b| b.1.throughput.partial_cmp(&a.1.throughput).unwrap_or(std::cmp::Ordering::Equal));
-        
+        results.sort_by(|a, b| {
+            b.1.throughput
+                .partial_cmp(&a.1.throughput)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         Ok(results)
     }
 
@@ -181,11 +183,11 @@ impl OptimizedBatchProcessor {
         ast_nodes: &[AstNode],
     ) -> Result<BatchPerformanceMetrics> {
         let start = Instant::now();
-        
+
         // Simulate persistent GPU memory - data stays on GPU between calls
         let kernel_start = Instant::now();
         let mut total_matches = 0;
-        
+
         // Process all patterns against all nodes in persistent memory
         for node in ast_nodes {
             for pattern in patterns {
@@ -194,20 +196,20 @@ impl OptimizedBatchProcessor {
                 }
             }
         }
-        
+
         let kernel_time = kernel_start.elapsed();
-        
+
         // Persistent memory eliminates most transfer overhead
         let transfer_time = Duration::from_nanos(10); // Minimal transfer
         let serialization_time = Duration::from_nanos(20); // In-place processing
-        
+
         let total_time = start.elapsed();
         let throughput = (ast_nodes.len() as f64) / total_time.as_secs_f64();
-        
+
         // Overhead should be minimal with persistent memory
         let overhead_time = total_time.saturating_sub(kernel_time);
         let overhead_percentage = (overhead_time.as_secs_f64() / total_time.as_secs_f64()) * 100.0;
-        
+
         Ok(BatchPerformanceMetrics {
             total_time,
             throughput,

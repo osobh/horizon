@@ -111,8 +111,7 @@ mod governance_engine_tests {
         engine.register_agent(agent_id.clone()).await?;
         engine
             .update_lifecycle_phase(&agent_id, LifecyclePhase::Active)
-            .await
-            ?;
+            .await?;
 
         // Test valid resource request
         let valid_request = ResourceRequest {
@@ -194,8 +193,7 @@ mod governance_engine_tests {
         engine.register_agent(agent_id.clone()).await?;
         engine
             .update_lifecycle_phase(&agent_id, LifecyclePhase::Active)
-            .await
-            ?;
+            .await?;
 
         // Test non-critical violation
         let minor_violation = PolicyViolation {
@@ -577,8 +575,7 @@ mod permission_system_tests {
         // Agent should not have any permissions initially
         let has_permission = permission_system
             .check_permission(&agent_id, &Permission::ReadData)
-            .await
-            ?;
+            .await?;
         assert!(!has_permission);
     }
 
@@ -615,8 +612,7 @@ mod permission_system_tests {
         // Grant permission
         permission_system
             .grant_permission(&agent_id, Permission::WriteData)
-            .await
-            ?;
+            .await?;
 
         let has_write = permission_system
             .check_permission(&agent_id, &Permission::WriteData)
@@ -647,8 +643,7 @@ mod permission_system_tests {
         // Assign role
         permission_system
             .assign_role(&agent_id, Role::Coordinator)
-            .await
-            ?;
+            .await?;
 
         // Should have coordination permissions
         let has_coordinate = permission_system
@@ -680,8 +675,7 @@ mod permission_system_tests {
         // Test permission granting rules
         let can_grant_basic = permission_system
             .can_grant_permission(&agent_id, &Permission::ReadData)
-            .await
-            ?;
+            .await?;
         assert!(can_grant_basic);
 
         let can_grant_admin = permission_system
@@ -851,8 +845,7 @@ mod compliance_integration_tests {
         // Update compliance status
         compliance
             .update_compliance_status(&agent_id, ComplianceStatus::NonCompliant)
-            .await
-            ?;
+            .await?;
 
         let status = compliance.get_compliance_status(&agent_id).await.unwrap();
         assert_eq!(status, ComplianceStatus::NonCompliant);

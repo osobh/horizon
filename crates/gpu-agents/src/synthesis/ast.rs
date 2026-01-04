@@ -23,10 +23,16 @@ impl GpuAstTransformer {
         let node_size = 4 + 4 + 4 + 4 * 10; // type + value_hash + child_count + children
         let buffer_size = max_nodes * node_size;
 
+        // SAFETY: alloc returns uninitialized memory. ast_buffer will be written
+        // via htod_copy_into in transform_ast() before the kernel reads it.
         let ast_buffer =
             unsafe { device.alloc::<u8>(buffer_size) }.context("Failed to allocate AST buffer")?;
+        // SAFETY: alloc returns uninitialized memory. rule_buffer will be written
+        // via htod_copy_into in transform_ast() before the kernel reads it.
         let rule_buffer =
             unsafe { device.alloc::<u8>(buffer_size) }.context("Failed to allocate rule buffer")?;
+        // SAFETY: alloc returns uninitialized memory. output_buffer will be cleared
+        // to zeros in transform_ast() before the kernel writes transformed nodes.
         let output_buffer = unsafe { device.alloc::<u8>(buffer_size) }
             .context("Failed to allocate output buffer")?;
 
@@ -57,6 +63,11 @@ impl GpuAstTransformer {
             .htod_copy_into(zeros, &mut self.output_buffer.clone())?;
 
         // Launch transformation kernel
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
+        // - ast_buffer: populated via htod_copy_into above
+        // - rule_buffer: populated via htod_copy_into above
+        // - output_buffer: cleared to zeros above, kernel writes transformed result
+        // - num_nodes calculated from actual encoded AST size
         unsafe {
             crate::synthesis::launch_transform_ast(
                 *self.ast_buffer.device_ptr() as *const u8,

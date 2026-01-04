@@ -76,15 +76,9 @@ impl GcpBillingNormalizer {
         let amount = Decimal::try_from(net_cost)
             .map_err(|e| HpcError::parse_error(format!("Invalid cost: {}", e)))?;
 
-        let service_name = record
-            .service
-            .as_ref()
-            .map(|s| s.description.clone());
+        let service_name = record.service.as_ref().map(|s| s.description.clone());
 
-        let resource_id = record
-            .sku
-            .as_ref()
-            .map(|s| s.id.clone());
+        let resource_id = record.sku.as_ref().map(|s| s.id.clone());
 
         let account_id = record
             .project
@@ -221,14 +215,11 @@ mod tests {
     #[test]
     fn test_gcp_normalizer_full() {
         let normalizer = GcpBillingNormalizer::new();
-        let gcp_records = vec![
-            sample_gcp_record(),
-            {
-                let mut r = sample_gcp_record();
-                r.cost = 2.50;
-                r
-            },
-        ];
+        let gcp_records = vec![sample_gcp_record(), {
+            let mut r = sample_gcp_record();
+            r.cost = 2.50;
+            r
+        }];
 
         let raw = RawBillingData {
             provider: Provider::Gcp,
@@ -254,7 +245,10 @@ mod tests {
 
         let result = normalizer.normalize(&raw);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Expected GCP provider"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Expected GCP provider"));
     }
 
     #[test]

@@ -324,7 +324,9 @@ impl ReasoningEngine {
                 {
                     // Check if entity is in target domain
                     let empty_vec = vec![];
-                    let indices = self.fact_index.get(&entity_id)
+                    let indices = self
+                        .fact_index
+                        .get(&entity_id)
                         .map(|r| r.value().clone())
                         .unwrap_or(empty_vec);
                     for idx in indices {

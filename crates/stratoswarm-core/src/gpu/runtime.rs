@@ -83,6 +83,7 @@ impl SharedMetrics {
     }
 
     /// Get current metrics snapshot.
+    #[must_use]
     pub fn metrics(&self) -> GpuMetrics {
         GpuMetrics {
             device_id: self.device_id,
@@ -340,10 +341,7 @@ impl<D: GpuDevice> GpuRuntime<D> {
         mut command_rx: broadcast::Receiver<GpuCommand>,
         events_tx: broadcast::Sender<SystemEvent>,
     ) {
-        info!(
-            "GPU runtime started for device {}",
-            self.config.device_id
-        );
+        info!("GPU runtime started for device {}", self.config.device_id);
 
         let mut utilization_timer = interval(self.config.utilization_broadcast_interval);
 
@@ -392,7 +390,10 @@ mod tests {
 
         assert_eq!(config.device_id, 1);
         assert_eq!(config.memory_pool_size, 2048);
-        assert_eq!(config.utilization_broadcast_interval, Duration::from_secs(5));
+        assert_eq!(
+            config.utilization_broadcast_interval,
+            Duration::from_secs(5)
+        );
     }
 
     #[test]

@@ -29,6 +29,8 @@ fn main() -> Result<()> {
         let match_buffer = device.alloc_zeros::<u32>(1000 * 2)?;
 
         // Launch kernel
+        // SAFETY: All buffers are valid device pointers from alloc_zeros.
+        // Parameters (64 patterns, 1000 nodes) match allocation sizes.
         unsafe {
             gpu_agents::synthesis::launch_match_patterns_fast(
                 *pattern_buffer.device_ptr() as *const u8,
@@ -72,6 +74,8 @@ fn main() -> Result<()> {
     // Run optimized workload
     for batch in 0..5 {
         // Launch multiple kernels without sync
+        // SAFETY: All buffers are valid device pointers from alloc_zeros.
+        // Parameters (64 patterns, 10000 nodes) match pre-allocated buffer sizes.
         for i in 0..20 {
             unsafe {
                 gpu_agents::synthesis::launch_match_patterns_fast(

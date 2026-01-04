@@ -5,7 +5,6 @@ use crate::executor::ExecutionResult;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use std::error::Error;
 /// Improved kernel information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImprovedKernel {
@@ -133,7 +132,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_improvement_with_different_engine_names() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_improvement_with_different_engine_names() -> Result<(), Box<dyn std::error::Error>>
+    {
         let engine_names = vec![
             "basic_improver",
             "AdvancedOptimizer",
@@ -153,7 +153,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_improvement_with_different_kernel_ids() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_improvement_with_different_kernel_ids() -> Result<(), Box<dyn std::error::Error>>
+    {
         let engine = ImprovementEngine::new("test_improver".to_string());
 
         let kernel_ids = vec![
@@ -179,7 +180,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_improvement_with_various_execution_results() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_improvement_with_various_execution_results(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         use crate::executor::{ExecutionResult, PerformanceMetrics, ResourceMetrics};
         use std::time::Duration;
 
@@ -259,7 +261,8 @@ mod tests {
     }
 
     #[test]
-    fn test_improved_kernel_with_various_performance_gains() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_improved_kernel_with_various_performance_gains(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let performance_gains = vec![
             0.0, 1.0, 10.5, 25.0, 50.0, 99.9, 100.0, 200.0, 1000.0,
             -5.0, // Negative gain (performance regression)
@@ -411,7 +414,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_improvement_with_execution_result_edge_cases() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_improvement_with_execution_result_edge_cases(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         use crate::executor::{ExecutionResult, PerformanceMetrics, ResourceMetrics};
         use std::time::Duration;
 

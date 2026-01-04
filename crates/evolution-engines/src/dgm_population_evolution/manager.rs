@@ -5,10 +5,10 @@ use super::population::ManagedPopulation;
 use super::types::*;
 use crate::error::{EvolutionEngineError, EvolutionEngineResult};
 use crate::traits::EvolvableAgent;
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use dashmap::DashMap;
 
 /// Manages multiple populations for parallel evolution
 pub struct PopulationEvolutionManager {

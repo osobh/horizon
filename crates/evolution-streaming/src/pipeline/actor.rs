@@ -47,9 +47,7 @@ pub enum PipelineRequest {
         reply: oneshot::Sender<crate::archive::ArchiveStatistics>,
     },
     /// Get best fitness
-    GetBestFitness {
-        reply: oneshot::Sender<Option<f64>>,
-    },
+    GetBestFitness { reply: oneshot::Sender<Option<f64>> },
     /// Graceful shutdown
     Shutdown,
 }
@@ -369,7 +367,9 @@ impl EvolutionPipelineHandle {
         self.sender
             .send(PipelineRequest::Shutdown)
             .await
-            .map_err(|_| EvolutionStreamingError::PipelineError("Actor already stopped".to_string()))
+            .map_err(|_| {
+                EvolutionStreamingError::PipelineError("Actor already stopped".to_string())
+            })
     }
 
     /// Run continuous evolution until shutdown
@@ -384,7 +384,10 @@ impl EvolutionPipelineHandle {
                 Ok(result) => {
                     cycle_count += 1;
                     if cycle_count % 10 == 0 {
-                        println!("Completed {} evolution cycles, latest: {:?}", cycle_count, result);
+                        println!(
+                            "Completed {} evolution cycles, latest: {:?}",
+                            cycle_count, result
+                        );
                     }
                 }
                 Err(EvolutionStreamingError::PipelineError(msg)) if msg.contains("stopped") => {

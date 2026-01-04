@@ -33,11 +33,18 @@ async fn create_test_app() -> axum::Router {
 
 #[tokio::test]
 async fn test_health_endpoint() {
-    let app = axum::Router::new()
-        .route("/health", axum::routing::get(cost_reporter::api::handlers::health));
+    let app = axum::Router::new().route(
+        "/health",
+        axum::routing::get(cost_reporter::api::handlers::health),
+    );
 
     let response = app
-        .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -56,14 +63,18 @@ async fn test_ready_endpoint() {
     let app = create_test_app().await;
 
     let response = app
-        .oneshot(Request::builder().uri("/ready").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
     // Should return OK or service unavailable depending on database state
     assert!(
-        response.status() == StatusCode::OK
-            || response.status() == StatusCode::SERVICE_UNAVAILABLE
+        response.status() == StatusCode::OK || response.status() == StatusCode::SERVICE_UNAVAILABLE
     );
 }
 

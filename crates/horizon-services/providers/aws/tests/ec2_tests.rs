@@ -1,7 +1,5 @@
 use horizon_aws_provider::{AwsConfig, AwsProvider};
-use hpc_provider::{
-    Availability, CapacityProvider, InstanceState, ProvisionSpec, QuoteRequest,
-};
+use hpc_provider::{Availability, CapacityProvider, InstanceState, ProvisionSpec, QuoteRequest};
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
 
@@ -30,7 +28,10 @@ async fn test_aws_get_quote_p4_instance() {
     assert_eq!(quote.instance_type, "p4d.24xlarge");
     assert_eq!(quote.region, "us-east-1");
     assert!(quote.hourly_rate > dec!(0));
-    assert!(matches!(quote.availability, Availability::Available | Availability::Limited));
+    assert!(matches!(
+        quote.availability,
+        Availability::Available | Availability::Limited
+    ));
 }
 
 #[tokio::test]
@@ -95,7 +96,10 @@ async fn test_aws_provision_single_instance() {
     assert!(instance.id.starts_with("i-"));
     assert_eq!(instance.instance_type, "p4d.24xlarge");
     assert_eq!(instance.region, "us-east-1");
-    assert!(matches!(instance.state, InstanceState::Pending | InstanceState::Running));
+    assert!(matches!(
+        instance.state,
+        InstanceState::Pending | InstanceState::Running
+    ));
 }
 
 #[tokio::test]

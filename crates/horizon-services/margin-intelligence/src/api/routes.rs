@@ -20,7 +20,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // Analysis
         .route("/api/v1/analysis/margin", get(get_margin_analysis))
         .route("/api/v1/analysis/by-segment", get(get_segment_analysis))
-        .route("/api/v1/analysis/top-contributors", get(get_top_contributors))
+        .route(
+            "/api/v1/analysis/top-contributors",
+            get(get_top_contributors),
+        )
         .route("/api/v1/analysis/at-risk", get(get_at_risk_customers))
         // Simulations
         .route("/api/v1/simulations", post(create_simulation))
@@ -45,8 +48,9 @@ mod tests {
 
     async fn setup_test_state() -> Arc<AppState> {
         let config = DatabaseConfig {
-            url: std::env::var("TEST_DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/margin_test".to_string()),
+            url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+                "postgres://postgres:postgres@localhost/margin_test".to_string()
+            }),
             max_connections: 5,
         };
 
@@ -69,7 +73,12 @@ mod tests {
         let app = create_router(state);
 
         let response = app
-            .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -82,7 +91,12 @@ mod tests {
         let app = create_router(state);
 
         let response = app
-            .oneshot(Request::builder().uri("/ready").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 

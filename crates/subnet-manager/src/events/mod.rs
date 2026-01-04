@@ -71,39 +71,39 @@ pub use channels::{
 };
 
 pub use messages::{
-    // Main message type
-    SubnetMessage,
-    // Lifecycle events
-    SubnetCreatedEvent,
-    SubnetDeletedEvent,
-    SubnetStatusChangedEvent,
-    SubnetUpdatedEvent,
     // Assignment events
     BulkAssignmentEvent,
-    NodeAssignedEvent,
-    NodeUnassignedEvent,
-    // Route events
-    RouteCreatedEvent,
-    RouteDeletedEvent,
-    RouteStatusChangedEvent,
     // WireGuard events
     InterfaceCreatedEvent,
     InterfaceDeletedEvent,
     KeyRotatedEvent,
-    PeerConfigUpdatedEvent,
-    // Topology events
-    RouteInfo,
-    SubnetInfo,
-    TopologyDeltaEvent,
-    TopologySnapshotEvent,
-    // Policy events
-    PolicyCreatedEvent,
-    PolicyDeletedEvent,
-    PolicyUpdatedEvent,
     // Migration events
     MigrationCompletedEvent,
     MigrationFailedEvent,
     MigrationStartedEvent,
+    NodeAssignedEvent,
+    NodeUnassignedEvent,
+    PeerConfigUpdatedEvent,
+    // Policy events
+    PolicyCreatedEvent,
+    PolicyDeletedEvent,
+    PolicyUpdatedEvent,
+    // Route events
+    RouteCreatedEvent,
+    RouteDeletedEvent,
+    // Topology events
+    RouteInfo,
+    RouteStatusChangedEvent,
+    // Lifecycle events
+    SubnetCreatedEvent,
+    SubnetDeletedEvent,
+    SubnetInfo,
+    // Main message type
+    SubnetMessage,
+    SubnetStatusChangedEvent,
+    SubnetUpdatedEvent,
+    TopologyDeltaEvent,
+    TopologySnapshotEvent,
 };
 
 pub use publisher::{
@@ -113,7 +113,9 @@ pub use publisher::{
 
 // HPC-Channels integration exports
 #[cfg(feature = "hpc-channels")]
-pub use hpc_bridge::{create_shared_bridge, SharedSubnetHpcBridge, SubnetHpcBridge, SUBNET_MIGRATIONS};
+pub use hpc_bridge::{
+    create_shared_bridge, SharedSubnetHpcBridge, SubnetHpcBridge, SUBNET_MIGRATIONS,
+};
 
 #[cfg(test)]
 mod tests {

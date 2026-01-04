@@ -553,7 +553,10 @@ mod tests {
     fn test_device_binding_validate_fingerprint_mismatch() {
         let binding = create_test_device_binding();
         let result = binding.validate("wrong-fingerprint", "192.168.1.100");
-        assert!(matches!(result, Err(EphemeralError::DeviceBindingMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(EphemeralError::DeviceBindingMismatch { .. })
+        ));
     }
 
     #[test]

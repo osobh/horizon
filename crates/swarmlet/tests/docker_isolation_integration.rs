@@ -3,9 +3,7 @@
 //! These tests verify the isolation configuration without requiring
 //! an actual Docker daemon to be running.
 
-use swarmlet::build_backend::docker::{
-    IsolationProfile, NetworkMode, TmpfsMount, UlimitConfig,
-};
+use swarmlet::build_backend::docker::{IsolationProfile, NetworkMode, TmpfsMount, UlimitConfig};
 
 /// Test isolation profile presets are internally consistent
 #[test]
@@ -143,7 +141,9 @@ fn test_isolation_profile_customization() {
     assert!(profile.seccomp_profile.is_some());
 
     // Can add tmpfs mounts
-    profile.tmpfs_mounts.push(TmpfsMount::new("/var/tmp", 256 * 1024 * 1024));
+    profile
+        .tmpfs_mounts
+        .push(TmpfsMount::new("/var/tmp", 256 * 1024 * 1024));
     assert!(profile.tmpfs_mounts.iter().any(|m| m.path == "/var/tmp"));
 }
 

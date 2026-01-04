@@ -34,10 +34,10 @@ impl NodeTier {
     /// Get cost multiplier (Tier0 is baseline 1.0)
     pub fn cost_multiplier(&self) -> f64 {
         match self {
-            NodeTier::Tier0 => 1.0,   // Full cost (servers)
-            NodeTier::Tier1 => 0.7,   // 30% discount (desktops)
-            NodeTier::Tier2 => 0.4,   // 60% discount (laptops)
-            NodeTier::Tier3 => 0.1,   // 90% discount (Raspberry Pi/experimental)
+            NodeTier::Tier0 => 1.0, // Full cost (servers)
+            NodeTier::Tier1 => 0.7, // 30% discount (desktops)
+            NodeTier::Tier2 => 0.4, // 60% discount (laptops)
+            NodeTier::Tier3 => 0.1, // 90% discount (Raspberry Pi/experimental)
         }
     }
 
@@ -304,11 +304,8 @@ mod tests {
     fn test_calculate_effective_cost_exact_match() {
         let policy = TieringPolicy::new();
 
-        let cost = policy.calculate_effective_cost(
-            JobCriticality::Production,
-            NodeTier::Tier0,
-            100.0,
-        );
+        let cost =
+            policy.calculate_effective_cost(JobCriticality::Production, NodeTier::Tier0, 100.0);
 
         // Tier0 multiplier is 1.0, no penalty for exact match
         assert_eq!(cost, 100.0);

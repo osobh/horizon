@@ -31,12 +31,12 @@ impl<T> Responder<T> {
     ///
     /// Returns an error if the requester has dropped the receiver.
     pub fn respond(self, response: T) -> Result<()> {
-        self.sender.send(response).map_err(|_| {
-            ChannelError::SendFailed {
+        self.sender
+            .send(response)
+            .map_err(|_| ChannelError::SendFailed {
                 channel: "response".to_string(),
                 reason: "requester dropped receiver".to_string(),
-            }
-        })
+            })
     }
 }
 
@@ -118,10 +118,13 @@ pub async fn request_with_timeout<Req, Resp>(
     let req = Request::new(request, responder);
 
     // Send the request
-    sender.send(req).await.map_err(|_| ChannelError::SendFailed {
-        channel: "request".to_string(),
-        reason: "channel closed".to_string(),
-    })?;
+    sender
+        .send(req)
+        .await
+        .map_err(|_| ChannelError::SendFailed {
+            channel: "request".to_string(),
+            reason: "channel closed".to_string(),
+        })?;
 
     // Wait for response with timeout
     timeout(timeout_duration, resp_rx)
@@ -193,7 +196,8 @@ mod tests {
         let (tx, mut _rx) = mpsc::channel::<Request<String, String>>(10);
 
         // Don't respond, let it timeout
-        let result = request_with_timeout(&tx, "hello".to_string(), Duration::from_millis(100)).await;
+        let result =
+            request_with_timeout(&tx, "hello".to_string(), Duration::from_millis(100)).await;
 
         assert!(matches!(result, Err(ChannelError::Timeout { .. })));
     }

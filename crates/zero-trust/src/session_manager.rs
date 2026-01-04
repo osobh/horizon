@@ -595,7 +595,9 @@ impl SessionManagerTrait for SessionManager {
             });
         }
 
-        let session_id = validation.session_id?;
+        let session_id = validation.session_id.ok_or_else(|| ZeroTrustError::TokenInvalid {
+            reason: "Missing session ID in token".to_string(),
+        })?;
         let mut session =
             self.sessions
                 .get_mut(&session_id)

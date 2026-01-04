@@ -7,9 +7,11 @@
 //! 4. Demonstrate certificate verification
 //! 5. Show service identity extraction
 
-use hpc_auth::cert::{generate_ca_cert, generate_self_signed_cert, generate_signed_cert, ServiceIdentity};
-use hpc_auth::server::create_server_config_with_client_auth;
+use hpc_auth::cert::{
+    generate_ca_cert, generate_self_signed_cert, generate_signed_cert, ServiceIdentity,
+};
 use hpc_auth::client::create_client_config_with_server_ca;
+use hpc_auth::server::create_server_config_with_client_auth;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Horizon mTLS Certificate Generation Demo ===\n");
@@ -40,8 +42,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Step 3: Generate Client Certificate (signed by CA)
     println!("Step 3: Generating Client Certificate...");
-    let client_identity = ServiceIdentity::new("node-agent")
-        .with_dns_names(vec!["agent.horizon.local"]);
+    let client_identity =
+        ServiceIdentity::new("node-agent").with_dns_names(vec!["agent.horizon.local"]);
     let client_cert = generate_signed_cert(&client_identity, &ca)?;
     let client_info = client_cert.info()?;
     println!("  ✓ Client Certificate Generated:");

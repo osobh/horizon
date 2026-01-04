@@ -186,7 +186,9 @@ mod tests {
     #[test]
     fn test_simd_mean_abs_large_vector() {
         // Test with a larger vector to stress SIMD path
-        let values: Vec<f64> = (1..=100).map(|i| if i % 2 == 0 { -(i as f64) } else { i as f64 }).collect();
+        let values: Vec<f64> = (1..=100)
+            .map(|i| if i % 2 == 0 { -(i as f64) } else { i as f64 })
+            .collect();
         let expected: f64 = (1..=100).map(|i| i as f64).sum::<f64>() / 100.0;
         let result = simd_mean_abs(&values);
         assert!((result - expected).abs() < 1e-10);
@@ -208,7 +210,8 @@ mod tests {
     fn test_particle_parameters_serialization() {
         let params = ParticleParameters::default();
         let json = serde_json::to_string(&params).expect("serialization should work");
-        let deserialized: ParticleParameters = serde_json::from_str(&json).expect("deserialization should work");
+        let deserialized: ParticleParameters =
+            serde_json::from_str(&json).expect("deserialization should work");
         assert_eq!(params.velocity_clamp, deserialized.velocity_clamp);
         assert_eq!(params.position_bounds, deserialized.position_bounds);
     }

@@ -1,7 +1,6 @@
 //! Configuration types for causal inference
 
 use chrono::Duration as ChronoDuration;
-use serde::{Deserialize, Serialize};
 
 /// Configuration for causal inference engine
 #[derive(Debug, Clone)]

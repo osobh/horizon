@@ -244,6 +244,10 @@ impl DgmEngine {
         archive_size: usize,
     ) -> Result<Self> {
         // Allocate GPU memory
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because:
+        // 1. The memory will be initialized via htod_copy_into in upload_population_to_gpu
+        // 2. The data is never read from GPU before being initialized
+        // 3. The CudaDevice handles proper GPU memory management
         let total_code_size = population_size * max_code_size;
         let agent_codes = unsafe { device.alloc::<u8>(total_code_size)? };
         let benchmark_scores = unsafe { device.alloc::<f32>(population_size)? };
@@ -433,6 +437,10 @@ impl DgmEngine {
             .htod_copy_into(code_buffer.clone(), &mut self.modification_buffer.clone())?;
 
         // Launch self-modification kernel
+        // SAFETY: The kernel function is called with valid device pointers obtained from
+        // CudaSlice::device_ptr(). The modification_buffer was allocated with max_code_size
+        // bytes, matching the kernel's expected buffer size. The null placeholder for
+        // performance_history is handled by the kernel (history_length=0).
         unsafe {
             crate::evolution::kernels::launch_dgm_self_modification(
                 *self.modification_buffer.device_ptr() as *const u8,
@@ -505,6 +513,10 @@ impl DgmEngine {
         benchmark_fn: &dyn Fn(&str) -> f64,
     ) -> Result<()> {
         // Prepare GPU evaluation (placeholder for now)
+        // SAFETY: The kernel function is called with valid device pointers obtained from
+        // CudaSlice::device_ptr(). agent_codes has population_size * max_code_size bytes,
+        // and benchmark_scores has population_size f32 elements. The null benchmark_data
+        // is a placeholder that the kernel handles appropriately.
         unsafe {
             crate::evolution::kernels::evaluate_dgm_benchmark(
                 *self.agent_codes.device_ptr() as *const u8,
@@ -653,7 +665,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dgm_engine_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_dgm_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let engine = DgmEngine::new(device, 16, 1024, 100)?;

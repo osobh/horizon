@@ -2,11 +2,9 @@
 
 use crate::error::SynthesisResult;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
-use std::error::Error;
 /// Execution result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
@@ -85,7 +83,7 @@ impl ExecutionEngine {
     /// Execute kernel (mock or real)
     async fn execute_kernel(
         &self,
-        kernel_id: &str,
+        _kernel_id: &str,
         _input_data: &[u8],
     ) -> SynthesisResult<Vec<u8>> {
         // Mock implementation
@@ -166,8 +164,7 @@ mod tests {
         let engine = ExecutionEngine::new("perf_test".to_string());
         let result = engine
             .execute("perf_kernel".to_string(), vec![0; 1024])
-            .await
-            ?;
+            .await?;
 
         // Check performance metrics
         let perf = &result.performance;
@@ -184,8 +181,7 @@ mod tests {
         let engine = ExecutionEngine::new("resource_test".to_string());
         let result = engine
             .execute("resource_kernel".to_string(), vec![])
-            .await
-            ?;
+            .await?;
 
         // Check resource usage
         let resources = &result.resource_usage;
@@ -394,7 +390,8 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_performance_metrics_various_inputs() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_calculate_performance_metrics_various_inputs() -> Result<(), Box<dyn std::error::Error>>
+    {
         let engine = ExecutionEngine::new("calc_test".to_string());
 
         let test_cases = vec![
@@ -557,7 +554,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execution_power_consumption_calculation() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_execution_power_consumption_calculation() -> Result<(), Box<dyn std::error::Error>>
+    {
         let engine = ExecutionEngine::new("power_test".to_string());
 
         let result = engine

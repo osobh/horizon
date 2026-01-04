@@ -28,32 +28,31 @@
 //! When macOS 26 ships with the Metal 4 SDK, native implementations
 //! will be activated automatically via runtime detection.
 
-mod device;
-mod buffer;
-mod command;
-mod tensor;
 mod allocator;
 mod argument_table;
-mod residency;
 mod barrier;
+mod buffer;
+mod command;
 mod detection;
+mod device;
+mod residency;
+mod tensor;
 
 // Core types
-pub use device::Metal4Device;
 pub use buffer::Metal4Buffer;
-pub use command::{Metal4CommandQueue, Metal4CommandBuffer, Metal4ComputeEncoder};
+pub use command::{Metal4CommandBuffer, Metal4CommandQueue, Metal4ComputeEncoder};
+pub use device::Metal4Device;
 pub use tensor::Metal4Tensor;
 
 // Metal 4 specific types
 pub use allocator::Metal4CommandAllocator;
-pub use argument_table::{Metal4ArgumentTable, ArgumentTableDescriptor};
-pub use residency::{Metal4ResidencySet, ResourceUsage, TrackedResource, ResidencySetBuilder};
-pub use barrier::{Barrier, BarrierBuilder, BarrierBatch, ResourceRef, ResourceType};
+pub use argument_table::{ArgumentTableDescriptor, Metal4ArgumentTable};
+pub use barrier::{Barrier, BarrierBatch, BarrierBuilder, ResourceRef, ResourceType};
 pub use detection::{
-    is_metal4_available, is_native_tensor_available, is_command_allocator_available,
-    is_argument_table_available, is_residency_set_available,
-    Metal4Features, MetalGeneration,
+    is_argument_table_available, is_command_allocator_available, is_metal4_available,
+    is_native_tensor_available, is_residency_set_available, Metal4Features, MetalGeneration,
 };
+pub use residency::{Metal4ResidencySet, ResidencySetBuilder, ResourceUsage, TrackedResource};
 
 use crate::backend::{MetalBackend, MetalDevice, MetalVersion};
 use crate::error::{MetalError, Result};
@@ -228,7 +227,10 @@ impl Metal4Backend {
     /// allocator.reset(); // Start of frame
     /// let cmd = queue.create_command_buffer_with_allocator(&allocator)?;
     /// ```
-    pub fn create_command_allocator(&self, max_frames_in_flight: usize) -> Result<Metal4CommandAllocator> {
+    pub fn create_command_allocator(
+        &self,
+        max_frames_in_flight: usize,
+    ) -> Result<Metal4CommandAllocator> {
         Metal4CommandAllocator::new(&self.device, max_frames_in_flight)
     }
 
@@ -240,12 +242,18 @@ impl Metal4Backend {
     /// # Arguments
     ///
     /// * `desc` - Configuration for the argument table
-    pub fn create_argument_table(&self, desc: ArgumentTableDescriptor) -> Result<Metal4ArgumentTable> {
+    pub fn create_argument_table(
+        &self,
+        desc: ArgumentTableDescriptor,
+    ) -> Result<Metal4ArgumentTable> {
         Metal4ArgumentTable::new(&self.device, desc)
     }
 
     /// Create an argument table with default settings and the given capacity.
-    pub fn create_argument_table_with_capacity(&self, capacity: usize) -> Result<Metal4ArgumentTable> {
+    pub fn create_argument_table_with_capacity(
+        &self,
+        capacity: usize,
+    ) -> Result<Metal4ArgumentTable> {
         Metal4ArgumentTable::with_capacity(&self.device, capacity)
     }
 
@@ -357,7 +365,8 @@ mod tests {
     #[test]
     fn test_command_allocator_creation() {
         if let Ok(backend) = Metal4Backend::new() {
-            let allocator = backend.create_command_allocator(3)
+            let allocator = backend
+                .create_command_allocator(3)
                 .expect("Failed to create allocator");
             assert_eq!(allocator.max_frames_in_flight(), 3);
         }
@@ -366,7 +375,8 @@ mod tests {
     #[test]
     fn test_argument_table_creation() {
         if let Ok(backend) = Metal4Backend::new() {
-            let table = backend.create_argument_table_with_capacity(16)
+            let table = backend
+                .create_argument_table_with_capacity(16)
                 .expect("Failed to create argument table");
             assert_eq!(table.max_buffers(), 16);
         }
@@ -375,7 +385,8 @@ mod tests {
     #[test]
     fn test_residency_set_creation() {
         if let Ok(backend) = Metal4Backend::new() {
-            let set = backend.create_residency_set()
+            let set = backend
+                .create_residency_set()
                 .expect("Failed to create residency set");
             assert!(set.is_empty());
         }

@@ -83,8 +83,8 @@ async fn test_grpc_server_with_tls() {
 
     // Generate test certificates with proper SANs
     let ca = generate_ca_cert("Test CA").unwrap();
-    let server_identity = ServiceIdentity::new("test-server")
-        .with_dns_names(vec!["localhost", "127.0.0.1"]);
+    let server_identity =
+        ServiceIdentity::new("test-server").with_dns_names(vec!["localhost", "127.0.0.1"]);
     let server_cert = generate_signed_cert(&server_identity, &ca).unwrap();
 
     let addr: SocketAddr = "127.0.0.1:50052".parse().unwrap();
@@ -134,8 +134,8 @@ async fn test_grpc_server_with_mtls() {
     use hpc_rpc::grpc::GrpcServerBuilder;
 
     let ca = generate_ca_cert("Test CA").unwrap();
-    let server_identity = ServiceIdentity::new("test-server")
-        .with_dns_names(vec!["localhost", "127.0.0.1"]);
+    let server_identity =
+        ServiceIdentity::new("test-server").with_dns_names(vec!["localhost", "127.0.0.1"]);
     let server_cert = generate_signed_cert(&server_identity, &ca).unwrap();
     let client_identity = ServiceIdentity::new("test-client");
     let client_cert = generate_signed_cert(&client_identity, &ca).unwrap();
@@ -321,8 +321,8 @@ async fn test_quic_server_endpoint_with_tls() {
     let server_cert = generate_signed_cert(&server_identity, &ca).unwrap();
 
     let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let endpoint = QuicEndpoint::server(addr, server_cert)
-        .expect("Failed to create server endpoint");
+    let endpoint =
+        QuicEndpoint::server(addr, server_cert).expect("Failed to create server endpoint");
 
     assert!(endpoint.local_addr().is_ok());
 }
@@ -337,12 +337,15 @@ async fn test_quic_bidirectional_stream() {
     let server_cert = generate_signed_cert(&server_identity, &ca).unwrap();
 
     let server_addr: SocketAddr = "127.0.0.1:6000".parse().unwrap();
-    let server_endpoint = QuicEndpoint::server(server_addr, server_cert)
-        .expect("Failed to create server");
+    let server_endpoint =
+        QuicEndpoint::server(server_addr, server_cert).expect("Failed to create server");
 
     // Server task
     let server_handle = tokio::spawn(async move {
-        let incoming = server_endpoint.accept().await.expect("No incoming connection");
+        let incoming = server_endpoint
+            .accept()
+            .await
+            .expect("No incoming connection");
         let conn = incoming.await.expect("Connection failed");
 
         let (mut send, mut recv) = conn.accept_bi().await.expect("Failed to accept stream");
@@ -361,8 +364,8 @@ async fn test_quic_bidirectional_stream() {
 
     // Client
     let client_addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let client_endpoint = QuicEndpoint::client(client_addr)
-        .expect("Failed to create client endpoint");
+    let client_endpoint =
+        QuicEndpoint::client(client_addr).expect("Failed to create client endpoint");
 
     let conn = client_endpoint
         .connect(server_addr, "quic-server", ca)
@@ -393,14 +396,20 @@ async fn test_quic_unidirectional_stream() {
     let server_cert = generate_signed_cert(&server_identity, &ca).unwrap();
 
     let server_addr: SocketAddr = "127.0.0.1:6001".parse().unwrap();
-    let server_endpoint = QuicEndpoint::server(server_addr, server_cert)
-        .expect("Failed to create server");
+    let server_endpoint =
+        QuicEndpoint::server(server_addr, server_cert).expect("Failed to create server");
 
     let server_handle = tokio::spawn(async move {
-        let incoming = server_endpoint.accept().await.expect("No incoming connection");
+        let incoming = server_endpoint
+            .accept()
+            .await
+            .expect("No incoming connection");
         let conn = incoming.await.expect("Connection failed");
 
-        let mut recv = conn.accept_uni().await.expect("Failed to accept uni stream");
+        let mut recv = conn
+            .accept_uni()
+            .await
+            .expect("Failed to accept uni stream");
 
         let mut buf = vec![0u8; 1024];
         let n = recv.read(&mut buf).await.expect("Read failed").unwrap();
@@ -412,8 +421,8 @@ async fn test_quic_unidirectional_stream() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let client_addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let client_endpoint = QuicEndpoint::client(client_addr)
-        .expect("Failed to create client endpoint");
+    let client_endpoint =
+        QuicEndpoint::client(client_addr).expect("Failed to create client endpoint");
 
     let conn = client_endpoint
         .connect(server_addr, "quic-server", ca)
@@ -422,7 +431,9 @@ async fn test_quic_unidirectional_stream() {
 
     let mut send = conn.open_uni().await.expect("Failed to open uni stream");
 
-    send.write_all(b"one-way message").await.expect("Write failed");
+    send.write_all(b"one-way message")
+        .await
+        .expect("Write failed");
     send.finish().await.expect("Finish failed");
 
     server_handle.await.unwrap();
@@ -442,11 +453,14 @@ async fn test_quic_stream_backpressure() {
     let server_cert = generate_signed_cert(&server_identity, &ca).unwrap();
 
     let server_addr: SocketAddr = "127.0.0.1:6002".parse().unwrap();
-    let server_endpoint = QuicEndpoint::server(server_addr, server_cert)
-        .expect("Failed to create server");
+    let server_endpoint =
+        QuicEndpoint::server(server_addr, server_cert).expect("Failed to create server");
 
     let server_handle = tokio::spawn(async move {
-        let incoming = server_endpoint.accept().await.expect("No incoming connection");
+        let incoming = server_endpoint
+            .accept()
+            .await
+            .expect("No incoming connection");
         let conn = incoming.await.expect("Connection failed");
 
         let (_, mut recv) = conn.accept_bi().await.expect("Failed to accept stream");
@@ -469,8 +483,8 @@ async fn test_quic_stream_backpressure() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let client_addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let client_endpoint = QuicEndpoint::client(client_addr)
-        .expect("Failed to create client endpoint");
+    let client_endpoint =
+        QuicEndpoint::client(client_addr).expect("Failed to create client endpoint");
 
     let conn = client_endpoint
         .connect(server_addr, "quic-server", ca)
@@ -501,11 +515,14 @@ async fn test_quic_multiple_streams_on_connection() {
     let server_cert = generate_signed_cert(&server_identity, &ca).unwrap();
 
     let server_addr: SocketAddr = "127.0.0.1:6003".parse().unwrap();
-    let server_endpoint = QuicEndpoint::server(server_addr, server_cert)
-        .expect("Failed to create server");
+    let server_endpoint =
+        QuicEndpoint::server(server_addr, server_cert).expect("Failed to create server");
 
     let server_handle = tokio::spawn(async move {
-        let incoming = server_endpoint.accept().await.expect("No incoming connection");
+        let incoming = server_endpoint
+            .accept()
+            .await
+            .expect("No incoming connection");
         let conn = incoming.await.expect("Connection failed");
 
         // Accept multiple streams
@@ -530,8 +547,8 @@ async fn test_quic_multiple_streams_on_connection() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let client_addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let client_endpoint = QuicEndpoint::client(client_addr)
-        .expect("Failed to create client endpoint");
+    let client_endpoint =
+        QuicEndpoint::client(client_addr).expect("Failed to create client endpoint");
 
     let conn = client_endpoint
         .connect(server_addr, "quic-server", ca)
@@ -588,8 +605,8 @@ async fn test_quic_connection_timeout() {
     let ca = generate_ca_cert("Test CA").unwrap();
 
     let client_addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let client_endpoint = QuicEndpoint::client(client_addr)
-        .expect("Failed to create client endpoint");
+    let client_endpoint =
+        QuicEndpoint::client(client_addr).expect("Failed to create client endpoint");
 
     // Try to connect to non-existent server with timeout
     let server_addr: SocketAddr = "127.0.0.1:9999".parse().unwrap();

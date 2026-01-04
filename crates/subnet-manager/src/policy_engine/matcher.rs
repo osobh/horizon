@@ -148,17 +148,17 @@ impl NodeAttributes {
             NodeAttribute::CpuCores => self.cpu_cores.map(|v| AttributeValue::Integer(v as i64)),
             NodeAttribute::RamGb => self.ram_gb.map(|v| AttributeValue::Integer(v as i64)),
             NodeAttribute::GpuCount => self.gpu_count.map(|v| AttributeValue::Integer(v as i64)),
-            NodeAttribute::GpuMemoryGb => {
-                self.gpu_memory_gb.map(|v| AttributeValue::Integer(v as i64))
-            }
+            NodeAttribute::GpuMemoryGb => self
+                .gpu_memory_gb
+                .map(|v| AttributeValue::Integer(v as i64)),
             NodeAttribute::GpuModel => self.gpu_model.clone().map(AttributeValue::String),
             NodeAttribute::StorageTb => self.storage_tb.map(AttributeValue::Float),
             NodeAttribute::NetworkBandwidthGbps => {
                 self.network_bandwidth_gbps.map(AttributeValue::Float)
             }
-            NodeAttribute::ReliabilityTier => {
-                self.reliability_tier.map(|v| AttributeValue::Integer(v as i64))
-            }
+            NodeAttribute::ReliabilityTier => self
+                .reliability_tier
+                .map(|v| AttributeValue::Integer(v as i64)),
             NodeAttribute::Labels => Some(AttributeValue::StringList(self.labels.clone())),
             NodeAttribute::Hostname => self.hostname.clone().map(AttributeValue::String),
             NodeAttribute::OperatingSystem => {
@@ -299,9 +299,9 @@ impl AttributeMatcher {
     /// Regex match
     fn regex_match(node_value: &AttributeValue, policy_value: &PolicyValue) -> bool {
         match (node_value, policy_value) {
-            (AttributeValue::String(a), PolicyValue::String(pattern)) => {
-                Regex::new(pattern).map(|re| re.is_match(a)).unwrap_or(false)
-            }
+            (AttributeValue::String(a), PolicyValue::String(pattern)) => Regex::new(pattern)
+                .map(|re| re.is_match(a))
+                .unwrap_or(false),
             _ => false,
         }
     }
@@ -410,10 +410,7 @@ mod tests {
         let rule = PolicyRule::new(
             NodeAttribute::Region,
             MatchOperator::In,
-            PolicyValue::StringList(vec![
-                "us-east-1".to_string(),
-                "us-west-2".to_string(),
-            ]),
+            PolicyValue::StringList(vec!["us-east-1".to_string(), "us-west-2".to_string()]),
         );
 
         assert!(AttributeMatcher::matches(&attrs, &rule));

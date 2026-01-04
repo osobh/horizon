@@ -17,12 +17,12 @@ impl GpuConsensusAccelerator {
             utilization: 0.0,
         })
     }
-    
+
     /// Get current GPU utilization
     pub async fn get_utilization(&self) -> f32 {
         self.utilization
     }
-    
+
     /// Execute GPU-accelerated consensus operation
     pub async fn execute_gpu_consensus(
         &self,

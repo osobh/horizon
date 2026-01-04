@@ -18,7 +18,8 @@ mod tests {
     #[tokio::test]
     #[ignore] // Requires database connection
     async fn test_create_pool() {
-        let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost/horizon_test".to_string());
+        let url = std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://localhost/horizon_test".to_string());
         let result = create_pool(&url, 5).await;
         // In real test environment, this should succeed
         // For now, we just test that the function compiles and can be called

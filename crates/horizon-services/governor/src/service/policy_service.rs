@@ -54,9 +54,8 @@ impl PolicyService {
     }
 
     fn validate_policy_content(&self, content: &str) -> Result<()> {
-        parse_policy(content).map_err(|e| {
-            HpcError::invalid_policy_content(format!("Invalid policy YAML: {}", e))
-        })?;
+        parse_policy(content)
+            .map_err(|e| HpcError::invalid_policy_content(format!("Invalid policy YAML: {}", e)))?;
 
         Ok(())
     }

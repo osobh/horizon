@@ -3,6 +3,6 @@
 pub mod helpers;
 
 // Test modules
-mod integration_tests;
 mod e2e_flows;
+mod integration_tests;
 mod performance_tests;

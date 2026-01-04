@@ -38,11 +38,7 @@ pub struct CreateCostAttribution {
 }
 
 impl CreateCostAttribution {
-    pub fn new(
-        user_id: String,
-        period_start: DateTime<Utc>,
-        period_end: DateTime<Utc>,
-    ) -> Self {
+    pub fn new(user_id: String, period_start: DateTime<Utc>, period_end: DateTime<Utc>) -> Self {
         Self {
             job_id: None,
             user_id,
@@ -148,14 +144,13 @@ impl CreateCostAttribution {
         }
 
         // Verify total is sum of components
-        let calculated_total = self.gpu_cost + self.cpu_cost + self.network_cost + self.storage_cost;
+        let calculated_total =
+            self.gpu_cost + self.cpu_cost + self.network_cost + self.storage_cost;
         if self.total_cost != calculated_total {
-            return Err(crate::error::HpcError::invalid_attribution_data(
-                format!(
-                    "Total cost {} does not match sum of components {}",
-                    self.total_cost, calculated_total
-                ),
-            ));
+            return Err(crate::error::HpcError::invalid_attribution_data(format!(
+                "Total cost {} does not match sum of components {}",
+                self.total_cost, calculated_total
+            )));
         }
 
         Ok(())
@@ -292,7 +287,10 @@ mod tests {
         let result = attribution.validate();
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid time range"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid time range"));
     }
 
     #[test]
@@ -306,10 +304,7 @@ mod tests {
 
         let result = attribution.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Total cost"));
+        assert!(result.unwrap_err().to_string().contains("Total cost"));
     }
 
     #[test]

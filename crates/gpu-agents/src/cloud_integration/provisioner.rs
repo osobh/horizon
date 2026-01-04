@@ -3,12 +3,12 @@
 //! Multi-cloud orchestration and intelligent provisioning across AWS, GCP, and Alibaba Cloud.
 
 use super::core::*;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 
 /// Cloud provisioner for multi-cloud orchestration
 pub struct CloudProvisioner {
@@ -164,11 +164,12 @@ impl CloudProvisioner {
     /// Provision resources on a specific provider
     pub async fn provision(&self, request: &ProvisioningRequest) -> Result<ProvisioningResult> {
         let start_time = Instant::now();
-        
+
         let providers = self.providers.read().await;
-        let provider = providers.get(&request.provider)
+        let provider = providers
+            .get(&request.provider)
             .ok_or_else(|| anyhow!("Provider {} not found", request.provider))?;
-        
+
         // Create provision request
         let provision_request = ProvisionRequest {
             region: request.region.clone(),
@@ -180,9 +181,9 @@ impl CloudProvisioner {
             security_groups: vec![],
             key_pair: None,
         };
-        
+
         let response = provider.provision(&provision_request).await?;
-        
+
         // Track deployment
         let deployment = Deployment {
             id: response.resource_id.clone(),
@@ -193,10 +194,10 @@ impl CloudProvisioner {
             created_at: Instant::now(),
             auto_scaling_config: request.auto_scaling.clone(),
         };
-        
+
         let mut deployments = self.deployments.write().await;
         deployments.insert(deployment.id.clone(), deployment);
-        
+
         Ok(ProvisioningResult {
             deployment_id: response.resource_id,
             provider: request.provider.clone(),
@@ -208,39 +209,43 @@ impl CloudProvisioner {
     }
 
     /// Provision across multiple clouds with intelligent distribution
-    pub async fn provision_multi_cloud(&self, request: &MultiCloudRequest) -> Result<MultiCloudResult> {
+    pub async fn provision_multi_cloud(
+        &self,
+        request: &MultiCloudRequest,
+    ) -> Result<MultiCloudResult> {
         let start_time = Instant::now();
         let deployment_id = format!("multi-cloud-{}", uuid::Uuid::new_v4());
-        
+
         let providers = self.providers.read().await;
-        
+
         // Determine distribution based on strategy
         let distribution = self.calculate_distribution(request, &providers).await?;
-        
+
         let mut total_instances = 0;
         let mut total_cost = 0.0;
         let mut providers_used = Vec::new();
         let mut regions_used = Vec::new();
-        
+
         // Provision on each provider
         for (provider_name, instance_count) in distribution {
             if instance_count == 0 {
                 continue;
             }
-            
-            let provider = providers.get(&provider_name)
+
+            let provider = providers
+                .get(&provider_name)
                 .ok_or_else(|| anyhow!("Provider {} not found", provider_name))?;
-            
+
             // Select optimal region for this provider
-            let region = self.select_optimal_region(provider, &request.requirements).await?;
-            
+            let region = self
+                .select_optimal_region(provider, &request.requirements)
+                .await?;
+
             // Select instance type meeting requirements
-            let instance_type = self.select_instance_type(
-                provider, 
-                &region, 
-                &request.requirements
-            ).await?;
-            
+            let instance_type = self
+                .select_instance_type(provider, &region, &request.requirements)
+                .await?;
+
             let provision_request = ProvisionRequest {
                 region: region.clone(),
                 instance_type,
@@ -254,15 +259,15 @@ impl CloudProvisioner {
                 security_groups: vec![],
                 key_pair: None,
             };
-            
+
             let response = provider.provision(&provision_request).await?;
-            
+
             total_instances += instance_count;
             total_cost += response.total_cost_estimate;
             providers_used.push(provider_name);
             regions_used.push(region);
         }
-        
+
         Ok(MultiCloudResult {
             deployment_id,
             total_instances_provisioned: total_instances,
@@ -275,20 +280,22 @@ impl CloudProvisioner {
 
     /// Calculate distribution across providers
     async fn calculate_distribution(
-        &self, 
+        &self,
         request: &MultiCloudRequest,
-        providers: &HashMap<String, Box<dyn CloudProvider>>
+        providers: &HashMap<String, Box<dyn CloudProvider>>,
     ) -> Result<HashMap<String, u32>> {
         let mut distribution = HashMap::new();
-        
+
         match &request.distribution_strategy {
             DistributionStrategy::EvenDistribution => {
-                let instances_per_provider = request.total_instances / request.providers.len() as u32;
+                let instances_per_provider =
+                    request.total_instances / request.providers.len() as u32;
                 let remainder = request.total_instances % request.providers.len() as u32;
-                
+
                 for (i, provider_name) in request.providers.iter().enumerate() {
                     if providers.contains_key(provider_name) {
-                        let count = instances_per_provider + if i < remainder as usize { 1 } else { 0 };
+                        let count =
+                            instances_per_provider + if i < remainder as usize { 1 } else { 0 };
                         distribution.insert(provider_name.clone(), count);
                     }
                 }
@@ -299,7 +306,7 @@ impl CloudProvisioner {
                 let aws_count = (request.total_instances as f32 * 0.4) as u32;
                 let gcp_count = (request.total_instances as f32 * 0.4) as u32;
                 let alibaba_count = request.total_instances - aws_count - gcp_count;
-                
+
                 distribution.insert("aws".to_string(), aws_count);
                 distribution.insert("gcp".to_string(), gcp_count);
                 distribution.insert("alibaba".to_string(), alibaba_count);
@@ -309,7 +316,7 @@ impl CloudProvisioner {
                 // Simple implementation: prefer US providers for low latency
                 let aws_count = (request.total_instances as f32 * 0.5) as u32;
                 let gcp_count = (request.total_instances as f32 * 0.5) as u32;
-                
+
                 distribution.insert("aws".to_string(), aws_count);
                 distribution.insert("gcp".to_string(), gcp_count);
             }
@@ -317,16 +324,22 @@ impl CloudProvisioner {
                 // Distribute evenly for maximum availability
                 let instances_per_provider = request.total_instances / 3;
                 let remainder = request.total_instances % 3;
-                
-                distribution.insert("aws".to_string(), instances_per_provider + if remainder > 0 { 1 } else { 0 });
-                distribution.insert("gcp".to_string(), instances_per_provider + if remainder > 1 { 1 } else { 0 });
+
+                distribution.insert(
+                    "aws".to_string(),
+                    instances_per_provider + if remainder > 0 { 1 } else { 0 },
+                );
+                distribution.insert(
+                    "gcp".to_string(),
+                    instances_per_provider + if remainder > 1 { 1 } else { 0 },
+                );
                 distribution.insert("alibaba".to_string(), instances_per_provider);
             }
             DistributionStrategy::Custom(custom_dist) => {
                 distribution = custom_dist.clone();
             }
         }
-        
+
         Ok(distribution)
     }
 
@@ -334,24 +347,23 @@ impl CloudProvisioner {
     async fn select_optimal_region(
         &self,
         provider: &Box<dyn CloudProvider>,
-        requirements: &ResourceRequirements
+        requirements: &ResourceRequirements,
     ) -> Result<String> {
         let regions = provider.list_regions().await?;
-        
+
         // Filter by GPU availability
-        let gpu_regions: Vec<_> = regions.into_iter()
-            .filter(|r| r.gpu_available)
-            .collect();
-        
+        let gpu_regions: Vec<_> = regions.into_iter().filter(|r| r.gpu_available).collect();
+
         // Prefer requested regions if available
         for preferred in &requirements.preferred_regions {
             if let Some(region) = gpu_regions.iter().find(|r| r.id == *preferred) {
                 return Ok(region.id.clone());
             }
         }
-        
+
         // Otherwise pick lowest latency region
-        gpu_regions.into_iter()
+        gpu_regions
+            .into_iter()
             .min_by(|a, b| a.latency_ms.partial_cmp(&b.latency_ms)?)
             .map(|r| r.id)
             .ok_or_else(|| anyhow!("No suitable region found"))
@@ -362,25 +374,30 @@ impl CloudProvisioner {
         &self,
         provider: &Box<dyn CloudProvider>,
         region: &str,
-        requirements: &ResourceRequirements
+        requirements: &ResourceRequirements,
     ) -> Result<String> {
         let instance_types = provider.list_instance_types(region).await?;
-        
+
         // Filter by requirements
-        let suitable_types: Vec<_> = instance_types.into_iter()
+        let suitable_types: Vec<_> = instance_types
+            .into_iter()
             .filter(|t| {
-                t.vcpus >= requirements.min_vcpus &&
-                t.memory_gb >= requirements.min_memory_gb &&
-                t.gpu_count >= requirements.min_gpu_count &&
-                (requirements.gpu_type.is_none() || 
-                 t.gpu_type.as_ref().map(|gt| gt.contains(requirements.gpu_type.as_ref()?)).unwrap_or(false)) &&
-                (requirements.max_price_per_hour.is_none() || 
-                 t.price_per_hour <= requirements.max_price_per_hour.unwrap())
+                t.vcpus >= requirements.min_vcpus
+                    && t.memory_gb >= requirements.min_memory_gb
+                    && t.gpu_count >= requirements.min_gpu_count
+                    && (requirements.gpu_type.is_none()
+                        || t.gpu_type
+                            .as_ref()
+                            .map(|gt| gt.contains(requirements.gpu_type.as_ref()?))
+                            .unwrap_or(false))
+                    && (requirements.max_price_per_hour.is_none()
+                        || t.price_per_hour <= requirements.max_price_per_hour.unwrap())
             })
             .collect();
-        
+
         // Pick cheapest suitable instance
-        suitable_types.into_iter()
+        suitable_types
+            .into_iter()
             .min_by(|a, b| a.price_per_hour.partial_cmp(&b.price_per_hour)?)
             .map(|t| t.id)
             .ok_or_else(|| anyhow!("No suitable instance type found"))
@@ -390,21 +407,24 @@ impl CloudProvisioner {
     pub async fn handle_auto_scaling_event(
         &self,
         deployment_id: &str,
-        current_gpu_utilization: f64
+        current_gpu_utilization: f64,
     ) -> Result<ScalingResult> {
         let start_time = Instant::now();
-        
+
         let deployments = self.deployments.read().await;
-        let deployment = deployments.get(deployment_id)
+        let deployment = deployments
+            .get(deployment_id)
             .ok_or_else(|| anyhow!("Deployment {} not found", deployment_id))?;
-        
-        let auto_scaling = deployment.auto_scaling_config.as_ref()
+
+        let auto_scaling = deployment
+            .auto_scaling_config
+            .as_ref()
             .ok_or_else(|| anyhow!("Auto-scaling not configured for deployment"))?;
-        
+
         let current_count = deployment.instance_count;
         let mut new_count = current_count;
         let mut action = ScalingAction::NoAction;
-        
+
         if current_gpu_utilization > auto_scaling.scale_up_threshold {
             // Scale up
             new_count = (current_count + 1).min(auto_scaling.max_instances);
@@ -418,11 +438,12 @@ impl CloudProvisioner {
                 action = ScalingAction::ScaleDown;
             }
         }
-        
+
         // Apply scaling if needed
         if action != ScalingAction::NoAction {
             // In real implementation, would call provider APIs to add/remove instances
-            println!("Auto-scaling: {} instances from {} to {}", 
+            println!(
+                "Auto-scaling: {} instances from {} to {}",
                 match action {
                     ScalingAction::ScaleUp => "Scaling up",
                     ScalingAction::ScaleDown => "Scaling down",
@@ -432,7 +453,7 @@ impl CloudProvisioner {
                 new_count
             );
         }
-        
+
         Ok(ScalingResult {
             action,
             previous_instance_count: current_count,
@@ -445,43 +466,47 @@ impl CloudProvisioner {
     pub async fn provision_with_disaster_recovery(
         &self,
         config: &DisasterRecoveryConfig,
-        instance_count: u32
+        instance_count: u32,
     ) -> Result<DisasterRecoveryDeployment> {
         let deployment_id = format!("dr-deployment-{}", uuid::Uuid::new_v4());
-        
+
         // Provision primary region
-        let primary_result = self.provision(&ProvisioningRequest {
-            provider: "aws".to_string(), // Default to AWS for DR
-            region: config.primary_region.clone(),
-            instance_type: "p3.2xlarge".to_string(),
-            initial_count: instance_count,
-            auto_scaling: None,
-            tags: HashMap::from([
-                ("dr-role".to_string(), "primary".to_string()),
-                ("deployment".to_string(), deployment_id.clone()),
-            ]),
-        }).await?;
-        
+        let primary_result = self
+            .provision(&ProvisioningRequest {
+                provider: "aws".to_string(), // Default to AWS for DR
+                region: config.primary_region.clone(),
+                instance_type: "p3.2xlarge".to_string(),
+                initial_count: instance_count,
+                auto_scaling: None,
+                tags: HashMap::from([
+                    ("dr-role".to_string(), "primary".to_string()),
+                    ("deployment".to_string(), deployment_id.clone()),
+                ]),
+            })
+            .await?;
+
         // Provision backup regions
         let mut backup_instances = 0;
         for backup_region in &config.backup_regions {
             if config.replication_enabled {
                 let backup_count = (instance_count as f32 * 0.5).ceil() as u32; // 50% capacity in backup
-                let _backup_result = self.provision(&ProvisioningRequest {
-                    provider: "aws".to_string(),
-                    region: backup_region.clone(),
-                    instance_type: "p3.2xlarge".to_string(),
-                    initial_count: backup_count,
-                    auto_scaling: None,
-                    tags: HashMap::from([
-                        ("dr-role".to_string(), "backup".to_string()),
-                        ("deployment".to_string(), deployment_id.clone()),
-                    ]),
-                }).await?;
+                let _backup_result = self
+                    .provision(&ProvisioningRequest {
+                        provider: "aws".to_string(),
+                        region: backup_region.clone(),
+                        instance_type: "p3.2xlarge".to_string(),
+                        initial_count: backup_count,
+                        auto_scaling: None,
+                        tags: HashMap::from([
+                            ("dr-role".to_string(), "backup".to_string()),
+                            ("deployment".to_string(), deployment_id.clone()),
+                        ]),
+                    })
+                    .await?;
                 backup_instances += backup_count;
             }
         }
-        
+
         Ok(DisasterRecoveryDeployment {
             deployment_id,
             primary_instances: instance_count,
@@ -498,19 +523,19 @@ impl CloudProvisioner {
     pub async fn trigger_failover(
         &self,
         deployment_id: &str,
-        failed_region: &str
+        failed_region: &str,
     ) -> Result<FailoverResult> {
         let start_time = Instant::now();
-        
+
         // In real implementation, would:
         // 1. Verify primary region failure
         // 2. Promote backup region to primary
         // 3. Update DNS/load balancer
         // 4. Redirect traffic
-        
+
         // Simulate failover
         tokio::time::sleep(Duration::from_secs(5)).await;
-        
+
         Ok(FailoverResult {
             success: true,
             new_primary_region: "us-west-2".to_string(), // Example backup region
@@ -522,31 +547,35 @@ impl CloudProvisioner {
     /// Provision network-optimized instances
     pub async fn provision_network_optimized(
         &self,
-        request: &NetworkOptimizedRequest
+        request: &NetworkOptimizedRequest,
     ) -> Result<NetworkOptimizedResult> {
         let deployment_id = format!("network-opt-{}", uuid::Uuid::new_v4());
-        
+
         // For network optimization, provision all instances in same provider/region/AZ
-        let provider = request.providers.first()
+        let provider = request
+            .providers
+            .first()
             .ok_or_else(|| anyhow!("No providers specified"))?;
-        
+
         let mut tags = HashMap::new();
         tags.insert("deployment".to_string(), deployment_id.clone());
         tags.insert("network-optimized".to_string(), "true".to_string());
-        
+
         if let Some(placement_group) = &request.network_requirements.placement_group {
             tags.insert("placement-group".to_string(), placement_group.clone());
         }
-        
-        let result = self.provision(&ProvisioningRequest {
-            provider: provider.clone(),
-            region: "us-east-1".to_string(), // Use low-latency region
-            instance_type: "p3.8xlarge".to_string(), // High network performance instance
-            initial_count: request.total_instances,
-            auto_scaling: None,
-            tags,
-        }).await?;
-        
+
+        let result = self
+            .provision(&ProvisioningRequest {
+                provider: provider.clone(),
+                region: "us-east-1".to_string(), // Use low-latency region
+                instance_type: "p3.8xlarge".to_string(), // High network performance instance
+                initial_count: request.total_instances,
+                auto_scaling: None,
+                tags,
+            })
+            .await?;
+
         Ok(NetworkOptimizedResult {
             deployment_id: result.deployment_id,
             instances_created: result.instances_created,

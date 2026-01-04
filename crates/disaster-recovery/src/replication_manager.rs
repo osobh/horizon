@@ -1191,9 +1191,7 @@ mod tests {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
 
-        manager
-            .set_topology(ReplicationTopology::MultiMaster)
-            ?;
+        manager.set_topology(ReplicationTopology::MultiMaster)?;
         assert_eq!(*manager.topology.read(), ReplicationTopology::MultiMaster);
 
         manager.set_topology(ReplicationTopology::Chain)?;

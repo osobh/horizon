@@ -213,7 +213,9 @@ impl ChannelRegistry {
 
     /// Get shared receiver for efficiency messages.
     #[must_use]
-    pub fn subscribe_efficiency(&self) -> Arc<Mutex<mpsc::Receiver<Request<EfficiencyMessage, EfficiencyMessage>>>> {
+    pub fn subscribe_efficiency(
+        &self,
+    ) -> Arc<Mutex<mpsc::Receiver<Request<EfficiencyMessage, EfficiencyMessage>>>> {
         Arc::clone(&self.efficiency_rx)
     }
 
@@ -227,7 +229,9 @@ impl ChannelRegistry {
 
     /// Get shared receiver for scheduler messages.
     #[must_use]
-    pub fn subscribe_scheduler(&self) -> Arc<Mutex<mpsc::Receiver<Request<SchedulerMessage, SchedulerMessage>>>> {
+    pub fn subscribe_scheduler(
+        &self,
+    ) -> Arc<Mutex<mpsc::Receiver<Request<SchedulerMessage, SchedulerMessage>>>> {
         Arc::clone(&self.scheduler_rx)
     }
 
@@ -241,7 +245,9 @@ impl ChannelRegistry {
 
     /// Get shared receiver for governor messages.
     #[must_use]
-    pub fn subscribe_governor(&self) -> Arc<Mutex<mpsc::Receiver<Request<GovernorMessage, GovernorMessage>>>> {
+    pub fn subscribe_governor(
+        &self,
+    ) -> Arc<Mutex<mpsc::Receiver<Request<GovernorMessage, GovernorMessage>>>> {
         Arc::clone(&self.governor_rx)
     }
 
@@ -255,7 +261,9 @@ impl ChannelRegistry {
 
     /// Get shared receiver for knowledge messages.
     #[must_use]
-    pub fn subscribe_knowledge(&self) -> Arc<Mutex<mpsc::Receiver<Request<KnowledgeMessage, KnowledgeMessage>>>> {
+    pub fn subscribe_knowledge(
+        &self,
+    ) -> Arc<Mutex<mpsc::Receiver<Request<KnowledgeMessage, KnowledgeMessage>>>> {
         Arc::clone(&self.knowledge_rx)
     }
 

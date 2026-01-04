@@ -73,7 +73,11 @@ impl ByzantineDetector {
     }
 
     /// Create with custom configuration
-    pub fn with_config(threshold: f32, max_nodes: usize, config: ByzantineConfig) -> FtResult<Self> {
+    pub fn with_config(
+        threshold: f32,
+        max_nodes: usize,
+        config: ByzantineConfig,
+    ) -> FtResult<Self> {
         let mut detector = Self::new(threshold, max_nodes)?;
         detector.config = config;
         Ok(detector)
@@ -94,7 +98,7 @@ impl ByzantineDetector {
     {
         let mut suspicious_nodes = Vec::new();
 
-        for (node_id, _vote) in votes {
+        for node_id in votes.keys() {
             let node_key = node_id.to_string();
 
             // Check trust score
@@ -134,10 +138,7 @@ impl ByzantineDetector {
 
     /// Get trust score for a specific node
     pub fn get_trust_score(&self, node_id: &str) -> f64 {
-        self.trust_scores
-            .get(node_id)
-            .map(|r| *r)
-            .unwrap_or(1.0) // New nodes start with full trust
+        self.trust_scores.get(node_id).map(|r| *r).unwrap_or(1.0) // New nodes start with full trust
     }
 
     /// Get all nodes below the trust threshold

@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use horizon_quota_manager::models::*;
 use rust_decimal_macros::dec;
 use uuid::Uuid;
@@ -19,9 +19,7 @@ fn bench_quota_validation(c: &mut Criterion) {
     };
 
     c.bench_function("quota_validation", |b| {
-        b.iter(|| {
-            black_box(&quota).validate().unwrap()
-        })
+        b.iter(|| black_box(&quota).validate().unwrap())
     });
 }
 
@@ -41,9 +39,7 @@ fn bench_quota_effective_limit(c: &mut Criterion) {
     };
 
     c.bench_function("effective_limit_calculation", |b| {
-        b.iter(|| {
-            black_box(&quota).effective_limit()
-        })
+        b.iter(|| black_box(&quota).effective_limit())
     });
 }
 
@@ -63,9 +59,7 @@ fn bench_quota_availability_check(c: &mut Criterion) {
     };
 
     c.bench_function("available_quota_calculation", |b| {
-        b.iter(|| {
-            black_box(&quota).available_quota(dec!(600.0))
-        })
+        b.iter(|| black_box(&quota).available_quota(dec!(600.0)))
     });
 }
 
@@ -96,12 +90,11 @@ fn bench_hierarchy_validation(c: &mut Criterion) {
         overcommit_ratio: dec!(1.0),
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
-    }).with_parent(parent);
+    })
+    .with_parent(parent);
 
     c.bench_function("hierarchy_validation", |b| {
-        b.iter(|| {
-            black_box(&child).validate_hierarchy().unwrap()
-        })
+        b.iter(|| black_box(&child).validate_hierarchy().unwrap())
     });
 }
 
@@ -143,9 +136,7 @@ fn bench_allocation_checks(c: &mut Criterion) {
     };
 
     c.bench_function("allocation_is_active", |b| {
-        b.iter(|| {
-            black_box(&allocation).is_active()
-        })
+        b.iter(|| black_box(&allocation).is_active())
     });
 }
 

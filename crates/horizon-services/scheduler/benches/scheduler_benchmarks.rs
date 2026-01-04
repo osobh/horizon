@@ -119,8 +119,9 @@ fn bench_scheduler_operations(c: &mut Criterion) {
 
     // Setup: Create test database and scheduler
     let (pool, scheduler) = runtime.block_on(async {
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string());
+        let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string()
+        });
 
         let pool = PgPool::connect(&database_url)
             .await
@@ -170,9 +171,7 @@ fn bench_scheduler_operations(c: &mut Criterion) {
     group.bench_function("get_job", |b| {
         b.iter(|| {
             let scheduler = scheduler.clone();
-            runtime.block_on(async move {
-                scheduler.get_job(job_id).await.unwrap()
-            })
+            runtime.block_on(async move { scheduler.get_job(job_id).await.unwrap() })
         });
     });
 
@@ -180,9 +179,7 @@ fn bench_scheduler_operations(c: &mut Criterion) {
     group.bench_function("get_queue_stats", |b| {
         b.iter(|| {
             let scheduler = scheduler.clone();
-            runtime.block_on(async move {
-                scheduler.get_queue_stats().await.unwrap()
-            })
+            runtime.block_on(async move { scheduler.get_queue_stats().await.unwrap() })
         });
     });
 
@@ -204,8 +201,9 @@ fn bench_concurrent_submissions(c: &mut Criterion) {
     group.sample_size(10);
 
     let (pool, scheduler) = runtime.block_on(async {
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string());
+        let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string()
+        });
 
         let pool = PgPool::connect(&database_url)
             .await

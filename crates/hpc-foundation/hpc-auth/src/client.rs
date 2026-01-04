@@ -70,7 +70,9 @@ fn parse_key(pem: &str) -> Result<PrivateKey> {
         .map_err(|e| AuthError::PemError(format!("Failed to parse private key: {}", e)))?;
 
     if keys.is_empty() {
-        return Err(AuthError::PemError("No private key found in PEM".to_string()));
+        return Err(AuthError::PemError(
+            "No private key found in PEM".to_string(),
+        ));
     }
 
     Ok(PrivateKey(keys[0].clone()))
@@ -91,7 +93,9 @@ impl ClientConfigExt for Arc<ClientConfig> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cert::{generate_ca_cert, generate_self_signed_cert, generate_signed_cert, ServiceIdentity};
+    use crate::cert::{
+        generate_ca_cert, generate_self_signed_cert, generate_signed_cert, ServiceIdentity,
+    };
 
     #[test]
     fn test_create_client_config() {

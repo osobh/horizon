@@ -64,29 +64,22 @@ fn bench_concurrent_migrations(c: &mut Criterion) {
 
     for count in [5u64, 10, 50].iter() {
         group.throughput(Throughput::Elements(*count));
-        group.bench_with_input(
-            BenchmarkId::new("migrations", count),
-            count,
-            |b, &count| {
-                b.iter(|| {
-                    rt.block_on(async {
-                        let coordinator = create_test_coordinator();
+        group.bench_with_input(BenchmarkId::new("migrations", count), count, |b, &count| {
+            b.iter(|| {
+                rt.block_on(async {
+                    let coordinator = create_test_coordinator();
 
-                        // Start multiple migrations
-                        for _ in 0..count {
-                            let migration = create_test_migration(
-                                Uuid::new_v4(),
-                                Uuid::new_v4(),
-                                Uuid::new_v4(),
-                            );
-                            coordinator.start_migration(migration).await.unwrap();
-                        }
+                    // Start multiple migrations
+                    for _ in 0..count {
+                        let migration =
+                            create_test_migration(Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+                        coordinator.start_migration(migration).await.unwrap();
+                    }
 
-                        black_box(coordinator.get_active_migrations().len())
-                    })
-                });
-            },
-        );
+                    black_box(coordinator.get_active_migrations().len())
+                })
+            });
+        });
     }
 
     group.finish();
@@ -191,31 +184,22 @@ fn bench_get_active_migrations(c: &mut Criterion) {
     let mut group = c.benchmark_group("get_active_migrations");
 
     for count in [10u64, 50, 200].iter() {
-        group.bench_with_input(
-            BenchmarkId::new("migrations", count),
-            count,
-            |b, &count| {
-                // Setup: create coordinator with N active migrations
-                let coordinator = rt.block_on(async {
-                    let coordinator = create_test_coordinator();
+        group.bench_with_input(BenchmarkId::new("migrations", count), count, |b, &count| {
+            // Setup: create coordinator with N active migrations
+            let coordinator = rt.block_on(async {
+                let coordinator = create_test_coordinator();
 
-                    for _ in 0..count {
-                        let migration = create_test_migration(
-                            Uuid::new_v4(),
-                            Uuid::new_v4(),
-                            Uuid::new_v4(),
-                        );
-                        coordinator.start_migration(migration).await.unwrap();
-                    }
+                for _ in 0..count {
+                    let migration =
+                        create_test_migration(Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+                    coordinator.start_migration(migration).await.unwrap();
+                }
 
-                    coordinator
-                });
+                coordinator
+            });
 
-                b.iter(|| {
-                    black_box(coordinator.get_active_migrations())
-                });
-            },
-        );
+            b.iter(|| black_box(coordinator.get_active_migrations()));
+        });
     }
 
     group.finish();
@@ -251,9 +235,9 @@ fn bench_wireguard_config_generation(c: &mut Criterion) {
 
 /// Benchmark subnet config generation with peers
 fn bench_wireguard_config_batch(c: &mut Criterion) {
+    use chrono::Utc;
     use std::collections::HashMap;
     use subnet_manager::models::CrossSubnetRoute;
-    use chrono::Utc;
     use subnet_manager::models::SubnetAssignment;
 
     let mut group = c.benchmark_group("wireguard_config_batch");
@@ -286,7 +270,12 @@ fn bench_wireguard_config_batch(c: &mut Criterion) {
                 let endpoints: HashMap<Uuid, std::net::SocketAddr> = assignments
                     .iter()
                     .enumerate()
-                    .map(|(i, a)| (a.node_id, format!("192.168.1.{}:51820", i + 1).parse().unwrap()))
+                    .map(|(i, a)| {
+                        (
+                            a.node_id,
+                            format!("192.168.1.{}:51820", i + 1).parse().unwrap(),
+                        )
+                    })
                     .collect();
 
                 let routes: Vec<(CrossSubnetRoute, Subnet)> = vec![];
@@ -369,9 +358,7 @@ fn bench_get_all_interfaces(c: &mut Criterion) {
             );
         }
 
-        b.iter(|| {
-            black_box(wg.get_all_interfaces())
-        });
+        b.iter(|| black_box(wg.get_all_interfaces()));
     });
 }
 

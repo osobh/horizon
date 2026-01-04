@@ -274,14 +274,14 @@ impl DistributedGraphStore for ScaledKnowledgeGraph {
     async fn query(&self, query: DistributedQuery) -> KnowledgeGraphResult<DistributedQueryResult> {
         let start_time = std::time::Instant::now();
         let mut all_nodes = Vec::new();
-        let mut all_edges = Vec::new();
+        let all_edges = Vec::new();
         let mut shard_stats = HashMap::new();
 
         // Query each target shard
         for shard_id in &query.target_shards {
             let shards = self.shards.read().await;
             if let Some(shard) = shards.get(shard_id) {
-                let mut shard = shard.write().await;
+                let shard = shard.write().await;
 
                 // Execute query on shard
                 match &query.pattern {
@@ -377,6 +377,12 @@ pub struct QueryRouter {
     // Routing logic would go here
 }
 
+impl Default for QueryRouter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl QueryRouter {
     pub fn new() -> Self {
         Self {}
@@ -391,6 +397,12 @@ impl QueryRouter {
 /// Compression engine for efficient storage
 pub struct CompressionEngine {
     // Compression implementation would go here
+}
+
+impl Default for CompressionEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CompressionEngine {
@@ -461,9 +473,7 @@ mod tests {
     async fn test_shard_get_node() {
         let mut shard = GraphShard::new(0);
         let node = Node::new(NodeType::Agent, HashMap::new());
-        shard
-            .add_node("test-node".to_string(), node.clone())
-            ?;
+        shard.add_node("test-node".to_string(), node.clone())?;
 
         // Test cache hit
         let found = shard.get_node("test-node");

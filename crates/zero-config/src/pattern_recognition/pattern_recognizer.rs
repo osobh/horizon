@@ -94,7 +94,7 @@ impl PatternRecognizer {
                 if analysis
                     .framework
                     .as_ref()
-                    .map_or(false, |f| f.contains("tokio"))
+                    .is_some_and(|f| f.contains("tokio"))
                 {
                     patterns.push(RecognizedPattern {
                         pattern_type: PatternType::Framework,

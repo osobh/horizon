@@ -14,8 +14,8 @@ mod test_proto {
 }
 
 use test_proto::{
-    echo_server::{Echo, EchoServer},
     echo_client::EchoClient,
+    echo_server::{Echo, EchoServer},
     EchoRequest, EchoResponse,
 };
 

@@ -148,7 +148,9 @@ mod tests {
     fn test_short_term_memory_store_and_retrieve() {
         let mut memory = ShortTermMemory::new(10).unwrap();
 
-        memory.store("key1".to_string(), "value1".to_string()).unwrap();
+        memory
+            .store("key1".to_string(), "value1".to_string())
+            .unwrap();
         let value = memory.retrieve("key1").unwrap();
         assert_eq!(value, "value1");
     }
@@ -164,8 +166,12 @@ mod tests {
     fn test_short_term_memory_update() {
         let mut memory = ShortTermMemory::new(10).unwrap();
 
-        memory.store("key1".to_string(), "value1".to_string()).unwrap();
-        memory.store("key1".to_string(), "value2".to_string()).unwrap();
+        memory
+            .store("key1".to_string(), "value1".to_string())
+            .unwrap();
+        memory
+            .store("key1".to_string(), "value2".to_string())
+            .unwrap();
 
         let value = memory.retrieve("key1").unwrap();
         assert_eq!(value, "value2");
@@ -176,7 +182,9 @@ mod tests {
     fn test_short_term_memory_delete() {
         let mut memory = ShortTermMemory::new(10).unwrap();
 
-        memory.store("key1".to_string(), "value1".to_string()).unwrap();
+        memory
+            .store("key1".to_string(), "value1".to_string())
+            .unwrap();
         assert!(memory.contains("key1"));
 
         memory.delete("key1").unwrap();
@@ -194,8 +202,12 @@ mod tests {
     fn test_short_term_memory_clear() {
         let mut memory = ShortTermMemory::new(10).unwrap();
 
-        memory.store("key1".to_string(), "value1".to_string()).unwrap();
-        memory.store("key2".to_string(), "value2".to_string()).unwrap();
+        memory
+            .store("key1".to_string(), "value1".to_string())
+            .unwrap();
+        memory
+            .store("key2".to_string(), "value2".to_string())
+            .unwrap();
         assert_eq!(memory.size(), 2);
 
         memory.clear();
@@ -207,14 +219,20 @@ mod tests {
     fn test_short_term_memory_eviction() {
         let mut memory = ShortTermMemory::new(2).unwrap();
 
-        memory.store("key1".to_string(), "value1".to_string()).unwrap();
+        memory
+            .store("key1".to_string(), "value1".to_string())
+            .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(10));
 
-        memory.store("key2".to_string(), "value2".to_string()).unwrap();
+        memory
+            .store("key2".to_string(), "value2".to_string())
+            .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(10));
 
         // This should evict key1 (oldest)
-        memory.store("key3".to_string(), "value3".to_string()).unwrap();
+        memory
+            .store("key3".to_string(), "value3".to_string())
+            .unwrap();
 
         assert_eq!(memory.size(), 2);
         assert!(!memory.contains("key1"));
@@ -226,8 +244,12 @@ mod tests {
     fn test_short_term_memory_keys() {
         let mut memory = ShortTermMemory::new(10).unwrap();
 
-        memory.store("key1".to_string(), "value1".to_string()).unwrap();
-        memory.store("key2".to_string(), "value2".to_string()).unwrap();
+        memory
+            .store("key1".to_string(), "value1".to_string())
+            .unwrap();
+        memory
+            .store("key2".to_string(), "value2".to_string())
+            .unwrap();
 
         let keys = memory.keys();
         assert_eq!(keys.len(), 2);
@@ -240,7 +262,9 @@ mod tests {
         let mut memory = ShortTermMemory::new(10).unwrap();
 
         assert!(!memory.contains("key1"));
-        memory.store("key1".to_string(), "value1".to_string()).unwrap();
+        memory
+            .store("key1".to_string(), "value1".to_string())
+            .unwrap();
         assert!(memory.contains("key1"));
     }
 
@@ -249,9 +273,13 @@ mod tests {
         let mut memory = ShortTermMemory::new(10).unwrap();
 
         assert_eq!(memory.size(), 0);
-        memory.store("key1".to_string(), "value1".to_string()).unwrap();
+        memory
+            .store("key1".to_string(), "value1".to_string())
+            .unwrap();
         assert_eq!(memory.size(), 1);
-        memory.store("key2".to_string(), "value2".to_string()).unwrap();
+        memory
+            .store("key2".to_string(), "value2".to_string())
+            .unwrap();
         assert_eq!(memory.size(), 2);
         memory.delete("key1").unwrap();
         assert_eq!(memory.size(), 1);

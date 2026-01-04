@@ -35,7 +35,10 @@ pub fn calculate_network_cost(
 }
 
 /// Calculate network cost for egress only (most common scenario)
-pub fn calculate_egress_cost(egress_gb: Decimal, rate_per_gb: Decimal) -> crate::error::Result<Decimal> {
+pub fn calculate_egress_cost(
+    egress_gb: Decimal,
+    rate_per_gb: Decimal,
+) -> crate::error::Result<Decimal> {
     calculate_network_cost(Decimal::ZERO, egress_gb, rate_per_gb)
 }
 
@@ -112,7 +115,10 @@ mod tests {
 
         let result = calculate_network_cost(ingress, egress, rate);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Ingress cannot be negative"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Ingress cannot be negative"));
     }
 
     #[test]
@@ -123,7 +129,10 @@ mod tests {
 
         let result = calculate_network_cost(ingress, egress, rate);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Egress cannot be negative"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Egress cannot be negative"));
     }
 
     #[test]

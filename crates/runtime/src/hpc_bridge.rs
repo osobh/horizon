@@ -189,8 +189,12 @@ mod tests {
     #[test]
     fn test_bridge_creation() {
         let bridge = RuntimeChannelBridge::new();
-        assert!(hpc_channels::exists(hpc_channels::channels::RUNTIME_CONTAINER_START));
-        assert!(hpc_channels::exists(hpc_channels::channels::RUNTIME_CONTAINER_STOP));
+        assert!(hpc_channels::exists(
+            hpc_channels::channels::RUNTIME_CONTAINER_START
+        ));
+        assert!(hpc_channels::exists(
+            hpc_channels::channels::RUNTIME_CONTAINER_STOP
+        ));
         let _ = bridge;
     }
 

@@ -8,24 +8,24 @@
 //! - Temporal causal analysis and counterfactual reasoning
 //! - Distributed causal consistency across knowledge graphs
 
-pub mod config;
-pub mod types;
-pub mod evidence;
+pub mod cache;
 pub mod chains;
+pub mod config;
+pub mod engine;
+pub mod evidence;
 pub mod gpu;
 pub mod graphs;
-pub mod cache;
-pub mod temporal;
 pub mod patterns;
-pub mod engine;
+pub mod temporal;
+pub mod types;
 
-pub use config::*;
-pub use types::*;
-pub use evidence::*;
+pub use cache::*;
 pub use chains::*;
+pub use config::*;
+pub use engine::*;
+pub use evidence::*;
 pub use gpu::*;
 pub use graphs::*;
-pub use cache::*;
-pub use temporal::*;
 pub use patterns::*;
-pub use engine::*;
+pub use temporal::*;
+pub use types::*;

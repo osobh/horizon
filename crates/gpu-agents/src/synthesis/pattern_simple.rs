@@ -28,9 +28,13 @@ impl SimpleGpuPatternMatcher {
         let num_ast_nodes = ast_data.len() / NODE_SIZE;
 
         // Allocate GPU buffers with exact sizes
+        // SAFETY: alloc returns uninitialized memory. pattern_buffer will be written
+        // via htod_copy_into immediately after allocation before any kernel reads.
         let pattern_buffer = unsafe { self.device.alloc::<u8>(pattern_data.len()) }
             .context("Failed to allocate pattern buffer")?;
 
+        // SAFETY: alloc returns uninitialized memory. ast_buffer will be written
+        // via htod_copy_into immediately after allocation before any kernel reads.
         let ast_buffer = unsafe { self.device.alloc::<u8>(ast_data.len()) }
             .context("Failed to allocate AST buffer")?;
 
@@ -46,6 +50,10 @@ impl SimpleGpuPatternMatcher {
             .htod_copy_into(ast_data, &mut ast_buffer.clone())?;
 
         // Launch kernel
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations.
+        // pattern_buffer and ast_buffer were initialized via htod_copy_into.
+        // match_buffer was zero-initialized via alloc_zeros. num_ast_nodes matches
+        // the actual number of encoded AST nodes.
         unsafe {
             crate::synthesis::launch_match_patterns(
                 *pattern_buffer.device_ptr() as *const u8,

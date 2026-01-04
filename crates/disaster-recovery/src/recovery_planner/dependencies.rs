@@ -66,7 +66,10 @@ impl DependencyGraph {
 
     /// Add dependency between services
     pub fn add_dependency(&mut self, dependent: Uuid, dependency: Uuid) {
-        self.graph.entry(dependent).or_insert_with(Vec::new).push(dependency);
+        self.graph
+            .entry(dependent)
+            .or_insert_with(Vec::new)
+            .push(dependency);
         self.graph.entry(dependency).or_insert_with(Vec::new);
     }
 
@@ -166,10 +169,13 @@ impl DependencyGraph {
         let mut services: Vec<_> = self.services.values().collect();
         services.sort_by(|a, b| {
             // Critical services first, then by tier
-            b.critical.cmp(&a.critical)
-                .then_with(|| a.tier.default_rto_minutes().cmp(&b.tier.default_rto_minutes()))
+            b.critical.cmp(&a.critical).then_with(|| {
+                a.tier
+                    .default_rto_minutes()
+                    .cmp(&b.tier.default_rto_minutes())
+            })
         });
-        
+
         services.into_iter().map(|s| s.id).collect()
     }
 }

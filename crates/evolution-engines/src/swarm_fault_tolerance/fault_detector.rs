@@ -3,8 +3,8 @@
 use super::types::{AlertThresholds, FailureDetectionAlgorithm, HealthStatus, NodeHealth};
 use crate::error::EvolutionEngineResult;
 use crate::swarm_distributed::SwarmNode;
-use std::sync::Arc;
 use dashmap::DashMap;
+use std::sync::Arc;
 
 /// Configuration for fault tolerance
 #[derive(Debug, Clone)]
@@ -61,7 +61,10 @@ impl FaultDetector {
 
     /// Get monitored nodes
     pub async fn get_monitored_nodes(&self) -> Vec<String> {
-        self.node_health.iter().map(|entry| entry.key().clone()).collect()
+        self.node_health
+            .iter()
+            .map(|entry| entry.key().clone())
+            .collect()
     }
 
     /// Start monitoring a node
@@ -70,8 +73,7 @@ impl FaultDetector {
             node_id: node.node_id.clone(),
             status: HealthStatus::Healthy,
             last_heartbeat: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                ?
+                .duration_since(std::time::UNIX_EPOCH)?
                 .as_millis() as u64,
             response_times: Vec::new(),
             error_count: 0,
@@ -122,8 +124,7 @@ impl FaultDetector {
     pub async fn check_for_failures(&self) -> EvolutionEngineResult<Vec<String>> {
         let mut failed_nodes = Vec::new();
         let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            ?
+            .duration_since(std::time::UNIX_EPOCH)?
             .as_millis() as u64;
 
         for entry in self.node_health.iter() {
@@ -149,8 +150,14 @@ impl FaultDetector {
     }
 
     /// Get health status of all nodes
-    pub async fn get_cluster_health(&self) -> EvolutionEngineResult<std::collections::HashMap<String, NodeHealth>> {
-        Ok(self.node_health.iter().map(|entry| (entry.key().clone(), entry.value().clone())).collect())
+    pub async fn get_cluster_health(
+        &self,
+    ) -> EvolutionEngineResult<std::collections::HashMap<String, NodeHealth>> {
+        Ok(self
+            .node_health
+            .iter()
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
+            .collect())
     }
 
     /// Assess health status based on metrics

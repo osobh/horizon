@@ -12,8 +12,9 @@ struct TestApp {
 
 impl TestApp {
     async fn new() -> Self {
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/governor_test".to_string());
+        let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://postgres:postgres@localhost:5432/governor_test".to_string()
+        });
 
         let pool = PgPool::connect(&database_url)
             .await
@@ -225,7 +226,12 @@ spec:
 "#;
 
     app.repo
-        .create("get-test-policy", policy_yaml, Some("Test policy"), "test-user")
+        .create(
+            "get-test-policy",
+            policy_yaml,
+            Some("Test policy"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -289,12 +295,22 @@ spec:
 "#;
 
     app.repo
-        .create("list-test-policy-1", policy_yaml, Some("Test policy 1"), "test-user")
+        .create(
+            "list-test-policy-1",
+            policy_yaml,
+            Some("Test policy 1"),
+            "test-user",
+        )
         .await
         .unwrap();
 
     app.repo
-        .create("list-test-policy-2", policy_yaml, Some("Test policy 2"), "test-user")
+        .create(
+            "list-test-policy-2",
+            policy_yaml,
+            Some("Test policy 2"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -337,7 +353,12 @@ spec:
 "#;
 
     app.repo
-        .create("update-test-policy", policy_yaml_v1, Some("Test policy v1"), "test-user")
+        .create(
+            "update-test-policy",
+            policy_yaml_v1,
+            Some("Test policy v1"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -449,7 +470,12 @@ spec:
 "#;
 
     app.repo
-        .create("delete-test-policy", policy_yaml, Some("Test policy"), "test-user")
+        .create(
+            "delete-test-policy",
+            policy_yaml,
+            Some("Test policy"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -513,7 +539,12 @@ spec:
 "#;
 
     app.repo
-        .create("version-test-policy", policy_yaml_v1, Some("Test policy v1"), "test-user")
+        .create(
+            "version-test-policy",
+            policy_yaml_v1,
+            Some("Test policy v1"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -535,7 +566,12 @@ spec:
 "#;
 
     app.repo
-        .update("version-test-policy", policy_yaml_v2, Some("Test policy v2"), "test-user")
+        .update(
+            "version-test-policy",
+            policy_yaml_v2,
+            Some("Test policy v2"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -578,7 +614,12 @@ spec:
 "#;
 
     app.repo
-        .create("gpu-access-policy", policy_yaml, Some("GPU access policy"), "test-user")
+        .create(
+            "gpu-access-policy",
+            policy_yaml,
+            Some("GPU access policy"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -639,7 +680,12 @@ spec:
 "#;
 
     app.repo
-        .create("admin-only-policy", policy_yaml, Some("Admin only policy"), "test-user")
+        .create(
+            "admin-only-policy",
+            policy_yaml,
+            Some("Admin only policy"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -791,11 +837,20 @@ spec:
 "#;
 
     app.repo
-        .create("version-increment-test", policy_yaml_v1, Some("Version 1"), "user1")
+        .create(
+            "version-increment-test",
+            policy_yaml_v1,
+            Some("Version 1"),
+            "user1",
+        )
         .await
         .unwrap();
 
-    let v1_policy = app.repo.get_by_name("version-increment-test").await.unwrap();
+    let v1_policy = app
+        .repo
+        .get_by_name("version-increment-test")
+        .await
+        .unwrap();
     assert_eq!(v1_policy.version, 1);
 
     let policy_yaml_v2 = r#"
@@ -836,7 +891,11 @@ spec:
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let v2_policy = app.repo.get_by_name("version-increment-test").await.unwrap();
+    let v2_policy = app
+        .repo
+        .get_by_name("version-increment-test")
+        .await
+        .unwrap();
     assert_eq!(v2_policy.version, 2);
 
     app.cleanup().await;
@@ -1019,7 +1078,12 @@ spec:
 "#;
 
     app.repo
-        .create("attribute-policy", policy_yaml, Some("Attribute policy"), "test-user")
+        .create(
+            "attribute-policy",
+            policy_yaml,
+            Some("Attribute policy"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -1080,7 +1144,12 @@ spec:
 "#;
 
     app.repo
-        .create("multi-version-policy", policy_yaml, Some("Version 1"), "test-user")
+        .create(
+            "multi-version-policy",
+            policy_yaml,
+            Some("Version 1"),
+            "test-user",
+        )
         .await
         .unwrap();
 

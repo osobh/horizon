@@ -1,8 +1,8 @@
 //! Integration test to verify ADAS meta agent module structure works correctly
 
 use stratoswarm_evolution_engines::adas_meta_agent::{
-    CoordinationStrategy, MetaAgent, MutationType, PerformanceMetrics,
-    RewriteStrategy, RewriteTarget, WorkflowArchive,
+    CoordinationStrategy, MetaAgent, MutationType, PerformanceMetrics, RewriteStrategy,
+    RewriteTarget, WorkflowArchive,
 };
 
 #[test]

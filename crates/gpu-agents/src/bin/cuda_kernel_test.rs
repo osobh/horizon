@@ -19,6 +19,8 @@ fn main() -> anyhow::Result<()> {
         let vote_buffer = device.alloc_zeros::<Vote>(10)?;
         let count_buffer = device.alloc_zeros::<u32>(10)?;
 
+        // SAFETY: vote_buffer and count_buffer are valid device pointers from alloc_zeros.
+        // Parameters (10 votes, 2 proposals) match allocation sizes.
         unsafe {
             launch_aggregate_votes(
                 *vote_buffer.device_ptr() as *const Vote,
@@ -42,6 +44,8 @@ fn main() -> anyhow::Result<()> {
         let match_buffer = device.alloc_zeros::<u32>(2)?; // One match result
 
         println!("   📊 Launching kernel with 1 pattern, 1 node...");
+        // SAFETY: All buffers are valid device pointers from alloc_zeros.
+        // Parameters (1 pattern, 1 node) match minimal allocation sizes.
         unsafe {
             launch_match_patterns(
                 *pattern_buffer.device_ptr() as *const u8,

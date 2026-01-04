@@ -25,26 +25,26 @@ impl RecoveryStrategy {
     /// Get typical RTO for this strategy in minutes
     pub fn typical_rto_minutes(&self) -> u64 {
         match self {
-            RecoveryStrategy::ActiveActive => 0,           // Near-zero downtime
-            RecoveryStrategy::ActivePassiveHot => 5,       // 5 minutes
-            RecoveryStrategy::ActivePassiveWarm => 15,     // 15 minutes
-            RecoveryStrategy::ActivePassiveCold => 60,     // 1 hour
-            RecoveryStrategy::BackupRestore => 480,        // 8 hours
-            RecoveryStrategy::PilotLight => 120,           // 2 hours
-            RecoveryStrategy::MultiSiteActive => 2,        // 2 minutes
+            RecoveryStrategy::ActiveActive => 0,       // Near-zero downtime
+            RecoveryStrategy::ActivePassiveHot => 5,   // 5 minutes
+            RecoveryStrategy::ActivePassiveWarm => 15, // 15 minutes
+            RecoveryStrategy::ActivePassiveCold => 60, // 1 hour
+            RecoveryStrategy::BackupRestore => 480,    // 8 hours
+            RecoveryStrategy::PilotLight => 120,       // 2 hours
+            RecoveryStrategy::MultiSiteActive => 2,    // 2 minutes
         }
     }
 
     /// Get typical cost factor (1.0 = baseline)
     pub fn cost_factor(&self) -> f64 {
         match self {
-            RecoveryStrategy::ActiveActive => 2.0,         // 2x cost
-            RecoveryStrategy::ActivePassiveHot => 1.8,     // 1.8x cost
-            RecoveryStrategy::ActivePassiveWarm => 1.5,    // 1.5x cost
-            RecoveryStrategy::ActivePassiveCold => 1.2,    // 1.2x cost
-            RecoveryStrategy::BackupRestore => 1.0,        // Baseline
-            RecoveryStrategy::PilotLight => 1.1,           // 1.1x cost
-            RecoveryStrategy::MultiSiteActive => 2.5,      // 2.5x cost
+            RecoveryStrategy::ActiveActive => 2.0,      // 2x cost
+            RecoveryStrategy::ActivePassiveHot => 1.8,  // 1.8x cost
+            RecoveryStrategy::ActivePassiveWarm => 1.5, // 1.5x cost
+            RecoveryStrategy::ActivePassiveCold => 1.2, // 1.2x cost
+            RecoveryStrategy::BackupRestore => 1.0,     // Baseline
+            RecoveryStrategy::PilotLight => 1.1,        // 1.1x cost
+            RecoveryStrategy::MultiSiteActive => 2.5,   // 2.5x cost
         }
     }
 
@@ -93,7 +93,9 @@ impl RecoveryStrategy {
 
         // Sort by cost efficiency (lower cost factor first)
         recommendations.sort_by(|a, b| {
-            a.cost_factor().partial_cmp(&b.cost_factor()).unwrap_or(std::cmp::Ordering::Equal)
+            a.cost_factor()
+                .partial_cmp(&b.cost_factor())
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         recommendations

@@ -116,7 +116,10 @@ async fn test_mock_device_transfer_with_offset() {
 
     // Transfer data at offset 10
     let data = Bytes::from(vec![1, 2, 3, 4]);
-    device.transfer_to_device("buffer1", data.clone(), 10).await.unwrap();
+    device
+        .transfer_to_device("buffer1", data.clone(), 10)
+        .await
+        .unwrap();
 
     // Verify data is at correct offset
     let stored = device.get_buffer_data("buffer1").unwrap();
@@ -176,10 +179,16 @@ async fn test_mock_device_kernel_tracking() {
     assert_eq!(device.kernel_count(), 0);
 
     let params = Bytes::from(vec![]);
-    device.launch_kernel("kernel1", (1, 1, 1), (32, 1, 1), params.clone()).await.unwrap();
+    device
+        .launch_kernel("kernel1", (1, 1, 1), (32, 1, 1), params.clone())
+        .await
+        .unwrap();
     assert_eq!(device.kernel_count(), 1);
 
-    device.launch_kernel("kernel2", (2, 1, 1), (64, 1, 1), params).await.unwrap();
+    device
+        .launch_kernel("kernel2", (2, 1, 1), (64, 1, 1), params)
+        .await
+        .unwrap();
     assert_eq!(device.kernel_count(), 2);
 }
 
@@ -189,8 +198,14 @@ async fn test_mock_device_synchronize() {
 
     // Launch some kernels
     let params = Bytes::from(vec![]);
-    device.launch_kernel("k1", (1, 1, 1), (32, 1, 1), params.clone()).await.unwrap();
-    device.launch_kernel("k2", (1, 1, 1), (32, 1, 1), params).await.unwrap();
+    device
+        .launch_kernel("k1", (1, 1, 1), (32, 1, 1), params.clone())
+        .await
+        .unwrap();
+    device
+        .launch_kernel("k2", (1, 1, 1), (32, 1, 1), params)
+        .await
+        .unwrap();
 
     // Synchronize should succeed
     let result = device.synchronize(None).await;
@@ -205,7 +220,10 @@ async fn test_mock_device_utilization_increases() {
 
     // Launch kernel should increase utilization
     let params = Bytes::from(vec![]);
-    device.launch_kernel("kernel", (10, 10, 1), (256, 1, 1), params).await.unwrap();
+    device
+        .launch_kernel("kernel", (10, 10, 1), (256, 1, 1), params)
+        .await
+        .unwrap();
 
     let util = device.utilization();
     assert!(util > 0.0 && util <= 100.0);
@@ -229,7 +247,10 @@ async fn test_mock_device_reset() {
     // Add some state
     device.allocate_buffer("buffer1", 1024).await.unwrap();
     let params = Bytes::from(vec![]);
-    device.launch_kernel("kernel", (1, 1, 1), (32, 1, 1), params).await.unwrap();
+    device
+        .launch_kernel("kernel", (1, 1, 1), (32, 1, 1), params)
+        .await
+        .unwrap();
 
     assert_eq!(device.used_memory(), 1024);
     assert_eq!(device.kernel_count(), 1);

@@ -127,10 +127,7 @@ impl DistributedCoordinator {
             address: "127.0.0.1:8080".parse()?, // Mock address
             role: NodeRole::Follower,
             status: NodeStatus::Active,
-            last_heartbeat: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                ?
-                .as_secs(),
+            last_heartbeat: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             capabilities: vec!["checkpoint".to_string(), "recovery".to_string()],
         };
 
@@ -239,10 +236,7 @@ impl DistributedCoordinator {
     pub async fn send_heartbeat(&mut self) -> FtResult<()> {
         let message = CoordinationMessage::Heartbeat {
             node_id: self.node_id.clone(),
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                ?
-                .as_secs(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             status: self.node_info.status.clone(),
         };
 

@@ -30,7 +30,7 @@ impl Default for CleanupWorkerConfig {
         Self {
             interval: Duration::from_secs(60), // Every minute
             batch_size: 100,
-            identity_retention_hours: 24 * 30, // 30 days
+            identity_retention_hours: 24 * 30,  // 30 days
             invitation_retention_hours: 24 * 7, // 7 days
             send_expiry_warnings: true,
             warning_minutes: 15,
@@ -129,10 +129,7 @@ impl CleanupWorker {
                         debug!("Cleanup completed: no items to process");
                     }
                 } else {
-                    warn!(
-                        "Cleanup completed with {} errors",
-                        stats.errors.len()
-                    );
+                    warn!("Cleanup completed with {} errors", stats.errors.len());
                 }
 
                 // Wait for next interval
@@ -225,7 +222,10 @@ impl CleanupWorker {
         // WHERE status = 'active' AND expires_at < NOW()
         // LIMIT batch_size
 
-        debug!("Processing identity expirations (batch_size: {})", batch_size);
+        debug!(
+            "Processing identity expirations (batch_size: {})",
+            batch_size
+        );
 
         // Placeholder
         Ok(0)
@@ -241,7 +241,10 @@ impl CleanupWorker {
         // )
         // LIMIT batch_size
 
-        debug!("Processing invitation expirations (batch_size: {})", batch_size);
+        debug!(
+            "Processing invitation expirations (batch_size: {})",
+            batch_size
+        );
 
         // Placeholder
         Ok(0)

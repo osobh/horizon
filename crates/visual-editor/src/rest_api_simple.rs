@@ -245,18 +245,15 @@ pub fn create_rest_api_router() -> Router<AppState> {
         .nest("/api/library", container_library_routes())
         .nest("/api/pipelines", pipeline_routes())
         .nest("/api/deployments", deployment_routes())
-        
         // Infrastructure Intelligence APIs
         .nest("/api/topology", topology_routes())
         .nest("/api/swarmlets", swarmlet_routes())
         .nest("/api/system", system_intelligence_routes())
         .nest("/api/gpu", gpu_analytics_routes())
-        
         // Advanced Features APIs
         .nest("/api/config", configuration_routes())
         .nest("/api/security", security_routes())
         .nest("/api/cost", cost_intelligence_routes())
-        
         // XP and Agent Management APIs
         .nest("/api/v1/agents", create_xp_api_router())
         .nest("/api/v1/system", create_xp_system_router())
@@ -268,7 +265,10 @@ pub fn create_rest_api_router() -> Router<AppState> {
 
 fn container_management_routes() -> Router<AppState> {
     Router::new()
-        .route("/templates", get(get_container_templates).post(create_container_template))
+        .route(
+            "/templates",
+            get(get_container_templates).post(create_container_template),
+        )
         .route("/templates/:id", get(get_container_template))
         .route("/validate", post(validate_container_config))
         .route("/resources", get(get_available_resources))
@@ -374,7 +374,7 @@ async fn get_container_templates(
     Query(filter): Query<FilterQuery>,
 ) -> Result<Json<ApiResponse<Vec<ContainerTemplate>>>> {
     let templates = get_sample_container_templates(&pagination, &filter).await?;
-    
+
     Ok(Json(ApiResponse::success(templates)))
 }
 
@@ -384,7 +384,7 @@ async fn create_container_template(
     Json(request): Json<CreateContainerTemplateRequest>,
 ) -> Result<Json<ApiResponse<ContainerTemplate>>> {
     let template = create_sample_container_template(request).await?;
-    
+
     Ok(Json(ApiResponse::success(template)))
 }
 
@@ -394,7 +394,7 @@ async fn get_container_template(
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<ContainerTemplate>>> {
     let template = get_sample_container_template(&id).await?;
-    
+
     Ok(Json(ApiResponse::success(template)))
 }
 
@@ -404,7 +404,7 @@ async fn validate_container_config(
     Json(request): Json<ValidateContainerRequest>,
 ) -> Result<Json<ApiResponse<ContainerValidationResult>>> {
     let validation_result = validate_container_configuration(request).await?;
-    
+
     Ok(Json(ApiResponse::success(validation_result)))
 }
 
@@ -413,7 +413,7 @@ async fn get_available_resources(
     State(_state): State<AppState>,
 ) -> Result<Json<ApiResponse<Value>>> {
     let resources = get_cluster_available_resources().await?;
-    
+
     Ok(Json(ApiResponse::success(resources)))
 }
 
@@ -423,7 +423,7 @@ async fn estimate_container_cost(
     Json(request): Json<CostEstimationRequest>,
 ) -> Result<Json<ApiResponse<CostEstimationResult>>> {
     let cost_estimate = calculate_container_cost_estimate(request).await?;
-    
+
     Ok(Json(ApiResponse::success(cost_estimate)))
 }
 
@@ -440,7 +440,9 @@ async fn get_sample_container_templates(
         ContainerTemplate {
             id: "template-1".to_string(),
             name: "TensorFlow GPU Training".to_string(),
-            description: Some("Pre-configured TensorFlow environment for GPU-accelerated ML training".to_string()),
+            description: Some(
+                "Pre-configured TensorFlow environment for GPU-accelerated ML training".to_string(),
+            ),
             category: "Machine Learning".to_string(),
             image: "tensorflow/tensorflow:latest-gpu".to_string(),
             version: "2.13.0".to_string(),
@@ -470,7 +472,7 @@ async fn get_sample_container_templates(
             updated_at: chrono::Utc::now().to_rfc3339(),
         },
     ];
-    
+
     Ok(templates)
 }
 
@@ -494,7 +496,7 @@ async fn create_sample_container_template(
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
     };
-    
+
     Ok(template)
 }
 
@@ -504,7 +506,9 @@ async fn get_sample_container_template(id: &str) -> Result<ContainerTemplate> {
         let template = ContainerTemplate {
             id: "template-1".to_string(),
             name: "TensorFlow GPU Training".to_string(),
-            description: Some("Pre-configured TensorFlow environment for GPU-accelerated ML training".to_string()),
+            description: Some(
+                "Pre-configured TensorFlow environment for GPU-accelerated ML training".to_string(),
+            ),
             category: "Machine Learning".to_string(),
             image: "tensorflow/tensorflow:latest-gpu".to_string(),
             version: "2.13.0".to_string(),
@@ -529,24 +533,24 @@ async fn validate_container_configuration(
 ) -> Result<ContainerValidationResult> {
     let mut warnings = Vec::new();
     let mut errors = Vec::new();
-    
+
     // Basic validation logic
     if request.cpu_cores < 0.1 {
         errors.push("CPU cores must be at least 0.1".to_string());
     }
-    
+
     if request.memory_gb < 0.1 {
         errors.push("Memory must be at least 0.1 GB".to_string());
     }
-    
+
     if request.gpu_count.unwrap_or(0) > 0 && request.gpu_memory_gb.unwrap_or(0.0) == 0.0 {
         warnings.push("GPU requested but no GPU memory specified".to_string());
     }
-    
+
     if request.cpu_cores > 64.0 {
         warnings.push("High CPU core count may limit node availability".to_string());
     }
-    
+
     let resource_requirements = ResourceRequirements {
         cpu_cores: request.cpu_cores,
         memory_gb: request.memory_gb,
@@ -554,13 +558,13 @@ async fn validate_container_configuration(
         gpu_memory_gb: request.gpu_memory_gb.unwrap_or(0.0),
         storage_gb: 10.0, // Default storage
     };
-    
+
     // Estimate cost (simplified calculation)
-    let estimated_cost_per_hour = (request.cpu_cores * 0.05) + 
-                                 (request.memory_gb * 0.01) + 
-                                 (request.gpu_count.unwrap_or(0) as f64 * 2.5) +
-                                 (request.gpu_memory_gb.unwrap_or(0.0) * 0.1);
-    
+    let estimated_cost_per_hour = (request.cpu_cores * 0.05)
+        + (request.memory_gb * 0.01)
+        + (request.gpu_count.unwrap_or(0) as f64 * 2.5)
+        + (request.gpu_memory_gb.unwrap_or(0.0) * 0.1);
+
     let result = ContainerValidationResult {
         is_valid: errors.is_empty(),
         warnings,
@@ -568,7 +572,7 @@ async fn validate_container_configuration(
         resource_requirements,
         estimated_cost_per_hour,
     };
-    
+
     Ok(result)
 }
 
@@ -620,7 +624,7 @@ async fn get_cluster_available_resources() -> Result<Value> {
             "offline_nodes": 0
         }
     });
-    
+
     Ok(resources)
 }
 
@@ -630,14 +634,18 @@ async fn calculate_container_cost_estimate(
 ) -> Result<CostEstimationResult> {
     // Simplified cost calculation
     let compute_cost = request.cpu_cores * 0.05 + request.memory_gb * 0.01;
-    let gpu_cost = request.gpu_count.unwrap_or(0) as f64 * 2.5 +
-                   request.gpu_memory_gb.unwrap_or(0.0) * 0.1;
+    let gpu_cost =
+        request.gpu_count.unwrap_or(0) as f64 * 2.5 + request.gpu_memory_gb.unwrap_or(0.0) * 0.1;
     let storage_cost = request.storage_gb.unwrap_or(10.0) * 0.001;
     let network_cost = 0.05; // Base network cost
-    let licensing_cost = if request.gpu_count.unwrap_or(0) > 0 { 0.10 } else { 0.0 };
-    
+    let licensing_cost = if request.gpu_count.unwrap_or(0) > 0 {
+        0.10
+    } else {
+        0.0
+    };
+
     let hourly_cost = compute_cost + gpu_cost + storage_cost + network_cost + licensing_cost;
-    
+
     let result = CostEstimationResult {
         hourly_cost,
         daily_cost: hourly_cost * 24.0,
@@ -656,7 +664,7 @@ async fn calculate_container_cost_estimate(
             "GPU utilization optimization could reduce costs by 20%".to_string(),
         ],
     };
-    
+
     Ok(result)
 }
 
@@ -670,12 +678,22 @@ async fn browse_library_templates(
     Query(_pagination): Query<PaginationQuery>,
     Query(_filter): Query<FilterQuery>,
 ) -> Result<Json<ApiResponse<Vec<ContainerTemplate>>>> {
-    let templates = get_sample_container_templates(&PaginationQuery {
-        page: None, limit: None, sort_by: None, sort_order: None
-    }, &FilterQuery {
-        category: None, status: None, labels: None, search: None
-    }).await?;
-    
+    let templates = get_sample_container_templates(
+        &PaginationQuery {
+            page: None,
+            limit: None,
+            sort_by: None,
+            sort_order: None,
+        },
+        &FilterQuery {
+            category: None,
+            status: None,
+            labels: None,
+            search: None,
+        },
+    )
+    .await?;
+
     Ok(Json(ApiResponse::success(templates)))
 }
 
@@ -690,19 +708,29 @@ async fn get_template_categories(
         "Monitoring".to_string(),
         "Development Tools".to_string(),
     ];
-    
+
     Ok(Json(ApiResponse::success(categories)))
 }
 
 async fn get_popular_templates(
     State(_state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<ContainerTemplate>>>> {
-    let templates = get_sample_container_templates(&PaginationQuery {
-        page: None, limit: Some(10), sort_by: Some("popularity_score".to_string()), sort_order: Some("desc".to_string())
-    }, &FilterQuery {
-        category: None, status: None, labels: None, search: None
-    }).await?;
-    
+    let templates = get_sample_container_templates(
+        &PaginationQuery {
+            page: None,
+            limit: Some(10),
+            sort_by: Some("popularity_score".to_string()),
+            sort_order: Some("desc".to_string()),
+        },
+        &FilterQuery {
+            category: None,
+            status: None,
+            labels: None,
+            search: None,
+        },
+    )
+    .await?;
+
     Ok(Json(ApiResponse::success(templates)))
 }
 
@@ -719,16 +747,14 @@ async fn deploy_from_template(
 async fn get_pipelines(
     State(_state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<SimplePipeline>>>> {
-    let pipelines = vec![
-        SimplePipeline {
-            id: "pipeline-1".to_string(),
-            name: "ML Training Pipeline".to_string(),
-            description: Some("End-to-end ML training and deployment pipeline".to_string()),
-            status: "running".to_string(),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        }
-    ];
+    let pipelines = vec![SimplePipeline {
+        id: "pipeline-1".to_string(),
+        name: "ML Training Pipeline".to_string(),
+        description: Some("End-to-end ML training and deployment pipeline".to_string()),
+        status: "running".to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    }];
     Ok(Json(ApiResponse::success(pipelines)))
 }
 
@@ -768,17 +794,15 @@ async fn get_pipeline_status(
 async fn get_deployments(
     State(_state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<SimpleDeployment>>>> {
-    let deployments = vec![
-        SimpleDeployment {
-            id: "deployment-1".to_string(),
-            name: "TensorFlow Training Job".to_string(),
-            status: "running".to_string(),
-            running_replicas: 2,
-            desired_replicas: 2,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        }
-    ];
+    let deployments = vec![SimpleDeployment {
+        id: "deployment-1".to_string(),
+        name: "TensorFlow Training Job".to_string(),
+        status: "running".to_string(),
+        running_replicas: 2,
+        desired_replicas: 2,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    }];
     Ok(Json(ApiResponse::success(deployments)))
 }
 
@@ -838,7 +862,7 @@ async fn get_network_topology(State(_state): State<AppState>) -> Result<Json<Api
             },
             {
                 "id": "node-2",
-                "name": "GPU Node 2", 
+                "name": "GPU Node 2",
                 "type": "compute",
                 "status": "online",
                 "cpu_cores": 64,
@@ -893,7 +917,9 @@ async fn get_logical_topology(State(_state): State<AppState>) -> Result<Json<Api
     Ok(Json(ApiResponse::success(topology)))
 }
 
-async fn get_performance_topology(State(_state): State<AppState>) -> Result<Json<ApiResponse<Value>>> {
+async fn get_performance_topology(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<Value>>> {
     let topology = json!({
         "nodes": [
             {
@@ -916,25 +942,28 @@ async fn get_performance_topology(State(_state): State<AppState>) -> Result<Json
 }
 
 // Swarmlet handlers (stubs)
-async fn get_swarmlets(State(_state): State<AppState>) -> Result<Json<ApiResponse<Vec<SimpleSwarmlet>>>> {
-    let swarmlets = vec![
-        SimpleSwarmlet {
-            id: "swarmlet-1".to_string(),
-            name: "GPU Worker 1".to_string(),
-            hostname: "gpu-worker-1".to_string(),
-            ip_address: "192.168.1.10".to_string(),
-            status: "active".to_string(),
-            cpu_utilization: 75.5,
-            memory_utilization: 82.1,
-            gpu_utilization: 95.3,
-            container_count: 3,
-            last_heartbeat: chrono::Utc::now().to_rfc3339(),
-        }
-    ];
+async fn get_swarmlets(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<SimpleSwarmlet>>>> {
+    let swarmlets = vec![SimpleSwarmlet {
+        id: "swarmlet-1".to_string(),
+        name: "GPU Worker 1".to_string(),
+        hostname: "gpu-worker-1".to_string(),
+        ip_address: "192.168.1.10".to_string(),
+        status: "active".to_string(),
+        cpu_utilization: 75.5,
+        memory_utilization: 82.1,
+        gpu_utilization: 95.3,
+        container_count: 3,
+        last_heartbeat: chrono::Utc::now().to_rfc3339(),
+    }];
     Ok(Json(ApiResponse::success(swarmlets)))
 }
 
-async fn get_swarmlet(State(_state): State<AppState>, Path(_id): Path<String>) -> Result<Json<ApiResponse<SimpleSwarmlet>>> {
+async fn get_swarmlet(
+    State(_state): State<AppState>,
+    Path(_id): Path<String>,
+) -> Result<Json<ApiResponse<SimpleSwarmlet>>> {
     let swarmlet = SimpleSwarmlet {
         id: "swarmlet-1".to_string(),
         name: "GPU Worker 1".to_string(),
@@ -950,7 +979,10 @@ async fn get_swarmlet(State(_state): State<AppState>, Path(_id): Path<String>) -
     Ok(Json(ApiResponse::success(swarmlet)))
 }
 
-async fn get_swarmlet_metrics(State(_state): State<AppState>, Path(_id): Path<String>) -> Result<Json<ApiResponse<Value>>> {
+async fn get_swarmlet_metrics(
+    State(_state): State<AppState>,
+    Path(_id): Path<String>,
+) -> Result<Json<ApiResponse<Value>>> {
     let metrics = json!({
         "cpu_usage": [
             {"timestamp": chrono::Utc::now().to_rfc3339(), "value": 75.5},
@@ -969,9 +1001,9 @@ async fn get_swarmlet_metrics(State(_state): State<AppState>, Path(_id): Path<St
 }
 
 async fn execute_swarmlet_command(
-    State(_state): State<AppState>, 
-    Path(_id): Path<String>, 
-    Json(_request): Json<SwarmletCommandRequest>
+    State(_state): State<AppState>,
+    Path(_id): Path<String>,
+    Json(_request): Json<SwarmletCommandRequest>,
 ) -> Result<Json<ApiResponse<SwarmletCommandResult>>> {
     let result = SwarmletCommandResult {
         execution_id: Uuid::new_v4().to_string(),
@@ -985,7 +1017,10 @@ async fn execute_swarmlet_command(
     Ok(Json(ApiResponse::success(result)))
 }
 
-async fn get_swarmlet_logs(State(_state): State<AppState>, Path(_id): Path<String>) -> Result<Json<ApiResponse<Value>>> {
+async fn get_swarmlet_logs(
+    State(_state): State<AppState>,
+    Path(_id): Path<String>,
+) -> Result<Json<ApiResponse<Value>>> {
     let logs = json!({
         "logs": [
             {
@@ -1014,7 +1049,9 @@ async fn get_system_overview(State(_state): State<AppState>) -> Result<Json<ApiR
     Ok(Json(ApiResponse::success(overview)))
 }
 
-async fn get_system_recommendations(State(_state): State<AppState>) -> Result<Json<ApiResponse<Value>>> {
+async fn get_system_recommendations(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<Value>>> {
     let recommendations = json!({
         "recommendations": [
             {
@@ -1026,7 +1063,7 @@ async fn get_system_recommendations(State(_state): State<AppState>) -> Result<Js
             },
             {
                 "type": "performance",
-                "priority": "medium", 
+                "priority": "medium",
                 "title": "GPU memory optimization",
                 "description": "Several workloads are underutilizing GPU memory",
                 "estimated_improvement": "20% better throughput"
@@ -1124,7 +1161,9 @@ async fn get_gpu_allocation(State(_state): State<AppState>) -> Result<Json<ApiRe
     Ok(Json(ApiResponse::success(allocation)))
 }
 
-async fn get_gpu_optimization_recommendations(State(_state): State<AppState>) -> Result<Json<ApiResponse<Value>>> {
+async fn get_gpu_optimization_recommendations(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<Value>>> {
     let recommendations = json!({
         "recommendations": [
             {
@@ -1136,7 +1175,7 @@ async fn get_gpu_optimization_recommendations(State(_state): State<AppState>) ->
             {
                 "type": "scheduling",
                 "description": "Consider time-based scheduling for non-urgent workloads",
-                "impact": "medium", 
+                "impact": "medium",
                 "effort": "medium"
             }
         ]
@@ -1185,7 +1224,7 @@ async fn get_compliance_status(State(_state): State<AppState>) -> Result<Json<Ap
         "overall_compliance": 87.5,
         "frameworks": {
             "SOC2": {"score": 92.0, "status": "compliant"},
-            "GDPR": {"score": 85.0, "status": "mostly_compliant"}, 
+            "GDPR": {"score": 85.0, "status": "mostly_compliant"},
             "HIPAA": {"score": 83.0, "status": "mostly_compliant"}
         },
         "last_audit": "2024-01-15T10:00:00Z",
@@ -1194,7 +1233,9 @@ async fn get_compliance_status(State(_state): State<AppState>) -> Result<Json<Ap
     Ok(Json(ApiResponse::success(status)))
 }
 
-async fn get_vulnerability_report(State(_state): State<AppState>) -> Result<Json<ApiResponse<Value>>> {
+async fn get_vulnerability_report(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<Value>>> {
     let report = json!({
         "summary": {
             "critical": 0,
@@ -1267,7 +1308,9 @@ async fn get_cost_forecast(State(_state): State<AppState>) -> Result<Json<ApiRes
     Ok(Json(ApiResponse::success(forecast)))
 }
 
-async fn get_cost_optimization_recommendations(State(_state): State<AppState>) -> Result<Json<ApiResponse<Value>>> {
+async fn get_cost_optimization_recommendations(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<Value>>> {
     let recommendations = json!({
         "recommendations": [
             {

@@ -34,8 +34,8 @@ pub mod traits;
 pub use config::EvolutionEngineConfig;
 pub use error::{EvolutionEngineError, EvolutionEngineResult};
 pub use metrics::EvolutionMetrics;
-pub use traits::{EngineConfig, EvolutionEngine, Evolvable};
 pub use swarm_xp_bridge::{SwarmXPEngine, SwarmXPFitnessFunction, SwarmXPStats};
+pub use traits::{EngineConfig, EvolutionEngine, Evolvable};
 
 /// Initialize the evolution engines subsystem
 pub async fn init() -> EvolutionEngineResult<()> {

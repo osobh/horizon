@@ -4,7 +4,7 @@ use inventory_service::{
     models::{AssetType, ProviderType},
     repository::AssetRepository,
 };
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
@@ -143,9 +143,8 @@ fn benchmark_get_asset_by_id(c: &mut Criterion) {
     let repo = AssetRepository::new(pool.clone());
 
     c.bench_function("get_asset_by_id", |b| {
-        b.to_async(&rt).iter(|| async {
-            black_box(repo.get_by_id(asset_id).await.unwrap())
-        });
+        b.to_async(&rt)
+            .iter(|| async { black_box(repo.get_by_id(asset_id).await.unwrap()) });
     });
 }
 

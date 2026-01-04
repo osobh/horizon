@@ -37,8 +37,9 @@ impl Config {
                     .map_err(|e| crate::error::HpcError::config(format!("Invalid port: {}", e)))?,
             },
             database: DatabaseConfig {
-                url: std::env::var("DATABASE_URL")
-                    .map_err(|_| crate::error::HpcError::config("DATABASE_URL not set".to_string()))?,
+                url: std::env::var("DATABASE_URL").map_err(|_| {
+                    crate::error::HpcError::config("DATABASE_URL not set".to_string())
+                })?,
                 max_connections: std::env::var("DB_MAX_CONNECTIONS")
                     .unwrap_or_else(|_| "10".to_string())
                     .parse()

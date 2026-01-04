@@ -10,6 +10,6 @@
 pub mod policy_generator;
 
 pub use policy_generator::{
-    EphemeralPolicyGenerator, EphemeralPolicyConfig, GeneratedPolicy,
-    PolicyScope, RiskBasedAccess, TimeWindowConfig,
+    EphemeralPolicyConfig, EphemeralPolicyGenerator, GeneratedPolicy, PolicyScope, RiskBasedAccess,
+    TimeWindowConfig,
 };

@@ -30,9 +30,8 @@ impl AgentRegistry {
         let id = dna.id;
 
         // Validate DNA
-        dna.validate().map_err(|errors| {
-            UniversalAgentError::ValidationFailed(errors.join("; "))
-        })?;
+        dna.validate()
+            .map_err(|errors| UniversalAgentError::ValidationFailed(errors.join("; ")))?;
 
         // Store DNA
         self.storage.write().await.insert(id, dna.clone());
@@ -68,7 +67,11 @@ impl AgentRegistry {
         // Score and rank candidates
         let mut scored: Vec<(DNAId, f64)> = candidates
             .iter()
-            .filter_map(|id| storage.get(id).map(|dna| (*id, self.score_dna(dna, requirements))))
+            .filter_map(|id| {
+                storage
+                    .get(id)
+                    .map(|dna| (*id, self.score_dna(dna, requirements)))
+            })
             .collect();
 
         scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -117,9 +120,10 @@ impl AgentRegistry {
 
     /// Upgrade a DNA to a new version
     pub async fn upgrade(&self, id: DNAId, new_dna: AgentDNA) -> Result<DNAVersion> {
-        let current = self.get_latest(id).await?.ok_or_else(|| {
-            UniversalAgentError::DNANotFound(id.0)
-        })?;
+        let current = self
+            .get_latest(id)
+            .await?
+            .ok_or(UniversalAgentError::DNANotFound(id.0))?;
 
         if new_dna.version.generation <= current.version.generation {
             return Err(UniversalAgentError::InvalidVersionUpgrade {

@@ -86,7 +86,7 @@ pub enum SelectionStrategy {
     /// Tournament selection
     Tournament {
         /// Tournament size
-        size: usize
+        size: usize,
     },
     /// Roulette wheel selection
     Roulette,

@@ -117,7 +117,7 @@ mod cloud_integration_tests {
         assert_eq!(response.instances.len(), 2);
         assert!(response.total_cost_estimate > 0.0);
         assert!(response.provisioning_time_ms < 30000); // Should provision within 30s
-        
+
         // Verify GPU instances are running
         for instance in &response.instances {
             assert_eq!(instance.state, InstanceState::Running);
@@ -129,11 +129,18 @@ mod cloud_integration_tests {
     #[tokio::test]
     async fn test_multi_cloud_orchestration() {
         let provisioner = CloudProvisioner::new();
-        
+
         // Add multiple providers
-        provisioner.add_provider(Box::new(create_aws_provider().await.unwrap())).await.unwrap();
-        provisioner.add_provider(Box::new(create_gcp_provider().await?)).await?;
-        provisioner.add_provider(Box::new(create_alibaba_provider().await?)).await?;
+        provisioner
+            .add_provider(Box::new(create_aws_provider().await.unwrap()))
+            .await
+            .unwrap();
+        provisioner
+            .add_provider(Box::new(create_gcp_provider().await?))
+            .await?;
+        provisioner
+            .add_provider(Box::new(create_alibaba_provider().await?))
+            .await?;
 
         let request = MultiCloudRequest {
             providers: vec!["aws".to_string(), "gcp".to_string(), "alibaba".to_string()],
@@ -179,22 +186,22 @@ mod cloud_integration_tests {
             .check_spot_availability("us-east-1", "p3.2xlarge")
             .await
             .unwrap();
-        
+
         assert!(spot_availability.available);
         assert!(spot_availability.savings_percentage > 50.0); // Typically 70% savings
         assert!(spot_availability.current_price < instance_type.price_per_hour);
-        
+
         // Optimize costs
         let strategy = CostStrategy::SpotFirst {
             fallback_to_on_demand: true,
             max_interruption_rate: 0.1,
         };
-        
+
         let optimized = optimizer
             .optimize_instance_selection(&provider, &instance_type, &strategy)
             .await
             .unwrap();
-        
+
         assert!(optimized.use_spot);
         assert!(optimized.estimated_savings > 0.5);
     }
@@ -203,7 +210,10 @@ mod cloud_integration_tests {
     #[tokio::test]
     async fn test_gpu_auto_scaling() {
         let provisioner = CloudProvisioner::new();
-        provisioner.add_provider(Box::new(create_aws_provider().await.unwrap())).await.unwrap();
+        provisioner
+            .add_provider(Box::new(create_aws_provider().await.unwrap()))
+            .await
+            .unwrap();
 
         // Initial provisioning
         let initial_request = ProvisioningRequest {
@@ -230,7 +240,7 @@ mod cloud_integration_tests {
             .handle_auto_scaling_event(&result.deployment_id, 95.0)
             .await
             .unwrap();
-        
+
         assert_eq!(scale_result.action, ScalingAction::ScaleUp);
         assert!(scale_result.new_instance_count > 2);
     }
@@ -239,7 +249,10 @@ mod cloud_integration_tests {
     #[tokio::test]
     async fn test_disaster_recovery_failover() {
         let provisioner = CloudProvisioner::new();
-        provisioner.add_provider(Box::new(create_aws_provider().await.unwrap())).await.unwrap();
+        provisioner
+            .add_provider(Box::new(create_aws_provider().await.unwrap()))
+            .await
+            .unwrap();
 
         // Setup primary and backup regions
         let dr_config = DisasterRecoveryConfig {
@@ -254,7 +267,7 @@ mod cloud_integration_tests {
             .provision_with_disaster_recovery(&dr_config, 5)
             .await
             .unwrap();
-        
+
         assert_eq!(deployment.primary_instances, 5);
         assert!(deployment.backup_instances >= 5); // At least one backup region active
 
@@ -263,7 +276,7 @@ mod cloud_integration_tests {
             .trigger_failover(&deployment.deployment_id, "us-east-1")
             .await
             .unwrap();
-        
+
         assert!(failover_result.success);
         assert_eq!(failover_result.new_primary_region, "us-west-2");
         assert!(failover_result.failover_time_ms < 60000); // Within 60 seconds
@@ -273,7 +286,7 @@ mod cloud_integration_tests {
     #[tokio::test]
     async fn test_resource_tagging_cost_allocation() {
         let provider = create_aws_provider().await.unwrap();
-        
+
         let tags = [
             ("project", "stratoswarm"),
             ("environment", "production"),
@@ -286,18 +299,24 @@ mod cloud_integration_tests {
             instance_type: "g4dn.xlarge".to_string(),
             count: 1,
             use_spot: false,
-            tags: tags.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            tags: tags
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
             user_data: None,
             security_groups: vec![],
             key_pair: None,
         };
 
         let response = provider.provision(&request).await.unwrap();
-        
+
         // Verify tags are applied
         let status = provider.get_status(&response.resource_id).await.unwrap();
-        let resource_tags = provider.get_resource_tags(&response.resource_id).await.unwrap();
-        
+        let resource_tags = provider
+            .get_resource_tags(&response.resource_id)
+            .await
+            .unwrap();
+
         for (key, value) in tags {
             assert_eq!(resource_tags.get(key).unwrap(), value);
         }
@@ -307,7 +326,7 @@ mod cloud_integration_tests {
             .generate_cost_report(&response.resource_id, Duration::from_secs(3600))
             .await
             .unwrap();
-        
+
         assert!(cost_report.total_cost > 0.0);
         assert_eq!(cost_report.cost_allocation["cost-center"], "ml-research");
     }
@@ -316,8 +335,14 @@ mod cloud_integration_tests {
     #[tokio::test]
     async fn test_network_performance_optimization() {
         let provisioner = CloudProvisioner::new();
-        provisioner.add_provider(Box::new(create_aws_provider().await.unwrap())).await.unwrap();
-        provisioner.add_provider(Box::new(create_gcp_provider().await.unwrap())).await.unwrap();
+        provisioner
+            .add_provider(Box::new(create_aws_provider().await.unwrap()))
+            .await
+            .unwrap();
+        provisioner
+            .add_provider(Box::new(create_gcp_provider().await.unwrap()))
+            .await
+            .unwrap();
 
         // Request instances with network optimization
         let request = NetworkOptimizedRequest {
@@ -332,8 +357,11 @@ mod cloud_integration_tests {
             prefer_same_az: true,
         };
 
-        let result = provisioner.provision_network_optimized(&request).await.unwrap();
-        
+        let result = provisioner
+            .provision_network_optimized(&request)
+            .await
+            .unwrap();
+
         assert_eq!(result.instances_created, 4);
         assert!(result.estimated_bandwidth_gbps >= 10.0);
         assert!(result.same_az_placement); // All instances in same AZ for low latency
@@ -344,7 +372,7 @@ mod cloud_integration_tests {
     #[tokio::test]
     async fn test_compliance_security_configuration() {
         let provider = create_aws_provider().await.unwrap();
-        
+
         let compliance_config = ComplianceConfig {
             encryption_at_rest: true,
             encryption_in_transit: true,
@@ -363,7 +391,7 @@ mod cloud_integration_tests {
         };
 
         let response = provider.provision_secure(&request).await.unwrap();
-        
+
         assert!(response.encryption_enabled);
         assert!(response.monitoring_enabled);
         assert!(response.compliance_verified);

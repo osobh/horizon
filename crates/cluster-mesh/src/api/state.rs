@@ -402,7 +402,8 @@ impl AppState {
     /// In production, this would push configuration updates to all
     /// existing nodes via the sync service.
     pub async fn notify_peers_of_new_node(&self, subnet_id: Uuid, new_peer: PeerInfo) {
-        let peer_count = self.nodes
+        let peer_count = self
+            .nodes
             .iter()
             .filter(|e| e.value().subnet_id == subnet_id && e.value().node_id != new_peer.node_id)
             .count();

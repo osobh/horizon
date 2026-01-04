@@ -219,7 +219,7 @@ impl KnowledgeGraph {
     }
 
     /// Add a node to the graph
-    pub fn add_node(&mut self, mut node: Node) -> KnowledgeGraphResult<String> {
+    pub fn add_node(&mut self, node: Node) -> KnowledgeGraphResult<String> {
         if self.nodes.len() >= self.config.max_nodes {
             return Err(KnowledgeGraphError::Other(
                 "Maximum number of nodes reached".to_string(),
@@ -232,7 +232,7 @@ impl KnowledgeGraph {
         // Update node type index
         self.node_type_index
             .entry(node_type)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(node_id.clone());
 
         // Initialize edge indices
@@ -545,9 +545,7 @@ mod tests {
         let mut graph = KnowledgeGraph::new(config).await?;
 
         // Add nodes of different types
-        graph
-            .add_node(Node::new(NodeType::Agent, HashMap::new()))
-            ?;
+        graph.add_node(Node::new(NodeType::Agent, HashMap::new()))?;
         graph
             .add_node(Node::new(NodeType::Agent, HashMap::new()))
             .unwrap();
@@ -600,9 +598,7 @@ mod tests {
         };
         let mut graph = KnowledgeGraph::new(config).await?;
 
-        graph
-            .add_node(Node::new(NodeType::Agent, HashMap::new()))
-            ?;
+        graph.add_node(Node::new(NodeType::Agent, HashMap::new()))?;
         graph
             .add_node(Node::new(NodeType::Goal, HashMap::new()))
             .unwrap();

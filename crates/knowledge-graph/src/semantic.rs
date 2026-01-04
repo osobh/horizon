@@ -2,10 +2,9 @@
 
 use crate::error::{KnowledgeGraphError, KnowledgeGraphResult};
 use crate::graph::{KnowledgeGraph, Node, NodeType};
-use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use wide::f32x8;  // SIMD primitives for vectorized computation
+use wide::f32x8; // SIMD primitives for vectorized computation
 
 /// Embedding vector type
 pub type EmbeddingVector = Vec<f32>;

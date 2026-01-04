@@ -176,9 +176,7 @@ impl PolicyAnalyzer {
         self.stats
             .policy_evaluations
             .iter()
-            .filter(|(_, stats)| {
-                stats.last_match.map(|t| t < cutoff).unwrap_or(true)
-            })
+            .filter(|(_, stats)| stats.last_match.map(|t| t < cutoff).unwrap_or(true))
             .map(|(&id, _)| id)
             .collect()
     }
@@ -287,10 +285,7 @@ pub struct HealthIssue {
 }
 
 /// Generate health check for policies
-pub fn health_check(
-    policies: &[AssignmentPolicy],
-    stats: &PolicyStats,
-) -> PolicyHealthCheck {
+pub fn health_check(policies: &[AssignmentPolicy], stats: &PolicyStats) -> PolicyHealthCheck {
     let mut issues = Vec::new();
     let mut policy_health = Vec::new();
     let mut has_warning = false;
@@ -362,10 +357,7 @@ pub fn health_check(
             issues.push(HealthIssue {
                 severity: HealthStatus::Warning,
                 policy_id: None,
-                description: format!(
-                    "Low overall match rate: {:.1}%",
-                    success_rate * 100.0
-                ),
+                description: format!("Low overall match rate: {:.1}%", success_rate * 100.0),
             });
         }
         if success_rate < 0.1 {
@@ -384,13 +376,21 @@ pub fn health_check(
     // Generate recommendations
     let mut recommendations = Vec::new();
     if has_critical {
-        recommendations.push("Review policy rules - most nodes are not matching any policy".to_string());
+        recommendations
+            .push("Review policy rules - most nodes are not matching any policy".to_string());
     }
-    if issues.iter().any(|i| i.description.contains("never matched")) {
-        recommendations.push("Consider removing or updating policies that have never matched".to_string());
+    if issues
+        .iter()
+        .any(|i| i.description.contains("never matched"))
+    {
+        recommendations
+            .push("Consider removing or updating policies that have never matched".to_string());
     }
     if policies.iter().filter(|p| p.is_active()).count() == 0 {
-        recommendations.push("No active policies - all node assignments will require manual intervention".to_string());
+        recommendations.push(
+            "No active policies - all node assignments will require manual intervention"
+                .to_string(),
+        );
     }
 
     let status = if has_critical {
@@ -486,7 +486,10 @@ mod tests {
 
         // New policy with no matches should generate a warning
         assert!(!health.issues.is_empty());
-        assert!(health.issues.iter().any(|i| i.description.contains("never matched")));
+        assert!(health
+            .issues
+            .iter()
+            .any(|i| i.description.contains("never matched")));
     }
 
     #[test]

@@ -4,8 +4,7 @@ use crate::quota::QuotaManager;
 use crate::spot::SpotPriceManager;
 use hpc_provider::{
     Availability, CapacityProvider, HealthStatus, Instance, InstanceState, ProviderError,
-    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas,
-    SpotPrices,
+    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas, SpotPrices,
 };
 use rust_decimal::Decimal;
 use std::collections::HashMap;

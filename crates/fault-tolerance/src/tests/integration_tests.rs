@@ -397,8 +397,7 @@ async fn test_checkpoint_compression_and_recovery_integration() {
     let temp_dir = TempDir::new().unwrap();
 
     // Test with compression enabled
-    let compressed_manager =
-        CheckpointManager::with_path(temp_dir.path().join("compressed"))?;
+    let compressed_manager = CheckpointManager::with_path(temp_dir.path().join("compressed"))?;
     assert!(compressed_manager.compression_enabled);
 
     let compressed_checkpoint_id = compressed_manager.create_full_checkpoint().await?;
@@ -442,10 +441,7 @@ async fn test_complex_recovery_scenario_with_multiple_strategies() {
 
     // Create complex checkpoint with multiple GPU and agent states
     let checkpoint_id = checkpoint_manager.create_full_checkpoint().await?;
-    let checkpoint = checkpoint_manager
-        .load_checkpoint(&checkpoint_id)
-        .await
-        ?;
+    let checkpoint = checkpoint_manager.load_checkpoint(&checkpoint_id).await?;
 
     // Verify checkpoint has both GPU and agent data
     assert!(!checkpoint.gpu_checkpoints.is_empty());
@@ -578,9 +574,8 @@ async fn test_health_monitoring_integration() {
 
     // Create system components
     let checkpoint_manager = CheckpointManager::with_path(temp_dir.path()).unwrap();
-    let recovery_manager = RecoveryManager::with_checkpoint_manager(
-        CheckpointManager::with_path(temp_dir.path())?,
-    );
+    let recovery_manager =
+        RecoveryManager::with_checkpoint_manager(CheckpointManager::with_path(temp_dir.path())?);
     let mut coordinator = DistributedCoordinator::new()?;
 
     // Initial health check

@@ -91,6 +91,8 @@ fn measure_kernel_launch_overhead(device: &Arc<CudaDevice>) -> Result<f64> {
 
     let start = Instant::now();
 
+    // SAFETY: buffer is a valid device pointer from alloc_zeros.
+    // Using minimal parameters (1 pattern, 1 node) to measure launch overhead.
     for _ in 0..NUM_LAUNCHES {
         unsafe {
             gpu_agents::synthesis::launch_match_patterns_fast(
@@ -120,6 +122,8 @@ fn measure_memory_bandwidth(device: &Arc<CudaDevice>) -> Result<f64> {
     const NUM_TRANSFERS: u32 = 100;
 
     let host_buffer = vec![0u8; BUFFER_SIZE];
+    // SAFETY: alloc returns uninitialized memory. device_buffer will be written
+    // via htod_copy_into before any kernel reads; this is a bandwidth benchmark.
     let device_buffer = unsafe { device.alloc::<u8>(BUFFER_SIZE)? };
 
     // Host to Device

@@ -144,7 +144,10 @@ impl SubnetHpcBridge {
         let tx = self.get_sender(message);
         match tx.send(message.clone()) {
             Ok(receiver_count) => {
-                debug!(receivers = receiver_count, "Published event to hpc-channels");
+                debug!(
+                    receivers = receiver_count,
+                    "Published event to hpc-channels"
+                );
                 Ok(())
             }
             Err(_) => {
@@ -207,7 +210,11 @@ impl Default for SubnetHpcBridge {
 /// for SubnetEventPublisher.
 #[async_trait]
 impl EventTransport for SubnetHpcBridge {
-    async fn publish(&self, _channel: ChannelId, message: &SubnetMessage) -> Result<(), PublishError> {
+    async fn publish(
+        &self,
+        _channel: ChannelId,
+        message: &SubnetMessage,
+    ) -> Result<(), PublishError> {
         // Route based on message type, not the provided channel
         // This ensures messages go to the correct hpc-channels channel
         self.publish_sync(message)
@@ -233,7 +240,10 @@ impl EventTransport for SubnetHpcBridge {
             }
         });
 
-        Ok(EventSubscription { channel, receiver: rx })
+        Ok(EventSubscription {
+            channel,
+            receiver: rx,
+        })
     }
 
     fn is_connected(&self) -> bool {
@@ -376,13 +386,10 @@ mod tests {
         bridge.publish_sync(&event).unwrap();
 
         let mut receiver = subscription.receiver;
-        let received = tokio::time::timeout(
-            std::time::Duration::from_millis(100),
-            receiver.recv(),
-        )
-        .await
-        .expect("timeout")
-        .expect("recv");
+        let received = tokio::time::timeout(std::time::Duration::from_millis(100), receiver.recv())
+            .await
+            .expect("timeout")
+            .expect("recv");
 
         match received {
             SubnetMessage::SubnetCreated(e) => {

@@ -83,8 +83,9 @@ impl Config {
     pub fn from_env() -> crate::Result<Self> {
         Ok(Self {
             database: DatabaseConfig {
-                url: std::env::var("DATABASE_URL")
-                    .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/scheduler_dev".to_string()),
+                url: std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+                    "postgres://postgres:postgres@localhost:5433/scheduler_dev".to_string()
+                }),
                 max_connections: std::env::var("DB_MAX_CONNECTIONS")
                     .ok()
                     .and_then(|s| s.parse().ok())

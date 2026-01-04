@@ -89,11 +89,7 @@ mod tests {
         let id3 = conn.next_id();
 
         match (id1, id2, id3) {
-            (
-                RequestId::Number(n1),
-                RequestId::Number(n2),
-                RequestId::Number(n3),
-            ) => {
+            (RequestId::Number(n1), RequestId::Number(n2), RequestId::Number(n3)) => {
                 assert_eq!(n1, 1);
                 assert_eq!(n2, 2);
                 assert_eq!(n3, 3);
@@ -135,7 +131,8 @@ mod tests {
     #[test]
     fn test_decode_response_error() {
         let conn = Connection::new();
-        let json = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
+        let json =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
 
         let response = conn.decode_response(json).unwrap();
         assert!(response.result.is_none());
@@ -156,7 +153,8 @@ mod tests {
     fn test_send_request_error() {
         let conn = Connection::new();
         let req = conn.create_request("test");
-        let response_json = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Not found"}}"#;
+        let response_json =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Not found"}}"#;
 
         let result = conn.send_request(&req, response_json);
         assert!(result.is_err());

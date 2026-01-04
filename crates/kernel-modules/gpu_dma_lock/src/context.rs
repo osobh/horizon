@@ -336,6 +336,11 @@ static mut CONTEXT_MANAGER: Option<ContextManager> = None;
 
 /// Get global context manager
 pub fn get_manager() -> &'static ContextManager {
+    // SAFETY: This function is only called after init() has been called during
+    // kernel module initialization. The static CONTEXT_MANAGER is initialized
+    // once at module load time and never modified until module cleanup, at which
+    // point no more calls to this function should occur. Single-threaded init
+    // ensures no data races during the initialization sequence.
     unsafe {
         CONTEXT_MANAGER
             .as_ref()
@@ -345,6 +350,10 @@ pub fn get_manager() -> &'static ContextManager {
 
 /// Initialize context subsystem
 pub fn init() -> KernelResult<()> {
+    // SAFETY: This function is called exactly once during kernel module
+    // initialization, before any other threads can access CONTEXT_MANAGER.
+    // The kernel module init sequence is single-threaded, ensuring no data
+    // races during this write to the static mutable.
     unsafe {
         CONTEXT_MANAGER = Some(ContextManager::new());
     }
@@ -353,6 +362,10 @@ pub fn init() -> KernelResult<()> {
 
 /// Cleanup context subsystem
 pub fn cleanup() {
+    // SAFETY: This function is called exactly once during kernel module
+    // unload, after all other operations have completed and no threads are
+    // accessing CONTEXT_MANAGER. The kernel module exit sequence ensures
+    // exclusive access to module globals during cleanup.
     unsafe {
         CONTEXT_MANAGER = None;
     }

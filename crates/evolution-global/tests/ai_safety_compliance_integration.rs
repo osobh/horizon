@@ -2,6 +2,8 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
+use std::collections::HashMap;
+use std::sync::Arc;
 use stratoswarm_evolution_global::{
     ai_safety_compliance::{
         BiasDetectionResult, BiasDetector, BiasType, ComplianceStatus, EthicalAssessment,
@@ -10,8 +12,6 @@ use stratoswarm_evolution_global::{
     },
     error::EvolutionGlobalResult,
 };
-use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 

@@ -9,7 +9,7 @@
 //! because each heap operation (push/pop) involves O(log n) comparisons with
 //! unpredictable outcomes based on data-dependent tree traversals.
 //!
-//! This implementation uses a fixed number of VecDeque segments (one per priority
+//! This implementation uses a fixed number of `VecDeque` segments (one per priority
 //! level). The dequeue operation always checks the same 4 queues in the same order,
 //! making it highly predictable for the CPU's branch predictor.
 //!
@@ -18,7 +18,7 @@
 //! - **Enqueue**: O(1) - direct push to the appropriate segment
 //! - **Dequeue**: O(1) - check 4 segments in fixed order (predictable branches)
 //! - **Peek**: O(1) - check 4 segments in fixed order
-//! - **Remove by ID**: O(n) - linear scan (unchanged from BinaryHeap)
+//! - **Remove by ID**: O(n) - linear scan (unchanged from `BinaryHeap`)
 //!
 //! # Example
 //!
@@ -42,10 +42,12 @@ use std::collections::VecDeque;
 /// Items are dequeued in priority order: Critical > High > Normal > Low
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
+#[derive(Default)]
 pub enum SchedulerPriority {
     /// Lowest priority - background tasks
     Low = 0,
     /// Normal priority - default for most tasks
+    #[default]
     Normal = 1,
     /// High priority - time-sensitive tasks
     High = 2,
@@ -53,21 +55,16 @@ pub enum SchedulerPriority {
     Critical = 3,
 }
 
-impl Default for SchedulerPriority {
-    fn default() -> Self {
-        Self::Normal
-    }
-}
-
 impl SchedulerPriority {
     /// Returns all priority levels in descending order (Critical first)
     #[inline]
+    #[must_use]
     pub const fn all_descending() -> [Self; 4] {
         [Self::Critical, Self::High, Self::Normal, Self::Low]
     }
 }
 
-/// A branch-prediction-friendly priority queue using segmented VecDeques.
+/// A branch-prediction-friendly priority queue using segmented `VecDeques`.
 ///
 /// Unlike `BinaryHeap`, this implementation provides O(1) operations with
 /// predictable branch patterns that the CPU can efficiently predict.
@@ -96,6 +93,7 @@ impl<T> Default for PrioritySchedulerQueue<T> {
 impl<T> PrioritySchedulerQueue<T> {
     /// Creates a new empty priority queue.
     #[inline]
+    #[must_use]
     pub fn new() -> Self {
         Self {
             critical: VecDeque::new(),
@@ -110,6 +108,7 @@ impl<T> PrioritySchedulerQueue<T> {
     /// This can reduce allocations if you know approximately how many items
     /// will be in each priority level.
     #[inline]
+    #[must_use]
     pub fn with_capacity(capacity_per_level: usize) -> Self {
         Self {
             critical: VecDeque::with_capacity(capacity_per_level),
@@ -166,6 +165,7 @@ impl<T> PrioritySchedulerQueue<T> {
     ///
     /// Returns `None` if the queue is empty.
     #[inline]
+    #[must_use]
     pub fn peek(&self) -> Option<&T> {
         self.critical
             .front()
@@ -191,12 +191,14 @@ impl<T> PrioritySchedulerQueue<T> {
 
     /// Returns the total number of items in the queue.
     #[inline]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.critical.len() + self.high.len() + self.normal.len() + self.low.len()
     }
 
     /// Returns `true` if the queue contains no items.
     #[inline]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.critical.is_empty()
             && self.high.is_empty()
@@ -206,6 +208,7 @@ impl<T> PrioritySchedulerQueue<T> {
 
     /// Returns the number of items at the given priority level.
     #[inline]
+    #[must_use]
     pub fn len_at_priority(&self, priority: SchedulerPriority) -> usize {
         match priority {
             SchedulerPriority::Critical => self.critical.len(),
@@ -297,16 +300,16 @@ impl<T> PrioritySchedulerQueue<T> {
     where
         F: FnMut(&T) -> bool,
     {
-        if let Some(pos) = self.critical.iter().position(|x| predicate(x)) {
+        if let Some(pos) = self.critical.iter().position(&mut predicate) {
             return self.critical.remove(pos);
         }
-        if let Some(pos) = self.high.iter().position(|x| predicate(x)) {
+        if let Some(pos) = self.high.iter().position(&mut predicate) {
             return self.high.remove(pos);
         }
-        if let Some(pos) = self.normal.iter().position(|x| predicate(x)) {
+        if let Some(pos) = self.normal.iter().position(&mut predicate) {
             return self.normal.remove(pos);
         }
-        if let Some(pos) = self.low.iter().position(|x| predicate(x)) {
+        if let Some(pos) = self.low.iter().position(predicate) {
             return self.low.remove(pos);
         }
         None
@@ -330,10 +333,10 @@ impl<T> PrioritySchedulerQueue<T> {
     where
         F: FnMut(&T) -> bool,
     {
-        self.critical.iter().any(|x| predicate(x))
-            || self.high.iter().any(|x| predicate(x))
-            || self.normal.iter().any(|x| predicate(x))
-            || self.low.iter().any(|x| predicate(x))
+        self.critical.iter().any(&mut predicate)
+            || self.high.iter().any(&mut predicate)
+            || self.normal.iter().any(&mut predicate)
+            || self.low.iter().any(predicate)
     }
 }
 

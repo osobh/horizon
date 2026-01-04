@@ -168,9 +168,8 @@ impl ApprovalGate {
     pub fn cleanup_resolved(&mut self, max_age_hours: i64) {
         let cutoff = chrono::Utc::now() - chrono::Duration::hours(max_age_hours);
 
-        self.pending_requests.retain(|req| {
-            req.is_pending() || req.resolved_at.is_none_or(|t| t > cutoff)
-        });
+        self.pending_requests
+            .retain(|req| req.is_pending() || req.resolved_at.is_none_or(|t| t > cutoff));
     }
 }
 
@@ -180,11 +179,7 @@ mod tests {
 
     #[test]
     fn test_approval_request_creation() {
-        let req = ApprovalRequest::new(
-            "Test action".to_string(),
-            50.0,
-            RiskLevel::Medium,
-        );
+        let req = ApprovalRequest::new("Test action".to_string(), 50.0, RiskLevel::Medium);
 
         assert_eq!(req.action_description, "Test action");
         assert_eq!(req.estimated_cost, 50.0);
@@ -195,11 +190,7 @@ mod tests {
 
     #[test]
     fn test_approval_request_approve() {
-        let mut req = ApprovalRequest::new(
-            "Test action".to_string(),
-            50.0,
-            RiskLevel::Medium,
-        );
+        let mut req = ApprovalRequest::new("Test action".to_string(), 50.0, RiskLevel::Medium);
 
         req.approve();
         assert_eq!(req.status, ApprovalStatus::Approved);
@@ -208,11 +199,7 @@ mod tests {
 
     #[test]
     fn test_approval_request_reject() {
-        let mut req = ApprovalRequest::new(
-            "Test action".to_string(),
-            50.0,
-            RiskLevel::Medium,
-        );
+        let mut req = ApprovalRequest::new("Test action".to_string(), 50.0, RiskLevel::Medium);
 
         req.reject();
         assert_eq!(req.status, ApprovalStatus::Rejected);
@@ -221,11 +208,7 @@ mod tests {
 
     #[test]
     fn test_approval_request_expire() {
-        let mut req = ApprovalRequest::new(
-            "Test action".to_string(),
-            50.0,
-            RiskLevel::Medium,
-        );
+        let mut req = ApprovalRequest::new("Test action".to_string(), 50.0, RiskLevel::Medium);
 
         req.expire();
         assert_eq!(req.status, ApprovalStatus::Expired);
@@ -234,11 +217,7 @@ mod tests {
 
     #[test]
     fn test_approval_request_status_checks() {
-        let mut req = ApprovalRequest::new(
-            "Test action".to_string(),
-            50.0,
-            RiskLevel::Medium,
-        );
+        let mut req = ApprovalRequest::new("Test action".to_string(), 50.0, RiskLevel::Medium);
 
         assert!(req.is_pending());
         assert!(!req.is_approved());
@@ -267,7 +246,9 @@ mod tests {
     fn test_approval_gate_auto_approve() {
         let mut gate = ApprovalGate::new(10.0);
 
-        let id = gate.request_approval("Low cost action".to_string(), 5.0).unwrap();
+        let id = gate
+            .request_approval("Low cost action".to_string(), 5.0)
+            .unwrap();
         assert!(gate.is_approved(id).unwrap());
     }
 
@@ -275,7 +256,9 @@ mod tests {
     fn test_approval_gate_requires_approval() {
         let mut gate = ApprovalGate::new(10.0);
 
-        let id = gate.request_approval("High cost action".to_string(), 50.0).unwrap();
+        let id = gate
+            .request_approval("High cost action".to_string(), 50.0)
+            .unwrap();
         assert!(!gate.is_approved(id).unwrap());
     }
 
@@ -283,7 +266,9 @@ mod tests {
     fn test_approval_gate_approve() {
         let mut gate = ApprovalGate::new(10.0);
 
-        let id = gate.request_approval("Test action".to_string(), 50.0).unwrap();
+        let id = gate
+            .request_approval("Test action".to_string(), 50.0)
+            .unwrap();
         assert!(!gate.is_approved(id).unwrap());
 
         gate.approve(id).unwrap();
@@ -294,7 +279,9 @@ mod tests {
     fn test_approval_gate_reject() {
         let mut gate = ApprovalGate::new(10.0);
 
-        let id = gate.request_approval("Test action".to_string(), 50.0).unwrap();
+        let id = gate
+            .request_approval("Test action".to_string(), 50.0)
+            .unwrap();
         gate.reject(id).unwrap();
 
         assert!(!gate.is_approved(id).unwrap());
@@ -312,7 +299,9 @@ mod tests {
     fn test_approval_gate_approve_already_resolved() {
         let mut gate = ApprovalGate::new(10.0);
 
-        let id = gate.request_approval("Test action".to_string(), 50.0).unwrap();
+        let id = gate
+            .request_approval("Test action".to_string(), 50.0)
+            .unwrap();
         gate.approve(id).unwrap();
 
         let result = gate.approve(id);
@@ -355,8 +344,11 @@ mod tests {
     fn test_approval_gate_cleanup_keeps_pending() {
         let mut gate = ApprovalGate::new(10.0);
 
-        gate.request_approval("Pending action".to_string(), 50.0).unwrap();
-        let id2 = gate.request_approval("Resolved action".to_string(), 60.0).unwrap();
+        gate.request_approval("Pending action".to_string(), 50.0)
+            .unwrap();
+        let id2 = gate
+            .request_approval("Resolved action".to_string(), 60.0)
+            .unwrap();
 
         gate.approve(id2).unwrap();
 

@@ -3,7 +3,10 @@
 //! This module defines the API routes for the cluster coordinator service,
 //! including the install script endpoint for curl-based node bootstrapping.
 
-use axum::{routing::{get, post}, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 
@@ -260,7 +263,9 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         // Verify the response contains expected fields
-        let body = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
         let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         assert!(response_json.get("node_id").is_some());

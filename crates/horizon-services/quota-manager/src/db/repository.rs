@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    error::{HpcError, Result, QuotaErrorExt},
+    error::{HpcError, QuotaErrorExt, Result},
     models::*,
 };
 
@@ -57,7 +57,9 @@ impl QuotaRepository {
             sqlx::Error::Database(db_err) if db_err.is_unique_violation() => {
                 HpcError::quota_already_exists(format!(
                     "{} for entity {} resource {}",
-                    "quota", req.entity_id, req.resource_type.as_str()
+                    "quota",
+                    req.entity_id,
+                    req.resource_type.as_str()
                 ))
             }
             _ => HpcError::from(e),
@@ -105,10 +107,12 @@ impl QuotaRepository {
 
     pub async fn list_quotas(&self, entity_type: Option<EntityType>) -> Result<Vec<Quota>> {
         let quotas = if let Some(et) = entity_type {
-            sqlx::query_as::<_, Quota>("SELECT * FROM quotas WHERE entity_type = $1 ORDER BY created_at DESC")
-                .bind(et)
-                .fetch_all(&self.pool)
-                .await?
+            sqlx::query_as::<_, Quota>(
+                "SELECT * FROM quotas WHERE entity_type = $1 ORDER BY created_at DESC",
+            )
+            .bind(et)
+            .fetch_all(&self.pool)
+            .await?
         } else {
             sqlx::query_as::<_, Quota>("SELECT * FROM quotas ORDER BY created_at DESC")
                 .fetch_all(&self.pool)
@@ -198,7 +202,7 @@ impl QuotaRepository {
             sqlx::Error::Database(db_err) if db_err.is_unique_violation() => {
                 HpcError::already_exists(
                     "allocation",
-                    format!("job {} resource {}", req.job_id, req.resource_type.as_str())
+                    format!("job {} resource {}", req.job_id, req.resource_type.as_str()),
                 )
             }
             _ => HpcError::from(e),

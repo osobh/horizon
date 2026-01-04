@@ -216,8 +216,7 @@ impl AgentDNA {
         offspring.lineage.children.clear();
         offspring.lineage.mutations_applied.clear();
         offspring.lineage.birth_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            ?
+            .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
 
         // Apply mutations based on mutation rate

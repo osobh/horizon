@@ -43,16 +43,22 @@ impl GpuPatternMatcherOptimized {
         let ast_buffer_size = max_nodes * NODE_SIZE;
         let match_buffer_size = max_nodes * 2 * std::mem::size_of::<u32>();
         
-        let pattern_buffer = unsafe { 
-            device.alloc::<u8>(pattern_buffer_size) 
+        // SAFETY: alloc returns uninitialized memory. pattern_buffer will be written
+        // via async copy in match_patterns_batch() before any kernel reads.
+        let pattern_buffer = unsafe {
+            device.alloc::<u8>(pattern_buffer_size)
         }.context("Failed to allocate pattern buffer")?;
         
-        let ast_buffer = unsafe { 
-            device.alloc::<u8>(ast_buffer_size) 
+        // SAFETY: alloc returns uninitialized memory. ast_buffer will be written
+        // via async copy in match_patterns_batch() before any kernel reads.
+        let ast_buffer = unsafe {
+            device.alloc::<u8>(ast_buffer_size)
         }.context("Failed to allocate AST buffer")?;
         
-        let match_buffer = unsafe { 
-            device.alloc::<u32>(max_nodes * 2) 
+        // SAFETY: alloc returns uninitialized memory. match_buffer is cleared
+        // via htod_copy_into with zeros in match_patterns_batch() before kernel reads.
+        let match_buffer = unsafe {
+            device.alloc::<u32>(max_nodes * 2)
         }.context("Failed to allocate match buffer")?;
         
         // Allocate pinned host memory
@@ -101,6 +107,9 @@ impl GpuPatternMatcherOptimized {
                 let stream = &self.streams[stream_idx];
                 
                 // Copy patterns (stream 0)
+                // SAFETY: pinned_pattern slice is valid and pattern_buffer is a valid
+                // CudaSlice. The copy size matches the encoded pattern data size.
+                // Stream synchronization ensures copy completes before kernel launch.
                 unsafe {
                     self.device.htod_async_copy_into(
                         &self.pinned_pattern[..pattern_count * NODE_SIZE],
@@ -111,6 +120,9 @@ impl GpuPatternMatcherOptimized {
                 
                 // Copy ASTs (stream 1)
                 let ast_stream = &self.streams[1];
+                // SAFETY: pinned_ast slice is valid and ast_buffer is a valid CudaSlice.
+                // The copy size matches the encoded AST data size. Stream synchronization
+                // ensures copy completes before kernel launch.
                 unsafe {
                     self.device.htod_async_copy_into(
                         &self.pinned_ast[..node_count * NODE_SIZE],
@@ -132,6 +144,9 @@ impl GpuPatternMatcherOptimized {
                 
                 // Copy results back asynchronously
                 let result_stream = &self.streams[2];
+                // SAFETY: match_buffer is a valid CudaSlice containing kernel results.
+                // pinned_results slice is valid and sized to hold node_count * 2 u32s.
+                // Stream synchronization ensures copy completes before reading results.
                 unsafe {
                     self.device.dtoh_async_copy_into(
                         &self.match_buffer,
@@ -273,6 +288,9 @@ impl GpuPatternMatcherOptimized {
     
     /// Launch optimized kernel with proper configuration
     fn launch_optimized_kernel(&self, pattern_count: usize, node_count: usize) -> Result<()> {
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations.
+        // pattern_count and node_count match the encoded data sizes. Streams have been
+        // synchronized to ensure all async copies completed before kernel launch.
         unsafe {
             crate::synthesis::launch_match_patterns_fast(
                 *self.pattern_buffer.device_ptr() as *const u8,

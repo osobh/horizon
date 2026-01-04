@@ -778,7 +778,11 @@ pub const DGM_INFO: ShaderInfo = ShaderInfo {
 pub const PSO_INFO: ShaderInfo = ShaderInfo {
     name: "pso",
     description: "Particle Swarm Optimization with embedded fitness evaluation",
-    kernel_functions: &["pso_update_velocity", "pso_update_position", "pso_evaluate_fitness"],
+    kernel_functions: &[
+        "pso_update_velocity",
+        "pso_update_position",
+        "pso_evaluate_fitness",
+    ],
     buffer_bindings: &[],
 };
 
@@ -822,8 +826,8 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_evolution_shader_compilation() {
-        use stratoswarm_metal_core::metal3::{is_available, Metal3Backend};
         use stratoswarm_metal_core::backend::MetalBackend;
+        use stratoswarm_metal_core::metal3::{is_available, Metal3Backend};
 
         if !is_available() {
             println!("Skipping test - Metal not available");
@@ -841,9 +845,17 @@ mod tests {
         );
 
         let result = backend.create_compute_pipeline(&source, "evaluate_fitness");
-        assert!(result.is_ok(), "Failed to compile evolution shader: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to compile evolution shader: {:?}",
+            result.err()
+        );
 
         let result = backend.create_compute_pipeline(&source, "evolution_step");
-        assert!(result.is_ok(), "Failed to compile evolution_step: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to compile evolution_step: {:?}",
+            result.err()
+        );
     }
 }

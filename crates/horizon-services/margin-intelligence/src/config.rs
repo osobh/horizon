@@ -110,7 +110,10 @@ mod tests {
     fn test_default_config_values() {
         let config = MarginConfig::default();
         assert_eq!(config.at_risk_threshold, Decimal::from(10));
-        assert_eq!(config.high_confidence_threshold, Decimal::from_str_exact("0.75").unwrap());
+        assert_eq!(
+            config.high_confidence_threshold,
+            Decimal::from_str_exact("0.75").unwrap()
+        );
         assert_eq!(config.ltv_months, 12);
     }
 

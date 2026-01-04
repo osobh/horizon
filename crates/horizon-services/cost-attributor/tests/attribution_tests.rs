@@ -109,7 +109,9 @@ fn test_full_job_allocation() {
         storage_gb: dec!(500.0),
     };
 
-    let result = allocator.allocate_job_cost(&job, &usage, Some(&rates)).unwrap();
+    let result = allocator
+        .allocate_job_cost(&job, &usage, Some(&rates))
+        .unwrap();
 
     // GPU: 8 GPUs * 2 hours * $3.50 = $56.00
     assert_eq!(result.gpu_cost, dec!(56.00));
@@ -121,7 +123,8 @@ fn test_full_job_allocation() {
     assert!(result.storage_cost > dec!(0.013) && result.storage_cost < dec!(0.014));
 
     // Total should match sum
-    let expected_total = result.gpu_cost + result.cpu_cost + result.network_cost + result.storage_cost;
+    let expected_total =
+        result.gpu_cost + result.cpu_cost + result.network_cost + result.storage_cost;
     assert_eq!(result.total_cost, expected_total);
 
     // Metadata
@@ -178,9 +181,10 @@ fn test_accuracy_validation_exceeds_threshold() {
 #[test]
 fn test_cost_attribution_validation() {
     let now = Utc::now();
-    let attribution = CreateCostAttribution::new("user123".to_string(), now, now + Duration::hours(1))
-        .with_gpu_cost(dec!(100.00))
-        .with_network_cost(dec!(10.00));
+    let attribution =
+        CreateCostAttribution::new("user123".to_string(), now, now + Duration::hours(1))
+            .with_gpu_cost(dec!(100.00))
+            .with_network_cost(dec!(10.00));
 
     assert!(attribution.validate().is_ok());
     assert_eq!(attribution.total_cost, dec!(110.00));
@@ -189,7 +193,8 @@ fn test_cost_attribution_validation() {
 #[test]
 fn test_gpu_pricing_validation() {
     let now = Utc::now();
-    let pricing = CreateGpuPricing::new("A100".to_string(), PricingModel::OnDemand, dec!(3.50), now);
+    let pricing =
+        CreateGpuPricing::new("A100".to_string(), PricingModel::OnDemand, dec!(3.50), now);
 
     assert!(pricing.validate().is_ok());
 }
@@ -258,8 +263,9 @@ fn test_very_large_gpu_count() {
 #[test]
 fn test_cost_attribution_without_team_or_customer() {
     let now = Utc::now();
-    let attribution = CreateCostAttribution::new("user123".to_string(), now, now + Duration::hours(1))
-        .with_gpu_cost(dec!(100.00));
+    let attribution =
+        CreateCostAttribution::new("user123".to_string(), now, now + Duration::hours(1))
+            .with_gpu_cost(dec!(100.00));
 
     assert!(attribution.validate().is_ok());
     assert!(attribution.team_id.is_none());

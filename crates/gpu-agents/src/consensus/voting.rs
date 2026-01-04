@@ -22,6 +22,8 @@ impl GpuVoting {
         const MAX_OPTIONS: usize = 10; // Support up to 10 voting options
 
         // Allocate GPU buffers
+        // SAFETY: alloc returns uninitialized memory. The buffer will be written via
+        // htod_copy_into before any kernel reads from it. max_votes is a valid size.
         let vote_buffer =
             unsafe { device.alloc::<Vote>(max_votes) }.context("Failed to allocate vote buffer")?;
         let vote_counts_buffer = device
@@ -56,6 +58,10 @@ impl GpuVoting {
             .htod_copy_into(zeros, &mut self.vote_counts_buffer.clone())?;
 
         // Launch aggregation kernel through FFI
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
+        // - vote_buffer: populated via htod_copy_into above, size bounds checked
+        // - vote_counts_buffer: cleared to zeros above, size is MAX_OPTIONS
+        // - num_options checked against max_options, votes.len() checked against max_votes
         unsafe {
             let votes_ptr = *self.vote_buffer.device_ptr() as *const Vote;
             let counts_ptr = *self.vote_counts_buffer.device_ptr() as *mut u32;

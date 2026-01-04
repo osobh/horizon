@@ -58,7 +58,8 @@ impl OnPremNormalizer {
             * power_rate;
 
         let cooling_cost = if let (Some(cooling_kwh), Some(cooling_rate)) =
-            (record.cooling_kwh, record.cooling_rate_per_kwh) {
+            (record.cooling_kwh, record.cooling_rate_per_kwh)
+        {
             Decimal::try_from(cooling_kwh)
                 .map_err(|e| HpcError::parse_error(format!("Invalid cooling kwh: {}", e)))?
                 * Decimal::try_from(cooling_rate)
@@ -83,10 +84,7 @@ impl OnPremNormalizer {
 
         let total_amount = power_cost + cooling_cost + depreciation_cost + maintenance_cost;
 
-        let currency = record
-            .currency
-            .clone()
-            .unwrap_or_else(|| "USD".to_string());
+        let currency = record.currency.clone().unwrap_or_else(|| "USD".to_string());
 
         let mut metadata = HashMap::new();
         metadata.insert("power_kwh".to_string(), record.power_kwh.to_string());
@@ -215,15 +213,12 @@ mod tests {
     #[test]
     fn test_onprem_normalizer_full() {
         let normalizer = OnPremNormalizer::new();
-        let records = vec![
-            sample_onprem_record(),
-            {
-                let mut r = sample_onprem_record();
-                r.server_id = "server-002".to_string();
-                r.power_kwh = 10.0;
-                r
-            },
-        ];
+        let records = vec![sample_onprem_record(), {
+            let mut r = sample_onprem_record();
+            r.server_id = "server-002".to_string();
+            r.power_kwh = 10.0;
+            r
+        }];
 
         let raw = RawBillingData {
             provider: Provider::OnPrem,
@@ -247,7 +242,10 @@ mod tests {
 
         let result = normalizer.normalize(&raw);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Expected OnPrem provider"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Expected OnPrem provider"));
     }
 
     #[test]
@@ -266,7 +264,8 @@ mod tests {
         assert!(result.is_ok());
 
         let normalized = result.unwrap();
-        let metadata: HashMap<String, String> = serde_json::from_value(normalized.raw_data).unwrap();
+        let metadata: HashMap<String, String> =
+            serde_json::from_value(normalized.raw_data).unwrap();
 
         assert!(metadata.contains_key("power_kwh"));
         assert!(metadata.contains_key("power_cost"));

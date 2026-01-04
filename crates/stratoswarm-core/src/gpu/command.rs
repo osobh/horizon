@@ -137,10 +137,7 @@ impl MockDevice {
     }
 
     /// Calculate simulated kernel execution time.
-    fn simulate_kernel_time(
-        grid_dim: (u32, u32, u32),
-        block_dim: (u32, u32, u32),
-    ) -> u64 {
+    fn simulate_kernel_time(grid_dim: (u32, u32, u32), block_dim: (u32, u32, u32)) -> u64 {
         // Simulate based on thread count
         let total_threads = u64::from(grid_dim.0)
             * u64::from(grid_dim.1)
@@ -190,7 +187,7 @@ impl GpuDevice for MockDevice {
     async fn allocate_buffer(&mut self, buffer_id: &str, size: usize) -> GpuResult<()> {
         // Check if buffer already exists
         if self.buffers.contains_key(buffer_id) {
-            return Err(format!("Buffer '{}' already exists", buffer_id));
+            return Err(format!("Buffer '{buffer_id}' already exists"));
         }
 
         // Check if we have enough memory
@@ -222,7 +219,7 @@ impl GpuDevice for MockDevice {
         let (_, buffer_info) = self
             .buffers
             .remove(buffer_id)
-            .ok_or_else(|| format!("Buffer '{}' not found", buffer_id))?;
+            .ok_or_else(|| format!("Buffer '{buffer_id}' not found"))?;
 
         self.used_memory
             .fetch_sub(buffer_info.size as u64, Ordering::Relaxed);
@@ -242,7 +239,7 @@ impl GpuDevice for MockDevice {
         let mut buffer_entry = self
             .buffers
             .get_mut(buffer_id)
-            .ok_or_else(|| format!("Buffer '{}' not found", buffer_id))?;
+            .ok_or_else(|| format!("Buffer '{buffer_id}' not found"))?;
 
         // Check bounds
         if offset + data.len() > buffer_entry.size {
@@ -273,7 +270,7 @@ impl GpuDevice for MockDevice {
         let buffer_entry = self
             .buffers
             .get(buffer_id)
-            .ok_or_else(|| format!("Buffer '{}' not found", buffer_id))?;
+            .ok_or_else(|| format!("Buffer '{buffer_id}' not found"))?;
 
         // Check bounds
         if offset + size > buffer_entry.size {

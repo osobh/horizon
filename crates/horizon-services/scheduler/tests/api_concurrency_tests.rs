@@ -19,7 +19,11 @@ async fn test_concurrent_job_submissions() {
             let job = Job::builder()
                 .user_id(&format!("user{}", i))
                 .gpu_count(i % 4 + 1)
-                .priority(if i % 3 == 0 { Priority::High } else { Priority::Normal })
+                .priority(if i % 3 == 0 {
+                    Priority::High
+                } else {
+                    Priority::Normal
+                })
                 .build()
                 .unwrap();
 
@@ -73,9 +77,7 @@ async fn test_concurrent_reads_and_writes() {
     for job_id in job_ids.iter() {
         let scheduler = scheduler.clone();
         let job_id = *job_id;
-        let handle = tokio::spawn(async move {
-            scheduler.get_job(job_id).await
-        });
+        let handle = tokio::spawn(async move { scheduler.get_job(job_id).await });
         handles.push(handle);
     }
 
@@ -129,9 +131,7 @@ async fn test_concurrent_cancellations() {
     let mut handles = vec![];
     for job_id in job_ids {
         let scheduler = scheduler.clone();
-        let handle = tokio::spawn(async move {
-            scheduler.cancel_job(job_id).await
-        });
+        let handle = tokio::spawn(async move { scheduler.cancel_job(job_id).await });
         handles.push(handle);
     }
 
@@ -181,9 +181,7 @@ async fn test_queue_stats_under_load() {
     // Read stats concurrently
     for _ in 0..10 {
         let scheduler = scheduler.clone();
-        let handle = tokio::spawn(async move {
-            scheduler.get_queue_stats().await
-        });
+        let handle = tokio::spawn(async move { scheduler.get_queue_stats().await });
         stats_handles.push(handle);
     }
 

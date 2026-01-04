@@ -227,9 +227,7 @@ mod tests {
 
         let patterns = create_test_patterns(1000);
 
-        let uncompressed_data = uncompressed_serializer
-            .serialize_patterns(&patterns)
-            ?;
+        let uncompressed_data = uncompressed_serializer.serialize_patterns(&patterns)?;
         let compressed_data = compressed_serializer.serialize_patterns(&patterns)?;
 
         println!("Uncompressed size: {} bytes", uncompressed_data.len());

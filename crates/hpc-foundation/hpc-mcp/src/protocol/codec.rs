@@ -81,10 +81,7 @@ mod tests {
     #[test]
     fn test_encode_decode_response_success() {
         let codec = JsonRpcCodec::new();
-        let response = JsonRpcResponse::success(
-            RequestId::Number(1),
-            json!({"result": "ok"}),
-        );
+        let response = JsonRpcResponse::success(RequestId::Number(1), json!({"result": "ok"}));
 
         let encoded = codec.encode_response(&response).unwrap();
         let decoded = codec.decode_response(&encoded).unwrap();
@@ -95,10 +92,8 @@ mod tests {
     #[test]
     fn test_encode_decode_response_error() {
         let codec = JsonRpcCodec::new();
-        let response = JsonRpcResponse::error(
-            Some(RequestId::Number(1)),
-            JsonRpcError::method_not_found(),
-        );
+        let response =
+            JsonRpcResponse::error(Some(RequestId::Number(1)), JsonRpcError::method_not_found());
 
         let encoded = codec.encode_response(&response).unwrap();
         let decoded = codec.decode_response(&encoded).unwrap();
@@ -148,7 +143,7 @@ mod tests {
         let codec = JsonRpcCodec::new();
         let response = JsonRpcResponse::success(
             RequestId::String("abc".to_string()),
-            json!({"status": "ok"})
+            json!({"status": "ok"}),
         );
 
         let encoded = codec.encode_response(&response).unwrap();

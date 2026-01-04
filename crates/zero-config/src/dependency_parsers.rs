@@ -212,7 +212,7 @@ impl DependencyParser for GoParser {
 
             if line.starts_with("require ") || in_require_block {
                 let cleaned_line = line.replace("require ", "");
-                let parts: Vec<&str> = cleaned_line.trim().split_whitespace().collect();
+                let parts: Vec<&str> = cleaned_line.split_whitespace().collect();
                 if parts.len() >= 2 {
                     let name = parts[0].to_string();
                     let version = Some(parts[1].to_string());

@@ -184,11 +184,7 @@ impl ToolSchema {
         }
     }
 
-    pub fn with_property(
-        mut self,
-        name: impl Into<String>,
-        schema: PropertySchema,
-    ) -> Self {
+    pub fn with_property(mut self, name: impl Into<String>, schema: PropertySchema) -> Self {
         self.properties
             .get_or_insert_with(HashMap::new)
             .insert(name.into(), schema);
@@ -336,10 +332,8 @@ mod tests {
 
     #[test]
     fn test_jsonrpc_response_success() {
-        let resp = JsonRpcResponse::success(
-            RequestId::Number(1),
-            serde_json::json!({"result": "ok"}),
-        );
+        let resp =
+            JsonRpcResponse::success(RequestId::Number(1), serde_json::json!({"result": "ok"}));
 
         assert_eq!(resp.jsonrpc, "2.0");
         assert!(resp.result.is_some());
@@ -348,10 +342,8 @@ mod tests {
 
     #[test]
     fn test_jsonrpc_response_error() {
-        let resp = JsonRpcResponse::error(
-            Some(RequestId::Number(1)),
-            JsonRpcError::method_not_found(),
-        );
+        let resp =
+            JsonRpcResponse::error(Some(RequestId::Number(1)), JsonRpcError::method_not_found());
 
         assert!(resp.result.is_none());
         assert!(resp.error.is_some());
@@ -410,8 +402,7 @@ mod tests {
 
     #[test]
     fn test_tool_call() {
-        let call = ToolCall::new("test")
-            .with_arguments(serde_json::json!({"arg": "value"}));
+        let call = ToolCall::new("test").with_arguments(serde_json::json!({"arg": "value"}));
 
         assert_eq!(call.name, "test");
         assert!(call.arguments.is_some());
@@ -462,10 +453,7 @@ mod tests {
 
     #[test]
     fn test_jsonrpc_response_serialization() {
-        let resp = JsonRpcResponse::success(
-            RequestId::Number(1),
-            serde_json::json!({"ok": true}),
-        );
+        let resp = JsonRpcResponse::success(RequestId::Number(1), serde_json::json!({"ok": true}));
         let json = serde_json::to_string(&resp).unwrap();
         let deserialized: JsonRpcResponse = serde_json::from_str(&json).unwrap();
         assert_eq!(resp, deserialized);

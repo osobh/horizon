@@ -1,7 +1,7 @@
-use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use horizon_hpc_types::{GpuMetric, MetricBatch, Timestamp};
 use telemetry_collector::cardinality::CardinalityTracker;
 use telemetry_collector::handler::StreamHandler;
-use horizon_hpc_types::{GpuMetric, MetricBatch, Timestamp};
 
 fn create_batch(num_metrics: usize) -> MetricBatch {
     let mut gpu_metrics = Vec::new();
@@ -9,7 +9,10 @@ fn create_batch(num_metrics: usize) -> MetricBatch {
         gpu_metrics.push(GpuMetric {
             host_id: format!("host{}", i % 10),
             gpu_id: format!("gpu{}", i % 8),
-            timestamp: Some(Timestamp { seconds: 1234567890 + i as i64, nanos: 0 }),
+            timestamp: Some(Timestamp {
+                seconds: 1234567890 + i as i64,
+                nanos: 0,
+            }),
             utilization: (i % 100) as f32 / 100.0,
             ..Default::default()
         });

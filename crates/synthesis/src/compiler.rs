@@ -1,7 +1,6 @@
 //! Runtime compilation module
 
 use crate::error::SynthesisResult;
-use std::error::Error;
 // use stratoswarm_cuda::kernel::CompileOptions;
 // Mock for testing
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -362,7 +361,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compiler_target_architecture_variations() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_compiler_target_architecture_variations() -> Result<(), Box<dyn std::error::Error>>
+    {
         let test_architectures = vec![
             "sm_50", "sm_52", "sm_53", "sm_60", "sm_61", "sm_62", "sm_70", "sm_72", "sm_75",
             "sm_80", "sm_86", "sm_87", "sm_89", "sm_90", "sm_90a",

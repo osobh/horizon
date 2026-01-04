@@ -10,8 +10,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// TDD Phase tracking for test development
 #[derive(Debug, Clone, PartialEq)]
 enum TddPhase {
-    Red,    // Writing failing tests
-    Green,  // Making tests pass
+    Red,      // Writing failing tests
+    Green,    // Making tests pass
     Refactor, // Improving implementation
 }
 
@@ -101,7 +101,7 @@ impl TimeravelEvolutionDebugger {
             replay_cache: HashMap::new(),
         }
     }
-    
+
     /// Capture current evolution state
     fn capture_snapshot(&mut self, evolution_state: EvolutionState) -> String {
         let snapshot_id = format!("snap_{}", uuid::Uuid::new_v4().to_string()[..8].to_string());
@@ -109,7 +109,7 @@ impl TimeravelEvolutionDebugger {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        
+
         let snapshot = EvolutionSnapshot {
             id: snapshot_id.clone(),
             generation: evolution_state.generation,
@@ -120,17 +120,21 @@ impl TimeravelEvolutionDebugger {
             crossover_rate: evolution_state.params.crossover_rate,
             selection_pressure: evolution_state.params.selection_pressure,
         };
-        
+
         self.snapshots.insert(snapshot_id.clone(), snapshot);
         self.timeline.push(snapshot_id.clone());
-        self.generation_map.insert(evolution_state.generation, snapshot_id.clone());
+        self.generation_map
+            .insert(evolution_state.generation, snapshot_id.clone());
         self.current_position = self.timeline.len() - 1;
-        
+
         snapshot_id
     }
-    
+
     /// Navigate through time
-    fn navigate(&mut self, operation: TimeNavigationOp) -> Result<Option<EvolutionSnapshot>, String> {
+    fn navigate(
+        &mut self,
+        operation: TimeNavigationOp,
+    ) -> Result<Option<EvolutionSnapshot>, String> {
         match operation {
             TimeNavigationOp::GoToGeneration(gen) => {
                 if let Some(snapshot_id) = self.generation_map.get(&gen) {
@@ -167,49 +171,46 @@ impl TimeravelEvolutionDebugger {
                     Err(format!("Snapshot {} not found", id))
                 }
             }
-            TimeNavigationOp::ReplayFrom(gen) => {
-                self.replay_from_generation(gen, None)
-            }
+            TimeNavigationOp::ReplayFrom(gen) => self.replay_from_generation(gen, None),
             TimeNavigationOp::ReplayWithModifications(gen, params) => {
                 self.replay_from_generation(gen, Some(params))
             }
         }
     }
-    
+
     /// Replay evolution from a specific generation
     fn replay_from_generation(
-        &mut self, 
-        start_gen: u32, 
-        modified_params: Option<EvolutionParams>
+        &mut self,
+        start_gen: u32,
+        modified_params: Option<EvolutionParams>,
     ) -> Result<Option<EvolutionSnapshot>, String> {
         if let Some(snapshot_id) = self.generation_map.get(&start_gen) {
             if let Some(start_snapshot) = self.snapshots.get(snapshot_id).cloned() {
                 // Create replay key for caching
-                let replay_key = format!(
-                    "replay_{}_{}", 
-                    start_gen, 
-                    modified_params.is_some()
-                );
-                
+                let replay_key = format!("replay_{}_{}", start_gen, modified_params.is_some());
+
                 // Check cache first
                 if let Some(cached_replay) = self.replay_cache.get(&replay_key) {
                     return Ok(cached_replay.last().cloned());
                 }
-                
+
                 // Perform actual replay
                 let mut evolution = MockEvolution::from_snapshot(start_snapshot);
                 if let Some(params) = modified_params {
                     evolution.update_parameters(params);
                 }
-                
+
                 let mut replay_snapshots = Vec::new();
-                
+
                 // Simulate evolution for 10 generations
                 for _ in 0..10 {
                     evolution.evolve_one_generation();
                     let state = evolution.get_current_state();
                     let snapshot = EvolutionSnapshot {
-                        id: format!("replay_{}", uuid::Uuid::new_v4().to_string()[..8].to_string()),
+                        id: format!(
+                            "replay_{}",
+                            uuid::Uuid::new_v4().to_string()[..8].to_string()
+                        ),
                         generation: state.generation,
                         timestamp: SystemTime::now()
                             .duration_since(UNIX_EPOCH)
@@ -223,10 +224,11 @@ impl TimeravelEvolutionDebugger {
                     };
                     replay_snapshots.push(snapshot);
                 }
-                
+
                 // Cache the replay
-                self.replay_cache.insert(replay_key, replay_snapshots.clone());
-                
+                self.replay_cache
+                    .insert(replay_key, replay_snapshots.clone());
+
                 Ok(replay_snapshots.last().cloned())
             } else {
                 Err(format!("Snapshot for generation {} not found", start_gen))
@@ -235,27 +237,30 @@ impl TimeravelEvolutionDebugger {
             Err(format!("No snapshot recorded for generation {}", start_gen))
         }
     }
-    
+
     /// Get evolution timeline summary
     fn get_timeline_summary(&self) -> Vec<(u32, f64, f64)> {
         self.timeline
             .iter()
             .filter_map(|id| self.snapshots.get(id))
-            .map(|snapshot| (
-                snapshot.generation,
-                snapshot.fitness_stats.best,
-                snapshot.fitness_stats.average
-            ))
+            .map(|snapshot| {
+                (
+                    snapshot.generation,
+                    snapshot.fitness_stats.best,
+                    snapshot.fitness_stats.average,
+                )
+            })
             .collect()
     }
-    
+
     /// Analyze fitness trends across timeline
     fn analyze_fitness_trends(&self) -> TrendAnalysis {
-        let snapshots: Vec<&EvolutionSnapshot> = self.timeline
+        let snapshots: Vec<&EvolutionSnapshot> = self
+            .timeline
             .iter()
             .filter_map(|id| self.snapshots.get(id))
             .collect();
-        
+
         if snapshots.is_empty() {
             return TrendAnalysis {
                 is_improving: false,
@@ -264,20 +269,20 @@ impl TimeravelEvolutionDebugger {
                 diversity_trend: 0.0,
             };
         }
-        
+
         let mut improvements = 0;
         let mut stagnation_count = 0;
         let mut diversity_sum = 0.0;
-        
+
         for i in 1..snapshots.len() {
-            if snapshots[i].fitness_stats.best > snapshots[i-1].fitness_stats.best {
+            if snapshots[i].fitness_stats.best > snapshots[i - 1].fitness_stats.best {
                 improvements += 1;
             }
-            
+
             stagnation_count += snapshots[i].fitness_stats.stagnation_count;
             diversity_sum += snapshots[i].fitness_stats.variance;
         }
-        
+
         TrendAnalysis {
             is_improving: improvements > snapshots.len() / 2,
             stagnation_periods: stagnation_count,
@@ -330,16 +335,16 @@ impl MockEvolution {
             rng_seed: 42,
         }
     }
-    
+
     /// Update evolution parameters
     fn update_parameters(&mut self, params: EvolutionParams) {
         self.state.params = params;
     }
-    
+
     /// Evolve one generation
     fn evolve_one_generation(&mut self) {
         self.state.generation += 1;
-        
+
         // Simple simulation of evolution
         for agent in &mut self.state.population {
             // Mutate
@@ -348,28 +353,29 @@ impl MockEvolution {
                     *gene += (self.pseudo_random() - 0.5) * 0.1;
                 }
             }
-            
+
             // Update fitness (simple: negative distance from target)
             let target_sum = 10.0;
             let genome_sum: f64 = agent.genome.iter().sum();
             agent.fitness = 100.0 - (target_sum - genome_sum).abs();
             agent.age += 1;
         }
-        
+
         // Update fitness stats
         let fitnesses: Vec<f64> = self.state.population.iter().map(|a| a.fitness).collect();
         let best = fitnesses.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
         let worst = fitnesses.iter().cloned().fold(f64::INFINITY, f64::min);
         let average = fitnesses.iter().sum::<f64>() / fitnesses.len() as f64;
-        let variance = fitnesses.iter()
-            .map(|f| (f - average).powi(2))
-            .sum::<f64>() / fitnesses.len() as f64;
-        
+        let variance =
+            fitnesses.iter().map(|f| (f - average).powi(2)).sum::<f64>() / fitnesses.len() as f64;
+
         let prev_best = self.state.fitness_stats.best;
         let stagnation_count = if (best - prev_best).abs() < 0.01 {
             self.state.fitness_stats.stagnation_count + 1
-        } else { 0 };
-        
+        } else {
+            0
+        };
+
         self.state.fitness_stats = FitnessStats {
             best,
             worst,
@@ -378,12 +384,12 @@ impl MockEvolution {
             stagnation_count,
         };
     }
-    
+
     /// Get current state
     fn get_current_state(&self) -> EvolutionState {
         self.state.clone()
     }
-    
+
     /// Simple pseudo-random number generator
     fn pseudo_random(&mut self) -> f64 {
         self.rng_seed = self.rng_seed.wrapping_mul(1664525).wrapping_add(1013904223);
@@ -420,49 +426,49 @@ impl TimeravelEvolutionTests {
             current_phase: TddPhase::Red,
         }
     }
-    
+
     /// Run comprehensive tests following TDD methodology
     async fn run_comprehensive_tests(&mut self) -> Vec<IntegrationTestResult> {
         println!("=== Time-Travel-Debugger ↔ Evolution Integration Tests ===");
-        
+
         // RED Phase - Write failing tests
         self.current_phase = TddPhase::Red;
         println!("\n🔴 RED Phase - Writing failing tests");
-        
+
         self.test_snapshot_creation().await;
         self.test_timeline_navigation().await;
         self.test_replay_functionality().await;
         self.test_parameter_modification_replay().await;
         self.test_trend_analysis().await;
-        
+
         // GREEN Phase - Make tests pass
         self.current_phase = TddPhase::Green;
         println!("\n🟢 GREEN Phase - Making tests pass");
-        
+
         self.test_snapshot_creation().await;
         self.test_timeline_navigation().await;
         self.test_replay_functionality().await;
         self.test_parameter_modification_replay().await;
         self.test_trend_analysis().await;
-        
+
         // REFACTOR Phase - Improve implementation
         self.current_phase = TddPhase::Refactor;
         println!("\n🔵 REFACTOR Phase - Improving implementation");
-        
+
         self.test_snapshot_creation().await;
         self.test_timeline_navigation().await;
         self.test_replay_functionality().await;
         self.test_parameter_modification_replay().await;
         self.test_trend_analysis().await;
-        
+
         self.test_results.clone()
     }
-    
+
     /// Test snapshot creation and storage
     async fn test_snapshot_creation(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Evolution Snapshot Creation";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false, // Should fail initially
             _ => {
@@ -475,7 +481,7 @@ impl TimeravelEvolutionTests {
                     variance: 8.3,
                     stagnation_count: 0,
                 };
-                
+
                 let evolution_state = EvolutionState {
                     generation: 42,
                     population,
@@ -488,19 +494,19 @@ impl TimeravelEvolutionTests {
                         elite_percentage: 0.1,
                     },
                 };
-                
+
                 // Capture snapshot
                 let snapshot_id = self.debugger.capture_snapshot(evolution_state);
-                
+
                 // Verify snapshot was created
                 let snapshot_exists = self.debugger.snapshots.contains_key(&snapshot_id);
                 let generation_mapped = self.debugger.generation_map.contains_key(&42);
                 let timeline_updated = self.debugger.timeline.len() > 0;
-                
+
                 snapshot_exists && generation_mapped && timeline_updated
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -511,12 +517,12 @@ impl TimeravelEvolutionTests {
             replay_accuracy: if success { 1.0 } else { 0.0 },
         });
     }
-    
+
     /// Test timeline navigation
     async fn test_timeline_navigation(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Timeline Navigation";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
@@ -530,7 +536,7 @@ impl TimeravelEvolutionTests {
                         variance: 5.0,
                         stagnation_count: 0,
                     };
-                    
+
                     let evolution_state = EvolutionState {
                         generation: gen,
                         population,
@@ -543,27 +549,30 @@ impl TimeravelEvolutionTests {
                             elite_percentage: 0.15,
                         },
                     };
-                    
+
                     self.debugger.capture_snapshot(evolution_state);
                 }
-                
+
                 // Test navigation operations
-                let nav_to_gen_30 = self.debugger
+                let nav_to_gen_30 = self
+                    .debugger
                     .navigate(TimeNavigationOp::GoToGeneration(30))
                     .is_ok();
-                
-                let step_forward = self.debugger
+
+                let step_forward = self
+                    .debugger
                     .navigate(TimeNavigationOp::StepForward)
                     .is_ok();
-                
-                let step_backward = self.debugger
+
+                let step_backward = self
+                    .debugger
                     .navigate(TimeNavigationOp::StepBackward)
                     .is_ok();
-                
+
                 nav_to_gen_30 && step_forward && step_backward
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -574,12 +583,12 @@ impl TimeravelEvolutionTests {
             replay_accuracy: if success { 1.0 } else { 0.0 },
         });
     }
-    
+
     /// Test replay functionality
     async fn test_replay_functionality(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Evolution Replay";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
@@ -606,11 +615,10 @@ impl TimeravelEvolutionTests {
                     };
                     self.debugger.capture_snapshot(evolution_state);
                 }
-                
+
                 // Test replay from generation 15
-                let replay_result = self.debugger
-                    .navigate(TimeNavigationOp::ReplayFrom(15));
-                
+                let replay_result = self.debugger.navigate(TimeNavigationOp::ReplayFrom(15));
+
                 match replay_result {
                     Ok(Some(final_snapshot)) => {
                         // Verify replay progressed beyond start generation
@@ -620,7 +628,7 @@ impl TimeravelEvolutionTests {
                 }
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -631,12 +639,12 @@ impl TimeravelEvolutionTests {
             replay_accuracy: if success { 0.95 } else { 0.0 },
         });
     }
-    
+
     /// Test parameter modification during replay
     async fn test_parameter_modification_replay(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Parameter Modification Replay";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
@@ -648,22 +656,25 @@ impl TimeravelEvolutionTests {
                     population_size: 25,
                     elite_percentage: 0.05,
                 };
-                
+
                 // Test replay with modifications
-                let replay_result = self.debugger
-                    .navigate(TimeNavigationOp::ReplayWithModifications(15, modified_params));
-                
+                let replay_result =
+                    self.debugger
+                        .navigate(TimeNavigationOp::ReplayWithModifications(
+                            15,
+                            modified_params,
+                        ));
+
                 match replay_result {
                     Ok(Some(final_snapshot)) => {
                         // Verify parameters were applied and evolution progressed
-                        final_snapshot.generation > 15 && 
-                        final_snapshot.mutation_rate == 0.2
+                        final_snapshot.generation > 15 && final_snapshot.mutation_rate == 0.2
                     }
                     _ => false,
                 }
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -674,27 +685,27 @@ impl TimeravelEvolutionTests {
             replay_accuracy: if success { 0.90 } else { 0.0 },
         });
     }
-    
+
     /// Test trend analysis
     async fn test_trend_analysis(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Evolution Trend Analysis";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
                 // Get timeline summary
                 let timeline_summary = self.debugger.get_timeline_summary();
                 let has_timeline_data = !timeline_summary.is_empty();
-                
+
                 // Analyze fitness trends
                 let trend_analysis = self.debugger.analyze_fitness_trends();
                 let has_trend_data = trend_analysis.convergence_rate >= 0.0;
-                
+
                 has_timeline_data && has_trend_data
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -710,42 +721,48 @@ impl TimeravelEvolutionTests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_timetravel_evolution_integration() {
         let mut tests = TimeravelEvolutionTests::new().await;
         let results = tests.run_comprehensive_tests().await;
-        
+
         // Verify all phases completed
         assert!(results.iter().any(|r| r.phase == TddPhase::Red));
         assert!(results.iter().any(|r| r.phase == TddPhase::Green));
         assert!(results.iter().any(|r| r.phase == TddPhase::Refactor));
-        
+
         // Verify success in final phase
         let refactor_results: Vec<_> = results
             .iter()
             .filter(|r| r.phase == TddPhase::Refactor)
             .collect();
-        
+
         for result in &refactor_results {
-            println!("{}: {} (accuracy: {:.1}%)", 
-                result.test_name, 
+            println!(
+                "{}: {} (accuracy: {:.1}%)",
+                result.test_name,
                 if result.success { "✓" } else { "✗" },
                 result.replay_accuracy * 100.0
             );
-            assert!(result.success, "Test should pass in refactor phase: {}", result.test_name);
+            assert!(
+                result.success,
+                "Test should pass in refactor phase: {}",
+                result.test_name
+            );
         }
-        
+
         // Verify performance requirements
-        let avg_duration = refactor_results.iter()
-            .map(|r| r.duration_ms)
-            .sum::<u64>() / refactor_results.len() as u64;
+        let avg_duration = refactor_results.iter().map(|r| r.duration_ms).sum::<u64>()
+            / refactor_results.len() as u64;
         assert!(avg_duration < 100, "Tests should complete quickly");
-        
+
         // Verify replay accuracy
-        let avg_accuracy = refactor_results.iter()
+        let avg_accuracy = refactor_results
+            .iter()
             .map(|r| r.replay_accuracy)
-            .sum::<f64>() / refactor_results.len() as f64;
+            .sum::<f64>()
+            / refactor_results.len() as f64;
         assert!(avg_accuracy > 0.8, "Replay accuracy should be above 80%");
     }
 }

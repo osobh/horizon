@@ -378,8 +378,7 @@ impl AccessFrequency {
 
         let duration = self
             .recent_accesses
-            .back()
-            ?
+            .back()?
             .duration_since(*self.recent_accesses.front()?)
             .as_secs_f64();
 

@@ -26,8 +26,8 @@ mod detect;
 mod error;
 mod factory;
 
-pub use detect::{detect_backend, is_metal_available, is_cuda_available, GpuBackend};
-pub use error::{RuntimeError, Result};
+pub use detect::{detect_backend, is_cuda_available, is_metal_available, GpuBackend};
+pub use error::{Result, RuntimeError};
 pub use factory::GpuRuntimeFactory;
 
 /// GPU backend information.
@@ -52,7 +52,11 @@ impl BackendInfo {
             "{} ({}) - {} memory, max buffer: {} MB",
             self.name,
             self.device_name,
-            if self.unified_memory { "unified" } else { "discrete" },
+            if self.unified_memory {
+                "unified"
+            } else {
+                "discrete"
+            },
             self.max_buffer_size / (1024 * 1024)
         )
     }
@@ -67,8 +71,8 @@ pub fn backend_info() -> Option<BackendInfo> {
 
         #[cfg(all(target_os = "macos", feature = "metal"))]
         GpuBackend::Metal3 | GpuBackend::Metal4 => {
-            use stratoswarm_metal_core::metal3::Metal3Backend;
             use stratoswarm_metal_core::backend::{MetalBackend, MetalDevice};
+            use stratoswarm_metal_core::metal3::Metal3Backend;
 
             if let Ok(metal_backend) = Metal3Backend::new() {
                 let device = metal_backend.device();

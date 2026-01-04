@@ -1,27 +1,27 @@
 //! Adaptive consensus module with GPU acceleration and dynamic algorithm selection
 
-pub mod config;
-pub mod engine;
 pub mod algorithms;
-pub mod monitor;
-pub mod selector;
-pub mod optimizer;
-pub mod coordinator;
+pub mod config;
 pub mod controller;
+pub mod coordinator;
+pub mod engine;
 pub mod gpu;
+pub mod monitor;
+pub mod optimizer;
+pub mod selector;
 
+pub use algorithms::{AlgorithmConfig, AlgorithmRequirements, ConsensusAlgorithm};
 pub use config::{
-    AdaptiveConsensusConfig, AdaptiveGpuConfig, NetworkMonitoringConfig,
-    OptimizationConfig, ConsensusAlgorithmType,
+    AdaptiveConsensusConfig, AdaptiveGpuConfig, ConsensusAlgorithmType, NetworkMonitoringConfig,
+    OptimizationConfig,
 };
-pub use engine::AdaptiveConsensusEngine;
-pub use algorithms::{ConsensusAlgorithm, AlgorithmRequirements, AlgorithmConfig};
-pub use monitor::{NetworkMonitor, NetworkConditions};
-pub use selector::{AlgorithmSelector, SelectionStrategy};
-pub use optimizer::OptimizationEngine;
-pub use coordinator::{ConsensusCoordinator, RoundResult};
 pub use controller::AdaptationController;
+pub use coordinator::{ConsensusCoordinator, RoundResult};
+pub use engine::AdaptiveConsensusEngine;
 pub use gpu::GpuConsensusAccelerator;
+pub use monitor::{NetworkConditions, NetworkMonitor};
+pub use optimizer::OptimizationEngine;
+pub use selector::{AlgorithmSelector, SelectionStrategy};
 
 use crate::ConsensusError;
 

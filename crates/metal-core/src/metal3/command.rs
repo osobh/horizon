@@ -7,8 +7,8 @@ use crate::metal3::{Metal3Buffer, Metal3ComputePipeline, Metal3Device};
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_metal::{
-    MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue, MTLComputeCommandEncoder,
-    MTLDevice, MTLBarrierScope, MTLSize,
+    MTLBarrierScope, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue,
+    MTLComputeCommandEncoder, MTLDevice, MTLSize,
 };
 
 use std::marker::PhantomData;
@@ -18,17 +18,20 @@ pub struct Metal3CommandQueue {
     queue: Retained<ProtocolObject<dyn MTLCommandQueue>>,
 }
 
-// SAFETY: MTLCommandQueue is thread-safe
+// SAFETY: Metal3CommandQueue is Send because MTLCommandQueue objects are
+// thread-safe per Apple's Metal documentation. Command queue operations
+// can be invoked from any thread.
 unsafe impl Send for Metal3CommandQueue {}
+// SAFETY: Metal3CommandQueue is Sync because MTLCommandQueue provides
+// internal synchronization for concurrent access from multiple threads.
 unsafe impl Sync for Metal3CommandQueue {}
 
 impl Metal3CommandQueue {
     /// Create a new command queue.
     pub fn new(device: &Metal3Device) -> Result<Self> {
-        let queue = device
-            .raw()
-            .newCommandQueue()
-            .ok_or_else(|| MetalError::creation_failed("command queue", "Failed to create command queue"))?;
+        let queue = device.raw().newCommandQueue().ok_or_else(|| {
+            MetalError::creation_failed("command queue", "Failed to create command queue")
+        })?;
 
         Ok(Self { queue })
     }
@@ -63,15 +66,17 @@ pub struct Metal3CommandBuffer {
     committed: bool,
 }
 
-// SAFETY: MTLCommandBuffer is thread-safe before commit
+// SAFETY: Metal3CommandBuffer is Send because MTLCommandBuffer objects can be
+// safely transferred between threads. Metal command buffers are thread-safe for
+// encoding before commit, and the committed flag ensures proper state tracking.
 unsafe impl Send for Metal3CommandBuffer {}
 
 impl Metal3CommandBuffer {
     /// Create a new command buffer.
     pub fn new(queue: &Retained<ProtocolObject<dyn MTLCommandQueue>>) -> Result<Self> {
-        let buffer = queue
-            .commandBuffer()
-            .ok_or_else(|| MetalError::creation_failed("command buffer", "Failed to create command buffer"))?;
+        let buffer = queue.commandBuffer().ok_or_else(|| {
+            MetalError::creation_failed("command buffer", "Failed to create command buffer")
+        })?;
 
         Ok(Self {
             buffer,
@@ -89,10 +94,9 @@ impl MetalCommandBuffer for Metal3CommandBuffer {
     type ComputeEncoder<'a> = Metal3ComputeEncoder<'a>;
 
     fn compute_encoder(&mut self) -> Result<Self::ComputeEncoder<'_>> {
-        let encoder = self
-            .buffer
-            .computeCommandEncoder()
-            .ok_or_else(|| MetalError::creation_failed("compute encoder", "Failed to create compute encoder"))?;
+        let encoder = self.buffer.computeCommandEncoder().ok_or_else(|| {
+            MetalError::creation_failed("compute encoder", "Failed to create compute encoder")
+        })?;
 
         Ok(Metal3ComputeEncoder {
             encoder,
@@ -127,7 +131,9 @@ pub struct Metal3ComputeEncoder<'a> {
     _marker: PhantomData<&'a ()>,
 }
 
-// SAFETY: Encoder is only used from one thread at a time
+// SAFETY: Metal3ComputeEncoder is Send because the encoder can be transferred
+// between threads. While encoding must happen from one thread at a time (enforced
+// by &mut self in all encoding methods), the transfer itself is safe.
 unsafe impl<'a> Send for Metal3ComputeEncoder<'a> {}
 
 impl<'a> MetalComputeEncoder<'a> for Metal3ComputeEncoder<'a> {
@@ -140,12 +146,12 @@ impl<'a> MetalComputeEncoder<'a> for Metal3ComputeEncoder<'a> {
     }
 
     fn set_buffer(&mut self, index: u32, buffer: &Self::Buffer, offset: usize) -> Result<()> {
+        // SAFETY: buffer.raw() returns a valid MTLBuffer reference. The encoder
+        // retains the buffer for the duration of the encoding. The index and offset
+        // are passed directly to Metal which validates them during dispatch.
         unsafe {
-            self.encoder.setBuffer_offset_atIndex(
-                Some(buffer.raw()),
-                offset,
-                index as usize,
-            );
+            self.encoder
+                .setBuffer_offset_atIndex(Some(buffer.raw()), offset, index as usize);
         }
         Ok(())
     }
@@ -156,8 +162,12 @@ impl<'a> MetalComputeEncoder<'a> for Metal3ComputeEncoder<'a> {
         let ptr = NonNull::new(data.as_ptr() as *mut std::ffi::c_void)
             .expect("data pointer should not be null");
 
+        // SAFETY: ptr is a NonNull created from a valid &[u8] slice. The Metal API
+        // copies the bytes during this call, so the pointer only needs to be valid
+        // for the duration of setBytes_length_atIndex. data.len() is the correct size.
         unsafe {
-            self.encoder.setBytes_length_atIndex(ptr, data.len(), index as usize);
+            self.encoder
+                .setBytes_length_atIndex(ptr, data.len(), index as usize);
         }
         Ok(())
     }
@@ -177,7 +187,8 @@ impl<'a> MetalComputeEncoder<'a> for Metal3ComputeEncoder<'a> {
             depth: 1,
         };
 
-        self.encoder.dispatchThreads_threadsPerThreadgroup(thread_size, group_size);
+        self.encoder
+            .dispatchThreads_threadsPerThreadgroup(thread_size, group_size);
         Ok(())
     }
 
@@ -198,7 +209,8 @@ impl<'a> MetalComputeEncoder<'a> for Metal3ComputeEncoder<'a> {
             depth: threads_per_threadgroup.2 as usize,
         };
 
-        self.encoder.dispatchThreads_threadsPerThreadgroup(thread_size, group_size);
+        self.encoder
+            .dispatchThreads_threadsPerThreadgroup(thread_size, group_size);
         Ok(())
     }
 
@@ -219,7 +231,8 @@ impl<'a> MetalComputeEncoder<'a> for Metal3ComputeEncoder<'a> {
             depth: threads_per_threadgroup.2 as usize,
         };
 
-        self.encoder.dispatchThreadgroups_threadsPerThreadgroup(threadgroup_count, group_size);
+        self.encoder
+            .dispatchThreadgroups_threadsPerThreadgroup(threadgroup_count, group_size);
         Ok(())
     }
 

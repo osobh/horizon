@@ -145,7 +145,9 @@ impl JobBuilder {
 
     // Backward compatibility helpers - GPU-focused
     pub fn gpu_count(mut self, count: usize) -> Self {
-        self.resources = self.resources.add_gpu(GpuVendor::Nvidia, "H100", count as f64);
+        self.resources = self
+            .resources
+            .add_gpu(GpuVendor::Nvidia, "H100", count as f64);
         self
     }
 
@@ -203,14 +205,12 @@ impl JobBuilder {
 
     pub fn build(self) -> Result<Job> {
         // Validate required fields
-        let user_id = self.user_id.ok_or_else(|| {
-            HpcError::validation("user_id is required")
-        })?;
+        let user_id = self
+            .user_id
+            .ok_or_else(|| HpcError::validation("user_id is required"))?;
 
         // Validate that we have at least one resource
-        self.resources
-            .validate()
-            .map_err(|e| HpcError::validation(e))?;
+        self.resources.validate().map_err(HpcError::validation)?;
 
         Ok(Job {
             id: Uuid::new_v4(),
@@ -305,9 +305,7 @@ mod tests {
     #[test]
     fn test_job_builder_validation_failure() {
         // No resources specified
-        let result = Job::builder()
-            .user_id("test_user")
-            .build();
+        let result = Job::builder().user_id("test_user").build();
 
         assert!(result.is_err());
     }
@@ -366,11 +364,7 @@ mod tests {
 
     #[test]
     fn test_cancellation() {
-        let mut job1 = Job::builder()
-            .user_id("test")
-            .cpu_cores(8)
-            .build()
-            .unwrap();
+        let mut job1 = Job::builder().user_id("test").cpu_cores(8).build().unwrap();
         assert!(job1.transition_to(JobState::Cancelled).is_ok());
 
         let mut job2 = Job::builder()

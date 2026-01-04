@@ -239,7 +239,9 @@ pub async fn get_forecast(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ForecastQuery>,
 ) -> Result<Json<CostForecast>, (StatusCode, String)> {
-    let days_ahead = query.days_ahead.unwrap_or(state.config.default_forecast_days);
+    let days_ahead = query
+        .days_ahead
+        .unwrap_or(state.config.default_forecast_days);
 
     // Get last 30 days of historical data
     let end = Utc::now();

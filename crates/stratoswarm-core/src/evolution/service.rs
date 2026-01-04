@@ -61,6 +61,7 @@ pub struct EvolutionService {
 
 impl EvolutionService {
     /// Create a new evolution service with the given configuration.
+    #[must_use]
     pub fn new(config: EvolutionConfig) -> Self {
         Self {
             config,
@@ -94,10 +95,16 @@ impl EvolutionService {
                         });
                     }
                 }
-                EvolutionMessage::Selection { strategy: _, count: _ } => {
+                EvolutionMessage::Selection {
+                    strategy: _,
+                    count: _,
+                } => {
                     // Selection handled in GPU pipeline
                 }
-                EvolutionMessage::Mutation { individual_ids: _, rate: _ } => {
+                EvolutionMessage::Mutation {
+                    individual_ids: _,
+                    rate: _,
+                } => {
                     // Mutation handled in GPU pipeline
                 }
                 EvolutionMessage::GetBest { count: _ } => {
@@ -109,11 +116,13 @@ impl EvolutionService {
     }
 
     /// Get current metrics.
+    #[must_use]
     pub fn metrics(&self) -> &EvolutionMetrics {
         &self.metrics
     }
 
     /// Get configuration.
+    #[must_use]
     pub fn config(&self) -> &EvolutionConfig {
         &self.config
     }

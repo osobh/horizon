@@ -29,7 +29,7 @@ use std::sync::Arc;
 
 use tokio::sync::broadcast;
 
-use crate::{EvolutionStats, FitnessScore};
+use crate::EvolutionStats;
 
 /// Evolution lifecycle events published to hpc-channels.
 #[derive(Clone, Debug)]
@@ -127,10 +127,9 @@ impl EvolutionChannelBridge {
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
 
-        let _ = self.events_tx.send(EvolutionEvent::PopulationInitialized {
-            size,
-            timestamp_ms,
-        });
+        let _ = self
+            .events_tx
+            .send(EvolutionEvent::PopulationInitialized { size, timestamp_ms });
     }
 
     /// Publish a generation complete event.
@@ -212,8 +211,12 @@ mod tests {
     #[test]
     fn test_bridge_creation() {
         let bridge = EvolutionChannelBridge::new();
-        assert!(hpc_channels::exists(hpc_channels::channels::EVOLUTION_EVENT));
-        assert!(hpc_channels::exists(hpc_channels::channels::EVOLUTION_CAPABILITIES));
+        assert!(hpc_channels::exists(
+            hpc_channels::channels::EVOLUTION_EVENT
+        ));
+        assert!(hpc_channels::exists(
+            hpc_channels::channels::EVOLUTION_CAPABILITIES
+        ));
         let _ = bridge;
     }
 

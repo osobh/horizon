@@ -27,11 +27,16 @@ pub struct Vote {
 }
 
 // Make Vote safe to use with GPU
+// SAFETY: Vote is #[repr(C)] with only primitive types (u32, u64).
+// All bit patterns are valid and fields are naturally aligned.
 unsafe impl bytemuck::Pod for Vote {}
+// SAFETY: Zero-initialization is safe for all numeric primitive types.
 unsafe impl bytemuck::Zeroable for Vote {}
+// SAFETY: All-zeros is a valid Vote value (agent_id=0, proposal_id=0, value=0, timestamp=0).
 unsafe impl cudarc::driver::ValidAsZeroBits for Vote {}
 
-// Implement DeviceRepr for Vote
+// SAFETY: Vote has a stable C ABI layout (#[repr(C)]) with only types safe
+// to pass across the FFI boundary to CUDA kernels.
 unsafe impl cudarc::driver::DeviceRepr for Vote {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void
@@ -47,9 +52,13 @@ pub struct Proposal {
     pub round: u32,
 }
 
+// SAFETY: Proposal is #[repr(C)] with only u32 fields. All bit patterns valid.
 unsafe impl bytemuck::Pod for Proposal {}
+// SAFETY: Zero-initialization is safe for u32 types.
 unsafe impl bytemuck::Zeroable for Proposal {}
 
+// SAFETY: Proposal has a stable C ABI layout (#[repr(C)]) matching the CUDA
+// Proposal struct. The pointer cast preserves the expected memory layout.
 unsafe impl cudarc::driver::DeviceRepr for Proposal {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void
@@ -65,9 +74,13 @@ pub struct ConsensusState {
     pub decision: u32,
 }
 
+// SAFETY: ConsensusState is #[repr(C)] with only u32 fields. All bit patterns valid.
 unsafe impl bytemuck::Pod for ConsensusState {}
+// SAFETY: Zero-initialization is safe for u32 types.
 unsafe impl bytemuck::Zeroable for ConsensusState {}
 
+// SAFETY: ConsensusState has a stable C ABI layout (#[repr(C)]) matching the CUDA
+// ConsensusState struct. The pointer cast preserves the expected memory layout.
 unsafe impl cudarc::driver::DeviceRepr for ConsensusState {
     fn as_kernel_param(&self) -> *mut std::ffi::c_void {
         self as *const Self as *mut std::ffi::c_void

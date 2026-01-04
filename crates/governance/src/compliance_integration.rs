@@ -768,8 +768,7 @@ mod tests {
         // First check - should miss cache
         integration
             .check_ai_safety(&agent_id, &behavior_data)
-            .await
-            ?;
+            .await?;
         assert_eq!(integration.compliance_cache.len(), 1);
 
         // Second check - should hit cache
@@ -789,8 +788,7 @@ mod tests {
         let behavior_data = serde_json::json!({});
         integration
             .check_ai_safety(&agent_id, &behavior_data)
-            .await
-            ?;
+            .await?;
         assert_eq!(integration.compliance_cache.len(), 1);
 
         // Clear cache

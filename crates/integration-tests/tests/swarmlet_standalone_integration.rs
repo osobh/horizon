@@ -6,15 +6,15 @@
 
 use std::sync::Arc;
 use std::time::Duration;
+use tempfile::TempDir;
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use tempfile::TempDir;
 
 /// Test phases following TDD methodology
 #[derive(Debug, Clone, PartialEq)]
 enum TddPhase {
-    Red,    // Write failing tests
-    Green,  // Make tests pass
+    Red,      // Write failing tests
+    Green,    // Make tests pass
     Refactor, // Optimize implementation
 }
 
@@ -122,7 +122,9 @@ async fn test_cluster_discovery_integration() {
     assert!(result.is_err());
 
     // Test discovery with short timeout
-    let clusters = discovery.discover_clusters(1).await
+    let clusters = discovery
+        .discover_clusters(1)
+        .await
         .expect("Should complete discovery");
 
     // In test environment, we expect no clusters
@@ -184,10 +186,12 @@ async fn test_config_management() {
     config.save(&config_path).expect("Should save config");
 
     // Load config
-    let loaded = swarmlet::config::Config::load(&config_path)
-        .expect("Should load config");
+    let loaded = swarmlet::config::Config::load(&config_path).expect("Should load config");
 
-    assert_eq!(loaded.cluster_address, Some("custom-cluster:7946".to_string()));
+    assert_eq!(
+        loaded.cluster_address,
+        Some("custom-cluster:7946".to_string())
+    );
     assert_eq!(loaded.node_name, Some("test-node".to_string()));
     assert_eq!(loaded.api_port, Some(8090));
 
@@ -198,14 +202,14 @@ async fn test_config_management() {
 async fn test_workload_manager_integration() {
     let temp_dir = TempDir::new().expect("Should create temp dir");
     let config = Arc::new(swarmlet::config::Config::default_with_data_dir(
-        temp_dir.path().to_path_buf()
+        temp_dir.path().to_path_buf(),
     ));
 
     // Create workload manager
     let workload_manager = Arc::new(
         swarmlet::workload::WorkloadManager::new(config)
             .await
-            .expect("Should create workload manager")
+            .expect("Should create workload manager"),
     );
 
     // Check initial state
@@ -233,7 +237,9 @@ async fn test_workload_manager_integration() {
     }
 
     // Stop all workloads
-    workload_manager.stop_all_workloads().await
+    workload_manager
+        .stop_all_workloads()
+        .await
         .expect("Should stop all workloads");
 
     println!("✅ Workload manager integration test passed");
@@ -246,8 +252,8 @@ async fn test_security_components() {
     assert!(token.validate());
 
     // Test secure random generation
-    let random_bytes = swarmlet::security::generate_secure_random(32)
-        .expect("Should generate random bytes");
+    let random_bytes =
+        swarmlet::security::generate_secure_random(32).expect("Should generate random bytes");
     assert_eq!(random_bytes.len(), 32);
 
     // Test data hashing
@@ -255,10 +261,9 @@ async fn test_security_components() {
     assert_eq!(hash.len(), 64); // SHA-256 hex string
 
     // Test node certificate creation
-    let cert = swarmlet::security::NodeCertificate::generate(
-        Uuid::new_v4(),
-        "test-node".to_string(),
-    ).expect("Should generate certificate");
+    let cert =
+        swarmlet::security::NodeCertificate::generate(Uuid::new_v4(), "test-node".to_string())
+            .expect("Should generate certificate");
 
     let pem = cert.to_pem();
     assert!(pem.contains("BEGIN CERTIFICATE"));
@@ -293,9 +298,14 @@ async fn test_full_swarmlet_lifecycle() {
     // Phase 3: Discovery
     println!("  Phase 3: Discovery");
     let discovery = swarmlet::discovery::ClusterDiscovery::new();
-    let clusters = discovery.discover_clusters(1).await
+    let clusters = discovery
+        .discover_clusters(1)
+        .await
         .expect("Should complete discovery");
-    println!("    ✓ Discovery completed, found {} clusters", clusters.len());
+    println!(
+        "    ✓ Discovery completed, found {} clusters",
+        clusters.len()
+    );
 
     // Phase 4: Join preparation
     println!("  Phase 4: Join preparation");
@@ -304,7 +314,9 @@ async fn test_full_swarmlet_lifecycle() {
         cluster_name: "lifecycle-test-cluster".to_string(),
         node_certificate: generate_test_certificate(),
         cluster_endpoints: vec!["http://localhost:7946".to_string()],
-        assigned_capabilities: profile.capabilities.suitability
+        assigned_capabilities: profile
+            .capabilities
+            .suitability
             .iter()
             .map(|s| format!("{:?}", s).to_lowercase())
             .collect(),
@@ -322,8 +334,10 @@ async fn test_full_swarmlet_lifecycle() {
     println!("  Phase 5: Agent creation");
     let agent = swarmlet::agent::SwarmletAgent::new(
         join_result,
-        temp_dir.path().to_str().unwrap().to_string()
-    ).await.expect("Should create agent");
+        temp_dir.path().to_str().unwrap().to_string(),
+    )
+    .await
+    .expect("Should create agent");
     println!("    ✓ Created swarmlet agent");
 
     // Phase 6: Health check
@@ -340,7 +354,10 @@ async fn test_full_swarmlet_lifecycle() {
     println!("    ✓ Agent shutdown complete");
 
     let duration = start.elapsed();
-    println!("✅ Full swarmlet lifecycle test completed in {:?}", duration);
+    println!(
+        "✅ Full swarmlet lifecycle test completed in {:?}",
+        duration
+    );
 }
 
 /// Generate a test certificate

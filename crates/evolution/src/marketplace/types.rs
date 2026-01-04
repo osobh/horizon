@@ -1,7 +1,7 @@
 //! Core types for the evolution marketplace
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Evolution algorithm package for cross-cluster sharing

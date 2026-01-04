@@ -144,7 +144,8 @@ impl RecoveryExecution {
             return;
         }
 
-        let completed_steps = self.step_executions
+        let completed_steps = self
+            .step_executions
             .values()
             .filter(|step| step.state == ExecutionState::Completed)
             .count();
@@ -154,11 +155,12 @@ impl RecoveryExecution {
 
     /// Check if execution is in terminal state
     pub fn is_terminal(&self) -> bool {
-        matches!(self.state, 
-            ExecutionState::Completed | 
-            ExecutionState::Failed | 
-            ExecutionState::Cancelled | 
-            ExecutionState::RolledBack
+        matches!(
+            self.state,
+            ExecutionState::Completed
+                | ExecutionState::Failed
+                | ExecutionState::Cancelled
+                | ExecutionState::RolledBack
         )
     }
 

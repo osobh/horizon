@@ -37,7 +37,12 @@ impl MetricsRepository {
         )
         .fetch_optional(&self.pool)
         .await?
-        .ok_or_else(|| HpcError::not_found("metrics", format!("Metrics for asset {} not found", asset_id)))?;
+        .ok_or_else(|| {
+            HpcError::not_found(
+                "metrics",
+                format!("Metrics for asset {} not found", asset_id),
+            )
+        })?;
 
         Ok(metrics)
     }

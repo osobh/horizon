@@ -1,4 +1,4 @@
-//! Population management with Structure of Arrays (SoA) layout.
+//! Population management with Structure of Arrays (`SoA`) layout.
 //!
 //! This module provides efficient population storage optimized for GPU operations
 //! using a Structure of Arrays layout for better memory access patterns.
@@ -72,11 +72,11 @@ pub struct PopulationStats {
 pub struct Population {
     /// Population ID
     pub id: PopulationId,
-    /// Individual IDs (SoA)
+    /// Individual IDs (`SoA`)
     ids: Vec<Uuid>,
-    /// Genomes stored contiguously (SoA): [genome0_param0, genome0_param1, ..., genome1_param0, ...]
+    /// Genomes stored contiguously (SoA): [`genome0_param0`, `genome0_param1`, ..., `genome1_param0`, ...]
     genomes: Vec<f64>,
-    /// Fitness values (SoA)
+    /// Fitness values (`SoA`)
     fitnesses: Vec<Option<f64>>,
     /// Number of parameters per genome
     genome_size: usize,
@@ -105,7 +105,9 @@ impl Population {
 
         let genome_size = individuals[0].genome.len();
         assert!(
-            individuals.iter().all(|ind| ind.genome.len() == genome_size),
+            individuals
+                .iter()
+                .all(|ind| ind.genome.len() == genome_size),
             "All individuals must have the same genome size"
         );
 
@@ -164,18 +166,18 @@ impl Population {
         (0..self.size()).filter_map(|i| self.get(i)).collect()
     }
 
-    /// Get a reference to the genome data (SoA).
+    /// Get a reference to the genome data (`SoA`).
     #[must_use]
     pub fn genome_data(&self) -> &[f64] {
         &self.genomes
     }
 
-    /// Get a mutable reference to the genome data (SoA).
+    /// Get a mutable reference to the genome data (`SoA`).
     pub fn genome_data_mut(&mut self) -> &mut [f64] {
         &mut self.genomes
     }
 
-    /// Get a reference to the fitness data (SoA).
+    /// Get a reference to the fitness data (`SoA`).
     #[must_use]
     pub fn fitness_data(&self) -> &[Option<f64>] {
         &self.fitnesses
@@ -190,7 +192,11 @@ impl Population {
 
     /// Set all fitness values.
     pub fn set_all_fitnesses(&mut self, fitnesses: Vec<f64>) {
-        assert_eq!(fitnesses.len(), self.size(), "Fitness count must match population size");
+        assert_eq!(
+            fitnesses.len(),
+            self.size(),
+            "Fitness count must match population size"
+        );
         self.fitnesses = fitnesses.into_iter().map(Some).collect();
     }
 
@@ -236,7 +242,7 @@ impl Population {
         }
 
         let diversity = if pair_count > 0 {
-            total_distance / pair_count as f64
+            total_distance / f64::from(pair_count)
         } else {
             0.0
         };
@@ -286,7 +292,9 @@ impl Population {
             .max_by(|(_, a), (_, b)| {
                 let a_val = a.expect("All individuals must be evaluated");
                 let b_val = b.expect("All individuals must be evaluated");
-                a_val.partial_cmp(&b_val).unwrap_or(std::cmp::Ordering::Equal)
+                a_val
+                    .partial_cmp(&b_val)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|(idx, _)| idx)
             .expect("Population must not be empty");

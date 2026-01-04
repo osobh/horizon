@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use chrono::{DateTime, Duration, Utc};
+use std::collections::HashMap;
 
 /// Resource identifier for tracking usage per resource type
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -81,7 +81,8 @@ impl FairShareCalculator {
         let weight = self.user_weights.get(user_id).copied().unwrap_or(1.0);
 
         // Sum usage across all resource types for this user
-        let total_usage: f64 = self.usage_history
+        let total_usage: f64 = self
+            .usage_history
             .iter()
             .filter(|((uid, _), _)| uid == user_id)
             .map(|(_, usage)| usage)
@@ -92,7 +93,11 @@ impl FairShareCalculator {
     }
 
     /// Calculate fair-share priority for a user for a specific resource type
-    pub fn calculate_priority_for_resource(&mut self, user_id: &str, resource_key: &ResourceKey) -> f64 {
+    pub fn calculate_priority_for_resource(
+        &mut self,
+        user_id: &str,
+        resource_key: &ResourceKey,
+    ) -> f64 {
         self.apply_decay();
 
         let weight = self.user_weights.get(user_id).copied().unwrap_or(1.0);
@@ -168,7 +173,10 @@ impl FairShareCalculator {
     }
 
     /// Get all user priorities for a specific resource type
-    pub fn get_all_priorities_for_resource(&mut self, resource_key: &ResourceKey) -> HashMap<String, f64> {
+    pub fn get_all_priorities_for_resource(
+        &mut self,
+        resource_key: &ResourceKey,
+    ) -> HashMap<String, f64> {
         let mut users: Vec<String> = self
             .usage_history
             .keys()

@@ -65,7 +65,6 @@ pub enum WebSocketMessage {
     // =============================================================================
     // Real-time Infrastructure Intelligence Messages
     // =============================================================================
-
     /// Real-time GPU utilization metrics
     GpuMetrics {
         timestamp: String,
@@ -196,7 +195,6 @@ pub enum WebSocketMessage {
     // =============================================================================
     // Agent XP and Evolution Messages
     // =============================================================================
-
     /// Agent XP gained notification
     AgentXPGained {
         agent_id: String,

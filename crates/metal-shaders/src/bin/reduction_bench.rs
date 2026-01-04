@@ -174,13 +174,13 @@ fn main() -> anyhow::Result<()> {
     );
 
     let sizes: [usize; 7] = [
-        1_000_000,    // 1M
-        4_000_000,    // 4M
-        16_000_000,   // 16M
-        64_000_000,   // 64M
-        128_000_000,  // 128M
-        256_000_000,  // 256M
-        512_000_000,  // 512M (2GB)
+        1_000_000,   // 1M
+        4_000_000,   // 4M
+        16_000_000,  // 16M
+        64_000_000,  // 64M
+        128_000_000, // 128M
+        256_000_000, // 256M
+        512_000_000, // 512M (2GB)
     ];
 
     for n in sizes {
@@ -213,10 +213,8 @@ fn main() -> anyhow::Result<()> {
                 encoder.set_buffer(1, &partial_sums, 0)?;
                 encoder.set_buffer(2, &count, 0)?;
                 encoder.set_bytes(3, &(n as u32).to_ne_bytes())?;
-                encoder.dispatch_threadgroups(
-                    (num_groups as u64, 1, 1),
-                    (group_size as u64, 1, 1),
-                )?;
+                encoder
+                    .dispatch_threadgroups((num_groups as u64, 1, 1), (group_size as u64, 1, 1))?;
                 encoder.end_encoding()?;
             }
             {
@@ -246,10 +244,8 @@ fn main() -> anyhow::Result<()> {
                 encoder.set_buffer(1, &partial_sums, 0)?;
                 encoder.set_buffer(2, &count, 0)?;
                 encoder.set_bytes(3, &(n as u32).to_ne_bytes())?;
-                encoder.dispatch_threadgroups(
-                    (num_groups as u64, 1, 1),
-                    (group_size as u64, 1, 1),
-                )?;
+                encoder
+                    .dispatch_threadgroups((num_groups as u64, 1, 1), (group_size as u64, 1, 1))?;
                 encoder.end_encoding()?;
             }
             {
@@ -339,10 +335,8 @@ fn main() -> anyhow::Result<()> {
                 encoder.set_buffer(1, &max_values, 0)?;
                 encoder.set_buffer(2, &max_indices, 0)?;
                 encoder.set_bytes(3, &(n as u32).to_ne_bytes())?;
-                encoder.dispatch_threadgroups(
-                    (num_groups as u64, 1, 1),
-                    (group_size as u64, 1, 1),
-                )?;
+                encoder
+                    .dispatch_threadgroups((num_groups as u64, 1, 1), (group_size as u64, 1, 1))?;
                 encoder.end_encoding()?;
             }
             queue.submit_and_wait(cmd)?;
@@ -363,10 +357,8 @@ fn main() -> anyhow::Result<()> {
                 encoder.set_buffer(1, &max_values, 0)?;
                 encoder.set_buffer(2, &max_indices, 0)?;
                 encoder.set_bytes(3, &(n as u32).to_ne_bytes())?;
-                encoder.dispatch_threadgroups(
-                    (num_groups as u64, 1, 1),
-                    (group_size as u64, 1, 1),
-                )?;
+                encoder
+                    .dispatch_threadgroups((num_groups as u64, 1, 1), (group_size as u64, 1, 1))?;
                 encoder.end_encoding()?;
             }
             queue.submit_and_wait(cmd)?;
@@ -423,10 +415,8 @@ fn main() -> anyhow::Result<()> {
                 encoder.set_buffer(1, &partial_sums, 0)?;
                 encoder.set_buffer(2, &count, 0)?;
                 encoder.set_bytes(3, &(n as u32).to_ne_bytes())?;
-                encoder.dispatch_threadgroups(
-                    (num_groups as u64, 1, 1),
-                    (group_size as u64, 1, 1),
-                )?;
+                encoder
+                    .dispatch_threadgroups((num_groups as u64, 1, 1), (group_size as u64, 1, 1))?;
                 encoder.end_encoding()?;
             }
             queue.submit_and_wait(cmd)?;
@@ -447,10 +437,8 @@ fn main() -> anyhow::Result<()> {
                 encoder.set_buffer(1, &partial_sums, 0)?;
                 encoder.set_buffer(2, &count, 0)?;
                 encoder.set_bytes(3, &(n as u32).to_ne_bytes())?;
-                encoder.dispatch_threadgroups(
-                    (num_groups as u64, 1, 1),
-                    (group_size as u64, 1, 1),
-                )?;
+                encoder
+                    .dispatch_threadgroups((num_groups as u64, 1, 1), (group_size as u64, 1, 1))?;
                 encoder.end_encoding()?;
             }
             queue.submit_and_wait(cmd)?;

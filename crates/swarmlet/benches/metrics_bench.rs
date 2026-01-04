@@ -7,7 +7,9 @@ use uuid::Uuid;
 
 use chrono::{Duration, Utc};
 use swarmlet::build_job::BuildResourceUsage;
-use swarmlet::build_metrics::{BuildMetricsCollector, BuildOutcome, BuildRecord, CommandType, ProfileType};
+use swarmlet::build_metrics::{
+    BuildMetricsCollector, BuildOutcome, BuildRecord, CommandType, ProfileType,
+};
 
 /// Create a test build record
 fn create_build_record(outcome: BuildOutcome, duration_secs: f64) -> BuildRecord {

@@ -1,6 +1,6 @@
 use crate::config::InventoryConfig;
 use crate::error::HpcError;
-use crate::models::{Topology, Gpu};
+use crate::models::{Gpu, Topology};
 use crate::Result;
 use reqwest::Client;
 use std::time::Duration;
@@ -41,8 +41,15 @@ impl InventoryClient {
     }
 
     /// Get available GPUs matching criteria
-    pub async fn get_available_gpus(&self, gpu_type: Option<&str>, count: usize) -> Result<Vec<Gpu>> {
-        let mut url = format!("{}/api/v1/gpus?available=true&limit={}", self.base_url, count);
+    pub async fn get_available_gpus(
+        &self,
+        gpu_type: Option<&str>,
+        count: usize,
+    ) -> Result<Vec<Gpu>> {
+        let mut url = format!(
+            "{}/api/v1/gpus?available=true&limit={}",
+            self.base_url, count
+        );
 
         if let Some(gpu_type) = gpu_type {
             url.push_str(&format!("&type={}", gpu_type));

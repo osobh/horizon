@@ -42,8 +42,7 @@ impl CheckpointManager {
     ) -> EvolutionEngineResult<String> {
         let checkpoint_id = uuid::Uuid::new_v4().to_string();
         let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            ?
+            .duration_since(std::time::UNIX_EPOCH)?
             .as_millis() as u64;
 
         let checkpoint = CheckpointSnapshot {

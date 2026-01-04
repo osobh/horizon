@@ -119,10 +119,10 @@ impl PatternCollector {
 
         DependencyFeatures {
             database_count: db_count,
-            cache_count: cache_count,
+            cache_count,
             web_framework_count: web_count,
             ml_framework_count: ml_count,
-            message_queue_count: message_queue_count,
+            message_queue_count,
             total_dependencies: config.dependencies.len(),
             web_frameworks: web_count,
             databases: db_count,

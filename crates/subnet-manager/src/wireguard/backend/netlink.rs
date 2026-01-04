@@ -85,8 +85,7 @@ impl NetlinkBackend {
     /// Check if the WireGuard kernel module is available
     fn check_availability() -> bool {
         // Check if WireGuard module is loaded
-        Path::new("/sys/module/wireguard").exists()
-            || Self::check_wireguard_genl_family()
+        Path::new("/sys/module/wireguard").exists() || Self::check_wireguard_genl_family()
     }
 
     /// Check if WireGuard generic netlink family exists
@@ -121,13 +120,11 @@ impl NetlinkBackend {
         use nix::net::if_::if_nametoindex;
         use std::ffi::CString;
 
-        let c_name = CString::new(name).map_err(|e| {
-            Error::WireGuardConfig(format!("Invalid interface name: {}", e))
-        })?;
+        let c_name = CString::new(name)
+            .map_err(|e| Error::WireGuardConfig(format!("Invalid interface name: {}", e)))?;
 
-        if_nametoindex(c_name.as_c_str()).map_err(|e| {
-            Error::WireGuardConfig(format!("Interface {} not found: {}", name, e))
-        })
+        if_nametoindex(c_name.as_c_str())
+            .map_err(|e| Error::WireGuardConfig(format!("Interface {} not found: {}", name, e)))
     }
 
     /// Create a WireGuard interface using ip link
@@ -149,11 +146,14 @@ impl NetlinkBackend {
                 .args(["ip", "link", "add", name, "type", "wireguard"])
                 .status()
                 .await
-                .map_err(|e| Error::WireGuardConfig(format!("Failed to create interface with sudo: {}", e)))?;
+                .map_err(|e| {
+                    Error::WireGuardConfig(format!("Failed to create interface with sudo: {}", e))
+                })?;
 
             if !status.success() {
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to create WireGuard interface {}", name
+                    "Failed to create WireGuard interface {}",
+                    name
                 )));
             }
         }
@@ -177,12 +177,15 @@ impl NetlinkBackend {
                 .args(["ip", "address", "add", address, "dev", name])
                 .output()
                 .await
-                .map_err(|e| Error::WireGuardConfig(format!("Failed to set address with sudo: {}", e)))?;
+                .map_err(|e| {
+                    Error::WireGuardConfig(format!("Failed to set address with sudo: {}", e))
+                })?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to set interface address: {}", stderr
+                    "Failed to set interface address: {}",
+                    stderr
                 )));
             }
         }
@@ -207,11 +210,17 @@ impl NetlinkBackend {
                 .args(["ip", "link", "set", name, state])
                 .status()
                 .await
-                .map_err(|e| Error::WireGuardConfig(format!("Failed to set interface state with sudo: {}", e)))?;
+                .map_err(|e| {
+                    Error::WireGuardConfig(format!(
+                        "Failed to set interface state with sudo: {}",
+                        e
+                    ))
+                })?;
 
             if !status.success() {
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to set interface {} {}", name, state
+                    "Failed to set interface {} {}",
+                    name, state
                 )));
             }
         }
@@ -229,16 +238,15 @@ impl NetlinkBackend {
         private_key: &str,
         listen_port: u16,
     ) -> Result<()> {
-        use tokio::process::Command;
         use tokio::io::AsyncWriteExt;
+        use tokio::process::Command;
 
         // For now, use wg command as netlink implementation is complex
         // This still provides the benefit of proper interface detection
 
         // Write private key to temp file
-        let mut temp = tempfile::NamedTempFile::new().map_err(|e| {
-            Error::WireGuardConfig(format!("Failed to create temp file: {}", e))
-        })?;
+        let mut temp = tempfile::NamedTempFile::new()
+            .map_err(|e| Error::WireGuardConfig(format!("Failed to create temp file: {}", e)))?;
 
         #[cfg(unix)]
         {
@@ -254,22 +262,40 @@ impl NetlinkBackend {
         let port_str = listen_port.to_string();
 
         let output = Command::new("wg")
-            .args(["set", name, "private-key", &key_path, "listen-port", &port_str])
+            .args([
+                "set",
+                name,
+                "private-key",
+                &key_path,
+                "listen-port",
+                &port_str,
+            ])
             .output()
             .await
             .map_err(|e| Error::WireGuardConfig(format!("Failed to configure device: {}", e)))?;
 
         if !output.status.success() {
             let output = Command::new("sudo")
-                .args(["wg", "set", name, "private-key", &key_path, "listen-port", &port_str])
+                .args([
+                    "wg",
+                    "set",
+                    name,
+                    "private-key",
+                    &key_path,
+                    "listen-port",
+                    &port_str,
+                ])
                 .output()
                 .await
-                .map_err(|e| Error::WireGuardConfig(format!("Failed to configure device with sudo: {}", e)))?;
+                .map_err(|e| {
+                    Error::WireGuardConfig(format!("Failed to configure device with sudo: {}", e))
+                })?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to configure WireGuard device: {}", stderr
+                    "Failed to configure WireGuard device: {}",
+                    stderr
                 )));
             }
         }
@@ -336,12 +362,15 @@ impl NetlinkBackend {
                 .args(&sudo_args)
                 .output()
                 .await
-                .map_err(|e| Error::WireGuardConfig(format!("Failed to add peer with sudo: {}", e)))?;
+                .map_err(|e| {
+                    Error::WireGuardConfig(format!("Failed to add peer with sudo: {}", e))
+                })?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to add peer: {}", stderr
+                    "Failed to add peer: {}",
+                    stderr
                 )));
             }
         }
@@ -364,12 +393,15 @@ impl NetlinkBackend {
                 .args(["wg", "show", interface])
                 .output()
                 .await
-                .map_err(|e| Error::WireGuardConfig(format!("Failed to get interface info with sudo: {}", e)))?;
+                .map_err(|e| {
+                    Error::WireGuardConfig(format!("Failed to get interface info with sudo: {}", e))
+                })?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to get WireGuard interface info: {}", stderr
+                    "Failed to get WireGuard interface info: {}",
+                    stderr
                 )));
             }
 
@@ -440,11 +472,14 @@ impl WireGuardBackend for NetlinkBackend {
                 .args(["ip", "link", "delete", name])
                 .status()
                 .await
-                .map_err(|e| Error::WireGuardConfig(format!("Failed to delete interface with sudo: {}", e)))?;
+                .map_err(|e| {
+                    Error::WireGuardConfig(format!("Failed to delete interface with sudo: {}", e))
+                })?;
 
             if !status.success() {
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to delete interface {}", name
+                    "Failed to delete interface {}",
+                    name
                 )));
             }
         }
@@ -482,12 +517,15 @@ impl WireGuardBackend for NetlinkBackend {
                 .args(["wg", "set", interface, "peer", public_key, "remove"])
                 .output()
                 .await
-                .map_err(|e| Error::WireGuardConfig(format!("Failed to remove peer with sudo: {}", e)))?;
+                .map_err(|e| {
+                    Error::WireGuardConfig(format!("Failed to remove peer with sudo: {}", e))
+                })?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to remove peer: {}", stderr
+                    "Failed to remove peer: {}",
+                    stderr
                 )));
             }
         }
@@ -506,21 +544,37 @@ impl WireGuardBackend for NetlinkBackend {
         let endpoint_str = endpoint.to_string();
 
         let output = Command::new("wg")
-            .args(["set", interface, "peer", public_key, "endpoint", &endpoint_str])
+            .args([
+                "set",
+                interface,
+                "peer",
+                public_key,
+                "endpoint",
+                &endpoint_str,
+            ])
             .output()
             .await
             .map_err(|e| Error::WireGuardConfig(format!("Failed to update endpoint: {}", e)))?;
 
         if !output.status.success() {
             let output = Command::new("sudo")
-                .args(["wg", "set", interface, "peer", public_key, "endpoint", &endpoint_str])
+                .args([
+                    "wg",
+                    "set",
+                    interface,
+                    "peer",
+                    public_key,
+                    "endpoint",
+                    &endpoint_str,
+                ])
                 .output()
                 .await?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to update endpoint: {}", stderr
+                    "Failed to update endpoint: {}",
+                    stderr
                 )));
             }
         }
@@ -650,7 +704,8 @@ impl WireGuardBackend for NetlinkBackend {
 
             if !status.success() {
                 return Err(Error::WireGuardConfig(format!(
-                    "Failed to set MTU on {}", interface
+                    "Failed to set MTU on {}",
+                    interface
                 )));
             }
         }

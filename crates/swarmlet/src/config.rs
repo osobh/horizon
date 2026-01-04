@@ -367,9 +367,7 @@ impl Config {
         for dir in &dirs {
             if !dir.exists() {
                 fs::create_dir_all(dir).await.map_err(|e| {
-                    SwarmletError::Configuration(format!(
-                        "Failed to create directory {dir:?}: {e}"
-                    ))
+                    SwarmletError::Configuration(format!("Failed to create directory {dir:?}: {e}"))
                 })?;
             }
         }

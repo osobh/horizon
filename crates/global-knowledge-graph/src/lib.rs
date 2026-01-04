@@ -34,8 +34,8 @@ pub use consistency_actor::{
 
 // Export new global synchronization components
 pub use sync_protocol::{
-    GlobalSyncProtocol, GlobalSyncConfig, KnowledgeOperation, ConsensusResult,
-    SyncMetrics, ClusterState, ConsensusMetrics, NetworkConfig, ConsensusConfig
+    ClusterState, ConsensusConfig, ConsensusMetrics, ConsensusResult, GlobalSyncConfig,
+    GlobalSyncProtocol, KnowledgeOperation, NetworkConfig, SyncMetrics,
 };
 
 #[cfg(test)]

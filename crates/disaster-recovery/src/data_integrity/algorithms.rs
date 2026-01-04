@@ -25,8 +25,8 @@ pub fn calculate_checksum(
         ChecksumAlgorithm::CRC32 => {
             // CRC32 would require crc32fast crate
             // For now, use a simple hash based on data
-            use std::hash::{Hash, Hasher};
             use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
             let mut hasher = DefaultHasher::new();
             data.hash(&mut hasher);
             let hash = hasher.finish() as u32;
@@ -50,8 +50,8 @@ pub fn calculate_checksum(
         ChecksumAlgorithm::XXHash => {
             // XXHash would require xxhash_rust crate
             // For now, use fast hash
-            use std::hash::{Hash, Hasher};
             use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
             let mut hasher = DefaultHasher::new();
             data.hash(&mut hasher);
             let hash = hasher.finish();
@@ -67,7 +67,7 @@ pub fn calculate_checksum_streaming<R: Read>(
     buffer_size: usize,
 ) -> DisasterRecoveryResult<Vec<u8>> {
     let mut buffer = vec![0u8; buffer_size];
-    
+
     match algorithm {
         ChecksumAlgorithm::SHA256 => {
             let mut hasher = Sha256::new();
@@ -102,10 +102,7 @@ pub fn calculate_checksum_streaming<R: Read>(
 }
 
 /// Verify checksum matches expected value
-pub fn verify_checksum(
-    calculated: &[u8],
-    expected: &[u8],
-) -> bool {
+pub fn verify_checksum(calculated: &[u8], expected: &[u8]) -> bool {
     calculated == expected
 }
 

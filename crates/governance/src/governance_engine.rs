@@ -664,8 +664,7 @@ mod tests {
 
         engine
             .update_lifecycle_phase(&agent_id, LifecyclePhase::Active)
-            .await
-            ?;
+            .await?;
 
         let state = engine.active_agents.get(&agent_id)?;
         assert_eq!(state.lifecycle_phase, LifecyclePhase::Active);
@@ -702,8 +701,7 @@ mod tests {
         engine.register_agent(agent_id.clone()).await?;
         engine
             .update_lifecycle_phase(&agent_id, LifecyclePhase::Active)
-            .await
-            ?;
+            .await?;
 
         let violation = PolicyViolation {
             timestamp: Utc::now(),

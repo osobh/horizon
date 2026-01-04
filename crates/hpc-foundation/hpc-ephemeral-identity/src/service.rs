@@ -565,9 +565,8 @@ impl EphemeralIdentityService {
         });
 
         // Remove expired/redeemed invitations
-        self.invitations.retain(|_, invitation| {
-            matches!(invitation.status, InvitationStatus::Pending)
-        });
+        self.invitations
+            .retain(|_, invitation| matches!(invitation.status, InvitationStatus::Pending));
 
         // Clean up sponsor mappings
         for mut entry in self.identities_by_sponsor.iter_mut() {
@@ -630,7 +629,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -664,7 +669,13 @@ mod tests {
 
         // Third should fail
         let result = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await;
 
         assert!(matches!(
@@ -680,7 +691,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -696,7 +713,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -716,7 +739,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -742,7 +771,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -765,7 +800,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -805,7 +846,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -831,7 +878,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -860,7 +913,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -889,7 +948,13 @@ mod tests {
         let admin_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -920,7 +985,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -945,7 +1016,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -977,7 +1054,13 @@ mod tests {
 
         // Create an already-expired invitation
         service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -992,7 +1075,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -1015,7 +1104,13 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let invitation = service
-            .create_invitation(sponsor_id, tenant_id, create_test_capabilities(), None, None)
+            .create_invitation(
+                sponsor_id,
+                tenant_id,
+                create_test_capabilities(),
+                None,
+                None,
+            )
             .await
             .unwrap();
 

@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::error::{HpcError, Result, ReporterErrorExt};
+use crate::error::{HpcError, ReporterErrorExt, Result};
 use crate::models::summary::{CostAttribution, DailyCostSummary, MonthlyCostSummary, TopSpender};
 
 #[derive(Clone)]
@@ -69,9 +69,8 @@ impl Repository {
         team_id: Option<&str>,
         user_id: Option<&str>,
     ) -> Result<Vec<DailyCostSummary>> {
-        let mut query = String::from(
-            "SELECT * FROM daily_cost_summary WHERE day >= $1 AND day <= $2",
-        );
+        let mut query =
+            String::from("SELECT * FROM daily_cost_summary WHERE day >= $1 AND day <= $2");
         let mut param_num = 3;
 
         if team_id.is_some() {
@@ -108,9 +107,8 @@ impl Repository {
         user_id: Option<&str>,
         customer_id: Option<&str>,
     ) -> Result<Vec<MonthlyCostSummary>> {
-        let mut query = String::from(
-            "SELECT * FROM monthly_cost_summary WHERE month >= $1 AND month <= $2",
-        );
+        let mut query =
+            String::from("SELECT * FROM monthly_cost_summary WHERE month >= $1 AND month <= $2");
         let mut param_num = 3;
 
         if team_id.is_some() {

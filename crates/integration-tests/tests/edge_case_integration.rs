@@ -7,6 +7,14 @@ use cpu_agents::{
     },
     bridge::{BridgeConfig, CpuGpuBridge, CpuGpuMessage, MessageType as BridgeMessageType},
 };
+use gpu_agents::{
+    consensus::{ConsensusModule, Vote, VoteType},
+    memory::{MemoryTier, TierManager, UnifiedMemoryManager},
+    synthesis::{Pattern, SynthesisModule, Template},
+};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use stratoswarm_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
 use stratoswarm_cuda::{CudaContext, CudaMemoryManager};
 use stratoswarm_evolution::{EvolutionEngine, GeneticEvolutionEngine, Population};
@@ -17,14 +25,6 @@ use stratoswarm_net::{MemoryNetwork, Message, MessageType, Network, ZeroCopyTran
 use stratoswarm_runtime::{ContainerConfig, ContainerRuntime, SecureContainerRuntime};
 use stratoswarm_storage::{MemoryStorage, NvmeConfig, NvmeStorage, Storage};
 use stratoswarm_synthesis::{SynthesisConfig, SynthesisPipeline};
-use gpu_agents::{
-    consensus::{ConsensusModule, Vote, VoteType},
-    memory::{MemoryTier, TierManager, UnifiedMemoryManager},
-    synthesis::{Pattern, SynthesisModule, Template},
-};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tempfile::TempDir;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::{sleep, timeout};

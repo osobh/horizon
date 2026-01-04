@@ -62,12 +62,12 @@ impl PoolType {
     /// Get the default max allocation per user for this pool type.
     pub fn default_max_per_user(&self) -> Decimal {
         match self {
-            PoolType::Bounty => Decimal::from(100),      // 100 GPU-hours per bounty
-            PoolType::Trial => Decimal::from(10),        // 10 GPU-hours for trial
-            PoolType::Hackathon => Decimal::from(50),    // 50 GPU-hours per participant
-            PoolType::Research => Decimal::from(500),    // 500 GPU-hours for research
-            PoolType::Training => Decimal::from(20),     // 20 GPU-hours for training
-            PoolType::OpenSource => Decimal::from(50),   // 50 GPU-hours for OSS contributors
+            PoolType::Bounty => Decimal::from(100), // 100 GPU-hours per bounty
+            PoolType::Trial => Decimal::from(10),   // 10 GPU-hours for trial
+            PoolType::Hackathon => Decimal::from(50), // 50 GPU-hours per participant
+            PoolType::Research => Decimal::from(500), // 500 GPU-hours for research
+            PoolType::Training => Decimal::from(20), // 20 GPU-hours for training
+            PoolType::OpenSource => Decimal::from(50), // 50 GPU-hours for OSS contributors
         }
     }
 
@@ -453,16 +453,18 @@ impl ResourcePool {
             return false;
         }
 
-        let domain = email.split('@').last().unwrap_or("");
-        self.auto_approve_domains.iter().any(|d| {
-            domain == d.as_str() || domain.ends_with(&format!(".{}", d))
-        })
+        let domain = email.split('@').next_back().unwrap_or("");
+        self.auto_approve_domains
+            .iter()
+            .any(|d| domain == d.as_str() || domain.ends_with(&format!(".{}", d)))
     }
 
     /// Try to allocate resources from this pool.
     pub fn try_allocate(&mut self, amount: Decimal, user_id: &str) -> Result<PoolAllocation> {
         if !self.can_allocate() {
-            return Err(HpcError::quota_exceeded("Pool is not accepting allocations"));
+            return Err(HpcError::quota_exceeded(
+                "Pool is not accepting allocations",
+            ));
         }
 
         if amount < self.min_allocation_per_request {
@@ -603,7 +605,7 @@ impl ResourcePool {
             available: self.available(),
             utilization_percent: self.utilization_percent(),
             active_allocations: self.current_users,
-            pending_requests: 0, // Would need to be populated from DB
+            pending_requests: 0,   // Would need to be populated from DB
             total_users_served: 0, // Would need to be populated from DB
         }
     }
@@ -728,10 +730,16 @@ mod tests {
     fn test_pool_type_from_str() {
         assert_eq!(PoolType::from_str("bounty").unwrap(), PoolType::Bounty);
         assert_eq!(PoolType::from_str("trial").unwrap(), PoolType::Trial);
-        assert_eq!(PoolType::from_str("hackathon").unwrap(), PoolType::Hackathon);
+        assert_eq!(
+            PoolType::from_str("hackathon").unwrap(),
+            PoolType::Hackathon
+        );
         assert_eq!(PoolType::from_str("research").unwrap(), PoolType::Research);
         assert_eq!(PoolType::from_str("training").unwrap(), PoolType::Training);
-        assert_eq!(PoolType::from_str("open_source").unwrap(), PoolType::OpenSource);
+        assert_eq!(
+            PoolType::from_str("open_source").unwrap(),
+            PoolType::OpenSource
+        );
         assert!(PoolType::from_str("invalid").is_err());
     }
 
@@ -780,28 +788,50 @@ mod tests {
 
     #[test]
     fn test_resource_pool_validate_empty_name() {
-        let pool = ResourcePool::new("", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let pool = ResourcePool::new(
+            "",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
         assert!(pool.validate().is_err());
     }
 
     #[test]
     fn test_resource_pool_validate_zero_limit() {
-        let pool = ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(0));
+        let pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(0),
+        );
         assert!(pool.validate().is_err());
     }
 
     #[test]
     fn test_resource_pool_validate_max_exceeds_total() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(100));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(100),
+        );
         pool.max_allocation_per_user = dec!(200);
         assert!(pool.validate().is_err());
     }
 
     #[test]
     fn test_resource_pool_validate_min_exceeds_max() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(100));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(100),
+        );
         pool.min_allocation_per_request = dec!(50);
         pool.max_allocation_per_user = dec!(10);
         assert!(pool.validate().is_err());
@@ -809,8 +839,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_validate_expiry_before_start() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(100));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(100),
+        );
         pool.starts_at = Some(Utc::now() + chrono::Duration::days(1));
         pool.expires_at = Some(Utc::now());
         assert!(pool.validate().is_err());
@@ -818,15 +853,25 @@ mod tests {
 
     #[test]
     fn test_resource_pool_validate_valid() {
-        let pool =
-            ResourcePool::new("Test Pool", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let pool = ResourcePool::new(
+            "Test Pool",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
         assert!(pool.validate().is_ok());
     }
 
     #[test]
     fn test_resource_pool_available() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
 
         assert_eq!(pool.available(), dec!(1000));
 
@@ -837,8 +882,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_utilization() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
 
         assert_eq!(pool.utilization_percent(), dec!(0));
 
@@ -848,8 +898,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_can_allocate() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
 
         assert!(pool.can_allocate());
 
@@ -867,8 +922,17 @@ mod tests {
 
     #[test]
     fn test_resource_pool_is_auto_approve_domain() {
-        let pool = ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000))
-            .with_auto_approve_domains(vec!["university.edu".to_string(), "research.org".to_string()]);
+        let pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        )
+        .with_auto_approve_domains(vec![
+            "university.edu".to_string(),
+            "research.org".to_string(),
+        ]);
 
         assert!(pool.is_auto_approve_domain("alice@university.edu"));
         assert!(pool.is_auto_approve_domain("bob@cs.university.edu"));
@@ -878,8 +942,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_try_allocate_success() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
 
         let allocation = pool.try_allocate(dec!(5), "user1").unwrap();
 
@@ -891,8 +960,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_try_allocate_below_minimum() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
         pool.min_allocation_per_request = dec!(5);
 
         let result = pool.try_allocate(dec!(2), "user1");
@@ -901,8 +975,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_try_allocate_exceeds_max_per_user() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
         pool.max_allocation_per_user = dec!(10);
 
         let result = pool.try_allocate(dec!(20), "user1");
@@ -911,8 +990,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_try_allocate_exceeds_available() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(100));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(100),
+        );
         pool.allocated = dec!(95);
 
         let result = pool.try_allocate(dec!(10), "user1");
@@ -921,8 +1005,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_try_allocate_max_users() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
         pool.max_concurrent_users = Some(2);
         pool.current_users = 2;
 
@@ -932,8 +1021,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_try_allocate_exhausts_pool() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(10));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(10),
+        );
 
         pool.try_allocate(dec!(10), "user1").unwrap();
 
@@ -943,8 +1037,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_reserve_cancel() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(100));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(100),
+        );
 
         pool.reserve(dec!(20)).unwrap();
         assert_eq!(pool.reserved, dec!(20));
@@ -957,8 +1056,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_release() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(100));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(100),
+        );
 
         pool.try_allocate(dec!(10), "user1").unwrap();
         assert_eq!(pool.allocated, dec!(10));
@@ -971,8 +1075,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_release_reactivates() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(10));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(10),
+        );
 
         pool.try_allocate(dec!(10), "user1").unwrap();
         assert_eq!(pool.status, PoolStatus::Exhausted);
@@ -983,8 +1092,13 @@ mod tests {
 
     #[test]
     fn test_resource_pool_pause_resume() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(100));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(100),
+        );
 
         pool.pause();
         assert_eq!(pool.status, PoolStatus::Paused);
@@ -1012,7 +1126,8 @@ mod tests {
     #[test]
     fn test_pool_allocation_lifecycle() {
         let expires = Utc::now() + chrono::Duration::days(7);
-        let mut allocation = PoolAllocation::new_pending(Uuid::new_v4(), "user1", dec!(50), expires);
+        let mut allocation =
+            PoolAllocation::new_pending(Uuid::new_v4(), "user1", dec!(50), expires);
 
         assert!(allocation.is_pending());
         assert!(!allocation.is_active());
@@ -1031,7 +1146,8 @@ mod tests {
     #[test]
     fn test_pool_allocation_auto_approve() {
         let expires = Utc::now() + chrono::Duration::days(7);
-        let mut allocation = PoolAllocation::new_pending(Uuid::new_v4(), "user1", dec!(50), expires);
+        let mut allocation =
+            PoolAllocation::new_pending(Uuid::new_v4(), "user1", dec!(50), expires);
 
         allocation.auto_approve();
         assert_eq!(allocation.status, AllocationRequestStatus::AutoApproved);
@@ -1041,7 +1157,8 @@ mod tests {
     #[test]
     fn test_pool_allocation_reject() {
         let expires = Utc::now() + chrono::Duration::days(7);
-        let mut allocation = PoolAllocation::new_pending(Uuid::new_v4(), "user1", dec!(50), expires);
+        let mut allocation =
+            PoolAllocation::new_pending(Uuid::new_v4(), "user1", dec!(50), expires);
 
         allocation.reject();
         assert_eq!(allocation.status, AllocationRequestStatus::Rejected);
@@ -1051,7 +1168,8 @@ mod tests {
     #[test]
     fn test_pool_allocation_record_usage_exceeds() {
         let expires = Utc::now() + chrono::Duration::days(7);
-        let mut allocation = PoolAllocation::new_pending(Uuid::new_v4(), "user1", dec!(50), expires);
+        let mut allocation =
+            PoolAllocation::new_pending(Uuid::new_v4(), "user1", dec!(50), expires);
         allocation.approve(Uuid::new_v4());
 
         let result = allocation.record_usage(dec!(60));
@@ -1060,9 +1178,15 @@ mod tests {
 
     #[test]
     fn test_resource_pool_serialization() {
-        let pool = ResourcePool::new("Test", tenant_id(), PoolType::Hackathon, ResourceType::GpuHours, dec!(500))
-            .with_description("Hackathon compute pool")
-            .with_auto_approve_domains(vec!["university.edu".to_string()]);
+        let pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Hackathon,
+            ResourceType::GpuHours,
+            dec!(500),
+        )
+        .with_description("Hackathon compute pool")
+        .with_auto_approve_domains(vec!["university.edu".to_string()]);
 
         let json = serde_json::to_string(&pool).unwrap();
         let deserialized: ResourcePool = serde_json::from_str(&json).unwrap();
@@ -1074,8 +1198,13 @@ mod tests {
 
     #[test]
     fn test_pool_stats() {
-        let mut pool =
-            ResourcePool::new("Test", tenant_id(), PoolType::Trial, ResourceType::GpuHours, dec!(1000));
+        let mut pool = ResourcePool::new(
+            "Test",
+            tenant_id(),
+            PoolType::Trial,
+            ResourceType::GpuHours,
+            dec!(1000),
+        );
         pool.allocated = dec!(250);
         pool.reserved = dec!(50);
         pool.current_users = 5;

@@ -123,6 +123,10 @@ pub extern "C" fn tier_watch_get_stats(tier: CTier, stats: *mut CTierStats) -> c
     let tier_enum: MemoryTier = tier.into();
 
     if let Some(tier_stats) = crate::tiers::get_tier_stats(tier_enum) {
+        // SAFETY: stats pointer validity is checked above (is_null check).
+        // The caller is responsible for providing a valid CTierStats pointer
+        // with proper alignment. This is a C FFI boundary - caller must ensure
+        // the pointer remains valid for the duration of this call.
         unsafe {
             (*stats).tier = tier;
             (*stats).total_pages = tier_stats
@@ -172,6 +176,9 @@ pub extern "C" fn tier_watch_check_pressure(
     let pressure_tiers = crate::tiers::check_memory_pressure();
     let count = pressure_tiers.len().min(max_tiers as usize);
 
+    // SAFETY: tiers_out and pressures_out validity checked above (is_null).
+    // Caller guarantees arrays have at least max_tiers elements.
+    // We only write up to count elements, which is min(results, max_tiers).
     unsafe {
         for (i, (tier, pressure)) in pressure_tiers.iter().take(count).enumerate() {
             *tiers_out.add(i) = (*tier).into();
@@ -221,6 +228,8 @@ pub extern "C" fn tier_watch_get_performance(metrics: *mut CPerformanceMetrics) 
 
     let perf = crate::stats::get_performance_metrics();
 
+    // SAFETY: metrics pointer validity is checked above (is_null check).
+    // Caller is responsible for providing a valid CPerformanceMetrics pointer.
     unsafe {
         (*metrics).fault_overhead_ns = perf.fault_overhead_ns as c_ulong;
         (*metrics).detection_time_us = perf.detection_time_us as c_ulong;
@@ -242,6 +251,9 @@ pub extern "C" fn tier_watch_generate_report(buffer: *mut c_char, buffer_size: c
     let report_bytes = report.as_bytes();
     let copy_len = report_bytes.len().min(buffer_size as usize - 1);
 
+    // SAFETY: buffer validity checked above (is_null, buffer_size > 0).
+    // copy_len is min of report length and (buffer_size - 1), ensuring we don't
+    // write past buffer bounds. Null termination at copy_len is within bounds.
     unsafe {
         ptr::copy_nonoverlapping(report_bytes.as_ptr(), buffer as *mut u8, copy_len);
         *buffer.add(copy_len) = 0; // Null terminate

@@ -45,6 +45,12 @@ pub mod memory {
     #[derive(Debug)]
     pub struct TierManager;
 
+    impl Default for TierManager {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl TierManager {
         pub fn new() -> Self {
             Self

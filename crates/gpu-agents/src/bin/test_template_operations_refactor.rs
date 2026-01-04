@@ -204,6 +204,8 @@ Items:
     let pool_sizes = vec![1024, 4096, 16384, 65536];
     let mut memory_pools = Vec::new();
 
+    // SAFETY: alloc returns uninitialized memory. These are test allocations
+    // for memory pooling demonstration; no reads are performed on the content.
     for &size in &pool_sizes {
         let buffer = unsafe { device.alloc::<u8>(size) };
         if let Ok(buf) = buffer {

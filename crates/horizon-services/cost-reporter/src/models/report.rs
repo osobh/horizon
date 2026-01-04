@@ -1,6 +1,6 @@
-use chrono::{DateTime, Timelike, Utc};
 #[cfg(test)]
 use chrono::Datelike;
+use chrono::{DateTime, Timelike, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -183,7 +183,7 @@ pub struct ChargebackLineItem {
     pub description: String,
     pub resource_type: String, // gpu, cpu, network, storage
     pub quantity: Decimal,
-    pub unit: String,          // hours, GB, TB
+    pub unit: String, // hours, GB, TB
     pub unit_price: Decimal,
     pub amount: Decimal,
 }

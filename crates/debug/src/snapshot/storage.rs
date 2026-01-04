@@ -26,13 +26,21 @@ impl RingBufferStorage {
 
     /// Get current storage utilization
     pub async fn get_utilization(&self) -> f64 {
-        let current_size: usize = self.snapshots.iter().map(|entry| entry.value().total_size()).sum();
+        let current_size: usize = self
+            .snapshots
+            .iter()
+            .map(|entry| entry.value().total_size())
+            .sum();
         current_size as f64 / self.capacity as f64
     }
 
     /// Evict oldest snapshots if capacity is exceeded
     async fn evict_if_needed(&self, new_snapshot_size: usize) -> Result<(), DebugError> {
-        let current_size: usize = self.snapshots.iter().map(|entry| entry.value().total_size()).sum();
+        let current_size: usize = self
+            .snapshots
+            .iter()
+            .map(|entry| entry.value().total_size())
+            .sum();
 
         if current_size + new_snapshot_size > self.capacity {
             // Find oldest snapshots and remove them

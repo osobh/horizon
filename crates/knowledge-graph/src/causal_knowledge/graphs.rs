@@ -28,6 +28,12 @@ pub struct TemporalConstraint {
     pub max_delay: ChronoDuration,
 }
 
+impl Default for CausalGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CausalGraph {
     pub fn new() -> Self {
         Self {
@@ -39,11 +45,14 @@ impl CausalGraph {
         }
     }
 
-    pub fn rebuild_from_knowledge_graph(&mut self, kg: &KnowledgeGraph) -> KnowledgeGraphResult<()> {
+    pub fn rebuild_from_knowledge_graph(
+        &mut self,
+        kg: &KnowledgeGraph,
+    ) -> KnowledgeGraphResult<()> {
         // Extract nodes and build index mapping
         self.node_to_index.clear();
         self.index_to_node.clear();
-        
+
         for (idx, node) in kg.get_all_nodes()?.iter().enumerate() {
             self.node_to_index.insert(node.id.clone(), idx);
             self.index_to_node.push(node.id.clone());

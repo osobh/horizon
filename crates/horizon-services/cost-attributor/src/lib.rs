@@ -6,4 +6,4 @@ pub mod error;
 pub mod models;
 
 pub use config::Config;
-pub use error::{HpcError, Result, AttributorErrorExt};
+pub use error::{AttributorErrorExt, HpcError, Result};

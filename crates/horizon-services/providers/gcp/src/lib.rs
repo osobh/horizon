@@ -1,7 +1,6 @@
 use hpc_provider::{
     Availability, CapacityProvider, HealthStatus, Instance, InstanceState, ProviderError,
-    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas,
-    SpotPrices,
+    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas, SpotPrices,
 };
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -283,4 +282,3 @@ impl CapacityProvider for GcpProvider {
         })
     }
 }
-

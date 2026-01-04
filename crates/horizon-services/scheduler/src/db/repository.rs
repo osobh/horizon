@@ -26,7 +26,11 @@ impl JobRepository {
             .and_then(|c| c.model.clone());
 
         // Extract CPU info
-        let cpu_spec = job.resources.inner.resources.get(&ResourceType::Compute(ComputeType::Cpu));
+        let cpu_spec = job
+            .resources
+            .inner
+            .resources
+            .get(&ResourceType::Compute(ComputeType::Cpu));
         let cpu_cores = cpu_spec.map(|s| s.amount as i32);
 
         // Extract memory info
@@ -198,7 +202,10 @@ impl JobRepository {
             "normal" => Ok(Priority::Normal),
             "high" => Ok(Priority::High),
             "urgent" => Ok(Priority::Urgent),
-            _ => Err(HpcError::internal(format!("Invalid priority: {}", priority))),
+            _ => Err(HpcError::internal(format!(
+                "Invalid priority: {}",
+                priority
+            ))),
         }
     }
 

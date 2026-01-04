@@ -441,6 +441,10 @@ static mut PROC_MANAGER: Option<ProcManager> = None;
 
 /// Initialize proc subsystem
 pub fn init() -> KernelResult<()> {
+    // SAFETY: This function is called exactly once during kernel module
+    // initialization, before any other threads can access PROC_MANAGER.
+    // The kernel module init sequence is single-threaded, ensuring no data
+    // races during this write to the static mutable.
     unsafe {
         PROC_MANAGER = Some(ProcManager::new());
         PROC_MANAGER.as_ref().unwrap().init()
@@ -449,6 +453,10 @@ pub fn init() -> KernelResult<()> {
 
 /// Cleanup proc subsystem
 pub fn cleanup() {
+    // SAFETY: This function is called exactly once during kernel module
+    // unload, after all other operations have completed and no threads are
+    // accessing PROC_MANAGER. The kernel module exit sequence ensures
+    // exclusive access to module globals during cleanup.
     unsafe {
         if let Some(manager) = PROC_MANAGER.as_ref() {
             manager.cleanup();

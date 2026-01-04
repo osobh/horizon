@@ -7,11 +7,11 @@ use crate::error::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutonomyLevel {
-    ReadOnly,   // Observe only
-    Low,        // Recommendations only
-    Medium,     // Low-risk execution
-    High,       // Auto-execute with thresholds
-    Full,       // Full autonomy
+    ReadOnly, // Observe only
+    Low,      // Recommendations only
+    Medium,   // Low-risk execution
+    High,     // Auto-execute with thresholds
+    Full,     // Full autonomy
 }
 
 impl AutonomyLevel {
@@ -245,12 +245,16 @@ mod tests {
         assert!(!healthy.is_degraded());
         assert!(!healthy.is_unhealthy());
 
-        let degraded = HealthStatus::Degraded { reason: "slow".to_string() };
+        let degraded = HealthStatus::Degraded {
+            reason: "slow".to_string(),
+        };
         assert!(!degraded.is_healthy());
         assert!(degraded.is_degraded());
         assert!(!degraded.is_unhealthy());
 
-        let unhealthy = HealthStatus::Unhealthy { reason: "down".to_string() };
+        let unhealthy = HealthStatus::Unhealthy {
+            reason: "down".to_string(),
+        };
         assert!(!unhealthy.is_healthy());
         assert!(!unhealthy.is_degraded());
         assert!(unhealthy.is_unhealthy());

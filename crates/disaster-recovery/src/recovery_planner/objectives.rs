@@ -38,7 +38,7 @@ impl RecoveryObjective {
     /// Check if objective is achievable with current resources
     pub fn is_achievable(&self, available_resources: &super::resources::ResourceCapacity) -> bool {
         // Basic feasibility check based on resource availability
-        available_resources.cpu_cores >= 1.0 
+        available_resources.cpu_cores >= 1.0
             && available_resources.memory_gb >= 1.0
             && available_resources.storage_gb >= 1.0
     }

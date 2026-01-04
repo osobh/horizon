@@ -67,6 +67,9 @@ impl GpuBufferPool {
         let mut available = Vec::with_capacity(num_buffers);
 
         for i in 0..num_buffers {
+            // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+            // because the buffer pool manages buffer lifecycle and buffers are written
+            // via htod_copy before any kernel reads from them.
             let buffer = unsafe { device.alloc::<u8>(buffer_size)? };
             buffers.push(buffer);
             available.push(i);
@@ -256,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn test_buffer_pool() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_buffer_pool() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let mut pool = GpuBufferPool::new(device, 4, 1024)?;

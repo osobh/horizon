@@ -22,7 +22,7 @@ pub trait FitnessFunction: Send + Sync {
     }
 }
 
-/// Sphere function: f(x) = -sum(x_i^2)
+/// Sphere function: f(x) = -`sum(x_i^2)`
 ///
 /// Minimization problem (negated for maximization).
 /// Optimal: f(0, 0, ..., 0) = 0
@@ -34,7 +34,7 @@ impl FitnessFunction for SphereFunction {
         -genome.iter().map(|x| x * x).sum::<f64>()
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Sphere"
     }
 
@@ -43,7 +43,7 @@ impl FitnessFunction for SphereFunction {
     }
 }
 
-/// Rosenbrock function: f(x) = -sum(100*(x_{i+1} - x_i^2)^2 + (1 - x_i)^2)
+/// Rosenbrock function: f(x) = -sum(100*(x_{i+1} - `x_i^2)^2` + (1 - `x_i)^2`)
 ///
 /// Minimization problem (negated for maximization).
 /// Optimal: f(1, 1, ..., 1) = 0
@@ -61,7 +61,7 @@ impl FitnessFunction for RosenbrockFunction {
         -sum
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Rosenbrock"
     }
 
@@ -70,7 +70,7 @@ impl FitnessFunction for RosenbrockFunction {
     }
 }
 
-/// Rastrigin function: f(x) = -(10n + sum(x_i^2 - 10*cos(2*pi*x_i)))
+/// Rastrigin function: f(x) = -(10n + `sum(x_i^2` - 10*cos(2*pi*`x_i`)))
 ///
 /// Minimization problem (negated for maximization).
 /// Optimal: f(0, 0, ..., 0) = 0
@@ -87,7 +87,7 @@ impl FitnessFunction for RastriginFunction {
         -(10.0 * n + sum)
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Rastrigin"
     }
 
@@ -97,10 +97,7 @@ impl FitnessFunction for RastriginFunction {
 }
 
 /// Evaluate fitness for multiple individuals in parallel.
-pub async fn evaluate_parallel<F>(
-    individuals: &mut [Individual],
-    fitness_fn: Arc<F>,
-) -> Vec<f64>
+pub async fn evaluate_parallel<F>(individuals: &mut [Individual], fitness_fn: Arc<F>) -> Vec<f64>
 where
     F: FitnessFunction + 'static,
 {

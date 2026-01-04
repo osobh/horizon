@@ -196,7 +196,11 @@ async fn test_azure_health() {
 
 #[test]
 fn test_azure_config_creation() {
-    let config = AzureConfig::new("sub-456".to_string(), "rg-ml".to_string(), "westus".to_string());
+    let config = AzureConfig::new(
+        "sub-456".to_string(),
+        "rg-ml".to_string(),
+        "westus".to_string(),
+    );
     assert_eq!(config.subscription_id, "sub-456");
     assert_eq!(config.resource_group, "rg-ml");
     assert_eq!(config.location, "westus");

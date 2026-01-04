@@ -22,24 +22,15 @@ const CHANNEL_CAPACITY: usize = 1024;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BuildLogMessage {
     /// Connection established
-    Connected {
-        build_id: String,
-    },
+    Connected { build_id: String },
     /// Build log entry
     LogEntry(BuildLogEntry),
     /// Build status update
-    StatusUpdate {
-        status: BuildJobStatus,
-    },
+    StatusUpdate { status: BuildJobStatus },
     /// Build completed
-    Completed {
-        exit_code: i32,
-        duration_secs: f64,
-    },
+    Completed { exit_code: i32, duration_secs: f64 },
     /// Error occurred
-    Error {
-        message: String,
-    },
+    Error { message: String },
     /// Heartbeat (keep-alive)
     Heartbeat,
 }
@@ -308,9 +299,7 @@ mod tests {
 
         assert_eq!(streamer.subscriber_count(build_id).await, 2);
 
-        streamer
-            .broadcast_completed(build_id, 0, 10.5)
-            .await;
+        streamer.broadcast_completed(build_id, 0, 10.5).await;
 
         // Both receivers should get the message
         let msg1 = receiver1.recv().await.unwrap();

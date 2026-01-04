@@ -428,9 +428,7 @@ mod tests {
         let values = vec![10.0, 20.0, 30.0, 40.0, 50.0];
         let snapshots = create_test_snapshots(values);
 
-        let rolling_stats = calculator
-            .calculate_rolling_statistics(&snapshots, 3)
-            ?;
+        let rolling_stats = calculator.calculate_rolling_statistics(&snapshots, 3)?;
 
         // Should have 3 rolling windows: [10,20,30], [20,30,40], [30,40,50]
         assert_eq!(rolling_stats.len(), 3);

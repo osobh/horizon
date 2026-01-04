@@ -204,9 +204,9 @@ impl DispatchConfig {
     /// Calculate the number of threadgroups needed.
     pub fn threadgroups(&self) -> (u64, u64, u64) {
         (
-            (self.threads_x + self.group_x - 1) / self.group_x,
-            (self.threads_y + self.group_y - 1) / self.group_y,
-            (self.threads_z + self.group_z - 1) / self.group_z,
+            self.threads_x.div_ceil(self.group_x),
+            self.threads_y.div_ceil(self.group_y),
+            self.threads_z.div_ceil(self.group_z),
         )
     }
 }

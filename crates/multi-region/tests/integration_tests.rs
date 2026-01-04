@@ -2,9 +2,9 @@
 //!
 //! These tests verify that all modules work together correctly in realistic scenarios.
 
+use std::collections::HashMap;
 use stratoswarm_multi_region::tunnels::TlsVersion;
 use stratoswarm_multi_region::*;
-use std::collections::HashMap;
 
 /// Test end-to-end multi-region deployment scenario
 #[tokio::test]

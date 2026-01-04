@@ -38,8 +38,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Add test nodes
         let mut node1 = Node::new(NodeType::Agent, HashMap::new());
@@ -88,8 +87,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Create a simple path: A -> B -> C
         let node_a = Node::new(NodeType::Agent, HashMap::new());
@@ -144,8 +142,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Create a star topology: center -> node1, node2, node3
         let center = Node::new(NodeType::Agent, HashMap::new());
@@ -189,8 +186,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Create nodes with different degrees
         let hub = Node::new(NodeType::Agent, HashMap::new());

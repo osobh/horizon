@@ -10,7 +10,7 @@ use super::strategies::StrategyExecutor;
 use super::types::{PruningConfig, PruningStats};
 use crate::error::KnowledgeGraphResult;
 use crate::graph::{KnowledgeGraph, NodeType};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use std::collections::{HashMap, HashSet};
 
 /// Main pruning system that coordinates all pruning functionality

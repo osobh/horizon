@@ -57,7 +57,10 @@ fn error_response(err: Error) -> (StatusCode, Json<ApiError>) {
         ),
         Error::MigrationInProgress(node_id) => (
             StatusCode::CONFLICT,
-            ApiError::conflict(format!("Migration already in progress for node {}", node_id)),
+            ApiError::conflict(format!(
+                "Migration already in progress for node {}",
+                node_id
+            )),
         ),
         Error::SubnetNotEmpty(count) => (
             StatusCode::CONFLICT,
@@ -98,12 +101,12 @@ pub async fn list_subnets(
         .list_subnets()
         .iter()
         .filter(|s| {
-            query.purpose.map_or(true, |p| s.purpose == p)
-                && query.status.map_or(true, |st| s.status == st)
-                && query.tenant_id.map_or(true, |t| s.tenant_id == Some(t))
-                && query.node_type.map_or(true, |nt| s.node_type == Some(nt))
+            query.purpose.is_none_or(|p| s.purpose == p)
+                && query.status.is_none_or(|st| s.status == st)
+                && query.tenant_id.is_none_or(|t| s.tenant_id == Some(t))
+                && query.node_type.is_none_or(|nt| s.node_type == Some(nt))
         })
-        .map(|s| subnet_to_response(s))
+        .map(subnet_to_response)
         .collect();
 
     let total = subnets.len();
@@ -186,7 +189,7 @@ pub async fn update_subnet(
     let manager = state.manager.write().await;
 
     // Get current subnet
-    let subnet = manager
+    let _subnet = manager
         .get_subnet(id)
         .ok_or_else(|| error_response(Error::SubnetNotFound(id)))?;
 
@@ -419,7 +422,10 @@ pub async fn evaluate_policy(
     }
     if let Some(labels) = req.labels {
         // Convert HashMap to Vec<String> (format: "key=value")
-        attrs.labels = labels.into_iter().map(|(k, v)| format!("{}={}", k, v)).collect();
+        attrs.labels = labels
+            .into_iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect();
     }
     if let Some(gpu) = req.gpu_count {
         attrs.gpu_count = Some(gpu as i32);
@@ -764,9 +770,7 @@ pub async fn get_manager_stats(State(state): State<Arc<AppState>>) -> impl IntoR
         *by_purpose
             .entry(format!("{:?}", subnet.purpose))
             .or_default() += 1;
-        *by_status
-            .entry(format!("{:?}", subnet.status))
-            .or_default() += 1;
+        *by_status.entry(format!("{:?}", subnet.status)).or_default() += 1;
         if subnet.status == crate::models::SubnetStatus::Active {
             active_count += 1;
         }

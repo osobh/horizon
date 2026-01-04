@@ -2,6 +2,8 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
+use std::collections::HashMap;
+use std::sync::Arc;
 use stratoswarm_evolution_global::{
     error::EvolutionGlobalResult,
     secure_multiparty::{
@@ -10,8 +12,6 @@ use stratoswarm_evolution_global::{
         SecureMultiPartyManager, SessionStatus, ZKProof, ZKProofType,
     },
 };
-use std::collections::HashMap;
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Mock cryptographic provider for integration tests

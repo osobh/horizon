@@ -335,7 +335,9 @@ fn test_version_patch_handling() {
 #[test]
 fn test_initialization_state() {
     // Test that initialization state is properly tracked
-    // This uses unsafe static, so we're just verifying it compiles and runs
+    // SAFETY: INITIALIZED is a static bool used to track one-time init state.
+    // Reading it is safe as we only check its value, and the mock test
+    // environment ensures no concurrent access.
     let _ = unsafe { INITIALIZED };
 }
 

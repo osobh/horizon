@@ -200,7 +200,7 @@ impl DocumentationValidator {
         for entry in walkdir::WalkDir::new(&self.crate_path)
             .into_iter()
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
             .filter(|e| !e.path().to_string_lossy().contains("target"))
         {
             actual_count += 1;
@@ -236,7 +236,7 @@ impl DocumentationValidator {
 
     fn check_dependencies(
         &self,
-        issues: &mut Vec<ValidationIssue>,
+        _issues: &mut Vec<ValidationIssue>,
     ) -> Result<DependencyAccuracy, String> {
         let cargo_toml_path = self.crate_path.join("Cargo.toml");
         let content = fs::read_to_string(&cargo_toml_path)
@@ -299,8 +299,7 @@ impl DocumentationValidator {
         // Files over limit penalty
         deductions += file_counts.files_over_750_lines.len() as f64 * 0.5;
 
-        let score = ((total_possible_issues - deductions) / total_possible_issues * 100.0).max(0.0);
-        score
+        ((total_possible_issues - deductions) / total_possible_issues * 100.0).max(0.0)
     }
 }
 

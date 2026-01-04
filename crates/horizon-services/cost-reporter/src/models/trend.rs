@@ -17,7 +17,7 @@ pub struct TrendAnalysis {
     pub direction: TrendDirection,
     pub growth_rate: Decimal, // Percentage: positive = increasing, negative = decreasing
     pub daily_average: Decimal,
-    pub slope: f64, // Linear regression slope
+    pub slope: f64,      // Linear regression slope
     pub confidence: f64, // 0.0 to 1.0
 }
 
@@ -131,13 +131,8 @@ mod tests {
 
     #[test]
     fn test_trend_analysis_creation() {
-        let trend = TrendAnalysis::new(
-            TrendDirection::Increasing,
-            dec!(15.5),
-            dec!(100.00),
-            0.5,
-        )
-        .with_confidence(0.85);
+        let trend = TrendAnalysis::new(TrendDirection::Increasing, dec!(15.5), dec!(100.00), 0.5)
+            .with_confidence(0.85);
 
         assert_eq!(trend.direction, TrendDirection::Increasing);
         assert_eq!(trend.growth_rate, dec!(15.5));
@@ -148,13 +143,8 @@ mod tests {
 
     #[test]
     fn test_trend_confidence_clamping() {
-        let trend = TrendAnalysis::new(
-            TrendDirection::Stable,
-            dec!(0.0),
-            dec!(50.00),
-            0.0,
-        )
-        .with_confidence(1.5);
+        let trend = TrendAnalysis::new(TrendDirection::Stable, dec!(0.0), dec!(50.00), 0.0)
+            .with_confidence(1.5);
 
         assert_eq!(trend.confidence, 1.0); // Clamped to 1.0
     }
@@ -177,14 +167,8 @@ mod tests {
             ForecastPoint::new(now, dec!(120.00), 0.7),
         ];
 
-        let forecast = CostForecast::new(
-            now,
-            now,
-            now,
-            now,
-            "linear_regression".to_string(),
-            points,
-        );
+        let forecast =
+            CostForecast::new(now, now, now, now, "linear_regression".to_string(), points);
 
         assert!((forecast.avg_confidence - 0.8).abs() < 0.001);
     }
@@ -192,14 +176,8 @@ mod tests {
     #[test]
     fn test_cost_forecast_empty_points() {
         let now = Utc::now();
-        let forecast = CostForecast::new(
-            now,
-            now,
-            now,
-            now,
-            "linear_regression".to_string(),
-            vec![],
-        );
+        let forecast =
+            CostForecast::new(now, now, now, now, "linear_regression".to_string(), vec![]);
 
         assert_eq!(forecast.avg_confidence, 0.0);
         assert_eq!(forecast.points.len(), 0);

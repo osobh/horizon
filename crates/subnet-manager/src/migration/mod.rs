@@ -24,15 +24,14 @@ mod executor;
 mod planner;
 
 pub use executor::{
-    MigrationExecutor, MigrationHandle, MigrationOptions, MigrationProgress,
-    MigrationStateMachine, MigrationStep,
+    MigrationExecutor, MigrationHandle, MigrationOptions, MigrationProgress, MigrationStateMachine,
+    MigrationStep,
 };
 pub use planner::{
     BulkMigrationPlan, MigrationConstraint, MigrationPlan, MigrationPlanner, MigrationReason,
     MigrationValidation, ValidationIssue,
 };
 
-use crate::{Error, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;

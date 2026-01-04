@@ -1,6 +1,6 @@
-use anyhow::Result;
-use hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch};
 use crate::config::InfluxDbConfig;
+use anyhow::Result;
+use hpc_types::{CpuMetric, GpuMetric, MetricBatch, NicMetric};
 
 pub struct InfluxDbWriter {
     _config: InfluxDbConfig,
@@ -13,7 +13,9 @@ impl InfluxDbWriter {
 
     /// Convert GPU metric to InfluxDB line protocol
     pub fn gpu_metric_to_line_protocol(metric: &GpuMetric) -> String {
-        let timestamp = metric.timestamp.as_ref()
+        let timestamp = metric
+            .timestamp
+            .as_ref()
             .map(|ts| ts.seconds * 1_000_000_000 + ts.nanos as i64)
             .unwrap_or(0);
 
@@ -37,7 +39,9 @@ impl InfluxDbWriter {
 
     /// Convert CPU metric to InfluxDB line protocol
     pub fn cpu_metric_to_line_protocol(metric: &CpuMetric) -> String {
-        let timestamp = metric.timestamp.as_ref()
+        let timestamp = metric
+            .timestamp
+            .as_ref()
             .map(|ts| ts.seconds * 1_000_000_000 + ts.nanos as i64)
             .unwrap_or(0);
 
@@ -54,7 +58,9 @@ impl InfluxDbWriter {
 
     /// Convert NIC metric to InfluxDB line protocol
     pub fn nic_metric_to_line_protocol(metric: &NicMetric) -> String {
-        let timestamp = metric.timestamp.as_ref()
+        let timestamp = metric
+            .timestamp
+            .as_ref()
             .map(|ts| ts.seconds * 1_000_000_000 + ts.nanos as i64)
             .unwrap_or(0);
 

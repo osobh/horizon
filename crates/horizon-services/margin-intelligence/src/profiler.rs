@@ -1,5 +1,5 @@
 use crate::db::repository::MarginRepository;
-use crate::error::{HpcError, Result, MarginErrorExt};
+use crate::error::{HpcError, MarginErrorExt, Result};
 use crate::models::*;
 use rust_decimal::Decimal;
 
@@ -28,19 +28,14 @@ impl CustomerProfiler {
             .await
     }
 
-    pub async fn calculate_lifetime_value(
-        &self,
-        customer_id: &str,
-    ) -> Result<Decimal> {
+    pub async fn calculate_lifetime_value(&self, customer_id: &str) -> Result<Decimal> {
         let profile = self.repository.get_profile(customer_id).await?;
 
         // Simple LTV: monthly contribution margin * ltv_months
         let monthly_margin = if let Some(cm) = profile.contribution_margin {
             cm / Decimal::from(12) // Assume annual data
         } else {
-            return Err(HpcError::invalid_calculation(
-                "No contribution margin data",
-            ));
+            return Err(HpcError::invalid_calculation("No contribution margin data"));
         };
 
         let ltv = monthly_margin * Decimal::from(self.ltv_months);
@@ -60,10 +55,7 @@ impl CustomerProfiler {
             .await
     }
 
-    pub async fn identify_at_risk(
-        &self,
-        threshold: Decimal,
-    ) -> Result<Vec<CustomerProfile>> {
+    pub async fn identify_at_risk(&self, threshold: Decimal) -> Result<Vec<CustomerProfile>> {
         self.repository.get_at_risk_customers(threshold).await
     }
 
@@ -86,23 +78,26 @@ impl CustomerProfiler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::pool::create_pool;
     use crate::config::DatabaseConfig;
+    use crate::db::pool::create_pool;
     use rust_decimal_macros::dec;
     use sqlx::PgPool;
 
     async fn setup_test_repo() -> MarginRepository {
         let config = DatabaseConfig {
-            url: std::env::var("TEST_DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/margin_test".to_string()),
+            url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+                "postgres://postgres:postgres@localhost/margin_test".to_string()
+            }),
             max_connections: 5,
         };
 
         let pool = create_pool(&config).await.unwrap();
-        sqlx::query("TRUNCATE customer_profiles, pricing_simulations, margin_recommendations CASCADE")
-            .execute(&pool)
-            .await
-            .ok();
+        sqlx::query(
+            "TRUNCATE customer_profiles, pricing_simulations, margin_recommendations CASCADE",
+        )
+        .execute(&pool)
+        .await
+        .ok();
 
         MarginRepository::new(pool)
     }

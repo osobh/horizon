@@ -104,7 +104,10 @@ impl BuildJob {
                 }
             }
             CargoCommand::Doc { open: _ } => args.push("doc".to_string()),
-            CargoCommand::Run { bin, args: ref run_args } => {
+            CargoCommand::Run {
+                bin,
+                args: ref run_args,
+            } => {
                 args.push("run".to_string());
                 if let Some(ref b) = bin {
                     args.push("--bin".to_string());
@@ -152,8 +155,10 @@ impl BuildJob {
 /// Cargo commands supported for build jobs
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CargoCommand {
     /// cargo build
+    #[default]
     Build,
     /// cargo test with optional filter
     Test { filter: Option<String> },
@@ -164,15 +169,12 @@ pub enum CargoCommand {
     /// cargo doc
     Doc { open: bool },
     /// cargo run with optional binary name and arguments
-    Run { bin: Option<String>, args: Vec<String> },
+    Run {
+        bin: Option<String>,
+        args: Vec<String>,
+    },
     /// cargo bench with optional filter
     Bench { filter: Option<String> },
-}
-
-impl Default for CargoCommand {
-    fn default() -> Self {
-        Self::Build
-    }
 }
 
 /// Rust toolchain specification
@@ -242,10 +244,7 @@ pub enum BuildSource {
         depth: Option<u32>,
     },
     /// Pre-uploaded source archive (tar.gz)
-    Archive {
-        url: String,
-        sha256: Option<String>,
-    },
+    Archive { url: String, sha256: Option<String> },
     /// Reference to previously cached source
     Cached { hash: String },
     /// Local path (for testing)
@@ -264,16 +263,12 @@ pub enum GitReference {
 /// Build profile
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum BuildProfile {
+    #[default]
     Debug,
     Release,
     Custom(String),
-}
-
-impl Default for BuildProfile {
-    fn default() -> Self {
-        Self::Debug
-    }
 }
 
 /// Resource limits for a build container
@@ -295,7 +290,7 @@ impl Default for BuildResourceLimits {
             cpu_cores: Some(4.0),
             memory_bytes: Some(8 * 1024 * 1024 * 1024), // 8GB
             disk_bytes: Some(20 * 1024 * 1024 * 1024),  // 20GB
-            timeout_seconds: Some(3600),                 // 1 hour
+            timeout_seconds: Some(3600),                // 1 hour
         }
     }
 }
@@ -307,7 +302,7 @@ impl BuildResourceLimits {
             cpu_cores: Some(1.0),
             memory_bytes: Some(2 * 1024 * 1024 * 1024), // 2GB
             disk_bytes: Some(5 * 1024 * 1024 * 1024),   // 5GB
-            timeout_seconds: Some(600),                  // 10 minutes
+            timeout_seconds: Some(600),                 // 10 minutes
         }
     }
 
@@ -317,7 +312,7 @@ impl BuildResourceLimits {
             cpu_cores: Some(8.0),
             memory_bytes: Some(32 * 1024 * 1024 * 1024), // 32GB
             disk_bytes: Some(100 * 1024 * 1024 * 1024),  // 100GB
-            timeout_seconds: Some(7200),                  // 2 hours
+            timeout_seconds: Some(7200),                 // 2 hours
         }
     }
 }
@@ -533,7 +528,9 @@ mod tests {
 
     #[test]
     fn test_cargo_args_build() {
-        let source = BuildSource::Local { path: PathBuf::from(".") };
+        let source = BuildSource::Local {
+            path: PathBuf::from("."),
+        };
         let job = BuildJob::new(CargoCommand::Build, source)
             .with_profile(BuildProfile::Release)
             .with_features(vec!["foo".to_string(), "bar".to_string()]);
@@ -547,9 +544,13 @@ mod tests {
 
     #[test]
     fn test_cargo_args_test() {
-        let source = BuildSource::Local { path: PathBuf::from(".") };
+        let source = BuildSource::Local {
+            path: PathBuf::from("."),
+        };
         let job = BuildJob::new(
-            CargoCommand::Test { filter: Some("my_test".to_string()) },
+            CargoCommand::Test {
+                filter: Some("my_test".to_string()),
+            },
             source,
         );
 
@@ -579,7 +580,10 @@ mod tests {
         assert!(!BuildJobStatus::Queued.is_terminal());
         assert!(!BuildJobStatus::Building.is_terminal());
         assert!(BuildJobStatus::Completed.is_terminal());
-        assert!(BuildJobStatus::Failed { error: "test".to_string() }.is_terminal());
+        assert!(BuildJobStatus::Failed {
+            error: "test".to_string()
+        }
+        .is_terminal());
         assert!(BuildJobStatus::Cancelled.is_terminal());
         assert!(BuildJobStatus::TimedOut.is_terminal());
     }

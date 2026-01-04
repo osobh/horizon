@@ -1,4 +1,4 @@
-use crate::error::{HpcError, Result, CapacityErrorExt};
+use crate::error::{CapacityErrorExt, HpcError, Result};
 use crate::forecaster::{backtest_forecast, EtsForecaster};
 use crate::models::{BacktestResult, ForecastPoint, ForecastResult};
 use chrono::{Duration, Utc};
@@ -197,7 +197,9 @@ mod tests {
         let service = ForecastService::new(180);
 
         let insufficient_data = generate_test_data(100);
-        assert!(service.validate_data_sufficiency(&insufficient_data).is_err());
+        assert!(service
+            .validate_data_sufficiency(&insufficient_data)
+            .is_err());
 
         let sufficient_data = generate_test_data(200);
         assert!(service.validate_data_sufficiency(&sufficient_data).is_ok());

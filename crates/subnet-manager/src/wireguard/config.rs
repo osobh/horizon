@@ -135,14 +135,10 @@ impl PeerConfig {
     }
 
     /// Create a peer config for cross-subnet routing
-    pub fn for_subnet_route(
-        remote_subnet: &Subnet,
-        route: &CrossSubnetRoute,
-    ) -> Result<Self> {
-        let public_key = remote_subnet
-            .wg_public_key
-            .clone()
-            .ok_or_else(|| Error::WireGuardConfig("Remote subnet missing public key".to_string()))?;
+    pub fn for_subnet_route(remote_subnet: &Subnet, _route: &CrossSubnetRoute) -> Result<Self> {
+        let public_key = remote_subnet.wg_public_key.clone().ok_or_else(|| {
+            Error::WireGuardConfig("Remote subnet missing public key".to_string())
+        })?;
 
         Ok(Self {
             public_key,

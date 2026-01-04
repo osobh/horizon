@@ -11,7 +11,7 @@ pub mod docker;
 pub mod linux;
 pub mod stub;
 
-use crate::build_job::{BuildResourceLimits, CargoCommand, BuildResult};
+use crate::build_job::{BuildResourceLimits, BuildResult, CargoCommand};
 use crate::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -125,11 +125,17 @@ impl BuildContext {
         // Set toolchain paths
         env.insert(
             "RUSTUP_HOME".to_string(),
-            self.toolchain_path.join("rustup").to_string_lossy().to_string(),
+            self.toolchain_path
+                .join("rustup")
+                .to_string_lossy()
+                .to_string(),
         );
         env.insert(
             "CARGO_HOME".to_string(),
-            self.toolchain_path.join("cargo").to_string_lossy().to_string(),
+            self.toolchain_path
+                .join("cargo")
+                .to_string_lossy()
+                .to_string(),
         );
 
         // Set sccache if configured
@@ -301,7 +307,9 @@ pub async fn detect_backend() -> Result<Box<dyn BuildBackend>> {
     }
 
     // Fall back to stub backend - build jobs will fail but agent can start
-    tracing::warn!("No build backend available (Docker not found, not on Linux). Build jobs will fail.");
+    tracing::warn!(
+        "No build backend available (Docker not found, not on Linux). Build jobs will fail."
+    );
     Ok(Box::new(stub::StubBackend::unavailable()))
 }
 
@@ -334,18 +342,21 @@ mod tests {
             PathBuf::from("/host/cache"),
             PathBuf::from("/container/cache"),
         );
-        assert_eq!(readonly_mount.to_docker_bind(), "/host/cache:/container/cache:ro");
+        assert_eq!(
+            readonly_mount.to_docker_bind(),
+            "/host/cache:/container/cache:ro"
+        );
     }
 
     #[test]
     fn test_build_context_environment() {
-        let ctx = BuildContext::new(
-            PathBuf::from("/workspace"),
-            PathBuf::from("/toolchain"),
-        );
+        let ctx = BuildContext::new(PathBuf::from("/workspace"), PathBuf::from("/toolchain"));
         let env = ctx.build_environment();
 
-        assert_eq!(env.get("RUSTUP_HOME"), Some(&"/toolchain/rustup".to_string()));
+        assert_eq!(
+            env.get("RUSTUP_HOME"),
+            Some(&"/toolchain/rustup".to_string())
+        );
         assert_eq!(env.get("CARGO_HOME"), Some(&"/toolchain/cargo".to_string()));
     }
 

@@ -24,6 +24,7 @@ impl<T: cudarc::driver::DeviceRepr> GpuBuffer<T> {
     /// # Safety
     /// The buffer contents are uninitialized and must be written before reading
     pub unsafe fn new_uninit(device: &Arc<CudaDevice>, len: usize) -> Result<Self> {
+        debug_assert!(len > 0, "GPU buffer length must be positive");
         let slice = device
             .alloc::<T>(len)
             .context("Failed to allocate GPU buffer")?;
@@ -39,6 +40,7 @@ impl<T: cudarc::driver::DeviceRepr> GpuBuffer<T> {
     where
         T: cudarc::driver::ValidAsZeroBits,
     {
+        debug_assert!(len > 0, "GPU buffer length must be positive");
         let slice = device
             .alloc_zeros::<T>(len)
             .context("Failed to allocate GPU buffer")?;
@@ -119,6 +121,11 @@ impl<T: cudarc::driver::DeviceRepr> GpuBuffer<T> {
     where
         T: Clone,
     {
+        debug_assert_eq!(
+            data.len(),
+            self.len,
+            "Data length must match buffer length for GPU copy"
+        );
         if data.len() != self.len {
             anyhow::bail!(
                 "Data length {} doesn't match buffer length {}",

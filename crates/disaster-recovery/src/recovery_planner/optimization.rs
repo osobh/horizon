@@ -159,12 +159,7 @@ impl PlanOptimization {
     }
 
     /// Calculate optimization score for a plan
-    pub fn calculate_score(
-        &self,
-        recovery_time: u64,
-        cost: f64,
-        reliability: f64,
-    ) -> f64 {
+    pub fn calculate_score(&self, recovery_time: u64, cost: f64, reliability: f64) -> f64 {
         let mut score = 0.0;
 
         // Primary goal scoring
@@ -192,7 +187,10 @@ impl PlanOptimization {
                 OptimizationGoals::MinimizeCost => 1000.0 / (cost + 1.0),
                 OptimizationGoals::MaximizeReliability => reliability * 1000.0,
                 OptimizationGoals::Balanced => {
-                    ((1000.0 / (recovery_time as f64 + 1.0)) + (1000.0 / (cost + 1.0)) + (reliability * 1000.0)) / 3.0
+                    ((1000.0 / (recovery_time as f64 + 1.0))
+                        + (1000.0 / (cost + 1.0))
+                        + (reliability * 1000.0))
+                        / 3.0
                 }
             };
             score += secondary_score * weight;
@@ -202,12 +200,7 @@ impl PlanOptimization {
     }
 
     /// Check if plan satisfies constraints
-    pub fn satisfies_constraints(
-        &self,
-        recovery_time: u64,
-        cost: f64,
-        reliability: f64,
-    ) -> bool {
+    pub fn satisfies_constraints(&self, recovery_time: u64, cost: f64, reliability: f64) -> bool {
         if let Some(max_time) = self.constraints.max_recovery_time_minutes {
             if recovery_time > max_time {
                 return false;
@@ -232,18 +225,19 @@ impl PlanOptimization {
             if recovery_time > sla.max_downtime_minutes {
                 return false;
             }
-            
+
             // For uptime percentage, assume current downtime reduces overall uptime
             // If we have 99.9% uptime requirement and this recovery takes too long,
             // it might violate the monthly/yearly uptime SLA
             let monthly_minutes = 30 * 24 * 60; // 30 days in minutes
-            let max_downtime_for_sla = monthly_minutes as f64 * (1.0 - sla.uptime_percentage / 100.0);
-            
+            let max_downtime_for_sla =
+                monthly_minutes as f64 * (1.0 - sla.uptime_percentage / 100.0);
+
             if recovery_time as f64 > max_downtime_for_sla {
                 return false;
             }
         }
-        
+
         true
     }
 }

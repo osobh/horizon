@@ -380,12 +380,7 @@ impl ReplicationManager {
     pub async fn replicate_edge(&self, edge: Edge) -> GlobalKnowledgeGraphResult<()> {
         let event = ReplicationEvent::EdgeChange(edge);
         self.enqueue_event(
-            self.config
-                .regional_priorities
-                .keys()
-                .next()
-                ?
-                .clone(),
+            self.config.regional_priorities.keys().next()?.clone(),
             event,
         )
         .await
@@ -730,8 +725,7 @@ mod tests {
 
         let result = manager
             .resolve_conflict("node-id", "us-east-1", 5, "eu-west-1", 3)
-            .await
-            ?;
+            .await?;
 
         assert_eq!(result, "us-east-1");
     }
@@ -746,8 +740,7 @@ mod tests {
 
         let result = manager
             .resolve_conflict("node-id", "us-east-1", 3, "eu-west-1", 5)
-            .await
-            ?;
+            .await?;
 
         assert_eq!(result, "eu-west-1");
     }

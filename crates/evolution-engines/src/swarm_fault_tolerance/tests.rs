@@ -81,9 +81,7 @@ async fn test_recovery_manager_creation() {
 #[tokio::test]
 async fn test_recovery_execution() -> TestResult {
     let config = FaultToleranceConfig::default();
-    let checkpoint_manager = Arc::new(RwLock::new(
-        CheckpointManager::new(config.clone()).await?,
-    ));
+    let checkpoint_manager = Arc::new(RwLock::new(CheckpointManager::new(config.clone()).await?));
     let mut recovery_manager = RecoveryManager::new(config, checkpoint_manager).await?;
 
     let affected_particles = vec!["particle1".to_string(), "particle2".to_string()];
@@ -227,9 +225,10 @@ fn test_checkpoint_recovery() -> TestResult {
     use tokio::sync::RwLock;
 
     let rt = tokio::runtime::Runtime::new()?;
-    let checkpoint_manager = Arc::new(RwLock::new(rt.block_on(async {
-        CheckpointManager::new(FaultToleranceConfig::default()).await
-    })?));
+    let checkpoint_manager =
+        Arc::new(RwLock::new(rt.block_on(async {
+            CheckpointManager::new(FaultToleranceConfig::default()).await
+        })?));
 
     let recovery = CheckpointRecovery::new(checkpoint_manager);
     let affected_particles = vec!["particle1".to_string()];
@@ -268,9 +267,10 @@ fn test_hybrid_recovery() -> TestResult {
     use tokio::sync::RwLock;
 
     let rt = tokio::runtime::Runtime::new()?;
-    let checkpoint_manager = Arc::new(RwLock::new(rt.block_on(async {
-        CheckpointManager::new(FaultToleranceConfig::default()).await
-    })?));
+    let checkpoint_manager =
+        Arc::new(RwLock::new(rt.block_on(async {
+            CheckpointManager::new(FaultToleranceConfig::default()).await
+        })?));
 
     let recovery = HybridRecovery::new(checkpoint_manager);
     let affected_particles = vec!["particle1".to_string(), "particle2".to_string()];

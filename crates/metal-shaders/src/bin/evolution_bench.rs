@@ -334,7 +334,9 @@ fn main() -> anyhow::Result<()> {
         "Population", "Time", "Agents/sec", "Efficiency"
     );
 
-    let scaling_sizes: [u32; 8] = [1_000, 5_000, 10_000, 50_000, 100_000, 500_000, 1_000_000, 2_000_000];
+    let scaling_sizes: [u32; 8] = [
+        1_000, 5_000, 10_000, 50_000, 100_000, 500_000, 1_000_000, 2_000_000,
+    ];
     let mut base_throughput: Option<f64> = None;
 
     for pop_size in scaling_sizes {

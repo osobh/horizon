@@ -3,13 +3,13 @@
 //! Tests zero-downtime kernel hot-swapping capabilities in production environments.
 //! These tests verify that GPU kernels can be recompiled and loaded without service interruption.
 
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{sleep, timeout};
-use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
 
 /// GPU kernel metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,11 +25,25 @@ pub struct KernelMetadata {
 /// Hot-swap event types
 #[derive(Debug, Clone)]
 pub enum HotSwapEvent {
-    CompilationStarted { kernel_id: String },
-    CompilationCompleted { kernel_id: String, duration: Duration },
-    SwapInitiated { old_kernel: String, new_kernel: String },
-    SwapCompleted { kernel_id: String, downtime: Duration },
-    SwapFailed { kernel_id: String, error: String },
+    CompilationStarted {
+        kernel_id: String,
+    },
+    CompilationCompleted {
+        kernel_id: String,
+        duration: Duration,
+    },
+    SwapInitiated {
+        old_kernel: String,
+        new_kernel: String,
+    },
+    SwapCompleted {
+        kernel_id: String,
+        downtime: Duration,
+    },
+    SwapFailed {
+        kernel_id: String,
+        error: String,
+    },
 }
 
 /// GPU kernel manager for hot-swapping
@@ -57,17 +71,17 @@ impl GpuKernelManager {
         source_code: String,
         cuda_arch: String,
     ) -> Result<KernelMetadata> {
-        self.event_sender.send(HotSwapEvent::CompilationStarted { 
-            kernel_id: kernel_id.clone() 
+        self.event_sender.send(HotSwapEvent::CompilationStarted {
+            kernel_id: kernel_id.clone(),
         })?;
 
         let start_time = Instant::now();
-        
+
         // This will fail in RED phase - no actual CUDA compilation implemented
         let _compiled_kernel = self.compile_cuda_kernel(&source_code, &cuda_arch).await?;
-        
+
         let compile_time = start_time.elapsed();
-        
+
         let metadata = KernelMetadata {
             id: kernel_id.clone(),
             version: self.get_next_version(&kernel_id).await?,
@@ -77,9 +91,9 @@ impl GpuKernelManager {
             memory_usage: 0, // Will be measured during execution
         };
 
-        self.event_sender.send(HotSwapEvent::CompilationCompleted { 
-            kernel_id, 
-            duration: compile_time 
+        self.event_sender.send(HotSwapEvent::CompilationCompleted {
+            kernel_id,
+            duration: compile_time,
         })?;
 
         Ok(metadata)
@@ -92,7 +106,7 @@ impl GpuKernelManager {
         new_metadata: KernelMetadata,
     ) -> Result<Duration> {
         let swap_start = Instant::now();
-        
+
         let old_kernel = {
             let kernels = self.active_kernels.read().await;
             kernels.get(&kernel_id).cloned()
@@ -107,18 +121,18 @@ impl GpuKernelManager {
 
         // This will fail in RED phase - no actual kernel swapping implemented
         self.perform_atomic_swap(&kernel_id, &new_metadata).await?;
-        
+
         let downtime = swap_start.elapsed();
-        
+
         // Update active kernels
         {
             let mut kernels = self.active_kernels.write().await;
             kernels.insert(kernel_id.clone(), new_metadata);
         }
 
-        self.event_sender.send(HotSwapEvent::SwapCompleted { 
-            kernel_id, 
-            downtime 
+        self.event_sender.send(HotSwapEvent::SwapCompleted {
+            kernel_id,
+            downtime,
         })?;
 
         Ok(downtime)
@@ -128,7 +142,7 @@ impl GpuKernelManager {
     pub async fn benchmark_kernel(&self, kernel_id: &str, iterations: usize) -> Result<f64> {
         // This will fail in RED phase - no actual GPU benchmarking implemented
         let _performance_data = self.run_gpu_benchmark(kernel_id, iterations).await?;
-        
+
         // Placeholder return - actual implementation would return real metrics
         Ok(0.0)
     }
@@ -141,7 +155,9 @@ impl GpuKernelManager {
 
     // Placeholder methods that will fail in RED phase
     async fn compile_cuda_kernel(&self, _source: &str, _arch: &str) -> Result<Vec<u8>> {
-        Err(anyhow!("CUDA compilation not implemented - RED phase failure"))
+        Err(anyhow!(
+            "CUDA compilation not implemented - RED phase failure"
+        ))
     }
 
     async fn get_next_version(&self, kernel_id: &str) -> Result<u64> {
@@ -149,12 +165,20 @@ impl GpuKernelManager {
         Ok(kernels.get(kernel_id).map(|k| k.version + 1).unwrap_or(1))
     }
 
-    async fn perform_atomic_swap(&self, _kernel_id: &str, _metadata: &KernelMetadata) -> Result<()> {
-        Err(anyhow!("Atomic kernel swap not implemented - RED phase failure"))
+    async fn perform_atomic_swap(
+        &self,
+        _kernel_id: &str,
+        _metadata: &KernelMetadata,
+    ) -> Result<()> {
+        Err(anyhow!(
+            "Atomic kernel swap not implemented - RED phase failure"
+        ))
     }
 
     async fn run_gpu_benchmark(&self, _kernel_id: &str, _iterations: usize) -> Result<Vec<f64>> {
-        Err(anyhow!("GPU benchmarking not implemented - RED phase failure"))
+        Err(anyhow!(
+            "GPU benchmarking not implemented - RED phase failure"
+        ))
     }
 }
 
@@ -180,7 +204,7 @@ impl ProductionWorkloadSimulator {
 
         // This will fail in RED phase - no actual workload simulation implemented
         self.simulate_gpu_workload().await?;
-        
+
         Ok(())
     }
 
@@ -194,11 +218,15 @@ impl ProductionWorkloadSimulator {
 
     pub async fn measure_service_interruption(&self) -> Result<Duration> {
         // This will fail in RED phase - no actual interruption measurement implemented
-        Err(anyhow!("Service interruption measurement not implemented - RED phase failure"))
+        Err(anyhow!(
+            "Service interruption measurement not implemented - RED phase failure"
+        ))
     }
 
     async fn simulate_gpu_workload(&self) -> Result<()> {
-        Err(anyhow!("GPU workload simulation not implemented - RED phase failure"))
+        Err(anyhow!(
+            "GPU workload simulation not implemented - RED phase failure"
+        ))
     }
 }
 
@@ -212,11 +240,14 @@ mod tests {
     async fn test_kernel_hot_swap_zero_downtime() {
         let (event_sender, mut event_receiver) = mpsc::unbounded_channel();
         let kernel_manager = GpuKernelManager::new(event_sender);
-        
+
         // Start production workload simulation
         let simulator = ProductionWorkloadSimulator::new(1000); // 1000 RPS
-        simulator.start_workload().await.expect("Failed to start workload");
-        
+        simulator
+            .start_workload()
+            .await
+            .expect("Failed to start workload");
+
         // Compile new kernel version
         let kernel_source = r#"
             __global__ void optimized_kernel(float* input, float* output, int n) {
@@ -226,7 +257,7 @@ mod tests {
                 }
             }
         "#;
-        
+
         let new_kernel = kernel_manager
             .compile_kernel(
                 "matrix_multiply".to_string(),
@@ -235,45 +266,62 @@ mod tests {
             )
             .await
             .expect("Kernel compilation should succeed");
-        
+
         // Measure baseline performance before swap
-        let pre_swap_interruption = simulator.measure_service_interruption().await
+        let pre_swap_interruption = simulator
+            .measure_service_interruption()
+            .await
             .expect("Should measure interruption");
-        
+
         // Perform hot-swap
         let swap_start = Instant::now();
         let downtime = kernel_manager
             .hot_swap_kernel("matrix_multiply".to_string(), new_kernel)
             .await
             .expect("Hot-swap should succeed");
-        
+
         // Verify zero downtime requirement (< 1ms)
-        assert!(downtime < Duration::from_millis(1), 
-            "Hot-swap downtime {} exceeds 1ms threshold", downtime.as_millis());
-        
+        assert!(
+            downtime < Duration::from_millis(1),
+            "Hot-swap downtime {} exceeds 1ms threshold",
+            downtime.as_millis()
+        );
+
         // Measure post-swap interruption
-        let post_swap_interruption = simulator.measure_service_interruption().await
+        let post_swap_interruption = simulator
+            .measure_service_interruption()
+            .await
             .expect("Should measure interruption");
-        
+
         // Verify no service interruption during swap
-        assert!(post_swap_interruption <= pre_swap_interruption,
-            "Service interruption increased during hot-swap");
-        
+        assert!(
+            post_swap_interruption <= pre_swap_interruption,
+            "Service interruption increased during hot-swap"
+        );
+
         // Verify hot-swap events were generated
         let events = timeout(Duration::from_secs(1), async {
             let mut collected_events = Vec::new();
             while let Some(event) = event_receiver.recv().await {
                 collected_events.push(event);
-                if matches!(collected_events.last().unwrap(), HotSwapEvent::SwapCompleted { .. }) {
+                if matches!(
+                    collected_events.last().unwrap(),
+                    HotSwapEvent::SwapCompleted { .. }
+                ) {
                     break;
                 }
             }
             collected_events
-        }).await.expect("Should receive hot-swap events");
-        
+        })
+        .await
+        .expect("Should receive hot-swap events");
+
         assert!(!events.is_empty(), "Should have received hot-swap events");
-        
-        simulator.stop_workload().await.expect("Failed to stop workload");
+
+        simulator
+            .stop_workload()
+            .await
+            .expect("Failed to stop workload");
     }
 
     /// Test concurrent kernel compilation and hot-swapping
@@ -281,55 +329,67 @@ mod tests {
     async fn test_concurrent_kernel_hot_swaps() {
         let (event_sender, mut event_receiver) = mpsc::unbounded_channel();
         let kernel_manager = Arc::new(GpuKernelManager::new(event_sender));
-        
+
         // Start high-throughput workload
         let simulator = ProductionWorkloadSimulator::new(5000); // 5000 RPS
-        simulator.start_workload().await.expect("Failed to start workload");
-        
+        simulator
+            .start_workload()
+            .await
+            .expect("Failed to start workload");
+
         // Launch concurrent kernel compilations
         let mut handles = Vec::new();
         for i in 0..3 {
             let km = kernel_manager.clone();
             let kernel_id = format!("kernel_{}", i);
             let handle = tokio::spawn(async move {
-                let source = format!(r#"
+                let source = format!(
+                    r#"
                     __global__ void kernel_{}(float* data, int n) {{
                         int idx = blockIdx.x * blockDim.x + threadIdx.x;
                         if (idx < n) {{
                             data[idx] = data[idx] * {}.0f;
                         }}
                     }}
-                "#, i, i + 1);
-                
-                let metadata = km.compile_kernel(
-                    kernel_id.clone(),
-                    source,
-                    "sm_80".to_string(),
-                ).await.expect("Compilation should succeed");
-                
-                km.hot_swap_kernel(kernel_id, metadata).await
+                "#,
+                    i,
+                    i + 1
+                );
+
+                let metadata = km
+                    .compile_kernel(kernel_id.clone(), source, "sm_80".to_string())
+                    .await
+                    .expect("Compilation should succeed");
+
+                km.hot_swap_kernel(kernel_id, metadata)
+                    .await
                     .expect("Hot-swap should succeed")
             });
             handles.push(handle);
         }
-        
+
         // Wait for all swaps to complete
         let mut total_downtime = Duration::ZERO;
         for handle in handles {
             let downtime = handle.await.expect("Task should complete");
             total_downtime += downtime;
         }
-        
+
         // Verify cumulative downtime is still minimal
-        assert!(total_downtime < Duration::from_millis(5),
-            "Total downtime {} exceeds threshold for concurrent swaps", 
-            total_downtime.as_millis());
-        
+        assert!(
+            total_downtime < Duration::from_millis(5),
+            "Total downtime {} exceeds threshold for concurrent swaps",
+            total_downtime.as_millis()
+        );
+
         // Verify all kernels were successfully swapped
         let active_kernels = kernel_manager.active_kernels.read().await;
         assert_eq!(active_kernels.len(), 3, "Should have 3 active kernels");
-        
-        simulator.stop_workload().await.expect("Failed to stop workload");
+
+        simulator
+            .stop_workload()
+            .await
+            .expect("Failed to stop workload");
     }
 
     /// Test kernel rollback on compilation failure
@@ -337,7 +397,7 @@ mod tests {
     async fn test_kernel_rollback_on_failure() {
         let (event_sender, mut event_receiver) = mpsc::unbounded_channel();
         let kernel_manager = GpuKernelManager::new(event_sender);
-        
+
         // Install initial kernel
         let initial_metadata = KernelMetadata {
             id: "stable_kernel".to_string(),
@@ -347,15 +407,15 @@ mod tests {
             compile_time: Duration::from_secs(1),
             memory_usage: 1024,
         };
-        
+
         {
             let mut kernels = kernel_manager.active_kernels.write().await;
             kernels.insert("stable_kernel".to_string(), initial_metadata.clone());
         }
-        
+
         // Attempt to compile invalid kernel
         let invalid_source = "This is not valid CUDA code!";
-        
+
         let compilation_result = kernel_manager
             .compile_kernel(
                 "stable_kernel".to_string(),
@@ -363,17 +423,27 @@ mod tests {
                 "sm_80".to_string(),
             )
             .await;
-        
+
         // Verify compilation fails as expected in RED phase
-        assert!(compilation_result.is_err(), "Invalid kernel compilation should fail");
-        
+        assert!(
+            compilation_result.is_err(),
+            "Invalid kernel compilation should fail"
+        );
+
         // Verify original kernel remains active
         let active_kernels = kernel_manager.active_kernels.read().await;
-        let current_kernel = active_kernels.get("stable_kernel")
+        let current_kernel = active_kernels
+            .get("stable_kernel")
             .expect("Original kernel should still be active");
-        
-        assert_eq!(current_kernel.version, 1, "Kernel version should remain unchanged");
-        assert_eq!(current_kernel.performance_score, 95.0, "Performance score should remain unchanged");
+
+        assert_eq!(
+            current_kernel.version, 1,
+            "Kernel version should remain unchanged"
+        );
+        assert_eq!(
+            current_kernel.performance_score, 95.0,
+            "Performance score should remain unchanged"
+        );
     }
 
     /// Test performance-driven automatic kernel swapping
@@ -381,7 +451,7 @@ mod tests {
     async fn test_performance_driven_kernel_evolution() {
         let (event_sender, _event_receiver) = mpsc::unbounded_channel();
         let kernel_manager = GpuKernelManager::new(event_sender);
-        
+
         // Install baseline kernel
         let baseline_kernel = KernelMetadata {
             id: "baseline".to_string(),
@@ -391,20 +461,23 @@ mod tests {
             compile_time: Duration::from_secs(1),
             memory_usage: 2048,
         };
-        
+
         {
             let mut kernels = kernel_manager.active_kernels.write().await;
             kernels.insert("performance_kernel".to_string(), baseline_kernel);
         }
-        
+
         // Simulate performance measurement
         let baseline_perf = kernel_manager
             .benchmark_kernel("performance_kernel", 1000)
             .await;
-        
+
         // This should fail in RED phase since benchmarking isn't implemented
-        assert!(baseline_perf.is_err(), "Benchmarking should fail in RED phase");
-        
+        assert!(
+            baseline_perf.is_err(),
+            "Benchmarking should fail in RED phase"
+        );
+
         // Create optimized kernel variant
         let optimized_source = r#"
             __global__ void optimized_kernel(float* input, float* output, int n) {
@@ -424,7 +497,7 @@ mod tests {
                 }
             }
         "#;
-        
+
         let optimized_result = kernel_manager
             .compile_kernel(
                 "performance_kernel".to_string(),
@@ -432,9 +505,12 @@ mod tests {
                 "sm_80".to_string(),
             )
             .await;
-        
+
         // Should fail in RED phase - no compilation implemented
-        assert!(optimized_result.is_err(), "Optimized kernel compilation should fail in RED phase");
+        assert!(
+            optimized_result.is_err(),
+            "Optimized kernel compilation should fail in RED phase"
+        );
     }
 
     /// Test memory-safe kernel hot-swapping
@@ -442,11 +518,14 @@ mod tests {
     async fn test_memory_safe_kernel_swapping() {
         let (event_sender, _event_receiver) = mpsc::unbounded_channel();
         let kernel_manager = GpuKernelManager::new(event_sender);
-        
+
         // Simulate memory-intensive workload
         let simulator = ProductionWorkloadSimulator::new(2000);
-        simulator.start_workload().await.expect("Failed to start workload");
-        
+        simulator
+            .start_workload()
+            .await
+            .expect("Failed to start workload");
+
         // Create memory-efficient kernel
         let memory_efficient_source = r#"
             __global__ void memory_efficient_kernel(float* data, int n) {
@@ -459,7 +538,7 @@ mod tests {
                 }
             }
         "#;
-        
+
         let kernel_result = kernel_manager
             .compile_kernel(
                 "memory_kernel".to_string(),
@@ -467,11 +546,17 @@ mod tests {
                 "sm_80".to_string(),
             )
             .await;
-        
+
         // Should fail in RED phase
-        assert!(kernel_result.is_err(), "Memory-efficient kernel compilation should fail in RED phase");
-        
-        simulator.stop_workload().await.expect("Failed to stop workload");
+        assert!(
+            kernel_result.is_err(),
+            "Memory-efficient kernel compilation should fail in RED phase"
+        );
+
+        simulator
+            .stop_workload()
+            .await
+            .expect("Failed to stop workload");
     }
 
     /// Test kernel version management and compatibility
@@ -479,7 +564,7 @@ mod tests {
     async fn test_kernel_version_management() {
         let (event_sender, _event_receiver) = mpsc::unbounded_channel();
         let kernel_manager = GpuKernelManager::new(event_sender);
-        
+
         // Install multiple kernel versions
         for version in 1..=5 {
             let metadata = KernelMetadata {
@@ -490,25 +575,29 @@ mod tests {
                 compile_time: Duration::from_millis(500 + (version * 100) as u64),
                 memory_usage: 1024 * version,
             };
-            
+
             let mut kernels = kernel_manager.active_kernels.write().await;
             kernels.insert("versioned_kernel".to_string(), metadata);
         }
-        
+
         // Verify version tracking
         let kernels = kernel_manager.active_kernels.read().await;
-        let current_kernel = kernels.get("versioned_kernel")
+        let current_kernel = kernels
+            .get("versioned_kernel")
             .expect("Versioned kernel should exist");
-        
+
         assert_eq!(current_kernel.version, 5, "Should have latest version");
-        assert_eq!(current_kernel.performance_score, 90.0, "Should have best performance");
-        
+        assert_eq!(
+            current_kernel.performance_score, 90.0,
+            "Should have best performance"
+        );
+
         // Test next version generation
         let next_version = kernel_manager
             .get_next_version("versioned_kernel")
             .await
             .expect("Should get next version");
-        
+
         assert_eq!(next_version, 6, "Next version should be 6");
     }
 
@@ -517,20 +606,23 @@ mod tests {
     async fn test_cuda_architecture_compatibility() {
         let (event_sender, _event_receiver) = mpsc::unbounded_channel();
         let kernel_manager = GpuKernelManager::new(event_sender);
-        
+
         // Test different CUDA architectures
         let architectures = vec!["sm_70", "sm_75", "sm_80", "sm_86", "sm_89"];
-        
+
         for arch in architectures {
-            let kernel_source = format!(r#"
+            let kernel_source = format!(
+                r#"
                 __global__ void arch_specific_kernel_{} (float* data, int n) {{
                     int idx = blockIdx.x * blockDim.x + threadIdx.x;
                     if (idx < n) {{
                         data[idx] = data[idx] + 1.0f;
                     }}
                 }}
-            "#, arch.replace("sm_", ""));
-            
+            "#,
+                arch.replace("sm_", "")
+            );
+
             let result = kernel_manager
                 .compile_kernel(
                     format!("arch_test_{}", arch),
@@ -538,10 +630,13 @@ mod tests {
                     arch.to_string(),
                 )
                 .await;
-            
+
             // Should fail in RED phase - no compilation implemented
-            assert!(result.is_err(), 
-                "Kernel compilation for {} should fail in RED phase", arch);
+            assert!(
+                result.is_err(),
+                "Kernel compilation for {} should fail in RED phase",
+                arch
+            );
         }
     }
 
@@ -550,7 +645,7 @@ mod tests {
     async fn test_production_failure_recovery() {
         let (event_sender, mut event_receiver) = mpsc::unbounded_channel();
         let kernel_manager = GpuKernelManager::new(event_sender);
-        
+
         // Install stable kernel
         let stable_metadata = KernelMetadata {
             id: "stable".to_string(),
@@ -560,19 +655,22 @@ mod tests {
             compile_time: Duration::from_secs(1),
             memory_usage: 1536,
         };
-        
+
         {
             let mut kernels = kernel_manager.active_kernels.write().await;
             kernels.insert("recovery_test".to_string(), stable_metadata.clone());
         }
-        
+
         // Start production load
         let simulator = ProductionWorkloadSimulator::new(3000);
-        simulator.start_workload().await.expect("Failed to start workload");
-        
+        simulator
+            .start_workload()
+            .await
+            .expect("Failed to start workload");
+
         // Attempt risky kernel swap that should fail
         let risky_source = "// This kernel intentionally causes GPU errors";
-        
+
         let risky_result = kernel_manager
             .compile_kernel(
                 "recovery_test".to_string(),
@@ -580,18 +678,28 @@ mod tests {
                 "sm_80".to_string(),
             )
             .await;
-        
+
         // Should fail during compilation
-        assert!(risky_result.is_err(), "Risky kernel should fail compilation");
-        
+        assert!(
+            risky_result.is_err(),
+            "Risky kernel should fail compilation"
+        );
+
         // Verify stable kernel remains active
         let active_kernels = kernel_manager.active_kernels.read().await;
-        let current_kernel = active_kernels.get("recovery_test")
+        let current_kernel = active_kernels
+            .get("recovery_test")
             .expect("Stable kernel should remain active");
-        
-        assert_eq!(current_kernel.id, "stable", "Original kernel should remain active");
+
+        assert_eq!(
+            current_kernel.id, "stable",
+            "Original kernel should remain active"
+        );
         assert_eq!(current_kernel.version, 1, "Version should be unchanged");
-        
-        simulator.stop_workload().await.expect("Failed to stop workload");
+
+        simulator
+            .stop_workload()
+            .await
+            .expect("Failed to stop workload");
     }
 }

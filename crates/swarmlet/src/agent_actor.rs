@@ -12,11 +12,11 @@
 //! 3. Graceful shutdown via explicit Shutdown message
 //! 4. No orphaned spawned tasks - everything runs in the actor's loop
 
+use crate::agent::{HealthStatus, NodeStatus, WorkAssignment};
 use crate::{
     command::CommandExecutor, config::Config, join::JoinResult, security::NodeCertificate,
     workload::WorkloadManager, Result, SwarmletError,
 };
-use crate::agent::{HealthStatus, NodeStatus, WorkAssignment};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,7 +27,7 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 #[cfg(feature = "hpc-channels")]
-use crate::hpc_bridge::{SharedAgentChannelBridge, shared_channel_bridge};
+use crate::hpc_bridge::{shared_channel_bridge, SharedAgentChannelBridge};
 
 /// Requests that can be sent to the swarmlet agent actor
 #[derive(Debug)]
@@ -37,9 +37,7 @@ pub enum SwarmletRequest {
         reply: oneshot::Sender<HealthStatus>,
     },
     /// Get node ID
-    GetNodeId {
-        reply: oneshot::Sender<Uuid>,
-    },
+    GetNodeId { reply: oneshot::Sender<Uuid> },
     /// Execute a command
     ExecuteCommand {
         request: crate::command::CommandRequest,
@@ -56,9 +54,7 @@ pub enum SwarmletRequest {
         reply: oneshot::Sender<Result<()>>,
     },
     /// Stop all workloads
-    StopAllWorkloads {
-        reply: oneshot::Sender<Result<()>>,
-    },
+    StopAllWorkloads { reply: oneshot::Sender<Result<()>> },
     /// Graceful shutdown
     Shutdown,
 }
@@ -104,7 +100,8 @@ impl SwarmletAgentActor {
         let config = Arc::new(config);
 
         let node_certificate = NodeCertificate::from_pem(&join_result.node_certificate)?;
-        let workload_manager = Arc::new(WorkloadManager::new(config.clone(), join_result.node_id).await?);
+        let workload_manager =
+            Arc::new(WorkloadManager::new(config.clone(), join_result.node_id).await?);
         let command_executor = Arc::new(CommandExecutor::new(config.data_dir.clone()));
 
         let health_status = HealthStatus {
@@ -152,11 +149,13 @@ impl SwarmletAgentActor {
 
         // Publish agent started event
         #[cfg(feature = "hpc-channels")]
-        self.event_bridge.publish_agent_started(&self.join_result.node_id.to_string());
+        self.event_bridge
+            .publish_agent_started(&self.join_result.node_id.to_string());
 
         // Publish agent healthy event
         #[cfg(feature = "hpc-channels")]
-        self.event_bridge.publish_agent_healthy(&self.join_result.node_id.to_string(), "Healthy");
+        self.event_bridge
+            .publish_agent_healthy(&self.join_result.node_id.to_string(), "Healthy");
 
         // Create internal timers
         let mut heartbeat_interval = interval(self.join_result.heartbeat_interval);
@@ -223,7 +222,8 @@ impl SwarmletAgentActor {
 
         // Publish agent shutdown event
         #[cfg(feature = "hpc-channels")]
-        self.event_bridge.publish_agent_shutdown(&self.join_result.node_id.to_string(), "graceful shutdown");
+        self.event_bridge
+            .publish_agent_shutdown(&self.join_result.node_id.to_string(), "graceful shutdown");
 
         // Send final heartbeat
         if let Err(e) = self.send_heartbeat().await {
@@ -284,9 +284,9 @@ impl SwarmletAgentActor {
         system.refresh_all();
 
         self.health_status.uptime_seconds = self.start_time.elapsed().as_secs();
-        self.health_status.cpu_usage_percent = system.cpus().iter()
-            .map(|cpu| cpu.cpu_usage())
-            .sum::<f32>() / system.cpus().len() as f32;
+        self.health_status.cpu_usage_percent =
+            system.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>()
+                / system.cpus().len() as f32;
         self.health_status.memory_usage_gb =
             (system.total_memory() - system.available_memory()) as f32 / (1024.0 * 1024.0 * 1024.0);
 
@@ -428,7 +428,10 @@ impl SwarmletAgentHandle {
     pub async fn start_workload(&self, assignment: WorkAssignment) -> Result<()> {
         let (tx, rx) = oneshot::channel();
         self.sender
-            .send(SwarmletRequest::StartWorkload { assignment, reply: tx })
+            .send(SwarmletRequest::StartWorkload {
+                assignment,
+                reply: tx,
+            })
             .await
             .map_err(|_| SwarmletError::AgentRuntime("Actor stopped".to_string()))?;
 

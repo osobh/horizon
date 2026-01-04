@@ -29,22 +29,17 @@ impl std::fmt::Display for GoalId {
 }
 
 /// Goal priority levels
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 pub enum GoalPriority {
     /// Lowest priority
     Low = 0,
     /// Normal priority
+    #[default]
     Normal = 1,
     /// High priority
     High = 2,
     /// Critical priority
     Critical = 3,
-}
-
-impl Default for GoalPriority {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 /// Goal state
@@ -67,7 +62,7 @@ pub enum GoalState {
 }
 
 /// Goal constraints
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GoalConstraints {
     /// Memory limit in bytes
     pub memory_limit: Option<usize>,
@@ -83,20 +78,6 @@ pub struct GoalConstraints {
     pub power_budget: Option<f32>,
     /// Custom constraints
     pub custom: HashMap<String, serde_json::Value>,
-}
-
-impl Default for GoalConstraints {
-    fn default() -> Self {
-        Self {
-            memory_limit: None,
-            gpu_memory_limit: None,
-            time_limit: None,
-            accuracy_target: None,
-            throughput_target: None,
-            power_budget: None,
-            custom: HashMap::new(),
-        }
-    }
 }
 
 /// A goal represents a high-level objective for an agent

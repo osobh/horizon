@@ -288,10 +288,7 @@ mod edge_case_tests {
             0u64,
             1,
             1000,
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                ?
-                .as_secs(),
+            SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             u64::MAX - 1,
             u64::MAX,
         ];

@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     api::AppState,
-    error::{HpcError, Result, ReporterErrorExt},
+    error::{HpcError, ReporterErrorExt, Result},
     models::finance::*,
 };
 
@@ -43,29 +43,33 @@ pub async fn get_cost_summary(
     // - Historical trend data
 
     // For now, return computed values from budgets table
-    let budgets_db: Vec<BudgetDb> = sqlx::query_as(
-        "SELECT * FROM budgets WHERE period = $1"
-    )
-    .bind(&query.period)
-    .fetch_all(&state.db)
-    .await?;
+    let budgets_db: Vec<BudgetDb> = sqlx::query_as("SELECT * FROM budgets WHERE period = $1")
+        .bind(&query.period)
+        .fetch_all(&state.db)
+        .await?;
 
     use std::str::FromStr;
-    let to_f64 = |bd: sqlx::types::Decimal| -> f64 {
-        f64::from_str(&bd.to_string()).unwrap_or(0.0)
-    };
+    let to_f64 =
+        |bd: sqlx::types::Decimal| -> f64 { f64::from_str(&bd.to_string()).unwrap_or(0.0) };
 
-    let total_cost: f64 = budgets_db.iter().map(|b| to_f64(b.spent.clone())).sum();
+    let total_cost: f64 = budgets_db.iter().map(|b| to_f64(b.spent)).sum();
 
-    let by_team: Vec<TeamCost> = budgets_db.iter().map(|b| {
-        let cost = to_f64(b.spent.clone());
-        TeamCost {
-            team_id: b.team_id.clone(),
-            team_name: b.team_name.clone(),
-            cost,
-            percentage: if total_cost > 0.0 { (cost / total_cost) * 100.0 } else { 0.0 },
-        }
-    }).collect();
+    let by_team: Vec<TeamCost> = budgets_db
+        .iter()
+        .map(|b| {
+            let cost = to_f64(b.spent);
+            TeamCost {
+                team_id: b.team_id.clone(),
+                team_name: b.team_name.clone(),
+                cost,
+                percentage: if total_cost > 0.0 {
+                    (cost / total_cost) * 100.0
+                } else {
+                    0.0
+                },
+            }
+        })
+        .collect();
 
     // Get cost breakdown from chargeback reports for this period
     let reports_db: Vec<ChargebackReportDb> = sqlx::query_as(
@@ -81,7 +85,9 @@ pub async fn get_cost_summary(
     let mut network_cost = 0.0;
 
     for report in &reports_db {
-        if let Ok(line_items) = serde_json::from_value::<Vec<ChargebackLineItem>>(report.line_items.clone()) {
+        if let Ok(line_items) =
+            serde_json::from_value::<Vec<ChargebackLineItem>>(report.line_items.clone())
+        {
             for item in line_items {
                 match item.resource_type.as_str() {
                     "compute" => compute_cost += item.total,
@@ -176,7 +182,7 @@ pub async fn get_cost_breakdown(
         SELECT * FROM chargeback_reports
         WHERE start_date >= $1 AND end_date <= $2
         ORDER BY team_id
-        "#
+        "#,
     )
     .bind(&query.start_date)
     .bind(&query.end_date)
@@ -184,72 +190,91 @@ pub async fn get_cost_breakdown(
     .await?;
 
     use std::str::FromStr;
-    let to_f64 = |bd: sqlx::types::Decimal| -> f64 {
-        f64::from_str(&bd.to_string()).unwrap_or(0.0)
-    };
+    let to_f64 =
+        |bd: sqlx::types::Decimal| -> f64 { f64::from_str(&bd.to_string()).unwrap_or(0.0) };
 
-    let total_cost: f64 = reports_db.iter().map(|r| to_f64(r.total_amount.clone())).sum();
+    let total_cost: f64 = reports_db.iter().map(|r| to_f64(r.total_amount)).sum();
 
     // Aggregate costs by resource type across all reports
-    let mut resource_type_costs: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    let mut resource_type_costs: std::collections::HashMap<String, f64> =
+        std::collections::HashMap::new();
 
-    let by_team: Vec<TeamCostDetail> = reports_db.iter().map(|r| {
-        let cost = to_f64(r.total_amount.clone());
+    let by_team: Vec<TeamCostDetail> = reports_db
+        .iter()
+        .map(|r| {
+            let cost = to_f64(r.total_amount);
 
-        // Parse line_items to get cost breakdown by resource type
-        let mut team_compute = 0.0;
-        let mut team_storage = 0.0;
-        let mut team_network = 0.0;
+            // Parse line_items to get cost breakdown by resource type
+            let mut team_compute = 0.0;
+            let mut team_storage = 0.0;
+            let mut team_network = 0.0;
 
-        if let Ok(line_items) = serde_json::from_value::<Vec<ChargebackLineItem>>(r.line_items.clone()) {
-            for item in &line_items {
-                match item.resource_type.as_str() {
-                    "compute" => {
-                        team_compute += item.total;
-                        *resource_type_costs.entry("compute".to_string()).or_insert(0.0) += item.total;
-                    }
-                    "storage" => {
-                        team_storage += item.total;
-                        *resource_type_costs.entry("storage".to_string()).or_insert(0.0) += item.total;
-                    }
-                    "network" => {
-                        team_network += item.total;
-                        *resource_type_costs.entry("network".to_string()).or_insert(0.0) += item.total;
-                    }
-                    other => {
-                        team_compute += item.total;
-                        *resource_type_costs.entry(other.to_string()).or_insert(0.0) += item.total;
+            if let Ok(line_items) =
+                serde_json::from_value::<Vec<ChargebackLineItem>>(r.line_items.clone())
+            {
+                for item in &line_items {
+                    match item.resource_type.as_str() {
+                        "compute" => {
+                            team_compute += item.total;
+                            *resource_type_costs
+                                .entry("compute".to_string())
+                                .or_insert(0.0) += item.total;
+                        }
+                        "storage" => {
+                            team_storage += item.total;
+                            *resource_type_costs
+                                .entry("storage".to_string())
+                                .or_insert(0.0) += item.total;
+                        }
+                        "network" => {
+                            team_network += item.total;
+                            *resource_type_costs
+                                .entry("network".to_string())
+                                .or_insert(0.0) += item.total;
+                        }
+                        other => {
+                            team_compute += item.total;
+                            *resource_type_costs.entry(other.to_string()).or_insert(0.0) +=
+                                item.total;
+                        }
                     }
                 }
             }
-        }
 
-        // If no line items parsed, estimate from total
-        if team_compute == 0.0 && team_storage == 0.0 && team_network == 0.0 && cost > 0.0 {
-            team_compute = cost * 0.75;
-            team_storage = cost * 0.15;
-            team_network = cost * 0.10;
-        }
+            // If no line items parsed, estimate from total
+            if team_compute == 0.0 && team_storage == 0.0 && team_network == 0.0 && cost > 0.0 {
+                team_compute = cost * 0.75;
+                team_storage = cost * 0.15;
+                team_network = cost * 0.10;
+            }
 
-        TeamCostDetail {
-            team_id: r.team_id.clone(),
-            team_name: r.team_name.clone(),
-            total_cost: cost,
-            compute_cost: team_compute,
-            storage_cost: team_storage,
-            network_cost: team_network,
-        }
-    }).collect();
+            TeamCostDetail {
+                team_id: r.team_id.clone(),
+                team_name: r.team_name.clone(),
+                total_cost: cost,
+                compute_cost: team_compute,
+                storage_cost: team_storage,
+                network_cost: team_network,
+            }
+        })
+        .collect();
 
     // Build by_resource_type from aggregated data
-    let by_resource_type: Vec<ResourceTypeCost> = resource_type_costs.iter().map(|(resource_type, cost)| {
-        ResourceTypeCost {
-            resource_type: resource_type.clone(),
-            cost: *cost,
-            unit_count: 0.0, // Unit count not tracked in line items
-            percentage: if total_cost > 0.0 { (*cost / total_cost) * 100.0 } else { 0.0 },
-        }
-    }).collect();
+    let by_resource_type: Vec<ResourceTypeCost> = resource_type_costs
+        .iter()
+        .map(|(resource_type, cost)| {
+            ResourceTypeCost {
+                resource_type: resource_type.clone(),
+                cost: *cost,
+                unit_count: 0.0, // Unit count not tracked in line items
+                percentage: if total_cost > 0.0 {
+                    (*cost / total_cost) * 100.0
+                } else {
+                    0.0
+                },
+            }
+        })
+        .collect();
 
     Ok(Json(CostBreakdown {
         start_date: query.start_date,
@@ -257,8 +282,8 @@ pub async fn get_cost_breakdown(
         total_cost,
         by_team,
         by_resource_type,
-        by_provider: vec![],  // Requires provider metadata in resource table
-        by_region: vec![],  // Requires region metadata in resource table
+        by_provider: vec![], // Requires provider metadata in resource table
+        by_region: vec![],   // Requires region metadata in resource table
     }))
 }
 
@@ -273,19 +298,13 @@ pub async fn get_cost_breakdown(
     ),
     tag = "finance"
 )]
-pub async fn get_team_budgets(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<Budget>>> {
-    let budgets_db: Vec<BudgetDb> = sqlx::query_as(
-        "SELECT * FROM budgets ORDER BY created_at DESC"
-    )
-    .fetch_all(&state.db)
-    .await?;
+pub async fn get_team_budgets(State(state): State<Arc<AppState>>) -> Result<Json<Vec<Budget>>> {
+    let budgets_db: Vec<BudgetDb> =
+        sqlx::query_as("SELECT * FROM budgets ORDER BY created_at DESC")
+            .fetch_all(&state.db)
+            .await?;
 
-    let budgets: Vec<Budget> = budgets_db
-        .into_iter()
-        .map(|db| db.into())
-        .collect();
+    let budgets: Vec<Budget> = budgets_db.into_iter().map(|db| db.into()).collect();
 
     Ok(Json(budgets))
 }
@@ -306,16 +325,14 @@ pub async fn get_budget(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Budget>> {
-    let budget_db: BudgetDb = sqlx::query_as(
-        "SELECT * FROM budgets WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => HpcError::report_not_found(format!("Budget {}", id)),
-        _ => e.into(),
-    })?;
+    let budget_db: BudgetDb = sqlx::query_as("SELECT * FROM budgets WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => HpcError::report_not_found(format!("Budget {}", id)),
+            _ => e.into(),
+        })?;
 
     let budget: Budget = budget_db.into();
     Ok(Json(budget))
@@ -339,13 +356,11 @@ pub async fn update_budget(
     Path(id): Path<Uuid>,
     Json(request): Json<UpdateBudgetRequest>,
 ) -> Result<Json<serde_json::Value>> {
-    let result = sqlx::query(
-        "UPDATE budgets SET amount = $1, updated_at = NOW() WHERE id = $2"
-    )
-    .bind(request.amount)
-    .bind(id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("UPDATE budgets SET amount = $1, updated_at = NOW() WHERE id = $2")
+        .bind(request.amount)
+        .bind(id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(HpcError::report_not_found(format!("Budget {}", id)));
@@ -400,7 +415,7 @@ pub async fn generate_chargeback_report(
             $1, 'Team Name', $2, $3, $4, $5, 'generated'
         )
         RETURNING *
-        "#
+        "#,
     )
     .bind(&request.team_id)
     .bind(&request.start_date)
@@ -479,14 +494,9 @@ pub async fn get_chargeback_reports(
 
     sql.push_str(" ORDER BY generated_at DESC");
 
-    let reports_db: Vec<ChargebackReportDb> = sqlx::query_as(&sql)
-        .fetch_all(&state.db)
-        .await?;
+    let reports_db: Vec<ChargebackReportDb> = sqlx::query_as(&sql).fetch_all(&state.db).await?;
 
-    let reports: Vec<ChargebackReport> = reports_db
-        .into_iter()
-        .map(|db| db.into())
-        .collect();
+    let reports: Vec<ChargebackReport> = reports_db.into_iter().map(|db| db.into()).collect();
 
     Ok(Json(reports))
 }
@@ -507,16 +517,17 @@ pub async fn get_chargeback_report(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ChargebackReport>> {
-    let report_db: ChargebackReportDb = sqlx::query_as(
-        "SELECT * FROM chargeback_reports WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => HpcError::report_not_found(format!("Chargeback report {}", id)),
-        _ => e.into(),
-    })?;
+    let report_db: ChargebackReportDb =
+        sqlx::query_as("SELECT * FROM chargeback_reports WHERE id = $1")
+            .bind(id)
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| match e {
+                sqlx::Error::RowNotFound => {
+                    HpcError::report_not_found(format!("Chargeback report {}", id))
+                }
+                _ => e.into(),
+            })?;
 
     let report: ChargebackReport = report_db.into();
     Ok(Json(report))
@@ -536,16 +547,13 @@ pub async fn get_chargeback_report(
 pub async fn get_cost_optimizations(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<CostOptimization>>> {
-    let optimizations_db: Vec<CostOptimizationDb> = sqlx::query_as(
-        "SELECT * FROM cost_optimizations ORDER BY potential_savings DESC"
-    )
-    .fetch_all(&state.db)
-    .await?;
+    let optimizations_db: Vec<CostOptimizationDb> =
+        sqlx::query_as("SELECT * FROM cost_optimizations ORDER BY potential_savings DESC")
+            .fetch_all(&state.db)
+            .await?;
 
-    let optimizations: Vec<CostOptimization> = optimizations_db
-        .into_iter()
-        .map(|db| db.into())
-        .collect();
+    let optimizations: Vec<CostOptimization> =
+        optimizations_db.into_iter().map(|db| db.into()).collect();
 
     Ok(Json(optimizations))
 }
@@ -566,16 +574,17 @@ pub async fn get_cost_optimization(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<CostOptimization>> {
-    let optimization_db: CostOptimizationDb = sqlx::query_as(
-        "SELECT * FROM cost_optimizations WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => HpcError::report_not_found(format!("Optimization {}", id)),
-        _ => e.into(),
-    })?;
+    let optimization_db: CostOptimizationDb =
+        sqlx::query_as("SELECT * FROM cost_optimizations WHERE id = $1")
+            .bind(id)
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| match e {
+                sqlx::Error::RowNotFound => {
+                    HpcError::report_not_found(format!("Optimization {}", id))
+                }
+                _ => e.into(),
+            })?;
 
     let optimization: CostOptimization = optimization_db.into();
     Ok(Json(optimization))
@@ -597,12 +606,10 @@ pub async fn implement_optimization(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
-    let result = sqlx::query(
-        "UPDATE cost_optimizations SET status = 'implemented' WHERE id = $1"
-    )
-    .bind(id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("UPDATE cost_optimizations SET status = 'implemented' WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(HpcError::report_not_found(format!("Optimization {}", id)));
@@ -629,12 +636,10 @@ pub async fn reject_optimization(
     Path(id): Path<Uuid>,
     Json(_request): Json<RejectOptimizationRequest>,
 ) -> Result<Json<serde_json::Value>> {
-    let result = sqlx::query(
-        "UPDATE cost_optimizations SET status = 'rejected' WHERE id = $1"
-    )
-    .bind(id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("UPDATE cost_optimizations SET status = 'rejected' WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(HpcError::report_not_found(format!("Optimization {}", id)));
@@ -675,14 +680,9 @@ pub async fn get_cost_alerts(
 
     sql.push_str(" ORDER BY created_at DESC");
 
-    let alerts_db: Vec<CostAlertDb> = sqlx::query_as(&sql)
-        .fetch_all(&state.db)
-        .await?;
+    let alerts_db: Vec<CostAlertDb> = sqlx::query_as(&sql).fetch_all(&state.db).await?;
 
-    let alerts: Vec<CostAlert> = alerts_db
-        .into_iter()
-        .map(|db| db.into())
-        .collect();
+    let alerts: Vec<CostAlert> = alerts_db.into_iter().map(|db| db.into()).collect();
 
     Ok(Json(alerts))
 }
@@ -709,7 +709,7 @@ pub async fn create_cost_alert(
             $1, $2, $3, $4, 'Team Name', $5, 0.0
         )
         RETURNING *
-        "#
+        "#,
     )
     .bind(&request.title)
     .bind(&request.description)
@@ -746,7 +746,7 @@ pub async fn acknowledge_cost_alert(
         UPDATE cost_alerts
         SET acknowledged = true, acknowledged_by = $1, acknowledged_at = NOW()
         WHERE id = $2
-        "#
+        "#,
     )
     .bind(&request.user_id)
     .bind(id)
@@ -783,7 +783,7 @@ pub async fn resolve_cost_alert(
         UPDATE cost_alerts
         SET resolved = true, resolved_at = NOW(), resolution = $1, active = false
         WHERE id = $2
-        "#
+        "#,
     )
     .bind(&request.resolution)
     .bind(id)
@@ -809,16 +809,12 @@ pub async fn resolve_cost_alert(
 pub async fn get_alert_configurations(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<AlertConfiguration>>> {
-    let configs_db: Vec<AlertConfigurationDb> = sqlx::query_as(
-        "SELECT * FROM alert_configurations ORDER BY created_at DESC"
-    )
-    .fetch_all(&state.db)
-    .await?;
+    let configs_db: Vec<AlertConfigurationDb> =
+        sqlx::query_as("SELECT * FROM alert_configurations ORDER BY created_at DESC")
+            .fetch_all(&state.db)
+            .await?;
 
-    let configs: Vec<AlertConfiguration> = configs_db
-        .into_iter()
-        .map(|db| db.into())
-        .collect();
+    let configs: Vec<AlertConfiguration> = configs_db.into_iter().map(|db| db.into()).collect();
 
     Ok(Json(configs))
 }
@@ -865,13 +861,19 @@ pub async fn update_alert_configuration(
     }
 
     if updates.is_empty() {
-        return Ok(Json(serde_json::json!({"success": true, "message": "No fields to update"})));
+        return Ok(Json(
+            serde_json::json!({"success": true, "message": "No fields to update"}),
+        ));
     }
 
     updates.push("updated_at = NOW()".to_string());
 
     // For simplicity with dynamic SQL, we'll rebuild the query
-    let sql = format!("UPDATE alert_configurations SET {} WHERE id = ${}", updates.join(", "), param_idx);
+    let sql = format!(
+        "UPDATE alert_configurations SET {} WHERE id = ${}",
+        updates.join(", "),
+        param_idx
+    );
 
     let result = if let Some(threshold) = request.threshold {
         let mut q = sqlx::query(&sql).bind(threshold);
@@ -892,14 +894,23 @@ pub async fn update_alert_configuration(
         q.bind(id).execute(&state.db).await?
     } else if let Some(ref channels) = request.notification_channels {
         let channels_json = serde_json::to_value(channels)?;
-        sqlx::query(&sql).bind(channels_json).bind(id).execute(&state.db).await?
+        sqlx::query(&sql)
+            .bind(channels_json)
+            .bind(id)
+            .execute(&state.db)
+            .await?
     } else {
         // Should not happen due to earlier check
-        return Ok(Json(serde_json::json!({"success": true, "message": "No fields to update"})));
+        return Ok(Json(
+            serde_json::json!({"success": true, "message": "No fields to update"}),
+        ));
     };
 
     if result.rows_affected() == 0 {
-        return Err(HpcError::report_not_found(format!("Alert configuration {}", id)));
+        return Err(HpcError::report_not_found(format!(
+            "Alert configuration {}",
+            id
+        )));
     }
 
     Ok(Json(serde_json::json!({"success": true})))

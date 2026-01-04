@@ -15,7 +15,7 @@ impl ExecutiveRepository {
 
     pub async fn list_reports(&self) -> Result<Vec<ExecutiveReport>> {
         let reports = sqlx::query_as::<_, ExecutiveReport>(
-            "SELECT * FROM executive_reports ORDER BY report_period DESC LIMIT 100"
+            "SELECT * FROM executive_reports ORDER BY report_period DESC LIMIT 100",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -24,7 +24,7 @@ impl ExecutiveRepository {
 
     pub async fn get_summary(&self) -> Result<ReportSummary> {
         let row = sqlx::query(
-            "SELECT COUNT(*) as count, MAX(report_period) as latest FROM executive_reports"
+            "SELECT COUNT(*) as count, MAX(report_period) as latest FROM executive_reports",
         )
         .fetch_one(&self.pool)
         .await?;

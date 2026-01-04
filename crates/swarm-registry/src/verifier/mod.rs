@@ -1,10 +1,10 @@
 //! ImageVerifier - Security scanning and policy enforcement
 
-use crate::{ImageMetadata, Result, SwarmImage, SwarmRegistryError};
+use crate::{Result, SwarmImage, SwarmRegistryError};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Security scan result
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -260,7 +260,7 @@ impl ImageVerifier {
         self.scan_cache.clear();
     }
 
-    async fn extract_image(&self, image: &SwarmImage, work_dir: &Path) -> Result<()> {
+    async fn extract_image(&self, _image: &SwarmImage, work_dir: &Path) -> Result<()> {
         // TODO: Extract image layers to work directory
         // For now, just create a placeholder
         let placeholder = work_dir.join("extracted");

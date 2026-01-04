@@ -10,8 +10,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// TDD Phase tracking
 #[derive(Debug, Clone, PartialEq)]
 enum TddPhase {
-    Red,    // Writing failing tests
-    Green,  // Making tests pass
+    Red,      // Writing failing tests
+    Green,    // Making tests pass
     Refactor, // Improving implementation
 }
 
@@ -84,9 +84,9 @@ struct MultiRegionWorkload {
 /// Data replication strategy
 #[derive(Debug, Clone)]
 enum ReplicationStrategy {
-    Synchronous, // Wait for all replicas
+    Synchronous,  // Wait for all replicas
     Asynchronous, // Don't wait for replicas
-    Hybrid, // Wait for nearest replica
+    Hybrid,       // Wait for nearest replica
 }
 
 /// Failover policy configuration
@@ -144,9 +144,9 @@ enum DisasterType {
 /// Disaster severity levels
 #[derive(Debug, Clone)]
 enum Severity {
-    Low,    // Minor impact
-    Medium, // Significant impact
-    High,   // Region partially unavailable
+    Low,      // Minor impact
+    Medium,   // Significant impact
+    High,     // Region partially unavailable
     Critical, // Region completely unavailable
 }
 
@@ -180,74 +180,78 @@ impl MultiRegionDisasterRecovery {
             failover_history: Vec::new(),
         }
     }
-    
+
     /// Register a region
     fn add_region(&mut self, region: Region) {
         self.regions.insert(region.id.clone(), region);
     }
-    
+
     /// Deploy workload across multiple regions
     fn deploy_workload(&mut self, workload: MultiRegionWorkload) -> Result<String, String> {
         // Validate primary region exists and is healthy
-        let primary_region = self.regions.get(&workload.primary_region)
+        let primary_region = self
+            .regions
+            .get(&workload.primary_region)
             .ok_or("Primary region not found")?;
-        
+
         if primary_region.status != RegionStatus::Healthy {
             return Err("Primary region is not healthy".to_string());
         }
-        
+
         // Validate replica regions
         for replica_region in &workload.replica_regions {
             if !self.regions.contains_key(replica_region) {
                 return Err(format!("Replica region {} not found", replica_region));
             }
         }
-        
+
         // Check resource availability
         if !self.has_sufficient_resources(&workload) {
             return Err("Insufficient resources in target regions".to_string());
         }
-        
+
         let workload_id = workload.id.clone();
         self.workloads.insert(workload_id.clone(), workload);
-        
+
         Ok(workload_id)
     }
-    
+
     /// Check if regions have sufficient resources
     fn has_sufficient_resources(&self, workload: &MultiRegionWorkload) -> bool {
         // Check primary region
         if let Some(primary) = self.regions.get(&workload.primary_region) {
-            if primary.capacity.available_cpu < workload.resource_requirements.cpu_cores ||
-               primary.capacity.available_memory < workload.resource_requirements.memory_gb {
+            if primary.capacity.available_cpu < workload.resource_requirements.cpu_cores
+                || primary.capacity.available_memory < workload.resource_requirements.memory_gb
+            {
                 return false;
             }
         } else {
             return false;
         }
-        
+
         // Check replica regions (need at least minimal resources)
         let min_replica_cpu = workload.resource_requirements.cpu_cores / 2;
         let min_replica_memory = workload.resource_requirements.memory_gb / 2;
-        
+
         for replica_region in &workload.replica_regions {
             if let Some(region) = self.regions.get(replica_region) {
-                if region.capacity.available_cpu < min_replica_cpu ||
-                   region.capacity.available_memory < min_replica_memory {
+                if region.capacity.available_cpu < min_replica_cpu
+                    || region.capacity.available_memory < min_replica_memory
+                {
                     return false;
                 }
             } else {
                 return false;
             }
         }
-        
+
         true
     }
-    
+
     /// Simulate disaster in a region
     fn trigger_disaster(&mut self, disaster: DisasterEvent) {
         let region_id = disaster.region_id.clone();
-        
+
         // Update region status based on disaster severity
         if let Some(region) = self.regions.get_mut(&region_id) {
             region.status = match disaster.severity {
@@ -257,46 +261,48 @@ impl MultiRegionDisasterRecovery {
                 Severity::Critical => RegionStatus::Failed,
             };
         }
-        
+
         self.active_disasters.insert(disaster.id.clone(), disaster);
     }
-    
+
     /// Execute failover for affected workloads
     fn execute_failover(&mut self, workload_id: &str) -> Result<FailoverResult, String> {
-        let workload = self.workloads.get_mut(workload_id)
+        let workload = self
+            .workloads
+            .get_mut(workload_id)
             .ok_or("Workload not found")?;
-        
+
         let start_time = SystemTime::now();
-        
+
         // Find best target region for failover
         let target_region = self.find_best_failover_target(workload)?;
-        
+
         // Simulate failover process
         workload.current_status = WorkloadStatus::FailingOver;
-        
+
         // Calculate failover duration based on replication strategy
         let failover_duration = match workload.data_replication {
             ReplicationStrategy::Synchronous => Duration::from_millis(500), // Fast
             ReplicationStrategy::Asynchronous => Duration::from_millis(2000), // Slower
-            ReplicationStrategy::Hybrid => Duration::from_millis(1000), // Medium
+            ReplicationStrategy::Hybrid => Duration::from_millis(1000),     // Medium
         };
-        
+
         // Simulate data consistency check
         let data_consistency = match workload.data_replication {
             ReplicationStrategy::Synchronous => true,
             ReplicationStrategy::Asynchronous => false, // Some data loss possible
             ReplicationStrategy::Hybrid => true,
         };
-        
+
         // Calculate performance impact
         let source_latency = self.get_region_latency(&workload.primary_region, &target_region);
         let performance_impact = (source_latency as f64 / 10.0).min(50.0); // Max 50% impact
-        
+
         // Update workload to new primary region
         let old_primary = workload.primary_region.clone();
         workload.primary_region = target_region.clone();
         workload.current_status = WorkloadStatus::Running;
-        
+
         let result = FailoverResult {
             workload_id: workload_id.to_string(),
             source_region: old_primary,
@@ -306,91 +312,104 @@ impl MultiRegionDisasterRecovery {
             data_consistency,
             performance_impact,
         };
-        
+
         self.failover_history.push(result.clone());
         Ok(result)
     }
-    
+
     /// Find best region for failover
     fn find_best_failover_target(&self, workload: &MultiRegionWorkload) -> Result<String, String> {
         let mut candidates: Vec<String> = Vec::new();
-        
+
         // First, try preferred regions from policy
         for region_id in &workload.failover_policy.preferred_regions {
             if let Some(region) = self.regions.get(region_id) {
-                if region.status == RegionStatus::Healthy && 
-                   self.region_has_capacity(region_id, &workload.resource_requirements) {
+                if region.status == RegionStatus::Healthy
+                    && self.region_has_capacity(region_id, &workload.resource_requirements)
+                {
                     candidates.push(region_id.clone());
                 }
             }
         }
-        
+
         // If no preferred regions available, check replica regions
         if candidates.is_empty() {
             for region_id in &workload.replica_regions {
                 if let Some(region) = self.regions.get(region_id) {
-                    if region.status == RegionStatus::Healthy &&
-                       self.region_has_capacity(region_id, &workload.resource_requirements) {
+                    if region.status == RegionStatus::Healthy
+                        && self.region_has_capacity(region_id, &workload.resource_requirements)
+                    {
                         candidates.push(region_id.clone());
                     }
                 }
             }
         }
-        
+
         // If still no candidates, check all healthy regions
         if candidates.is_empty() {
             for (region_id, region) in &self.regions {
-                if region.status == RegionStatus::Healthy &&
-                   region_id != &workload.primary_region &&
-                   self.region_has_capacity(region_id, &workload.resource_requirements) {
+                if region.status == RegionStatus::Healthy
+                    && region_id != &workload.primary_region
+                    && self.region_has_capacity(region_id, &workload.resource_requirements)
+                {
                     candidates.push(region_id.clone());
                 }
             }
         }
-        
+
         // Select region with lowest latency to original primary
-        candidates.into_iter()
+        candidates
+            .into_iter()
             .min_by_key(|region_id| self.get_region_latency(&workload.primary_region, region_id))
             .ok_or("No suitable failover target found".to_string())
     }
-    
+
     /// Check if region has required capacity
     fn region_has_capacity(&self, region_id: &str, requirements: &ResourceRequirement) -> bool {
         if let Some(region) = self.regions.get(region_id) {
-            region.capacity.available_cpu >= requirements.cpu_cores &&
-            region.capacity.available_memory >= requirements.memory_gb
+            region.capacity.available_cpu >= requirements.cpu_cores
+                && region.capacity.available_memory >= requirements.memory_gb
         } else {
             false
         }
     }
-    
+
     /// Get latency between regions
     fn get_region_latency(&self, from_region: &str, to_region: &str) -> u32 {
         if let Some(region) = self.regions.get(from_region) {
-            region.latency_to_regions.get(to_region).copied().unwrap_or(100)
+            region
+                .latency_to_regions
+                .get(to_region)
+                .copied()
+                .unwrap_or(100)
         } else {
             100 // Default latency
         }
     }
-    
+
     /// Get disaster recovery metrics
     fn get_metrics(&self) -> DisasterRecoveryMetrics {
         let total_workloads = self.workloads.len() as u32;
-        let healthy_regions = self.regions.values()
+        let healthy_regions = self
+            .regions
+            .values()
             .filter(|r| r.status == RegionStatus::Healthy)
             .count() as u32;
-        
+
         let total_failovers = self.failover_history.len() as u32;
-        let successful_failovers = self.failover_history.iter()
-            .filter(|f| f.success)
-            .count() as u32;
-        
+        let successful_failovers =
+            self.failover_history.iter().filter(|f| f.success).count() as u32;
+
         let avg_failover_time = if !self.failover_history.is_empty() {
-            self.failover_history.iter()
+            self.failover_history
+                .iter()
                 .map(|f| f.failover_duration.as_millis() as u64)
-                .sum::<u64>() / self.failover_history.len() as u64
-        } else { 0 };
-        
+                .sum::<u64>()
+                / self.failover_history.len() as u64
+        } else {
+            0
+        };
+
         DisasterRecoveryMetrics {
             total_regions: self.regions.len() as u32,
             healthy_regions,
@@ -400,10 +419,16 @@ impl MultiRegionDisasterRecovery {
             successful_failovers,
             avg_failover_time_ms: avg_failover_time,
             data_consistency_rate: if total_failovers > 0 {
-                (self.failover_history.iter()
+                (self
+                    .failover_history
+                    .iter()
                     .filter(|f| f.data_consistency)
-                    .count() as f64 / total_failovers as f64) * 100.0
-            } else { 100.0 },
+                    .count() as f64
+                    / total_failovers as f64)
+                    * 100.0
+            } else {
+                100.0
+            },
         }
     }
 }
@@ -538,52 +563,52 @@ impl MultiRegionDisasterRecoveryTests {
     /// Create new test suite
     async fn new() -> Self {
         let mut coordinator = MultiRegionDisasterRecovery::new();
-        
+
         // Add test regions
         for region in create_test_regions() {
             coordinator.add_region(region);
         }
-        
+
         Self {
             coordinator,
             test_results: Vec::new(),
             current_phase: TddPhase::Red,
         }
     }
-    
+
     /// Run comprehensive TDD tests
     async fn run_comprehensive_tests(&mut self) -> Vec<IntegrationTestResult> {
         println!("=== Multi-Region ↔ Disaster-Recovery Integration Tests ===");
-        
+
         // RED Phase
         self.current_phase = TddPhase::Red;
         println!("\n🔴 RED Phase - Writing failing tests");
         self.test_multi_region_deployment().await;
         self.test_disaster_failover().await;
         self.test_cross_region_recovery().await;
-        
+
         // GREEN Phase
         self.current_phase = TddPhase::Green;
         println!("\n🟢 GREEN Phase - Making tests pass");
         self.test_multi_region_deployment().await;
         self.test_disaster_failover().await;
         self.test_cross_region_recovery().await;
-        
+
         // REFACTOR Phase
         self.current_phase = TddPhase::Refactor;
         println!("\n🔵 REFACTOR Phase - Improving implementation");
         self.test_multi_region_deployment().await;
         self.test_disaster_failover().await;
         self.test_cross_region_recovery().await;
-        
+
         self.test_results.clone()
     }
-    
+
     /// Test multi-region workload deployment
     async fn test_multi_region_deployment(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Multi-Region Workload Deployment";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
@@ -609,7 +634,7 @@ impl MultiRegionDisasterRecoveryTests {
                         network_mbps: 1000,
                     },
                 };
-                
+
                 // Deploy workload
                 match self.coordinator.deploy_workload(workload) {
                     Ok(workload_id) => {
@@ -620,7 +645,7 @@ impl MultiRegionDisasterRecoveryTests {
                 }
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -631,12 +656,12 @@ impl MultiRegionDisasterRecoveryTests {
             recovery_success: success,
         });
     }
-    
+
     /// Test disaster-triggered failover
     async fn test_disaster_failover(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Disaster Failover Execution";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
@@ -665,7 +690,7 @@ impl MultiRegionDisasterRecoveryTests {
                     };
                     let _ = self.coordinator.deploy_workload(workload);
                 }
-                
+
                 // Trigger disaster in primary region
                 let disaster = DisasterEvent {
                     id: "disaster-001".to_string(),
@@ -679,9 +704,9 @@ impl MultiRegionDisasterRecoveryTests {
                     estimated_duration: Duration::from_hours(2),
                     affected_services: vec!["networking".to_string(), "compute".to_string()],
                 };
-                
+
                 self.coordinator.trigger_disaster(disaster);
-                
+
                 // Execute failover
                 match self.coordinator.execute_failover("failover-test-workload") {
                     Ok(result) => result.success,
@@ -689,9 +714,9 @@ impl MultiRegionDisasterRecoveryTests {
                 }
             }
         };
-        
+
         let failover_time = if success { 500 } else { 0 };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -702,27 +727,27 @@ impl MultiRegionDisasterRecoveryTests {
             recovery_success: success,
         });
     }
-    
+
     /// Test cross-region recovery
     async fn test_cross_region_recovery(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Cross-Region Recovery";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
                 // Get metrics to verify system health
                 let metrics = self.coordinator.get_metrics();
-                
+
                 // Verify we have healthy regions for recovery
                 let has_healthy_regions = metrics.healthy_regions >= 2;
-                let has_successful_failovers = metrics.successful_failovers > 0 ||
-                    self.current_phase == TddPhase::Green; // Allow pass in GREEN phase
-                
+                let has_successful_failovers =
+                    metrics.successful_failovers > 0 || self.current_phase == TddPhase::Green; // Allow pass in GREEN phase
+
                 has_healthy_regions && has_successful_failovers
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -738,25 +763,26 @@ impl MultiRegionDisasterRecoveryTests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_multi_region_disaster_recovery_integration() {
         let mut tests = MultiRegionDisasterRecoveryTests::new().await;
         let results = tests.run_comprehensive_tests().await;
-        
+
         // Verify all phases completed
         assert!(results.iter().any(|r| r.phase == TddPhase::Red));
         assert!(results.iter().any(|r| r.phase == TddPhase::Green));
         assert!(results.iter().any(|r| r.phase == TddPhase::Refactor));
-        
+
         // Verify success in final phase
         let refactor_results: Vec<_> = results
             .iter()
             .filter(|r| r.phase == TddPhase::Refactor)
             .collect();
-        
+
         for result in &refactor_results {
-            println!("{}: {} (regions: {}, failover: {}ms)", 
+            println!(
+                "{}: {} (regions: {}, failover: {}ms)",
                 result.test_name,
                 if result.success { "✓" } else { "✗" },
                 result.regions_involved,
@@ -764,18 +790,24 @@ mod tests {
             );
             assert!(result.success, "Test should pass: {}", result.test_name);
         }
-        
+
         // Verify cross-region capabilities
-        let total_regions: u32 = refactor_results.iter()
-            .map(|r| r.regions_involved)
-            .sum();
-        assert!(total_regions >= 6, "Should involve multiple regions across tests");
-        
+        let total_regions: u32 = refactor_results.iter().map(|r| r.regions_involved).sum();
+        assert!(
+            total_regions >= 6,
+            "Should involve multiple regions across tests"
+        );
+
         // Verify failover performance
-        let avg_failover_time = refactor_results.iter()
+        let avg_failover_time = refactor_results
+            .iter()
             .filter(|r| r.failover_time_ms > 0)
             .map(|r| r.failover_time_ms)
-            .sum::<u64>() / refactor_results.len() as u64;
-        assert!(avg_failover_time < 2000, "Failover should be fast (< 2s average)");
+            .sum::<u64>()
+            / refactor_results.len() as u64;
+        assert!(
+            avg_failover_time < 2000,
+            "Failover should be fast (< 2s average)"
+        );
     }
 }

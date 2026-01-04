@@ -7,10 +7,7 @@ use crate::metal3::Metal3Device;
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_foundation::NSString;
-use objc2_metal::{
-    MTLComputePipelineState, MTLDevice, MTLLibrary,
-    MTLCompileOptions,
-};
+use objc2_metal::{MTLCompileOptions, MTLComputePipelineState, MTLDevice, MTLLibrary};
 
 /// Metal 3 compute pipeline.
 pub struct Metal3ComputePipeline {
@@ -147,7 +144,11 @@ mod tests {
         let device = Metal3Device::system_default().unwrap();
         let pipeline = Metal3ComputePipeline::from_source(&device, SIMPLE_KERNEL, "add_arrays");
 
-        assert!(pipeline.is_ok(), "Failed to create pipeline: {:?}", pipeline.err());
+        assert!(
+            pipeline.is_ok(),
+            "Failed to create pipeline: {:?}",
+            pipeline.err()
+        );
 
         let pipeline = pipeline.unwrap();
         assert_eq!(pipeline.function_name(), "add_arrays");

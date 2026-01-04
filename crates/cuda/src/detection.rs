@@ -78,7 +78,7 @@ impl CudaToolkit {
         #[cfg(cuda_mock)]
         {
             self.info = Some(Self::create_mock_info());
-            return Ok(self.info.as_ref().unwrap());
+            Ok(self.info.as_ref().unwrap())
         }
 
         #[cfg(not(cuda_mock))]
@@ -229,6 +229,9 @@ pub fn initialize_cuda() -> CudaResult<()> {
     INIT.call_once(|| {
         #[cfg(cuda_mock)]
         {
+            // SAFETY: INITIALIZED is only written inside call_once, which guarantees
+            // single-threaded execution. After call_once completes, INITIALIZED is
+            // only read, never written again.
             unsafe {
                 INITIALIZED = true;
             }
@@ -245,6 +248,8 @@ pub fn initialize_cuda() -> CudaResult<()> {
                             version: info.version.to_string(),
                         });
                     } else {
+                        // SAFETY: INITIALIZED is only written inside call_once, which
+                        // guarantees single-threaded execution. No data races possible.
                         unsafe {
                             INITIALIZED = true;
                         }
@@ -260,12 +265,15 @@ pub fn initialize_cuda() -> CudaResult<()> {
 
 /// Get CUDA toolkit information
 pub fn get_toolkit_info() -> CudaResult<ToolkitInfo> {
+    // SAFETY: INITIALIZED is only written inside call_once (single-threaded).
+    // Reading it here may race with a concurrent initialize_cuda(), but the
+    // worst case is we call initialize_cuda() redundantly (which is idempotent).
     if !unsafe { INITIALIZED } {
         initialize_cuda()?;
     }
 
     let mut toolkit = CudaToolkit::new();
-    toolkit.detect().map(|info| info.clone())
+    toolkit.detect().cloned()
 }
 
 #[cfg(test)]

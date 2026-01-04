@@ -14,7 +14,7 @@
 //! - Slightly higher latency
 
 use super::traits::{BackendType, InterfaceStats, PeerStats, WireGuardBackend};
-use crate::wireguard::{InterfaceConfig, PeerConfig, KeyPair};
+use crate::wireguard::{InterfaceConfig, KeyPair, PeerConfig};
 use crate::{Error, Result};
 use async_trait::async_trait;
 use dashmap::DashMap;

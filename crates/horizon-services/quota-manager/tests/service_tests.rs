@@ -2,7 +2,7 @@
 use horizon_quota_manager::{
     models::*,
     service::{AllocationService, QuotaService},
-    QuotaRepository, DbPool, Config,
+    Config, DbPool, QuotaRepository,
 };
 use rust_decimal_macros::dec;
 use sqlx::PgPool;
@@ -44,7 +44,10 @@ async fn test_quota_service_hierarchical_validation() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let org_quota = service.create_quota(org_req).await.expect("Failed to create org quota");
+    let org_quota = service
+        .create_quota(org_req)
+        .await
+        .expect("Failed to create org quota");
 
     // Create team quota under org
     let team_req = CreateQuotaRequest {
@@ -57,7 +60,10 @@ async fn test_quota_service_hierarchical_validation() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let team_quota = service.create_quota(team_req).await.expect("Failed to create team quota");
+    let team_quota = service
+        .create_quota(team_req)
+        .await
+        .expect("Failed to create team quota");
 
     // Create user quota under team
     let user_req = CreateQuotaRequest {
@@ -70,7 +76,10 @@ async fn test_quota_service_hierarchical_validation() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let user_quota = service.create_quota(user_req).await.expect("Failed to create user quota");
+    let user_quota = service
+        .create_quota(user_req)
+        .await
+        .expect("Failed to create user quota");
 
     assert_eq!(user_quota.parent_id, Some(team_quota.id));
     assert_eq!(user_quota.limit_value, dec!(100.0));
@@ -93,7 +102,10 @@ async fn test_quota_service_invalid_hierarchy() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let user_quota = service.create_quota(user_req).await.expect("Failed to create user quota");
+    let user_quota = service
+        .create_quota(user_req)
+        .await
+        .expect("Failed to create user quota");
 
     // Try to create org quota under user (invalid hierarchy)
     let org_req = CreateQuotaRequest {
@@ -109,7 +121,10 @@ async fn test_quota_service_invalid_hierarchy() {
 
     let result = service.create_quota(org_req).await;
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), horizon_quota_manager::QuotaError::InvalidHierarchy(_)));
+    assert!(matches!(
+        result.unwrap_err(),
+        horizon_quota_manager::QuotaError::InvalidHierarchy(_)
+    ));
 }
 
 #[tokio::test]
@@ -129,7 +144,10 @@ async fn test_allocation_service_allocate_and_release() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let quota = repo.create_quota(quota_req).await.expect("Failed to create quota");
+    let quota = repo
+        .create_quota(quota_req)
+        .await
+        .expect("Failed to create quota");
 
     let job_id = Uuid::new_v4();
 
@@ -150,7 +168,10 @@ async fn test_allocation_service_allocate_and_release() {
     assert!(allocation.is_active());
 
     // Check usage
-    let usage = repo.get_current_usage(quota.id).await.expect("Failed to get usage");
+    let usage = repo
+        .get_current_usage(quota.id)
+        .await
+        .expect("Failed to get usage");
     assert_eq!(usage, dec!(8.0));
 
     // Release
@@ -163,7 +184,10 @@ async fn test_allocation_service_allocate_and_release() {
     assert_eq!(released.version, 1); // Version incremented by optimistic lock
 
     // Usage should be 0
-    let usage_after = repo.get_current_usage(quota.id).await.expect("Failed to get usage");
+    let usage_after = repo
+        .get_current_usage(quota.id)
+        .await
+        .expect("Failed to get usage");
     assert_eq!(usage_after, dec!(0.0));
 }
 
@@ -184,7 +208,9 @@ async fn test_allocation_service_quota_exceeded() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    repo.create_quota(quota_req).await.expect("Failed to create quota");
+    repo.create_quota(quota_req)
+        .await
+        .expect("Failed to create quota");
 
     // Try to allocate more than limit
     let result = alloc_service
@@ -199,7 +225,10 @@ async fn test_allocation_service_quota_exceeded() {
         .await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), horizon_quota_manager::QuotaError::QuotaExceeded(_)));
+    assert!(matches!(
+        result.unwrap_err(),
+        horizon_quota_manager::QuotaError::QuotaExceeded(_)
+    ));
 }
 
 #[tokio::test]
@@ -220,7 +249,10 @@ async fn test_allocation_service_hierarchical_enforcement() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let org_quota = quota_service.create_quota(org_req).await.expect("Failed to create org");
+    let org_quota = quota_service
+        .create_quota(org_req)
+        .await
+        .expect("Failed to create org");
 
     // Create team with limit 500
     let team_req = CreateQuotaRequest {
@@ -233,7 +265,10 @@ async fn test_allocation_service_hierarchical_enforcement() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let team_quota = quota_service.create_quota(team_req).await.expect("Failed to create team");
+    let team_quota = quota_service
+        .create_quota(team_req)
+        .await
+        .expect("Failed to create team");
 
     // Create user with limit 200
     let user_req = CreateQuotaRequest {
@@ -246,7 +281,10 @@ async fn test_allocation_service_hierarchical_enforcement() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    quota_service.create_quota(user_req).await.expect("Failed to create user");
+    quota_service
+        .create_quota(user_req)
+        .await
+        .expect("Failed to create user");
 
     // Allocate 150 to user (within user limit)
     let alloc1 = alloc_service
@@ -296,7 +334,10 @@ async fn test_quota_service_get_usage_stats() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let quota = repo.create_quota(req).await.expect("Failed to create quota");
+    let quota = repo
+        .create_quota(req)
+        .await
+        .expect("Failed to create quota");
 
     // Allocate 600GB
     alloc_service
@@ -312,7 +353,10 @@ async fn test_quota_service_get_usage_stats() {
         .expect("Failed to allocate");
 
     // Get stats
-    let stats = quota_service.get_usage_stats(quota.id).await.expect("Failed to get stats");
+    let stats = quota_service
+        .get_usage_stats(quota.id)
+        .await
+        .expect("Failed to get stats");
 
     assert_eq!(stats.limit, dec!(1000.0));
     assert_eq!(stats.usage, dec!(600.0));

@@ -52,7 +52,8 @@ fn create_test_population(size: usize) -> Vec<EvolvableAgent> {
             metadata: serde_json::Value::Null,
         };
 
-        let agent = stratoswarm_agent_core::Agent::new(config).expect("Failed to create test agent");
+        let agent =
+            stratoswarm_agent_core::Agent::new(config).expect("Failed to create test agent");
 
         agents.push(EvolvableAgent { agent, genome });
     }

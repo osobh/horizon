@@ -26,7 +26,10 @@ fn main() -> anyhow::Result<()> {
 
     println!("Device: {}", info.name);
     println!("Unified Memory: {}", info.unified_memory);
-    println!("Max Buffer Size: {} GB", info.max_buffer_length / (1024 * 1024 * 1024));
+    println!(
+        "Max Buffer Size: {} GB",
+        info.max_buffer_length / (1024 * 1024 * 1024)
+    );
     println!();
 
     // Warmup phase
@@ -41,15 +44,18 @@ fn main() -> anyhow::Result<()> {
     // ========================================================================
     println!("1. Buffer Allocation Time");
     println!("{}", "-".repeat(70));
-    println!("{:>15} {:>12} {:>12} {:>12} {:>12}", "Size", "Avg", "P50", "P99", "Throughput");
+    println!(
+        "{:>15} {:>12} {:>12} {:>12} {:>12}",
+        "Size", "Avg", "P50", "P99", "Throughput"
+    );
 
     let allocation_sizes = [
-        1024,                    // 1 KB
-        64 * 1024,               // 64 KB
-        1024 * 1024,             // 1 MB
-        16 * 1024 * 1024,        // 16 MB
-        64 * 1024 * 1024,        // 64 MB
-        256 * 1024 * 1024,       // 256 MB
+        1024,              // 1 KB
+        64 * 1024,         // 64 KB
+        1024 * 1024,       // 1 MB
+        16 * 1024 * 1024,  // 16 MB
+        64 * 1024 * 1024,  // 64 MB
+        256 * 1024 * 1024, // 256 MB
     ];
 
     for size in allocation_sizes {
@@ -83,14 +89,17 @@ fn main() -> anyhow::Result<()> {
     // ========================================================================
     println!("2. CPU Write Throughput (Unified Memory)");
     println!("{}", "-".repeat(70));
-    println!("{:>15} {:>12} {:>12} {:>12} {:>12}", "Size", "Avg", "P50", "P99", "Throughput");
+    println!(
+        "{:>15} {:>12} {:>12} {:>12} {:>12}",
+        "Size", "Avg", "P50", "P99", "Throughput"
+    );
 
     let write_sizes = [
-        1024 * 1024,             // 1 MB
-        16 * 1024 * 1024,        // 16 MB
-        64 * 1024 * 1024,        // 64 MB
-        256 * 1024 * 1024,       // 256 MB
-        512 * 1024 * 1024,       // 512 MB
+        1024 * 1024,       // 1 MB
+        16 * 1024 * 1024,  // 16 MB
+        64 * 1024 * 1024,  // 64 MB
+        256 * 1024 * 1024, // 256 MB
+        512 * 1024 * 1024, // 512 MB
     ];
 
     for size in write_sizes {
@@ -132,7 +141,10 @@ fn main() -> anyhow::Result<()> {
     // ========================================================================
     println!("3. CPU Read Throughput (Unified Memory)");
     println!("{}", "-".repeat(70));
-    println!("{:>15} {:>12} {:>12} {:>12} {:>12}", "Size", "Avg", "P50", "P99", "Throughput");
+    println!(
+        "{:>15} {:>12} {:>12} {:>12} {:>12}",
+        "Size", "Avg", "P50", "P99", "Throughput"
+    );
 
     for size in write_sizes {
         let element_count = size / std::mem::size_of::<f32>();
@@ -188,7 +200,10 @@ fn main() -> anyhow::Result<()> {
     // ========================================================================
     println!("4. GPU Kernel Memory Throughput");
     println!("{}", "-".repeat(70));
-    println!("{:>15} {:>12} {:>12} {:>12} {:>12}", "Size", "Avg", "P50", "P99", "Throughput");
+    println!(
+        "{:>15} {:>12} {:>12} {:>12} {:>12}",
+        "Size", "Avg", "P50", "P99", "Throughput"
+    );
 
     // Simple copy kernel for bandwidth measurement
     let copy_shader = r#"
@@ -222,10 +237,10 @@ fn main() -> anyhow::Result<()> {
     let queue = backend.create_command_queue()?;
 
     let gpu_sizes = [
-        1024 * 1024,             // 1 MB
-        16 * 1024 * 1024,        // 16 MB
-        64 * 1024 * 1024,        // 64 MB
-        128 * 1024 * 1024,       // 128 MB
+        1024 * 1024,       // 1 MB
+        16 * 1024 * 1024,  // 16 MB
+        64 * 1024 * 1024,  // 64 MB
+        128 * 1024 * 1024, // 128 MB
     ];
 
     for size in gpu_sizes {
@@ -238,7 +253,10 @@ fn main() -> anyhow::Result<()> {
         // Initialize input
         {
             let mut input_mut = backend.create_buffer_with_data(&vec![1.0f32; element_count])?;
-            std::mem::swap(&mut input_mut, &mut backend.create_buffer::<f32>(element_count)?);
+            std::mem::swap(
+                &mut input_mut,
+                &mut backend.create_buffer::<f32>(element_count)?,
+            );
         }
 
         let mut times = Vec::with_capacity(50);

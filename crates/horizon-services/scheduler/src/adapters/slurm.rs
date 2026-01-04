@@ -47,7 +47,10 @@ impl SlurmAdapter {
             }
         }
 
-        let mut builder = Job::builder().user_id(user_id).gpu_count(gpu_count).priority(priority);
+        let mut builder = Job::builder()
+            .user_id(user_id)
+            .gpu_count(gpu_count)
+            .priority(priority);
 
         if let Some(name) = job_name {
             builder = builder.job_name(name);
@@ -61,7 +64,9 @@ impl SlurmAdapter {
         let mut output = String::from("JOBID     USER       STATE      GPUS\n");
 
         for job in jobs {
-            let gpu_count = job.resources.get_gpu_spec()
+            let gpu_count = job
+                .resources
+                .get_gpu_spec()
                 .map(|s| s.amount as usize)
                 .unwrap_or(0);
 
@@ -101,7 +106,9 @@ python train.py
         "#;
 
         let job = adapter.parse_sbatch(script).unwrap();
-        let gpu_count = job.resources.get_gpu_spec()
+        let gpu_count = job
+            .resources
+            .get_gpu_spec()
             .map(|s| s.amount as usize)
             .unwrap_or(0);
         assert_eq!(gpu_count, 4);
@@ -113,8 +120,16 @@ python train.py
         let adapter = SlurmAdapter::new();
 
         let jobs = vec![
-            Job::builder().user_id("user1").gpu_count(2).build().unwrap(),
-            Job::builder().user_id("user2").gpu_count(4).build().unwrap(),
+            Job::builder()
+                .user_id("user1")
+                .gpu_count(2)
+                .build()
+                .unwrap(),
+            Job::builder()
+                .user_id("user2")
+                .gpu_count(4)
+                .build()
+                .unwrap(),
         ];
 
         let output = adapter.format_squeue(&jobs);

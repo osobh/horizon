@@ -125,7 +125,10 @@ async fn run_evolution(args: &EvolveArgs) -> Result<()> {
     // Try to start evolution on the cluster
     let config = CliConfig::load().unwrap_or_default();
     let client = Client::new();
-    let url = format!("{}/api/v1/agents/{}/evolve", config.api_endpoint, args.agent);
+    let url = format!(
+        "{}/api/v1/agents/{}/evolve",
+        config.api_endpoint, args.agent
+    );
 
     let request = EvolveRequest {
         agent: args.agent.clone(),
@@ -165,10 +168,7 @@ async fn run_evolution(args: &EvolveArgs) -> Result<()> {
 
     // Run local simulation if cluster not available
     if !cluster_available {
-        output::info(&format!(
-            "Simulating evolution for agent '{}'",
-            args.agent
-        ));
+        output::info(&format!("Simulating evolution for agent '{}'", args.agent));
     }
 
     let pb = create_progress_bar(args.generations);
@@ -177,7 +177,7 @@ async fn run_evolution(args: &EvolveArgs) -> Result<()> {
         pb.set_message(format!("Generation {}/{}", generation, args.generations));
 
         // Run evolution step
-        let result = evolve_generation(&args, generation).await?;
+        let result = evolve_generation(args, generation).await?;
 
         if args.verbose {
             print_generation_result(&result);

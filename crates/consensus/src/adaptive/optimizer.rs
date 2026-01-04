@@ -12,7 +12,7 @@ impl OptimizationEngine {
     pub fn new(config: OptimizationConfig) -> Self {
         Self { config }
     }
-    
+
     /// Optimize algorithm parameters
     pub async fn optimize(&self) -> OptimizationResult {
         OptimizationResult::default()

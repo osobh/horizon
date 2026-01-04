@@ -81,7 +81,11 @@ async fn test_create_subnet() {
     });
 
     let response = app
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
 
@@ -115,7 +119,11 @@ async fn test_create_subnet_from_template() {
     });
 
     let response = app
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
 
@@ -138,7 +146,11 @@ async fn test_list_subnets_with_filter() {
     });
 
     app.clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
 
@@ -151,7 +163,11 @@ async fn test_list_subnets_with_filter() {
     });
 
     app.clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body2)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body2),
+        ))
         .await
         .unwrap();
 
@@ -195,7 +211,11 @@ async fn test_get_subnet_stats() {
 
     let create_response = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
 
@@ -234,7 +254,11 @@ async fn test_delete_subnet() {
 
     let create_response = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
 
@@ -285,7 +309,11 @@ async fn test_assign_node_to_subnet() {
 
     let create_response = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
 
@@ -344,7 +372,11 @@ async fn test_unassign_node() {
 
     let create_response = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
 
@@ -456,7 +488,11 @@ async fn test_create_cross_subnet_route() {
 
     let response1 = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(subnet1_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(subnet1_body),
+        ))
         .await
         .unwrap();
     let subnet1 = response_json(response1).await;
@@ -470,7 +506,11 @@ async fn test_create_cross_subnet_route() {
 
     let response2 = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(subnet2_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(subnet2_body),
+        ))
         .await
         .unwrap();
     let subnet2 = response_json(response2).await;
@@ -486,7 +526,11 @@ async fn test_create_cross_subnet_route() {
 
     let response = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/routes", Some(route_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/routes",
+            Some(route_body),
+        ))
         .await
         .unwrap();
 
@@ -558,7 +602,11 @@ async fn test_manager_stats() {
     });
 
     app.clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
 
@@ -648,7 +696,11 @@ async fn test_cannot_delete_non_empty_subnet() {
 
     let create_response = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
 
@@ -702,7 +754,11 @@ async fn test_full_subnet_lifecycle() {
 
     let response = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(create_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(create_body),
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -815,7 +871,11 @@ async fn test_multi_tenant_isolation() {
 
     let response1 = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(subnet1_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(subnet1_body),
+        ))
         .await
         .unwrap();
     let subnet1 = response_json(response1).await;
@@ -829,7 +889,11 @@ async fn test_multi_tenant_isolation() {
 
     let response2 = app
         .clone()
-        .oneshot(json_request(Method::POST, "/api/v1/subnets", Some(subnet2_body)))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/subnets",
+            Some(subnet2_body),
+        ))
         .await
         .unwrap();
     let subnet2 = response_json(response2).await;

@@ -1,6 +1,7 @@
 //! Comprehensive end-to-end tests covering all major ExoRust features
 //! Validates complete data flow through the system
 
+use std::sync::Arc;
 use stratoswarm_agent_core::{Agent, AgentConfig};
 use stratoswarm_bootstrap::{BootstrapConfig, BootstrapManager};
 use stratoswarm_compliance::{ComplianceFramework, ComplianceManager};
@@ -18,7 +19,6 @@ use stratoswarm_governance::{
 use stratoswarm_monitoring::{MetricType, PerformanceMonitor};
 use stratoswarm_multi_region::{DataSovereigntyPolicy, MultiRegionController, Region};
 use stratoswarm_zero_trust::{DeviceTrust, ZeroTrustController};
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Test complete Bootstrap → Governance → Agent Creation → Safety flow

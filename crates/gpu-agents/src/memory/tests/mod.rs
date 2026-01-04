@@ -96,8 +96,8 @@ fn test_unified_memory() {
 
     // Create unified memory allocation
     let size = 1024 * 1024; // 1MB
-    let unified_mem =
-        UnifiedMemory::<u8>::new(Arc::clone(&device), size).expect("Failed to create unified memory");
+    let unified_mem = UnifiedMemory::<u8>::new(Arc::clone(&device), size)
+        .expect("Failed to create unified memory");
 
     assert_eq!(unified_mem.size(), size);
     assert!(unified_mem.device_ptr().is_valid());

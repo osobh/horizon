@@ -5,7 +5,6 @@ use super::tasks::{QueueStats, ScheduledTask, TaskStatus};
 use crate::agent::AgentId;
 use crate::error::{AgentError, AgentResult};
 use crate::goal::{Goal, GoalPriority};
-use chrono::Utc;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -29,11 +28,12 @@ impl From<GoalPriority> for SchedulerPriority {
 }
 
 /// Scheduling policy
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SchedulingPolicy {
     /// First in, first out
     FIFO,
     /// Priority-based scheduling
+    #[default]
     Priority,
     /// Round-robin scheduling
     RoundRobin,
@@ -43,12 +43,6 @@ pub enum SchedulingPolicy {
     FairShare,
     /// Custom scheduling policy
     Custom(String),
-}
-
-impl Default for SchedulingPolicy {
-    fn default() -> Self {
-        Self::Priority
-    }
 }
 
 /// Core scheduler implementation

@@ -52,10 +52,10 @@ impl StorageTier {
     /// These are example rates
     pub fn default_rate(&self) -> Decimal {
         match self {
-            StorageTier::Standard => Decimal::new(1368, 8),   // ~$0.01/GB/month
+            StorageTier::Standard => Decimal::new(1368, 8), // ~$0.01/GB/month
             StorageTier::Infrequent => Decimal::new(684, 8), // ~$0.005/GB/month
-            StorageTier::Archive => Decimal::new(137, 8),    // ~$0.001/GB/month
-            StorageTier::Ephemeral => Decimal::new(2736, 8),  // ~$0.02/GB/month (higher for fast access)
+            StorageTier::Archive => Decimal::new(137, 8),   // ~$0.001/GB/month
+            StorageTier::Ephemeral => Decimal::new(2736, 8), // ~$0.02/GB/month (higher for fast access)
         }
     }
 }
@@ -108,7 +108,10 @@ mod tests {
 
         let result = calculate_storage_cost(storage, start, end, rate).unwrap();
         // 100 GB * 730 hours * 0.00001368 ≈ $0.999
-        assert!(result > Decimal::from_str("0.99").unwrap() && result < Decimal::from_str("1.01").unwrap());
+        assert!(
+            result > Decimal::from_str("0.99").unwrap()
+                && result < Decimal::from_str("1.01").unwrap()
+        );
     }
 
     #[test]
@@ -120,7 +123,10 @@ mod tests {
 
         let result = calculate_storage_cost(storage, start, end, rate);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Storage volume cannot be negative"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Storage volume cannot be negative"));
     }
 
     #[test]
@@ -143,7 +149,10 @@ mod tests {
 
         let result = calculate_storage_cost(storage, start, end, rate);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid time range"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid time range"));
     }
 
     #[test]
@@ -182,9 +191,13 @@ mod tests {
         let start = Utc::now();
         let end = start + Duration::hours(730);
 
-        let result = calculate_tiered_storage_cost(storage, start, end, StorageTier::Standard).unwrap();
+        let result =
+            calculate_tiered_storage_cost(storage, start, end, StorageTier::Standard).unwrap();
         // Should be approximately $1.00 for 100GB/month
-        assert!(result > Decimal::from_str("0.99").unwrap() && result < Decimal::from_str("1.01").unwrap());
+        assert!(
+            result > Decimal::from_str("0.99").unwrap()
+                && result < Decimal::from_str("1.01").unwrap()
+        );
     }
 
     #[test]
@@ -193,9 +206,13 @@ mod tests {
         let start = Utc::now();
         let end = start + Duration::hours(730);
 
-        let result = calculate_tiered_storage_cost(storage, start, end, StorageTier::Archive).unwrap();
+        let result =
+            calculate_tiered_storage_cost(storage, start, end, StorageTier::Archive).unwrap();
         // Should be approximately $0.10 for 100GB/month in archive
-        assert!(result > Decimal::from_str("0.09").unwrap() && result < Decimal::from_str("0.11").unwrap());
+        assert!(
+            result > Decimal::from_str("0.09").unwrap()
+                && result < Decimal::from_str("0.11").unwrap()
+        );
     }
 
     #[test]
@@ -204,7 +221,8 @@ mod tests {
         let start = Utc::now();
         let end = start + Duration::hours(1);
 
-        let result = calculate_tiered_storage_cost(storage, start, end, StorageTier::Ephemeral).unwrap();
+        let result =
+            calculate_tiered_storage_cost(storage, start, end, StorageTier::Ephemeral).unwrap();
         assert!(result > Decimal::ZERO);
     }
 
@@ -217,7 +235,10 @@ mod tests {
 
         let result = calculate_storage_cost(storage, start, end, rate).unwrap();
         // 10000 GB * 730 hours * 0.00001368 ≈ $99.864
-        assert!(result > Decimal::from_str("99.0").unwrap() && result < Decimal::from_str("101.0").unwrap());
+        assert!(
+            result > Decimal::from_str("99.0").unwrap()
+                && result < Decimal::from_str("101.0").unwrap()
+        );
     }
 
     #[test]

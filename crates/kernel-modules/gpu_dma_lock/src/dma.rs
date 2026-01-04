@@ -405,11 +405,20 @@ impl DmaManager {
 
 /// Get global DMA manager
 pub fn get_manager() -> &'static DmaManager {
+    // SAFETY: This function is only called after init() has been called during
+    // kernel module initialization. The static DMA_MANAGER is initialized
+    // once at module load time and never modified until module cleanup, at which
+    // point no more calls to this function should occur. Single-threaded init
+    // ensures no data races during the initialization sequence.
     unsafe { DMA_MANAGER.as_ref().expect("DMA manager not initialized") }
 }
 
 /// Initialize DMA subsystem
 pub fn init() -> KernelResult<()> {
+    // SAFETY: This function is called exactly once during kernel module
+    // initialization, before any other threads can access DMA_MANAGER.
+    // The kernel module init sequence is single-threaded, ensuring no data
+    // races during this write to the static mutable.
     unsafe {
         DMA_MANAGER = Some(DmaManager::new());
     }
@@ -418,6 +427,10 @@ pub fn init() -> KernelResult<()> {
 
 /// Cleanup DMA subsystem
 pub fn cleanup() {
+    // SAFETY: This function is called exactly once during kernel module
+    // unload, after all other operations have completed and no threads are
+    // accessing DMA_MANAGER. The kernel module exit sequence ensures
+    // exclusive access to module globals during cleanup.
     unsafe {
         DMA_MANAGER = None;
     }

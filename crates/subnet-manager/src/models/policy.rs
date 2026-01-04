@@ -33,11 +33,7 @@ pub struct AssignmentPolicy {
 
 impl AssignmentPolicy {
     /// Create a new policy
-    pub fn new(
-        name: impl Into<String>,
-        target_subnet_id: Uuid,
-        priority: i32,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, target_subnet_id: Uuid, priority: i32) -> Self {
         Self {
             id: Uuid::new_v4(),
             name: name.into(),
@@ -87,7 +83,9 @@ impl AssignmentPolicy {
             }
 
             // Check time of day
-            if let (Some(start_time), Some(end_time)) = (&tc.active_hours_start, &tc.active_hours_end) {
+            if let (Some(start_time), Some(end_time)) =
+                (&tc.active_hours_start, &tc.active_hours_end)
+            {
                 let current_time = now.time();
                 if current_time < *start_time || current_time > *end_time {
                     return false;

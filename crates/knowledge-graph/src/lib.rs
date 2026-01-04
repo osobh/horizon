@@ -38,12 +38,12 @@ pub use semantic::{EmbeddingVector, SemanticQuery, SemanticSearchEngine};
 
 // Export new distributed knowledge graph components
 pub use causal_knowledge::{
-    CausalKnowledgeEngine, CausalInferenceConfig, CausalRelationship, CausalChain, 
-    CausalType, TemporalEvent, CounterfactualAnalysis
+    CausalChain, CausalInferenceConfig, CausalKnowledgeEngine, CausalRelationship, CausalType,
+    CounterfactualAnalysis, TemporalEvent,
 };
 pub use compression::{
-    KnowledgeCompressionEngine, CompressionConfig, CompressedKnowledgeGraph,
-    CompressionQualityMetrics, StreamingCompressionEngine, StreamingCompressionConfig
+    CompressedKnowledgeGraph, CompressionConfig, CompressionQualityMetrics,
+    KnowledgeCompressionEngine, StreamingCompressionConfig, StreamingCompressionEngine,
 };
 
 /// Initialize the knowledge graph subsystem

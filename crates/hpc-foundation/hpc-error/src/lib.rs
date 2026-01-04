@@ -172,31 +172,21 @@ impl From<HpcError> for tonic::Status {
                 tonic::Status::invalid_argument(format!("configuration error: {msg}"))
             }
             HpcError::Rpc(status) => *status,
-            HpcError::Database(msg) => {
-                tonic::Status::internal(format!("database error: {msg}"))
-            }
+            HpcError::Database(msg) => tonic::Status::internal(format!("database error: {msg}")),
             HpcError::Io(err) => tonic::Status::internal(format!("IO error: {err}")),
             HpcError::Serialization(msg) => {
                 tonic::Status::invalid_argument(format!("serialization error: {msg}"))
             }
-            HpcError::Telemetry(msg) => {
-                tonic::Status::internal(format!("telemetry error: {msg}"))
-            }
+            HpcError::Telemetry(msg) => tonic::Status::internal(format!("telemetry error: {msg}")),
             HpcError::Policy(msg) => {
                 tonic::Status::failed_precondition(format!("policy error: {msg}"))
             }
-            HpcError::Crypto(msg) => {
-                tonic::Status::internal(format!("cryptography error: {msg}"))
-            }
+            HpcError::Crypto(msg) => tonic::Status::internal(format!("cryptography error: {msg}")),
             HpcError::Auth(msg) => {
                 tonic::Status::unauthenticated(format!("authentication error: {msg}"))
             }
-            HpcError::Storage(msg) => {
-                tonic::Status::internal(format!("storage error: {msg}"))
-            }
-            HpcError::Network(msg) => {
-                tonic::Status::unavailable(format!("network error: {msg}"))
-            }
+            HpcError::Storage(msg) => tonic::Status::internal(format!("storage error: {msg}")),
+            HpcError::Network(msg) => tonic::Status::unavailable(format!("network error: {msg}")),
             HpcError::Timeout(msg) => tonic::Status::deadline_exceeded(format!("timeout: {msg}")),
             HpcError::NotFound {
                 resource_type,
@@ -208,14 +198,12 @@ impl From<HpcError> for tonic::Status {
             } => tonic::Status::already_exists(format!(
                 "{resource_type} already exists: {resource_id}"
             )),
-            HpcError::InvalidInput { field, reason } => {
-                tonic::Status::invalid_argument(format!("invalid input for field '{field}': {reason}"))
-            }
-            HpcError::PermissionDenied { action, resource } => {
-                tonic::Status::permission_denied(format!(
-                    "permission denied: cannot {action} on {resource}"
-                ))
-            }
+            HpcError::InvalidInput { field, reason } => tonic::Status::invalid_argument(format!(
+                "invalid input for field '{field}': {reason}"
+            )),
+            HpcError::PermissionDenied { action, resource } => tonic::Status::permission_denied(
+                format!("permission denied: cannot {action} on {resource}"),
+            ),
             HpcError::ResourceExhausted { resource, limit } => tonic::Status::resource_exhausted(
                 format!("resource exhausted: {resource} (limit: {limit})"),
             ),
@@ -225,12 +213,8 @@ impl From<HpcError> for tonic::Status {
             HpcError::Cost(msg) => tonic::Status::internal(format!("cost error: {msg}")),
             HpcError::Agent(msg) => tonic::Status::internal(format!("agent error: {msg}")),
             HpcError::Gpu(msg) => tonic::Status::internal(format!("GPU error: {msg}")),
-            HpcError::Consensus(msg) => {
-                tonic::Status::internal(format!("consensus error: {msg}"))
-            }
-            HpcError::Evolution(msg) => {
-                tonic::Status::internal(format!("evolution error: {msg}"))
-            }
+            HpcError::Consensus(msg) => tonic::Status::internal(format!("consensus error: {msg}")),
+            HpcError::Evolution(msg) => tonic::Status::internal(format!("evolution error: {msg}")),
             HpcError::Internal(msg) => tonic::Status::internal(format!("internal error: {msg}")),
             HpcError::Unknown(msg) => tonic::Status::unknown(format!("unknown error: {msg}")),
         }

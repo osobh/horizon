@@ -161,11 +161,10 @@ impl JoinToken {
     }
 
     /// Verify the token signature with a known cluster public key
-    pub fn verify_signature_with_key(
-        &self,
-        cluster_public_key: &[u8; 32],
-    ) -> Result<()> {
-        let parsed = self.parsed_token.as_ref()
+    pub fn verify_signature_with_key(&self, cluster_public_key: &[u8; 32]) -> Result<()> {
+        let parsed = self
+            .parsed_token
+            .as_ref()
             .ok_or_else(|| SwarmletError::InvalidToken("Token not parsed".to_string()))?;
 
         // Reconstruct the payload that was signed
@@ -179,12 +178,14 @@ impl JoinToken {
         // Decode the signature from base64
         let signature_bytes = Self::decode_base64_bytes(&parsed.signature)?;
         if signature_bytes.len() != 64 {
-            return Err(SwarmletError::InvalidToken(
-                format!("Invalid signature length: expected 64, got {}", signature_bytes.len()),
-            ));
+            return Err(SwarmletError::InvalidToken(format!(
+                "Invalid signature length: expected 64, got {}",
+                signature_bytes.len()
+            )));
         }
 
-        let signature_array: [u8; 64] = signature_bytes.try_into()
+        let signature_array: [u8; 64] = signature_bytes
+            .try_into()
             .map_err(|_| SwarmletError::InvalidToken("Invalid signature format".to_string()))?;
 
         let signature = Signature::from_bytes(&signature_array);
@@ -193,7 +194,8 @@ impl JoinToken {
         let verifying_key = VerifyingKey::from_bytes(cluster_public_key)
             .map_err(|e| SwarmletError::InvalidToken(format!("Invalid public key: {}", e)))?;
 
-        verifying_key.verify(payload.as_bytes(), &signature)
+        verifying_key
+            .verify(payload.as_bytes(), &signature)
             .map_err(|_| SwarmletError::InvalidToken("Signature verification failed".to_string()))
     }
 

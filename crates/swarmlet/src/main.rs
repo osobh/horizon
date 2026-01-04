@@ -269,9 +269,11 @@ async fn discover_and_join(timeout: u64, name: Option<String>) -> Result<(), Swa
     }
 
     // Find a cluster that supports auto-join (has "open_join" capability)
-    let joinable_cluster = clusters
-        .iter()
-        .find(|c| c.capabilities.iter().any(|cap| cap == "open_join" || cap == "auto_join"));
+    let joinable_cluster = clusters.iter().find(|c| {
+        c.capabilities
+            .iter()
+            .any(|cap| cap == "open_join" || cap == "auto_join")
+    });
 
     let cluster = match joinable_cluster {
         Some(c) => c,
@@ -349,11 +351,13 @@ async fn request_auto_join_token(cluster_address: &str) -> Result<String, Swarml
 
         if status.as_u16() == 403 {
             return Err(SwarmletError::ClusterRejection(
-                "Cluster does not allow auto-join. Use 'join' command with a valid token.".to_string()
+                "Cluster does not allow auto-join. Use 'join' command with a valid token."
+                    .to_string(),
             ));
         } else if status.as_u16() == 404 {
             return Err(SwarmletError::Discovery(
-                "Cluster does not support auto-join API. Use 'join' command with a valid token.".to_string()
+                "Cluster does not support auto-join API. Use 'join' command with a valid token."
+                    .to_string(),
             ));
         }
 
@@ -363,9 +367,10 @@ async fn request_auto_join_token(cluster_address: &str) -> Result<String, Swarml
         )));
     }
 
-    let auto_join_response: AutoJoinResponse = response.json().await.map_err(|e| {
-        SwarmletError::JoinProtocol(format!("Invalid auto-join response: {}", e))
-    })?;
+    let auto_join_response: AutoJoinResponse = response
+        .json()
+        .await
+        .map_err(|e| SwarmletError::JoinProtocol(format!("Invalid auto-join response: {}", e)))?;
 
     info!(
         "Received auto-join token (expires in {} seconds)",
@@ -448,7 +453,10 @@ async fn run_daemon(config_path: String) -> Result<(), SwarmletError> {
 // Queue Management Commands
 // ============================================================================
 
-async fn handle_queue_command(action: QueueCommands, endpoint: String) -> Result<(), SwarmletError> {
+async fn handle_queue_command(
+    action: QueueCommands,
+    endpoint: String,
+) -> Result<(), SwarmletError> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
@@ -461,17 +469,25 @@ async fn handle_queue_command(action: QueueCommands, endpoint: String) -> Result
                 None => format!("{}/api/v1/queue", endpoint),
             };
 
-            let response = client.get(&url).send().await.map_err(SwarmletError::Network)?;
+            let response = client
+                .get(&url)
+                .send()
+                .await
+                .map_err(SwarmletError::Network)?;
 
             if !response.status().is_success() {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(SwarmletError::Api(format!("Queue list failed ({}): {}", status, body)));
+                return Err(SwarmletError::Api(format!(
+                    "Queue list failed ({}): {}",
+                    status, body
+                )));
             }
 
-            let jobs: Vec<serde_json::Value> = response.json().await.map_err(|e| {
-                SwarmletError::Api(format!("Invalid response: {}", e))
-            })?;
+            let jobs: Vec<serde_json::Value> = response
+                .json()
+                .await
+                .map_err(|e| SwarmletError::Api(format!("Invalid response: {}", e)))?;
 
             if format == "json" {
                 println!("{}", serde_json::to_string_pretty(&jobs)?);
@@ -479,13 +495,19 @@ async fn handle_queue_command(action: QueueCommands, endpoint: String) -> Result
                 if jobs.is_empty() {
                     println!("No jobs in queue");
                 } else {
-                    println!("{:<38} {:<10} {:<12} {:<20}", "JOB ID", "PRIORITY", "USER", "ENQUEUED");
+                    println!(
+                        "{:<38} {:<10} {:<12} {:<20}",
+                        "JOB ID", "PRIORITY", "USER", "ENQUEUED"
+                    );
                     println!("{}", "-".repeat(82));
                     for job in jobs {
                         let id = job.get("job_id").and_then(|v| v.as_str()).unwrap_or("-");
                         let priority = job.get("priority").and_then(|v| v.as_str()).unwrap_or("-");
                         let user = job.get("user_id").and_then(|v| v.as_str()).unwrap_or("-");
-                        let enqueued = job.get("enqueued_at").and_then(|v| v.as_str()).unwrap_or("-");
+                        let enqueued = job
+                            .get("enqueued_at")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-");
                         println!("{:<38} {:<10} {:<12} {:<20}", id, priority, user, enqueued);
                     }
                 }
@@ -494,22 +516,42 @@ async fn handle_queue_command(action: QueueCommands, endpoint: String) -> Result
 
         QueueCommands::Status => {
             let url = format!("{}/api/v1/queue/status", endpoint);
-            let response = client.get(&url).send().await.map_err(SwarmletError::Network)?;
+            let response = client
+                .get(&url)
+                .send()
+                .await
+                .map_err(SwarmletError::Network)?;
 
             if !response.status().is_success() {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(SwarmletError::Api(format!("Queue status failed ({}): {}", status, body)));
+                return Err(SwarmletError::Api(format!(
+                    "Queue status failed ({}): {}",
+                    status, body
+                )));
             }
 
-            let status: serde_json::Value = response.json().await.map_err(|e| {
-                SwarmletError::Api(format!("Invalid response: {}", e))
-            })?;
+            let status: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| SwarmletError::Api(format!("Invalid response: {}", e)))?;
 
             println!("Queue Status");
             println!("============");
-            println!("Total Jobs:    {}", status.get("total_jobs").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("Active Users:  {}", status.get("active_users").and_then(|v| v.as_u64()).unwrap_or(0));
+            println!(
+                "Total Jobs:    {}",
+                status
+                    .get("total_jobs")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
+            println!(
+                "Active Users:  {}",
+                status
+                    .get("active_users")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
 
             if let Some(by_priority) = status.get("by_priority").and_then(|v| v.as_object()) {
                 println!("\nBy Priority:");
@@ -525,7 +567,11 @@ async fn handle_queue_command(action: QueueCommands, endpoint: String) -> Result
 
         QueueCommands::Cancel { job_id } => {
             let url = format!("{}/api/v1/queue/{}", endpoint, job_id);
-            let response = client.delete(&url).send().await.map_err(SwarmletError::Network)?;
+            let response = client
+                .delete(&url)
+                .send()
+                .await
+                .map_err(SwarmletError::Network)?;
 
             if response.status().is_success() {
                 println!("Job {} cancelled successfully", job_id);
@@ -534,7 +580,10 @@ async fn handle_queue_command(action: QueueCommands, endpoint: String) -> Result
             } else {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(SwarmletError::Api(format!("Cancel failed ({}): {}", status, body)));
+                return Err(SwarmletError::Api(format!(
+                    "Cancel failed ({}): {}",
+                    status, body
+                )));
             }
         }
 
@@ -556,7 +605,10 @@ async fn handle_queue_command(action: QueueCommands, endpoint: String) -> Result
             } else {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(SwarmletError::Api(format!("Priority update failed ({}): {}", status, body)));
+                return Err(SwarmletError::Api(format!(
+                    "Priority update failed ({}): {}",
+                    status, body
+                )));
             }
         }
     }
@@ -568,7 +620,10 @@ async fn handle_queue_command(action: QueueCommands, endpoint: String) -> Result
 // Metrics Commands
 // ============================================================================
 
-async fn handle_metrics_command(action: Option<MetricsCommands>, endpoint: String) -> Result<(), SwarmletError> {
+async fn handle_metrics_command(
+    action: Option<MetricsCommands>,
+    endpoint: String,
+) -> Result<(), SwarmletError> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
@@ -577,24 +632,56 @@ async fn handle_metrics_command(action: Option<MetricsCommands>, endpoint: Strin
     match action {
         None | Some(MetricsCommands::Stats) => {
             let url = format!("{}/api/v1/metrics/stats", endpoint);
-            let response = client.get(&url).send().await.map_err(SwarmletError::Network)?;
+            let response = client
+                .get(&url)
+                .send()
+                .await
+                .map_err(SwarmletError::Network)?;
 
             if !response.status().is_success() {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(SwarmletError::Api(format!("Metrics stats failed ({}): {}", status, body)));
+                return Err(SwarmletError::Api(format!(
+                    "Metrics stats failed ({}): {}",
+                    status, body
+                )));
             }
 
-            let stats: serde_json::Value = response.json().await.map_err(|e| {
-                SwarmletError::Api(format!("Invalid response: {}", e))
-            })?;
+            let stats: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| SwarmletError::Api(format!("Invalid response: {}", e)))?;
 
             println!("Build Metrics");
             println!("=============");
-            println!("Total Builds:      {}", stats.get("total_builds").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("Successful:        {}", stats.get("successful_builds").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("Failed:            {}", stats.get("failed_builds").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("Timed Out:         {}", stats.get("timed_out_builds").and_then(|v| v.as_u64()).unwrap_or(0));
+            println!(
+                "Total Builds:      {}",
+                stats
+                    .get("total_builds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
+            println!(
+                "Successful:        {}",
+                stats
+                    .get("successful_builds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
+            println!(
+                "Failed:            {}",
+                stats
+                    .get("failed_builds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
+            println!(
+                "Timed Out:         {}",
+                stats
+                    .get("timed_out_builds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
 
             if let Some(avg) = stats.get("avg_duration_seconds").and_then(|v| v.as_f64()) {
                 println!("Avg Duration:      {:.2}s", avg);
@@ -606,11 +693,20 @@ async fn handle_metrics_command(action: Option<MetricsCommands>, endpoint: Strin
                 println!("Max Duration:      {:.2}s", max);
             }
 
-            let cache_hits = stats.get("total_cache_hits").and_then(|v| v.as_u64()).unwrap_or(0);
-            let cache_misses = stats.get("total_cache_misses").and_then(|v| v.as_u64()).unwrap_or(0);
+            let cache_hits = stats
+                .get("total_cache_hits")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let cache_misses = stats
+                .get("total_cache_misses")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             if cache_hits + cache_misses > 0 {
                 let efficiency = cache_hits as f64 / (cache_hits + cache_misses) as f64 * 100.0;
-                println!("\nCache Efficiency:  {:.1}% ({} hits / {} misses)", efficiency, cache_hits, cache_misses);
+                println!(
+                    "\nCache Efficiency:  {:.1}% ({} hits / {} misses)",
+                    efficiency, cache_hits, cache_misses
+                );
             }
 
             if let Some(by_command) = stats.get("by_command").and_then(|v| v.as_object()) {
@@ -624,23 +720,49 @@ async fn handle_metrics_command(action: Option<MetricsCommands>, endpoint: Strin
 
         Some(MetricsCommands::Summary { hours }) => {
             let url = format!("{}/api/v1/metrics/summary?hours={}", endpoint, hours);
-            let response = client.get(&url).send().await.map_err(SwarmletError::Network)?;
+            let response = client
+                .get(&url)
+                .send()
+                .await
+                .map_err(SwarmletError::Network)?;
 
             if !response.status().is_success() {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(SwarmletError::Api(format!("Metrics summary failed ({}): {}", status, body)));
+                return Err(SwarmletError::Api(format!(
+                    "Metrics summary failed ({}): {}",
+                    status, body
+                )));
             }
 
-            let summary: serde_json::Value = response.json().await.map_err(|e| {
-                SwarmletError::Api(format!("Invalid response: {}", e))
-            })?;
+            let summary: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| SwarmletError::Api(format!("Invalid response: {}", e)))?;
 
             println!("Build Summary (last {} hours)", hours);
             println!("==============================");
-            println!("Total Builds:   {}", summary.get("total_builds").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("Successful:     {}", summary.get("successful_builds").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("Failed:         {}", summary.get("failed_builds").and_then(|v| v.as_u64()).unwrap_or(0));
+            println!(
+                "Total Builds:   {}",
+                summary
+                    .get("total_builds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
+            println!(
+                "Successful:     {}",
+                summary
+                    .get("successful_builds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
+            println!(
+                "Failed:         {}",
+                summary
+                    .get("failed_builds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
 
             if let Some(rate) = summary.get("success_rate").and_then(|v| v.as_f64()) {
                 println!("Success Rate:   {:.1}%", rate * 100.0);
@@ -652,30 +774,53 @@ async fn handle_metrics_command(action: Option<MetricsCommands>, endpoint: Strin
 
         Some(MetricsCommands::Recent { count }) => {
             let url = format!("{}/api/v1/metrics/recent?count={}", endpoint, count);
-            let response = client.get(&url).send().await.map_err(SwarmletError::Network)?;
+            let response = client
+                .get(&url)
+                .send()
+                .await
+                .map_err(SwarmletError::Network)?;
 
             if !response.status().is_success() {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(SwarmletError::Api(format!("Metrics recent failed ({}): {}", status, body)));
+                return Err(SwarmletError::Api(format!(
+                    "Metrics recent failed ({}): {}",
+                    status, body
+                )));
             }
 
-            let records: Vec<serde_json::Value> = response.json().await.map_err(|e| {
-                SwarmletError::Api(format!("Invalid response: {}", e))
-            })?;
+            let records: Vec<serde_json::Value> = response
+                .json()
+                .await
+                .map_err(|e| SwarmletError::Api(format!("Invalid response: {}", e)))?;
 
             if records.is_empty() {
                 println!("No recent builds");
             } else {
-                println!("{:<38} {:<10} {:<10} {:<12} {:<10}", "JOB ID", "COMMAND", "STATUS", "DURATION", "TOOLCHAIN");
+                println!(
+                    "{:<38} {:<10} {:<10} {:<12} {:<10}",
+                    "JOB ID", "COMMAND", "STATUS", "DURATION", "TOOLCHAIN"
+                );
                 println!("{}", "-".repeat(82));
                 for record in records {
                     let id = record.get("job_id").and_then(|v| v.as_str()).unwrap_or("-");
-                    let cmd = record.get("command").and_then(|v| v.as_str()).unwrap_or("-");
+                    let cmd = record
+                        .get("command")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("-");
                     let status = record.get("status").and_then(|v| v.as_str()).unwrap_or("-");
-                    let duration = record.get("duration_seconds").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                    let toolchain = record.get("toolchain").and_then(|v| v.as_str()).unwrap_or("-");
-                    println!("{:<38} {:<10} {:<10} {:<12.2}s {:<10}", id, cmd, status, duration, toolchain);
+                    let duration = record
+                        .get("duration_seconds")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0);
+                    let toolchain = record
+                        .get("toolchain")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("-");
+                    println!(
+                        "{:<38} {:<10} {:<10} {:<12.2}s {:<10}",
+                        id, cmd, status, duration, toolchain
+                    );
                 }
             }
         }
@@ -696,14 +841,21 @@ async fn handle_metrics_command(action: Option<MetricsCommands>, endpoint: Strin
             }
 
             let url = format!("{}/api/v1/metrics/reset", endpoint);
-            let response = client.post(&url).send().await.map_err(SwarmletError::Network)?;
+            let response = client
+                .post(&url)
+                .send()
+                .await
+                .map_err(SwarmletError::Network)?;
 
             if response.status().is_success() {
                 println!("Metrics reset successfully");
             } else {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(SwarmletError::Api(format!("Metrics reset failed ({}): {}", status, body)));
+                return Err(SwarmletError::Api(format!(
+                    "Metrics reset failed ({}): {}",
+                    status, body
+                )));
             }
         }
     }

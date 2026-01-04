@@ -1,7 +1,7 @@
 // Helper modules for E2E testing
 
-pub mod services;
 pub mod clients;
+pub mod services;
 
-pub use services::*;
 pub use clients::*;
+pub use services::*;

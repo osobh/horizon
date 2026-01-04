@@ -156,14 +156,13 @@ impl NodeClassifier {
         let cpu_lower = hardware.cpu_model.to_lowercase();
 
         // Check for laptop-specific CPU suffixes (but not EPYC)
-        let has_laptop_suffix = !cpu_lower.contains("epyc")
+
+        // Only consider it a laptop if it has laptop CPU markers
+        !cpu_lower.contains("epyc")
             && (cpu_lower.ends_with("u")
                 || cpu_lower.ends_with("h")
                 || cpu_lower.ends_with("p")
-                || cpu_lower.contains("mobile"));
-
-        // Only consider it a laptop if it has laptop CPU markers
-        has_laptop_suffix
+                || cpu_lower.contains("mobile"))
     }
 
     /// Detect edge device type
@@ -184,10 +183,11 @@ impl NodeClassifier {
             }
         }
 
-        if cpu_lower.contains("celeron") || cpu_lower.contains("atom") {
-            if hardware.cpu_cores <= 4 && hardware.memory_gb <= 16.0 {
-                return Some(EdgeType::IntelNUC);
-            }
+        if (cpu_lower.contains("celeron") || cpu_lower.contains("atom"))
+            && hardware.cpu_cores <= 4
+            && hardware.memory_gb <= 16.0
+        {
+            return Some(EdgeType::IntelNUC);
         }
 
         None

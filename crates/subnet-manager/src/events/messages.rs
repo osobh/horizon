@@ -3,7 +3,7 @@
 //! These message types are published to well-known channels for
 //! event-driven subnet topology synchronization across the platform.
 
-use crate::models::{NodeType, RouteDirection, SubnetPurpose, SubnetStatus};
+use crate::models::{RouteDirection, SubnetPurpose, SubnetStatus};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;

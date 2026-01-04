@@ -12,7 +12,7 @@
 //! must be run in separate processes or carefully managed.
 
 use hpc_error::HpcError;
-use hpc_tracing::{TracingConfig, init, init_metrics};
+use hpc_tracing::{init, init_metrics, TracingConfig};
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -76,7 +76,9 @@ fn test_config_validation_valid_service_names() {
         };
 
         // Validation should pass (init may fail due to already initialized, but validation is OK)
-        assert!(name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+        assert!(name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
     }
 }
 
@@ -305,8 +307,8 @@ async fn test_metrics_recording() {
 
 #[tokio::test]
 async fn test_full_stack_integration() {
-    use tracing::info;
     use std::sync::Mutex;
+    use tracing::info;
 
     static PORT4: Mutex<u16> = Mutex::new(19120);
     let port = {
@@ -359,8 +361,8 @@ fn test_service_name_in_config() {
 #[cfg(test)]
 mod property_tests {
     use super::*;
-    use proptest::prelude::*;
     use hpc_tracing::TracingConfig;
+    use proptest::prelude::*;
 
     proptest! {
         #[test]
@@ -418,11 +420,9 @@ async fn test_concurrent_init_safety() {
 
     let already_init_count = results
         .iter()
-        .filter(|r| {
-            match r.as_ref().unwrap() {
-                Err(HpcError::Telemetry(msg)) => msg.contains("already been initialized"),
-                _ => false,
-            }
+        .filter(|r| match r.as_ref().unwrap() {
+            Err(HpcError::Telemetry(msg)) => msg.contains("already been initialized"),
+            _ => false,
         })
         .count();
 

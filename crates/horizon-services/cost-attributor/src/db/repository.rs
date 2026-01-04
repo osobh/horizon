@@ -55,13 +55,12 @@ impl Repository {
     pub async fn get_attribution(&self, id: Uuid) -> crate::error::Result<CostAttribution> {
         use crate::error::AttributorErrorExt;
 
-        let rec = sqlx::query_as::<_, CostAttribution>(
-            "SELECT * FROM cost_attributions WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or_else(|| crate::error::HpcError::attribution_not_found(id.to_string()))?;
+        let rec =
+            sqlx::query_as::<_, CostAttribution>("SELECT * FROM cost_attributions WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?
+                .ok_or_else(|| crate::error::HpcError::attribution_not_found(id.to_string()))?;
 
         Ok(rec)
     }
@@ -266,7 +265,10 @@ impl Repository {
 
     // GPU Pricing Operations
 
-    pub async fn create_pricing(&self, pricing: &CreateGpuPricing) -> crate::error::Result<GpuPricing> {
+    pub async fn create_pricing(
+        &self,
+        pricing: &CreateGpuPricing,
+    ) -> crate::error::Result<GpuPricing> {
         pricing.validate()?;
 
         let rec = sqlx::query_as::<_, GpuPricing>(
@@ -326,17 +328,16 @@ impl Repository {
         .await?
         .ok_or_else(|| {
             use crate::error::AttributorErrorExt;
-            crate::error::HpcError::pricing_not_found(format!(
-                "{} ({})",
-                gpu_type,
-                pricing_model
-            ))
+            crate::error::HpcError::pricing_not_found(format!("{} ({})", gpu_type, pricing_model))
         })?;
 
         Ok(rec)
     }
 
-    pub async fn query_pricing(&self, query: &GpuPricingQuery) -> crate::error::Result<Vec<GpuPricing>> {
+    pub async fn query_pricing(
+        &self,
+        query: &GpuPricingQuery,
+    ) -> crate::error::Result<Vec<GpuPricing>> {
         let mut sql = String::from("SELECT * FROM gpu_pricing WHERE 1=1");
         let mut bind_count = 0;
 
@@ -356,7 +357,10 @@ impl Repository {
             bind_count += 1;
             sql.push_str(&format!(" AND effective_start <= ${}", bind_count));
             bind_count += 1;
-            sql.push_str(&format!(" AND (effective_end IS NULL OR effective_end > ${})", bind_count - 1));
+            sql.push_str(&format!(
+                " AND (effective_end IS NULL OR effective_end > ${})",
+                bind_count - 1
+            ));
         }
 
         sql.push_str(" ORDER BY effective_start DESC");

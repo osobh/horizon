@@ -63,15 +63,15 @@ pub enum NetworkType {
 /// Units for measuring resources
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResourceUnit {
-    Count,           // Simple count (4 GPUs, 16 CPUs)
-    Bytes,           // Memory/storage in bytes
+    Count, // Simple count (4 GPUs, 16 CPUs)
+    Bytes, // Memory/storage in bytes
     Kilobytes,
     Megabytes,
     Gigabytes,
     Terabytes,
-    Cores,           // CPU cores
-    Percent,         // Utilization percentage
-    MegabitsPerSecond,  // Network bandwidth
+    Cores,             // CPU cores
+    Percent,           // Utilization percentage
+    MegabitsPerSecond, // Network bandwidth
     MegabytesPerSecond,
     Custom(String),
 }
@@ -200,7 +200,9 @@ impl ResourceSpec {
     }
 
     pub fn with_min_memory_gb(mut self, memory_gb: u64) -> Self {
-        self.constraints.get_or_insert_with(Default::default).min_memory_gb = Some(memory_gb);
+        self.constraints
+            .get_or_insert_with(Default::default)
+            .min_memory_gb = Some(memory_gb);
         self
     }
 }
@@ -252,7 +254,10 @@ mod tests {
         assert_eq!(ResourceUnit::Bytes.to_bytes(1024.0), Some(1024.0));
         assert_eq!(ResourceUnit::Kilobytes.to_bytes(1.0), Some(1024.0));
         assert_eq!(ResourceUnit::Megabytes.to_bytes(1.0), Some(1024.0 * 1024.0));
-        assert_eq!(ResourceUnit::Gigabytes.to_bytes(1.0), Some(1024.0 * 1024.0 * 1024.0));
+        assert_eq!(
+            ResourceUnit::Gigabytes.to_bytes(1.0),
+            Some(1024.0 * 1024.0 * 1024.0)
+        );
         assert_eq!(ResourceUnit::Count.to_bytes(4.0), None);
     }
 

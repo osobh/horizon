@@ -6,7 +6,7 @@
 use crate::buffer::MetalBuffer;
 use crate::error::{MetalError, Result};
 use crate::metal4::{Metal4Buffer, Metal4Device};
-use crate::tensor::{MetalTensor, TensorDescriptor, TensorDType};
+use crate::tensor::{MetalTensor, TensorDType, TensorDescriptor};
 
 /// Metal 4 native tensor.
 ///
@@ -139,8 +139,8 @@ impl Metal4Tensor {
         // Update strides for transposed layout
         let strides = vec![1, shape[1]];
 
-        self.descriptor = TensorDescriptor::new(self.descriptor.dtype, new_shape)
-            .with_strides(strides);
+        self.descriptor =
+            TensorDescriptor::new(self.descriptor.dtype, new_shape).with_strides(strides);
         Ok(())
     }
 }

@@ -1,8 +1,8 @@
+use chrono::Utc;
 use cost_ingestor::{
     models::{CreateBillingRecord, Provider},
-    normalize::{GenericBillingRecord, NormalizedBillingSchema, parse_decimal, parse_iso_datetime},
+    normalize::{parse_decimal, parse_iso_datetime, GenericBillingRecord, NormalizedBillingSchema},
 };
-use chrono::Utc;
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
 

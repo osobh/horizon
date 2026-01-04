@@ -98,7 +98,13 @@ impl CacheManager {
         let sources_dir = cache_dir.join("sources");
 
         // Create cache directories
-        for dir in [&registry_path, &git_path, &sccache_path, &targets_dir, &sources_dir] {
+        for dir in [
+            &registry_path,
+            &git_path,
+            &sccache_path,
+            &targets_dir,
+            &sources_dir,
+        ] {
             tokio::fs::create_dir_all(dir).await.map_err(|e| {
                 SwarmletError::Configuration(format!(
                     "Failed to create cache directory {}: {}",
@@ -126,7 +132,9 @@ impl CacheManager {
     }
 
     /// Load source cache metadata from disk
-    async fn load_source_cache_metadata(sources_dir: &PathBuf) -> HashMap<String, SourceCacheMetadata> {
+    async fn load_source_cache_metadata(
+        sources_dir: &PathBuf,
+    ) -> HashMap<String, SourceCacheMetadata> {
         let mut metadata_map = HashMap::new();
 
         if let Ok(mut entries) = tokio::fs::read_dir(sources_dir).await {
@@ -134,7 +142,8 @@ impl CacheManager {
                 let metadata_path = entry.path().join("metadata.json");
                 if metadata_path.exists() {
                     if let Ok(contents) = tokio::fs::read_to_string(&metadata_path).await {
-                        if let Ok(metadata) = serde_json::from_str::<SourceCacheMetadata>(&contents) {
+                        if let Ok(metadata) = serde_json::from_str::<SourceCacheMetadata>(&contents)
+                        {
                             metadata_map.insert(metadata.hash.clone(), metadata);
                         }
                     }
@@ -196,10 +205,9 @@ impl CacheManager {
 
         let path = self.cache_dir.join("targets").join(cache_key);
         tokio::fs::create_dir_all(&path).await.map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to create target cache: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to create target cache: {e}"
+            )))
         })?;
 
         let info = TargetCacheInfo {
@@ -254,10 +262,9 @@ impl CacheManager {
 
         let cache_path = self.sources_dir.join(&hash);
         tokio::fs::create_dir_all(&cache_path).await.map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to create source cache directory: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to create source cache directory: {e}"
+            )))
         })?;
 
         // Create tarball
@@ -268,33 +275,29 @@ impl CacheManager {
         // Run synchronous tar operations in blocking task
         let size_bytes = tokio::task::spawn_blocking(move || -> Result<u64> {
             let file = std::fs::File::create(&archive_path_clone).map_err(|e| {
-                SwarmletError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to create archive file: {e}"),
-                ))
+                SwarmletError::Io(std::io::Error::other(format!(
+                    "Failed to create archive file: {e}"
+                )))
             })?;
             let encoder = GzEncoder::new(file, Compression::default());
             let mut builder = Builder::new(encoder);
 
             // Add all files from workspace
             builder.append_dir_all(".", &workspace_clone).map_err(|e| {
-                SwarmletError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to add files to archive: {e}"),
-                ))
+                SwarmletError::Io(std::io::Error::other(format!(
+                    "Failed to add files to archive: {e}"
+                )))
             })?;
 
             let encoder = builder.into_inner().map_err(|e| {
-                SwarmletError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to finish archive: {e}"),
-                ))
+                SwarmletError::Io(std::io::Error::other(format!(
+                    "Failed to finish archive: {e}"
+                )))
             })?;
             encoder.finish().map_err(|e| {
-                SwarmletError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to finish gzip compression: {e}"),
-                ))
+                SwarmletError::Io(std::io::Error::other(format!(
+                    "Failed to finish gzip compression: {e}"
+                )))
             })?;
 
             // Get archive size
@@ -303,10 +306,9 @@ impl CacheManager {
         })
         .await
         .map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to spawn blocking task: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to spawn blocking task: {e}"
+            )))
         })??;
 
         // Create and save metadata
@@ -393,18 +395,16 @@ impl CacheManager {
 
             for entry_path in entries {
                 // Hash the relative path
-                let relative = entry_path
-                    .strip_prefix(&path_clone)
-                    .unwrap_or(&entry_path);
+                let relative = entry_path.strip_prefix(&path_clone).unwrap_or(&entry_path);
                 hasher.update(relative.to_string_lossy().as_bytes());
                 hasher.update(b"\0");
 
                 // Hash file contents
                 let contents = std::fs::read(&entry_path).map_err(|e| {
-                    SwarmletError::Io(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("Failed to read file {}: {e}", entry_path.display()),
-                    ))
+                    SwarmletError::Io(std::io::Error::other(format!(
+                        "Failed to read file {}: {e}",
+                        entry_path.display()
+                    )))
                 })?;
                 hasher.update(&contents);
                 hasher.update(b"\0");
@@ -414,10 +414,9 @@ impl CacheManager {
         })
         .await
         .map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to spawn blocking task: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to spawn blocking task: {e}"
+            )))
         })?
     }
 
@@ -429,18 +428,15 @@ impl CacheManager {
         }
 
         let dir_entries = std::fs::read_dir(path).map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to read directory {}: {e}", path.display()),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to read directory {}: {e}",
+                path.display()
+            )))
         })?;
 
         for entry in dir_entries {
             let entry = entry.map_err(|e| {
-                SwarmletError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to read entry: {e}"),
-                ))
+                SwarmletError::Io(std::io::Error::other(format!("Failed to read entry: {e}")))
             })?;
             let entry_path = entry.path();
 
@@ -509,13 +505,15 @@ impl CacheManager {
                 tokio::fs::remove_dir_all(&cache_path).await.map_err(|e| {
                     // Re-insert metadata on failure
                     caches.insert(hash.to_string(), metadata.clone());
-                    SwarmletError::Io(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("Failed to remove source cache directory: {e}"),
-                    ))
+                    SwarmletError::Io(std::io::Error::other(format!(
+                        "Failed to remove source cache directory: {e}"
+                    )))
                 })?;
             }
-            info!("Deleted source cache: {} ({} bytes)", hash, metadata.size_bytes);
+            info!(
+                "Deleted source cache: {} ({} bytes)",
+                hash, metadata.size_bytes
+            );
             Ok(Some(metadata))
         } else {
             Ok(None)
@@ -610,7 +608,9 @@ impl CacheManager {
                 let metadata_path = entry.path().join("artifact_metadata.json");
                 if metadata_path.exists() {
                     if let Ok(contents) = tokio::fs::read_to_string(&metadata_path).await {
-                        if let Ok(metadata) = serde_json::from_str::<ArtifactCacheMetadata>(&contents) {
+                        if let Ok(metadata) =
+                            serde_json::from_str::<ArtifactCacheMetadata>(&contents)
+                        {
                             caches.push(metadata);
                         }
                     }
@@ -635,7 +635,10 @@ impl CacheManager {
 
     /// Get metadata for a specific artifact cache
     pub async fn get_artifact_metadata(&self, cache_key: &str) -> Option<ArtifactCacheMetadata> {
-        let metadata_path = self.artifacts_path().join(cache_key).join("artifact_metadata.json");
+        let metadata_path = self
+            .artifacts_path()
+            .join(cache_key)
+            .join("artifact_metadata.json");
 
         if metadata_path.exists() {
             if let Ok(contents) = tokio::fs::read_to_string(&metadata_path).await {
@@ -661,7 +664,10 @@ impl CacheManager {
     }
 
     /// Delete an artifact cache
-    pub async fn delete_artifact_cache(&self, cache_key: &str) -> Result<Option<ArtifactCacheMetadata>> {
+    pub async fn delete_artifact_cache(
+        &self,
+        cache_key: &str,
+    ) -> Result<Option<ArtifactCacheMetadata>> {
         let cache_path = self.artifacts_path().join(cache_key);
 
         if !cache_path.exists() {
@@ -679,10 +685,9 @@ impl CacheManager {
 
         // Delete directory
         tokio::fs::remove_dir_all(&cache_path).await.map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to remove artifact cache directory: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to remove artifact cache directory: {e}"
+            )))
         })?;
 
         if let Some(ref m) = metadata {
@@ -723,7 +728,12 @@ impl CacheManager {
     pub async fn total_size(&self) -> Result<u64> {
         let mut total = 0u64;
 
-        for path in [&self.registry_path, &self.git_path, &self.sccache_path, &self.sources_dir] {
+        for path in [
+            &self.registry_path,
+            &self.git_path,
+            &self.sccache_path,
+            &self.sources_dir,
+        ] {
             if path.exists() {
                 total += Self::dir_size(path).await?;
             }
@@ -745,17 +755,13 @@ impl CacheManager {
         let mut size = 0u64;
 
         let mut entries = tokio::fs::read_dir(path).await.map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to read directory: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to read directory: {e}"
+            )))
         })?;
 
         while let Some(entry) = entries.next_entry().await.map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to read entry: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!("Failed to read entry: {e}")))
         })? {
             let metadata = entry.metadata().await?;
             if metadata.is_file() {
@@ -818,7 +824,12 @@ impl CacheManager {
     pub async fn clear_all(&self) -> Result<()> {
         info!("Clearing all caches");
 
-        for path in [&self.registry_path, &self.git_path, &self.sccache_path, &self.sources_dir] {
+        for path in [
+            &self.registry_path,
+            &self.git_path,
+            &self.sccache_path,
+            &self.sources_dir,
+        ] {
             if path.exists() {
                 tokio::fs::remove_dir_all(path).await?;
                 tokio::fs::create_dir_all(path).await?;
@@ -853,9 +864,7 @@ impl CacheManager {
             .env("SCCACHE_DIR", &self.sccache_path)
             .output()
             .await
-            .map_err(|e| {
-                SwarmletError::WorkloadExecution(format!("Failed to run sccache: {e}"))
-            })?;
+            .map_err(|e| SwarmletError::WorkloadExecution(format!("Failed to run sccache: {e}")))?;
 
         if !output.status.success() {
             return Ok(SccacheStats::default());
@@ -920,7 +929,7 @@ impl SccacheStats {
         let hits = json
             .find("cache_hits")
             .and_then(|i| json[i..].find(':'))
-            .and_then(|_| Some(0u64))?;
+            .map(|_| 0u64)?;
 
         Some(Self {
             cache_hits: hits,
@@ -985,11 +994,18 @@ mod tests {
         // Create a test workspace with some files
         let workspace = temp_dir.join("workspace");
         tokio::fs::create_dir_all(&workspace).await.unwrap();
-        tokio::fs::write(workspace.join("main.rs"), "fn main() {}").await.unwrap();
-        tokio::fs::write(workspace.join("Cargo.toml"), "[package]\nname = \"test\"").await.unwrap();
+        tokio::fs::write(workspace.join("main.rs"), "fn main() {}")
+            .await
+            .unwrap();
+        tokio::fs::write(workspace.join("Cargo.toml"), "[package]\nname = \"test\"")
+            .await
+            .unwrap();
 
         // Cache the source
-        let hash = manager.cache_source(&workspace, "local", "/test/path").await.unwrap();
+        let hash = manager
+            .cache_source(&workspace, "local", "/test/path")
+            .await
+            .unwrap();
         assert!(!hash.is_empty());
 
         // Verify it's cached
@@ -1023,8 +1039,12 @@ mod tests {
         // Create test directory
         let workspace = temp_dir.join("workspace");
         tokio::fs::create_dir_all(&workspace).await.unwrap();
-        tokio::fs::write(workspace.join("file1.txt"), "content1").await.unwrap();
-        tokio::fs::write(workspace.join("file2.txt"), "content2").await.unwrap();
+        tokio::fs::write(workspace.join("file1.txt"), "content1")
+            .await
+            .unwrap();
+        tokio::fs::write(workspace.join("file2.txt"), "content2")
+            .await
+            .unwrap();
 
         // Hash should be deterministic
         let hash1 = manager.compute_dir_hash(&workspace).await.unwrap();
@@ -1032,7 +1052,9 @@ mod tests {
         assert_eq!(hash1, hash2);
 
         // Different content should produce different hash
-        tokio::fs::write(workspace.join("file1.txt"), "modified").await.unwrap();
+        tokio::fs::write(workspace.join("file1.txt"), "modified")
+            .await
+            .unwrap();
         let hash3 = manager.compute_dir_hash(&workspace).await.unwrap();
         assert_ne!(hash1, hash3);
 
@@ -1053,14 +1075,24 @@ mod tests {
         // Create and cache some workspaces
         let workspace1 = temp_dir.join("ws1");
         tokio::fs::create_dir_all(&workspace1).await.unwrap();
-        tokio::fs::write(workspace1.join("main.rs"), "fn main() { /* ws1 */ }").await.unwrap();
+        tokio::fs::write(workspace1.join("main.rs"), "fn main() { /* ws1 */ }")
+            .await
+            .unwrap();
 
         let workspace2 = temp_dir.join("ws2");
         tokio::fs::create_dir_all(&workspace2).await.unwrap();
-        tokio::fs::write(workspace2.join("main.rs"), "fn main() { /* ws2 */ }").await.unwrap();
+        tokio::fs::write(workspace2.join("main.rs"), "fn main() { /* ws2 */ }")
+            .await
+            .unwrap();
 
-        manager.cache_source(&workspace1, "local", "ws1").await.unwrap();
-        manager.cache_source(&workspace2, "archive", "ws2").await.unwrap();
+        manager
+            .cache_source(&workspace1, "local", "ws1")
+            .await
+            .unwrap();
+        manager
+            .cache_source(&workspace2, "archive", "ws2")
+            .await
+            .unwrap();
 
         let sources = manager.list_cached_sources().await;
         assert_eq!(sources.len(), 2);
@@ -1079,9 +1111,14 @@ mod tests {
         // Create and cache workspace
         let workspace = temp_dir.join("workspace");
         tokio::fs::create_dir_all(&workspace).await.unwrap();
-        tokio::fs::write(workspace.join("main.rs"), "fn main() {}").await.unwrap();
+        tokio::fs::write(workspace.join("main.rs"), "fn main() {}")
+            .await
+            .unwrap();
 
-        let hash = manager.cache_source(&workspace, "local", "/test").await.unwrap();
+        let hash = manager
+            .cache_source(&workspace, "local", "/test")
+            .await
+            .unwrap();
 
         let metadata_before = manager.get_source_metadata(&hash).await.unwrap();
 
@@ -1106,9 +1143,14 @@ mod tests {
         // Create and cache workspace
         let workspace = temp_dir.join("workspace");
         tokio::fs::create_dir_all(&workspace).await.unwrap();
-        tokio::fs::write(workspace.join("main.rs"), "fn main() {}").await.unwrap();
+        tokio::fs::write(workspace.join("main.rs"), "fn main() {}")
+            .await
+            .unwrap();
 
-        let hash = manager.cache_source(&workspace, "local", "/test").await.unwrap();
+        let hash = manager
+            .cache_source(&workspace, "local", "/test")
+            .await
+            .unwrap();
 
         // Verify it's cached
         assert!(manager.has_cached_source(&hash).await);
@@ -1147,10 +1189,15 @@ mod tests {
         let cache_key = "my-project-abc123";
         let artifacts_path = manager.artifacts_path().join(cache_key);
         tokio::fs::create_dir_all(&artifacts_path).await.unwrap();
-        tokio::fs::write(artifacts_path.join("some-artifact.rlib"), "binary data").await.unwrap();
+        tokio::fs::write(artifacts_path.join("some-artifact.rlib"), "binary data")
+            .await
+            .unwrap();
 
         // Record usage
-        manager.record_artifact_usage(cache_key, "job-1").await.unwrap();
+        manager
+            .record_artifact_usage(cache_key, "job-1")
+            .await
+            .unwrap();
 
         // List should now contain the cache
         let caches = manager.list_artifact_caches().await;
@@ -1160,7 +1207,10 @@ mod tests {
         assert!(caches[0].build_jobs.contains(&"job-1".to_string()));
 
         // Record another usage
-        manager.record_artifact_usage(cache_key, "job-2").await.unwrap();
+        manager
+            .record_artifact_usage(cache_key, "job-2")
+            .await
+            .unwrap();
 
         let metadata = manager.get_artifact_metadata(cache_key).await.unwrap();
         assert_eq!(metadata.use_count, 2);
@@ -1182,9 +1232,14 @@ mod tests {
         let cache_key = "delete-test-project";
         let artifacts_path = manager.artifacts_path().join(cache_key);
         tokio::fs::create_dir_all(&artifacts_path).await.unwrap();
-        tokio::fs::write(artifacts_path.join("artifact.o"), "obj data").await.unwrap();
+        tokio::fs::write(artifacts_path.join("artifact.o"), "obj data")
+            .await
+            .unwrap();
 
-        manager.record_artifact_usage(cache_key, "job-1").await.unwrap();
+        manager
+            .record_artifact_usage(cache_key, "job-1")
+            .await
+            .unwrap();
 
         // Verify it exists
         assert!(manager.get_artifact_metadata(cache_key).await.is_some());

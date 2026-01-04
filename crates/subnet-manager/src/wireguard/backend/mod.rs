@@ -27,9 +27,7 @@ pub mod netlink;
 #[cfg(feature = "wg-userspace")]
 pub mod userspace;
 
-pub use traits::{
-    BackendCapabilities, BackendType, InterfaceStats, PeerStats, WireGuardBackend,
-};
+pub use traits::{BackendCapabilities, BackendType, InterfaceStats, PeerStats, WireGuardBackend};
 
 #[cfg(feature = "wg-command")]
 pub use command::CommandBackend;
@@ -129,10 +127,7 @@ impl AutoSelectBackend {
             if let Some(backend) = self.available.iter().find(|b| &b.backend_type() == pref) {
                 return Some(Arc::clone(backend));
             }
-            warn!(
-                "Preferred backend {:?} not available, falling back",
-                pref
-            );
+            warn!("Preferred backend {:?} not available, falling back", pref);
         }
 
         // Return first available (highest priority)
@@ -159,7 +154,9 @@ impl AutoSelectBackend {
 
     /// Check if a specific backend type is available
     pub fn has_backend_type(&self, backend_type: BackendType) -> bool {
-        self.available.iter().any(|b| b.backend_type() == backend_type)
+        self.available
+            .iter()
+            .any(|b| b.backend_type() == backend_type)
     }
 }
 

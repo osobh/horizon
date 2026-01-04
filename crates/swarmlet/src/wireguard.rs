@@ -8,14 +8,14 @@
 //! - Status reporting
 //! - Automatic key generation on join
 
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use crate::{Result, SwarmletError};
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 use x25519_dalek::{PublicKey, StaticSecret};
-use rand_core::OsRng;
 
 /// WireGuard interface configuration received from coordinator
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,7 +197,11 @@ impl WireGuardManager {
     /// Verify a WireGuard configuration signature
     ///
     /// The signature should cover: interface_name + config_version + address + peers_hash
-    fn verify_config_signature(&self, config: &WireGuardConfigRequest, cluster_key: &[u8; 32]) -> Result<()> {
+    fn verify_config_signature(
+        &self,
+        config: &WireGuardConfigRequest,
+        cluster_key: &[u8; 32],
+    ) -> Result<()> {
         let signature_b64 = config.signature.as_ref().ok_or_else(|| {
             SwarmletError::WireGuard("No signature provided for verification".to_string())
         })?;
@@ -214,7 +218,8 @@ impl WireGuardManager {
             )));
         }
 
-        let signature_array: [u8; 64] = signature_bytes.try_into()
+        let signature_array: [u8; 64] = signature_bytes
+            .try_into()
             .map_err(|_| SwarmletError::WireGuard("Invalid signature format".to_string()))?;
 
         // Reconstruct the message that was signed
@@ -225,10 +230,7 @@ impl WireGuardManager {
 
         let message = format!(
             "{}:{}:{}:{}",
-            config.interface_name,
-            config.config_version,
-            config.address,
-            peers_str
+            config.interface_name, config.config_version, config.address, peers_str
         );
 
         // Create signature and verifying key
@@ -237,8 +239,11 @@ impl WireGuardManager {
             .map_err(|e| SwarmletError::WireGuard(format!("Invalid cluster public key: {}", e)))?;
 
         // Verify the signature
-        verifying_key.verify(message.as_bytes(), &signature)
-            .map_err(|_| SwarmletError::WireGuard("Config signature verification failed".to_string()))?;
+        verifying_key
+            .verify(message.as_bytes(), &signature)
+            .map_err(|_| {
+                SwarmletError::WireGuard("Config signature verification failed".to_string())
+            })?;
 
         debug!("Config signature verified successfully");
         Ok(())
@@ -302,7 +307,10 @@ impl WireGuardManager {
     }
 
     /// Apply WireGuard configuration from coordinator
-    pub async fn apply_config(&self, config: WireGuardConfigRequest) -> Result<WireGuardConfigResponse> {
+    pub async fn apply_config(
+        &self,
+        config: WireGuardConfigRequest,
+    ) -> Result<WireGuardConfigResponse> {
         info!(
             "Applying WireGuard config version {} for interface {}",
             config.config_version, config.interface_name
@@ -335,9 +343,9 @@ impl WireGuardManager {
         let private_key = if let Some(pk) = &config.private_key {
             pk.clone()
         } else {
-            self.get_private_key().await.ok_or_else(|| {
-                SwarmletError::WireGuard("No private key available".to_string())
-            })?
+            self.get_private_key()
+                .await
+                .ok_or_else(|| SwarmletError::WireGuard("No private key available".to_string()))?
         };
 
         // Apply configuration using wg command
@@ -400,7 +408,9 @@ impl WireGuardManager {
                         .args(["ip", "link", "add", interface_name, "type", "wireguard"])
                         .status()
                         .await
-                        .map_err(|e| SwarmletError::WireGuard(format!("Failed to create interface: {}", e)))?;
+                        .map_err(|e| {
+                            SwarmletError::WireGuard(format!("Failed to create interface: {}", e))
+                        })?;
 
                     if !status.success() {
                         return Err(SwarmletError::WireGuard(
@@ -466,7 +476,9 @@ impl WireGuardManager {
                     ])
                     .output()
                     .await
-                    .map_err(|e| SwarmletError::WireGuard(format!("Failed to configure WireGuard: {}", e)))?;
+                    .map_err(|e| {
+                        SwarmletError::WireGuard(format!("Failed to configure WireGuard: {}", e))
+                    })?;
 
                 let _ = tokio::fs::remove_file(&key_path).await;
 
@@ -530,7 +542,10 @@ impl WireGuardManager {
             self.add_peer_impl(interface_name, peer).await?;
         }
 
-        info!("WireGuard interface {} configured successfully", interface_name);
+        info!(
+            "WireGuard interface {} configured successfully",
+            interface_name
+        );
         Ok(())
     }
 
@@ -632,7 +647,9 @@ impl WireGuardManager {
                     ])
                     .output()
                     .await
-                    .map_err(|e| SwarmletError::WireGuard(format!("Failed to remove peer: {}", e)))?;
+                    .map_err(|e| {
+                        SwarmletError::WireGuard(format!("Failed to remove peer: {}", e))
+                    })?;
 
                 if output.status.success() {
                     Ok(())
@@ -676,9 +693,7 @@ impl WireGuardManager {
                     .ok();
 
                 match output {
-                    Some(o) if o.status.success() => {
-                        String::from_utf8_lossy(&o.stdout).to_string()
-                    }
+                    Some(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
                     _ => String::new(),
                 }
             }
@@ -697,11 +712,7 @@ impl WireGuardManager {
             if line.starts_with("public key:") {
                 status.public_key = Some(line.trim_start_matches("public key:").trim().to_string());
             } else if line.starts_with("listening port:") {
-                if let Ok(port) = line
-                    .trim_start_matches("listening port:")
-                    .trim()
-                    .parse()
-                {
+                if let Ok(port) = line.trim_start_matches("listening port:").trim().parse() {
                     status.listen_port = port;
                 }
             } else if line.starts_with("peer:") {
@@ -758,7 +769,9 @@ impl WireGuardManager {
                     .args(["wg", "show", interface_name, "dump"])
                     .output()
                     .await
-                    .map_err(|e| SwarmletError::WireGuard(format!("Failed to list peers: {}", e)))?;
+                    .map_err(|e| {
+                        SwarmletError::WireGuard(format!("Failed to list peers: {}", e))
+                    })?;
 
                 String::from_utf8_lossy(&output.stdout).to_string()
             }
@@ -887,7 +900,10 @@ mod tests {
         let test_key = [42u8; 32];
         let test_key_b64 = BASE64_STANDARD.encode(&test_key);
 
-        manager.set_cluster_public_key_b64(&test_key_b64).await.unwrap();
+        manager
+            .set_cluster_public_key_b64(&test_key_b64)
+            .await
+            .unwrap();
 
         // Verify it's set correctly
         let stored_key = manager.cluster_public_key.read().await;
@@ -909,7 +925,7 @@ mod tests {
 
     #[test]
     fn test_config_signature_verification() {
-        use ed25519_dalek::{SigningKey, Signer};
+        use ed25519_dalek::{Signer, SigningKey};
         use rand_core::RngCore;
 
         // Generate a signing keypair for testing using random bytes
@@ -925,15 +941,13 @@ mod tests {
             listen_port: 51820,
             address: "10.0.0.1/24".to_string(),
             mtu: None,
-            peers: vec![
-                WireGuardPeerConfig {
-                    public_key: "peer1key".to_string(),
-                    preshared_key: None,
-                    allowed_ips: vec!["10.0.0.2/32".to_string()],
-                    endpoint: None,
-                    persistent_keepalive: None,
-                },
-            ],
+            peers: vec![WireGuardPeerConfig {
+                public_key: "peer1key".to_string(),
+                preshared_key: None,
+                allowed_ips: vec!["10.0.0.2/32".to_string()],
+                endpoint: None,
+                persistent_keepalive: None,
+            }],
             config_version: "v1".to_string(),
             signature: None, // We'll set this after signing
         };
@@ -944,10 +958,7 @@ mod tests {
         let peers_str = peer_keys.join(",");
         let message = format!(
             "{}:{}:{}:{}",
-            config.interface_name,
-            config.config_version,
-            config.address,
-            peers_str
+            config.interface_name, config.config_version, config.address, peers_str
         );
 
         // Sign the message
@@ -969,7 +980,7 @@ mod tests {
 
     #[test]
     fn test_config_signature_verification_fails_with_wrong_key() {
-        use ed25519_dalek::{SigningKey, Signer};
+        use ed25519_dalek::{Signer, SigningKey};
         use rand_core::RngCore;
 
         // Generate a signing keypair for testing
@@ -995,7 +1006,10 @@ mod tests {
         };
 
         // Sign with one key
-        let message = format!("{}:{}:{}:", config.interface_name, config.config_version, config.address);
+        let message = format!(
+            "{}:{}:{}:",
+            config.interface_name, config.config_version, config.address
+        );
         let signature = signing_key.sign(message.as_bytes());
         let signature_b64 = BASE64_STANDARD.encode(signature.to_bytes());
 
@@ -1008,6 +1022,9 @@ mod tests {
         let manager = WireGuardManager::new();
         let wrong_key: [u8; 32] = wrong_verifying_key.to_bytes();
         let result = manager.verify_config_signature(&signed_config, &wrong_key);
-        assert!(result.is_err(), "Signature verification should fail with wrong key");
+        assert!(
+            result.is_err(),
+            "Signature verification should fail with wrong key"
+        );
     }
 }

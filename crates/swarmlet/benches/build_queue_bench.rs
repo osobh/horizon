@@ -151,7 +151,10 @@ fn bench_fair_scheduling(c: &mut Criterion) {
                 let user_id = format!("user-{}", user);
                 for _ in 0..10 {
                     queue
-                        .enqueue(create_queued_build_for_user(&user_id, BuildPriority::Normal))
+                        .enqueue(create_queued_build_for_user(
+                            &user_id,
+                            BuildPriority::Normal,
+                        ))
                         .await
                         .unwrap();
                 }

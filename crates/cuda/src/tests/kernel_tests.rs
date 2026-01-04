@@ -217,9 +217,7 @@ fn test_kernel_occupancy_calculation() {
     let block_size = 256;
     let dynamic_shared_mem = 1024;
 
-    let occupancy = kernel
-        .calculate_occupancy(block_size, dynamic_shared_mem)
-        ?;
+    let occupancy = kernel.calculate_occupancy(block_size, dynamic_shared_mem)?;
 
     assert!(occupancy.active_blocks > 0);
     assert!(occupancy.active_warps > 0);

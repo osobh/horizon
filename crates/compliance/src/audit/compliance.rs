@@ -104,11 +104,7 @@ pub struct CoverageAssessment {
 
 impl AuditComplianceReport {
     /// Create a new compliance report
-    pub fn new(
-        period_start: DateTime<Utc>,
-        period_end: DateTime<Utc>,
-        framework: String,
-    ) -> Self {
+    pub fn new(period_start: DateTime<Utc>, period_end: DateTime<Utc>, framework: String) -> Self {
         Self {
             report_id: Uuid::new_v4(),
             generated_at: Utc::now(),

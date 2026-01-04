@@ -6,7 +6,7 @@
 use super::gpu_kernels::GpuKernelManager;
 use super::query_types::*;
 use crate::error::KnowledgeGraphResult;
-use crate::graph::{Edge, EdgeType, KnowledgeGraph, Node, NodeType};
+use crate::graph::{EdgeType, KnowledgeGraph, Node, NodeType};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -204,7 +204,7 @@ impl QueryExecutor {
         graph: &KnowledgeGraph,
         seed_nodes: Vec<String>,
         max_depth: usize,
-        query: &Query,
+        _query: &Query,
     ) -> KnowledgeGraphResult<QueryResult> {
         let mut result_nodes = Vec::new();
         let mut result_edges = Vec::new();
@@ -546,8 +546,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Add test node
         let mut node = Node::new(NodeType::Agent, HashMap::new());
@@ -575,8 +574,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Create simple path: A -> B
         let node_a = Node::new(NodeType::Agent, HashMap::new());
@@ -613,8 +611,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Create center node with neighbor
         let center = Node::new(NodeType::Agent, HashMap::new());
@@ -650,8 +647,7 @@ mod tests {
             gpu_enabled: false,
             ..Default::default()
         })
-        .await
-        ?;
+        .await?;
 
         // Create hub node
         let hub = Node::new(NodeType::Agent, HashMap::new());

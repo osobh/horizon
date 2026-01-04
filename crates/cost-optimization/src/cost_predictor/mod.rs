@@ -28,5 +28,5 @@ pub use recommendations::{ComplexityLevel, CostRecommendation, Priority};
 pub use risk::{RiskFactor, RiskLevel};
 pub use types::{
     ConfidenceInterval, CostMetricType, PredictedValue, PredictionRequest, PredictionResult,
-    Seasonality, SeasonalPattern, TimeSeriesPoint, TrendAnalysis, TrendDirection,
+    SeasonalPattern, Seasonality, TimeSeriesPoint, TrendAnalysis, TrendDirection,
 };

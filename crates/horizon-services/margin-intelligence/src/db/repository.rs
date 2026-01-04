@@ -1,4 +1,4 @@
-use crate::error::{HpcError, Result, MarginErrorExt};
+use crate::error::{HpcError, MarginErrorExt, Result};
 use crate::models::*;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -186,13 +186,22 @@ impl MarginRepository {
         .await?;
 
         Ok(MarginAnalysis {
-            total_customers: row.try_get::<Option<i64>, _>("total_customers")?.unwrap_or(0),
+            total_customers: row
+                .try_get::<Option<i64>, _>("total_customers")?
+                .unwrap_or(0),
             avg_gross_margin: row.try_get::<Option<Decimal>, _>("avg_gross_margin")?,
-            avg_contribution_margin: row.try_get::<Option<Decimal>, _>("avg_contribution_margin")?,
-            profitable_count: row.try_get::<Option<i64>, _>("profitable_count")?.unwrap_or(0),
+            avg_contribution_margin: row
+                .try_get::<Option<Decimal>, _>("avg_contribution_margin")?,
+            profitable_count: row
+                .try_get::<Option<i64>, _>("profitable_count")?
+                .unwrap_or(0),
             at_risk_count: row.try_get::<Option<i64>, _>("at_risk_count")?.unwrap_or(0),
-            total_revenue: row.try_get::<Option<Decimal>, _>("total_revenue")?.unwrap_or(Decimal::ZERO),
-            total_cost: row.try_get::<Option<Decimal>, _>("total_cost")?.unwrap_or(Decimal::ZERO),
+            total_revenue: row
+                .try_get::<Option<Decimal>, _>("total_revenue")?
+                .unwrap_or(Decimal::ZERO),
+            total_cost: row
+                .try_get::<Option<Decimal>, _>("total_cost")?
+                .unwrap_or(Decimal::ZERO),
         })
     }
 
@@ -208,7 +217,7 @@ impl MarginRepository {
             FROM customer_profiles
             GROUP BY segment
             ORDER BY segment
-            "#
+            "#,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -217,19 +226,32 @@ impl MarginRepository {
             .into_iter()
             .map(|r| SegmentAnalysis {
                 segment: r.try_get("segment").unwrap(),
-                customer_count: r.try_get::<Option<i64>, _>("customer_count").unwrap().unwrap_or(0),
+                customer_count: r
+                    .try_get::<Option<i64>, _>("customer_count")
+                    .unwrap()
+                    .unwrap_or(0),
                 avg_margin: r.try_get::<Option<Decimal>, _>("avg_margin").unwrap(),
-                total_revenue: r.try_get::<Option<Decimal>, _>("total_revenue").unwrap().unwrap_or(Decimal::ZERO),
-                total_cost: r.try_get::<Option<Decimal>, _>("total_cost").unwrap().unwrap_or(Decimal::ZERO),
+                total_revenue: r
+                    .try_get::<Option<Decimal>, _>("total_revenue")
+                    .unwrap()
+                    .unwrap_or(Decimal::ZERO),
+                total_cost: r
+                    .try_get::<Option<Decimal>, _>("total_cost")
+                    .unwrap()
+                    .unwrap_or(Decimal::ZERO),
             })
             .collect())
     }
 
     // Pricing simulation operations
 
-    pub async fn create_simulation(&self, request: &CreateSimulationRequest) -> Result<PricingSimulation> {
+    pub async fn create_simulation(
+        &self,
+        request: &CreateSimulationRequest,
+    ) -> Result<PricingSimulation> {
         // Calculate margin impact
-        let price_change = (request.simulated_price - request.current_price) / request.current_price;
+        let price_change =
+            (request.simulated_price - request.current_price) / request.current_price;
         let margin_impact = price_change * Decimal::from(100);
 
         let simulation = sqlx::query_as::<_, PricingSimulation>(
@@ -364,10 +386,12 @@ mod tests {
             .await
             .expect("Failed to connect to test database");
 
-        sqlx::query("TRUNCATE customer_profiles, pricing_simulations, margin_recommendations CASCADE")
-            .execute(&pool)
-            .await
-            .expect("Failed to truncate tables");
+        sqlx::query(
+            "TRUNCATE customer_profiles, pricing_simulations, margin_recommendations CASCADE",
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to truncate tables");
 
         pool
     }

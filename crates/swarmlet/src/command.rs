@@ -59,7 +59,7 @@ pub enum CommandStatus {
 struct ActiveCommand {
     #[allow(dead_code)] // Used for debugging and future command introspection
     id: Uuid,
-    #[allow(dead_code)] // Used for debugging and future command introspection  
+    #[allow(dead_code)] // Used for debugging and future command introspection
     command: String,
     #[allow(dead_code)] // Used for debugging and future command introspection
     args: Vec<String>,

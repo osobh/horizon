@@ -19,6 +19,8 @@ fn main() -> anyhow::Result<()> {
         let ast_buffer = device.alloc_zeros::<u8>(1)?;
         let match_buffer = device.alloc_zeros::<u32>(1)?;
 
+        // SAFETY: All buffers are valid device pointers from alloc_zeros.
+        // Using 0 patterns and 0 nodes for empty data test.
         unsafe {
             launch_match_patterns(
                 *pattern_buffer.device_ptr() as *const u8,
@@ -43,6 +45,8 @@ fn main() -> anyhow::Result<()> {
         println!("   🚀 Launching original kernel...");
         println!("   ⏱️  This might hang at cudaDeviceSynchronize()...");
 
+        // SAFETY: All buffers are valid device pointers from alloc_zeros.
+        // Parameters (1 pattern, 1 node) match minimal allocation sizes.
         unsafe {
             launch_match_patterns(
                 *pattern_buffer.device_ptr() as *const u8,

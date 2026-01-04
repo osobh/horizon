@@ -1,10 +1,10 @@
 //! Simple integration tests for ExoRust components
 
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use stratoswarm_memory::{GpuMemoryAllocator, MemoryManager, MemoryPool};
 use stratoswarm_net::{MemoryNetwork, Message, MessageType, Network};
 use stratoswarm_storage::{MemoryStorage, Storage};
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Test basic memory and storage integration
 #[tokio::test]
@@ -63,10 +63,7 @@ async fn test_network_storage_integration() {
         .expect("Failed to store message data");
 
     // Send network message about the stored data
-    let msg = Message::new(
-        MessageType::KnowledgeSync,
-        b"msg/001".to_vec(),
-    );
+    let msg = Message::new(MessageType::KnowledgeSync, b"msg/001".to_vec());
 
     network
         .send("peer-node", msg.clone())
@@ -215,10 +212,7 @@ async fn test_message_routing() {
     let node_c = MemoryNetwork::new("node-c".to_string());
 
     // Node A sends to Node B
-    let msg_ab = Message::new(
-        MessageType::KnowledgeSync,
-        b"knowledge-from-a".to_vec(),
-    );
+    let msg_ab = Message::new(MessageType::KnowledgeSync, b"knowledge-from-a".to_vec());
 
     node_a
         .send("node-b", msg_ab.clone())

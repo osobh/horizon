@@ -10,17 +10,16 @@ use std::sync::Arc;
 use ipnet::Ipv4Net;
 use uuid::Uuid;
 
+use chrono::Utc;
 use subnet_manager::events::{
-    InMemoryTransport, SubnetEventPublisher, SubnetMessage,
-    SUBNET_LIFECYCLE, SUBNET_ASSIGNMENTS, SUBNET_ROUTES, SUBNET_WIREGUARD,
-    SUBNET_TOPOLOGY, SUBNET_POLICIES,
+    InMemoryTransport, SubnetEventPublisher, SubnetMessage, SUBNET_ASSIGNMENTS, SUBNET_LIFECYCLE,
+    SUBNET_POLICIES, SUBNET_ROUTES, SUBNET_TOPOLOGY, SUBNET_WIREGUARD,
 };
+use subnet_manager::migration::{Migration, MigrationReason};
 use subnet_manager::models::{
     AssignmentPolicy, CrossSubnetRoute, NodeType, PolicyRule, RouteDirection, Subnet,
     SubnetAssignment, SubnetPurpose, SubnetStatus,
 };
-use chrono::Utc;
-use subnet_manager::migration::{Migration, MigrationReason};
 use subnet_manager::service::SubnetManager;
 
 // ============================================================================
@@ -67,7 +66,8 @@ fn create_test_migration(node_id: Uuid, source_id: Uuid, target_id: Uuid) -> Mig
         target_id,
         Ipv4Addr::new(10, 100, 0, 5),
         MigrationReason::PolicyChange,
-    ).with_target_ip(Ipv4Addr::new(10, 101, 0, 5))
+    )
+    .with_target_ip(Ipv4Addr::new(10, 101, 0, 5))
 }
 
 fn create_test_policy(name: &str, target_subnet_id: Uuid) -> AssignmentPolicy {
@@ -137,7 +137,10 @@ async fn test_subnet_deleted_event_flow() {
     let (publisher, transport) = create_test_publisher();
     let subnet = create_test_subnet("delete-me", "10.100.16.0/20");
 
-    publisher.subnet_deleted(&subnet, Some(Uuid::new_v4())).await.unwrap();
+    publisher
+        .subnet_deleted(&subnet, Some(Uuid::new_v4()))
+        .await
+        .unwrap();
 
     let messages = transport.messages();
     assert_eq!(messages.len(), 1);
@@ -243,7 +246,10 @@ async fn test_migration_completed_event_flow() {
     let (publisher, transport) = create_test_publisher();
     let migration = create_test_migration(Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
 
-    publisher.migration_completed(&migration, 1500).await.unwrap();
+    publisher
+        .migration_completed(&migration, 1500)
+        .await
+        .unwrap();
 
     let messages = transport.messages();
     assert_eq!(messages.len(), 1);
@@ -316,7 +322,10 @@ async fn test_route_deleted_event_flow() {
     let source_id = Uuid::new_v4();
     let dest_id = Uuid::new_v4();
 
-    publisher.route_deleted(route_id, source_id, dest_id).await.unwrap();
+    publisher
+        .route_deleted(route_id, source_id, dest_id)
+        .await
+        .unwrap();
 
     let messages = transport.messages();
     assert_eq!(messages.len(), 1);
@@ -340,7 +349,7 @@ async fn test_route_deleted_event_flow() {
 async fn test_topology_snapshot_event_flow() {
     let (publisher, transport) = create_test_publisher();
 
-    use subnet_manager::events::{SubnetInfo, RouteInfo};
+    use subnet_manager::events::{RouteInfo, SubnetInfo};
 
     let subnets = vec![
         SubnetInfo {
@@ -365,17 +374,18 @@ async fn test_topology_snapshot_event_flow() {
         },
     ];
 
-    let routes = vec![
-        RouteInfo {
-            id: Uuid::new_v4(),
-            source_subnet_id: subnets[0].id,
-            destination_subnet_id: subnets[1].id,
-            direction: RouteDirection::Bidirectional,
-            status: "active".to_string(),
-        },
-    ];
+    let routes = vec![RouteInfo {
+        id: Uuid::new_v4(),
+        source_subnet_id: subnets[0].id,
+        destination_subnet_id: subnets[1].id,
+        direction: RouteDirection::Bidirectional,
+        status: "active".to_string(),
+    }];
 
-    publisher.topology_snapshot(subnets.clone(), routes.clone(), 1).await.unwrap();
+    publisher
+        .topology_snapshot(subnets.clone(), routes.clone(), 1)
+        .await
+        .unwrap();
 
     let messages = transport.messages();
     assert_eq!(messages.len(), 1);
@@ -621,18 +631,31 @@ async fn test_complete_subnet_lifecycle_event_flow() {
 
     // 4. Unassign a node
     publisher
-        .node_unassigned(assignment1.node_id, subnet.id, assignment1.assigned_ip, "Node removed")
+        .node_unassigned(
+            assignment1.node_id,
+            subnet.id,
+            assignment1.assigned_ip,
+            "Node removed",
+        )
         .await
         .unwrap();
 
     // 5. Change subnet status
     publisher
-        .subnet_status_changed(subnet.id, SubnetStatus::Active, SubnetStatus::Draining, None)
+        .subnet_status_changed(
+            subnet.id,
+            SubnetStatus::Active,
+            SubnetStatus::Draining,
+            None,
+        )
         .await
         .unwrap();
 
     // 6. Delete route
-    publisher.route_deleted(route.id, subnet.id, other_subnet_id).await.unwrap();
+    publisher
+        .route_deleted(route.id, subnet.id, other_subnet_id)
+        .await
+        .unwrap();
 
     // 7. Delete subnet
     publisher.subnet_deleted(&subnet, None).await.unwrap();
@@ -647,7 +670,10 @@ async fn test_complete_subnet_lifecycle_event_flow() {
     assert!(matches!(&messages[2].1, SubnetMessage::NodeAssigned(_)));
     assert!(matches!(&messages[3].1, SubnetMessage::RouteCreated(_)));
     assert!(matches!(&messages[4].1, SubnetMessage::NodeUnassigned(_)));
-    assert!(matches!(&messages[5].1, SubnetMessage::SubnetStatusChanged(_)));
+    assert!(matches!(
+        &messages[5].1,
+        SubnetMessage::SubnetStatusChanged(_)
+    ));
     assert!(matches!(&messages[6].1, SubnetMessage::RouteDeleted(_)));
     assert!(matches!(&messages[7].1, SubnetMessage::SubnetDeleted(_)));
 
@@ -666,8 +692,14 @@ async fn test_complete_migration_event_flow() {
     let target_subnet = create_test_subnet("target", "10.101.0.0/20");
 
     // 1. Subnets exist
-    publisher.subnet_created(&source_subnet, None).await.unwrap();
-    publisher.subnet_created(&target_subnet, None).await.unwrap();
+    publisher
+        .subnet_created(&source_subnet, None)
+        .await
+        .unwrap();
+    publisher
+        .subnet_created(&target_subnet, None)
+        .await
+        .unwrap();
 
     // 2. Node assigned to source
     let assignment = SubnetAssignment {
@@ -690,16 +722,25 @@ async fn test_complete_migration_event_flow() {
         target_subnet.id,
         Ipv4Addr::new(10, 100, 0, 5),
         MigrationReason::PolicyChange,
-    ).with_target_ip(Ipv4Addr::new(10, 101, 0, 5));
+    )
+    .with_target_ip(Ipv4Addr::new(10, 101, 0, 5));
 
     publisher.migration_started(&migration).await.unwrap();
 
     // 4. Migration completes
-    publisher.migration_completed(&migration, 2500).await.unwrap();
+    publisher
+        .migration_completed(&migration, 2500)
+        .await
+        .unwrap();
 
     // 5. Node unassigned from source
     publisher
-        .node_unassigned(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 5), "Migrated")
+        .node_unassigned(
+            node_id,
+            source_subnet.id,
+            Ipv4Addr::new(10, 100, 0, 5),
+            "Migrated",
+        )
         .await
         .unwrap();
 
@@ -722,11 +763,15 @@ async fn test_complete_migration_event_flow() {
     assert_eq!(messages.len(), 7);
 
     // Check migration events are on SUBNET_ASSIGNMENTS
-    let migration_start = messages.iter().find(|(_, m)| matches!(m, SubnetMessage::MigrationStarted(_)));
+    let migration_start = messages
+        .iter()
+        .find(|(_, m)| matches!(m, SubnetMessage::MigrationStarted(_)));
     assert!(migration_start.is_some());
     assert_eq!(migration_start.unwrap().0, SUBNET_ASSIGNMENTS);
 
-    let migration_complete = messages.iter().find(|(_, m)| matches!(m, SubnetMessage::MigrationCompleted(_)));
+    let migration_complete = messages
+        .iter()
+        .find(|(_, m)| matches!(m, SubnetMessage::MigrationCompleted(_)));
     assert!(migration_complete.is_some());
 }
 

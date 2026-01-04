@@ -156,8 +156,7 @@ fn test_task_executor_execute() -> TestResult {
     let task = create_test_tasks()[0].clone();
     let agent_code = "def solve(): pass";
 
-    let result = executor
-        .execute(&task, agent_code, Duration::from_secs(60))?;
+    let result = executor.execute(&task, agent_code, Duration::from_secs(60))?;
 
     assert_eq!(result.task_id, task.id);
     assert!(result.execution_time <= Duration::from_secs(60));
@@ -230,8 +229,8 @@ fn test_statistical_significance() -> TestResult {
     let results = create_test_results();
     let baseline_success_rate = 0.5;
 
-    let significance = evaluator
-        .calculate_statistical_significance(&results, baseline_success_rate)?;
+    let significance =
+        evaluator.calculate_statistical_significance(&results, baseline_success_rate)?;
 
     assert!(significance.p_value >= 0.0 && significance.p_value <= 1.0);
     assert!(significance.confidence_interval.0 <= significance.confidence_interval.1);
@@ -261,8 +260,7 @@ fn test_validation_report_generation() -> TestResult {
     let results = ValidationResult {
         agent_id: "agent_123".to_string(),
         success_rate: 0.7,
-        metrics: MetricsCalculator::new()
-            .calculate(&create_test_results())?,
+        metrics: MetricsCalculator::new().calculate(&create_test_results())?,
         task_results: create_test_results(),
         statistical_significance: StatisticalSignificance {
             p_value: 0.03,

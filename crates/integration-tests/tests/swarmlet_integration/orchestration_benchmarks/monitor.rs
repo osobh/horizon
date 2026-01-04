@@ -120,7 +120,7 @@ impl ResourceMonitor {
     /// Calculate resource utilization percentage
     pub fn calculate_utilization(&self) -> (f32, f32, f32) {
         let snapshot = self.get_snapshot();
-        
+
         let cpu_util = if snapshot.total_cpu_cores > 0.0 {
             (snapshot.used_cpu_cores / snapshot.total_cpu_cores) * 100.0
         } else {

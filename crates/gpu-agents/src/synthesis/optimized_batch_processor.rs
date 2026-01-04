@@ -67,6 +67,9 @@ impl OptimizedBatchProcessor {
         }
 
         // Pre-allocate persistent buffers if enabled
+        // SAFETY: alloc returns uninitialized memory. These persistent buffers will be
+        // written via htod_copy in transfer_to_persistent_buffers() or transfer_to_gpu()
+        // before any kernel reads. The buffers are reused across batches for efficiency.
         let (persistent_pattern_buffer, persistent_ast_buffer, persistent_result_buffer) =
             if config.use_persistent_buffers {
                 let pattern_buffer_size = config.optimal_batch_size * 1024; // 1KB per pattern
@@ -339,7 +342,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_optimized_batch_processor_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_optimized_batch_processor_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let config = OptimizedBatchConfig::default();
         let processor = OptimizedBatchProcessor::new(device, config);
@@ -347,7 +350,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_binary_serialization() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_binary_serialization() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let processor =
             OptimizedBatchProcessor::new(device, OptimizedBatchConfig::default()).unwrap();
@@ -363,7 +366,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_batch_processing_performance() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_batch_processing_performance() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let config = OptimizedBatchConfig {
             optimal_batch_size: 100,
@@ -389,7 +392,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_batch_size_optimization() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_batch_size_optimization() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let processor =
             OptimizedBatchProcessor::new(device, OptimizedBatchConfig::default()).unwrap();

@@ -36,6 +36,8 @@ impl GpuCompressor {
         algorithm: CompressionAlgorithm,
         buffer_size: usize,
     ) -> Result<Self> {
+        // SAFETY: alloc returns uninitialized memory. temp_buffer is used as scratch
+        // space by compression kernels and will be written before read.
         let temp_buffer = unsafe { device.alloc::<u8>(buffer_size)? };
 
         Ok(Self {
@@ -76,6 +78,8 @@ impl GpuCompressor {
         stream: &CudaStream,
     ) -> Result<usize> {
         // Launch LZ4 compression kernel
+        // SAFETY: All pointers are valid device pointers from CudaSlice references.
+        // Input/output lengths match their allocation sizes. Stream is valid.
         unsafe {
             launch_lz4_compress(
                 *input.device_ptr() as *const u8,
@@ -97,6 +101,8 @@ impl GpuCompressor {
         output: &mut CudaSlice<u8>,
         stream: &CudaStream,
     ) -> Result<usize> {
+        // SAFETY: All pointers are valid device pointers from CudaSlice references.
+        // Input/output lengths match their allocation sizes. Stream is valid.
         unsafe {
             launch_rle_compress(
                 *input.device_ptr() as *const u8,
@@ -116,6 +122,8 @@ impl GpuCompressor {
         output: &mut CudaSlice<u8>,
         stream: &CudaStream,
     ) -> Result<usize> {
+        // SAFETY: All pointers are valid device pointers from CudaSlice references.
+        // Input/output lengths match their allocation sizes. Stream is valid.
         unsafe {
             launch_delta_compress(
                 *input.device_ptr() as *const u8,
@@ -136,6 +144,9 @@ impl GpuCompressor {
         stream: &CudaStream,
     ) -> Result<usize> {
         if let Some(ref dict) = self.dictionary {
+            // SAFETY: All pointers are valid device pointers from CudaSlice references.
+            // Input/output/dict lengths match their allocation sizes. Stream is valid.
+            // Dictionary was set via set_dictionary() which copies to GPU.
             unsafe {
                 launch_dictionary_compress(
                     *input.device_ptr() as *const u8,
@@ -212,6 +223,9 @@ impl GpuDecompressor {
     ) -> Result<usize> {
         match self.algorithm {
             CompressionAlgorithm::Lz4 => {
+                // SAFETY: All pointers are valid device pointers from CudaSlice references.
+                // compressed_size is passed from caller who knows the actual compressed data size.
+                // Output length matches allocation. Stream is valid.
                 unsafe {
                     launch_lz4_decompress(
                         *input.device_ptr() as *const u8,
@@ -281,7 +295,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_compression_algorithm_names() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_compression_algorithm_names() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
 

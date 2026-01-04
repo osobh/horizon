@@ -4,17 +4,16 @@
 //! tracking sync status, and managing configuration updates.
 
 use crate::models::{Subnet, SubnetAssignment};
-use crate::wireguard::{InterfaceConfig, PeerConfig, WireGuardConfigGenerator};
+use crate::wireguard::WireGuardConfigGenerator;
 use crate::{Error, Result};
 use chrono::{DateTime, Utc};
-use ipnet::Ipv4Net;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// Sync status for a node's WireGuard configuration
@@ -306,7 +305,10 @@ impl NodeHttpClient {
         endpoint: &str,
         config: &NodeWireGuardConfigRequest,
     ) -> Result<NodeConfigResponse> {
-        let url = format!("{}/api/v1/wireguard/configure", endpoint.trim_end_matches('/'));
+        let url = format!(
+            "{}/api/v1/wireguard/configure",
+            endpoint.trim_end_matches('/')
+        );
 
         debug!("Pushing WireGuard config to {}", url);
 
@@ -403,7 +405,10 @@ impl ConfigSyncService {
         // Decode the signing key
         let key_bytes = BASE64_STANDARD.decode(signing_key_b64).ok()?;
         if key_bytes.len() != 32 {
-            warn!("Invalid signing key length: expected 32, got {}", key_bytes.len());
+            warn!(
+                "Invalid signing key length: expected 32, got {}",
+                key_bytes.len()
+            );
             return None;
         }
 
@@ -414,10 +419,7 @@ impl ConfigSyncService {
         // Create the message to sign (config version + address + peers info)
         let mut message = format!(
             "{}:{}:{}:{}",
-            config.config_version,
-            config.address,
-            config.listen_port,
-            config.interface_name
+            config.config_version, config.address, config.listen_port, config.interface_name
         );
 
         // Add peer public keys to the message
@@ -434,7 +436,9 @@ impl ConfigSyncService {
     /// Register a node for sync tracking
     pub fn register_node(&self, node_id: Uuid, endpoint: Option<String>) {
         let mut states = self.node_states.write();
-        let state = states.entry(node_id).or_insert_with(|| NodeSyncState::new(node_id));
+        let state = states
+            .entry(node_id)
+            .or_insert_with(|| NodeSyncState::new(node_id));
         state.endpoint = endpoint;
     }
 
@@ -475,7 +479,7 @@ impl ConfigSyncService {
 
     /// Process pending changes and return nodes needing sync
     pub fn process_pending_changes(&self) -> Vec<(Uuid, Vec<ConfigChange>)> {
-        let mut changes = self.pending_changes.write();
+        let changes = self.pending_changes.write();
         let states = self.node_states.read();
 
         // Group changes by node
@@ -628,7 +632,7 @@ impl ConfigSyncService {
         let configs = self.subnet_configs.read();
         let config = configs
             .get(&subnet_id)
-            .ok_or_else(|| Error::SubnetNotFound(subnet_id))?;
+            .ok_or(Error::SubnetNotFound(subnet_id))?;
 
         let affected_nodes: Vec<Uuid> = config.assignments.iter().map(|a| a.node_id).collect();
 
@@ -738,14 +742,16 @@ impl ConfigSyncService {
         let configs = self.subnet_configs.read();
         let subnet_config = configs
             .get(&subnet_id)
-            .ok_or_else(|| Error::SubnetNotFound(subnet_id))?;
+            .ok_or(Error::SubnetNotFound(subnet_id))?;
 
         // Find the node's assignment
         let assignment = subnet_config
             .assignments
             .iter()
             .find(|a| a.node_id == node_id)
-            .ok_or_else(|| Error::WireGuardSync(format!("Node {} not assigned to subnet", node_id)))?;
+            .ok_or_else(|| {
+                Error::WireGuardSync(format!("Node {} not assigned to subnet", node_id))
+            })?;
 
         // Get node's private key (optional - node may already have one)
         let private_key = self.node_private_keys.read().get(&node_id).cloned();
@@ -854,7 +860,9 @@ impl ConfigSyncService {
                     self.mark_node_synced(node_id, config_version);
                     Ok(())
                 } else {
-                    let error = response.error.unwrap_or_else(|| "Unknown error".to_string());
+                    let error = response
+                        .error
+                        .unwrap_or_else(|| "Unknown error".to_string());
                     warn!("Node {} rejected config: {}", node_id, error);
                     self.mark_node_failed(node_id, error.clone());
                     Err(Error::WireGuardSync(error))
@@ -896,11 +904,14 @@ impl ConfigSyncService {
             // Check if node needs sync
             let needs_sync = {
                 let states = self.node_states.read();
-                states.get(node_id).map(|s| {
-                    s.status == SyncStatus::Pending
-                        || s.status == SyncStatus::Stale
-                        || (s.status == SyncStatus::Failed && s.should_retry(self.max_retries))
-                }).unwrap_or(false)
+                states
+                    .get(node_id)
+                    .map(|s| {
+                        s.status == SyncStatus::Pending
+                            || s.status == SyncStatus::Stale
+                            || (s.status == SyncStatus::Failed && s.should_retry(self.max_retries))
+                    })
+                    .unwrap_or(false)
             };
 
             if !needs_sync {
@@ -933,7 +944,11 @@ impl ConfigSyncService {
             for node_state in &nodes_needing_sync {
                 // Find which subnet this node belongs to
                 for (subnet_id, config) in configs.iter() {
-                    if config.assignments.iter().any(|a| a.node_id == node_state.node_id) {
+                    if config
+                        .assignments
+                        .iter()
+                        .any(|a| a.node_id == node_state.node_id)
+                    {
                         nodes_by_subnet
                             .entry(*subnet_id)
                             .or_default()
@@ -958,7 +973,10 @@ impl ConfigSyncService {
 
     /// Propagate a new peer to all existing nodes in a subnet
     pub async fn propagate_peer_added(&self, new_node_id: Uuid, subnet_id: Uuid) -> Result<()> {
-        info!("Propagating new peer {} to subnet {}", new_node_id, subnet_id);
+        info!(
+            "Propagating new peer {} to subnet {}",
+            new_node_id, subnet_id
+        );
 
         // Queue change for all existing nodes (except the new one)
         let affected_nodes: Vec<Uuid> = {
@@ -990,8 +1008,15 @@ impl ConfigSyncService {
     }
 
     /// Propagate peer removal to all nodes in a subnet
-    pub async fn propagate_peer_removed(&self, removed_node_id: Uuid, subnet_id: Uuid) -> Result<()> {
-        info!("Propagating peer removal {} from subnet {}", removed_node_id, subnet_id);
+    pub async fn propagate_peer_removed(
+        &self,
+        removed_node_id: Uuid,
+        subnet_id: Uuid,
+    ) -> Result<()> {
+        info!(
+            "Propagating peer removal {} from subnet {}",
+            removed_node_id, subnet_id
+        );
 
         // Queue change for all remaining nodes
         let affected_nodes: Vec<Uuid> = {

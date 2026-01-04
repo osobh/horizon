@@ -1,7 +1,7 @@
 //! Agent genome and related types
 
-use stratoswarm_agent_core::Goal;
 use serde::{Deserialize, Serialize};
+use stratoswarm_agent_core::Goal;
 
 /// Agent genome representation
 #[derive(Debug, Clone, Serialize, Deserialize)]

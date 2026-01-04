@@ -59,10 +59,11 @@ impl RecoveryPlannerMetrics {
 
         // Update average execution time
         let total_executions = self.successful_executions + self.failed_executions;
-        self.average_execution_time_minutes = 
-            (self.average_execution_time_minutes * (total_executions - 1) as f64 + duration_minutes) 
+        self.average_execution_time_minutes = (self.average_execution_time_minutes
+            * (total_executions - 1) as f64
+            + duration_minutes)
             / total_executions as f64;
-        
+
         self.last_updated = Utc::now();
     }
 
@@ -144,7 +145,7 @@ impl RecoveryTimeline {
     pub fn parallel_phases(&self) -> Vec<Vec<&RecoveryPhase>> {
         let mut parallel_groups = Vec::new();
         let mut current_group = Vec::new();
-        
+
         for phase in &self.phases {
             if phase.phase_prerequisites.is_empty() || current_group.is_empty() {
                 current_group.push(phase);
@@ -155,11 +156,11 @@ impl RecoveryTimeline {
                 current_group = vec![phase];
             }
         }
-        
+
         if !current_group.is_empty() {
             parallel_groups.push(current_group);
         }
-        
+
         parallel_groups
     }
 }

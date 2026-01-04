@@ -42,10 +42,7 @@ pub fn create_routes() -> Router<Arc<AppState>> {
             "/api/v1/forecast/gpu-demand",
             get(handlers::forecast_gpu_demand),
         )
-        .route(
-            "/api/v1/forecast/backtest",
-            post(handlers::backtest_model),
-        )
+        .route("/api/v1/forecast/backtest", post(handlers::backtest_model))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .layer(TraceLayer::new_for_http())
 }

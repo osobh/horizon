@@ -311,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dashboard_tab_navigation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_dashboard_tab_navigation() -> Result<(), Box<dyn std::error::Error>> {
         let mut dashboard = Dashboard::new()?;
 
         // Test next tab
@@ -337,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dashboard_tab_wrapping() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_dashboard_tab_wrapping() -> Result<(), Box<dyn std::error::Error>> {
         let mut dashboard = Dashboard::new()?;
 
         // Test wrapping from beginning to end

@@ -7,7 +7,7 @@
 //! - Usage tracking and statistics
 //! - Integration with ephemeral quotas
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,7 +19,7 @@ use crate::{
     error::{HpcError, QuotaErrorExt, Result},
     models::{
         AllocationRequestStatus, CreatePoolRequest, PoolAllocation, PoolAllocationRequest,
-        PoolStats, PoolStatus, PoolType, ResourcePool, ResourceType, UpdatePoolRequest,
+        PoolStats, PoolStatus, PoolType, ResourcePool, UpdatePoolRequest,
     },
 };
 
@@ -187,7 +187,11 @@ impl ResourcePoolService {
     /// Get active pools (can accept allocations).
     pub async fn get_active_pools(&self) -> Result<Vec<ResourcePool>> {
         let pools = self.pools.read().await;
-        Ok(pools.values().filter(|p| p.can_allocate()).cloned().collect())
+        Ok(pools
+            .values()
+            .filter(|p| p.can_allocate())
+            .cloned()
+            .collect())
     }
 
     /// Update a pool.
@@ -259,10 +263,7 @@ impl ResourcePoolService {
     }
 
     /// Request an allocation from a pool.
-    pub async fn request_allocation(
-        &self,
-        req: PoolAllocationRequest,
-    ) -> Result<PoolAllocation> {
+    pub async fn request_allocation(&self, req: PoolAllocationRequest) -> Result<PoolAllocation> {
         let mut pool = self.get_pool(req.pool_id).await?;
 
         if !pool.can_allocate() {
@@ -295,7 +296,9 @@ impl ResourcePoolService {
         }
 
         // Check user's existing allocations
-        let existing = self.get_user_allocations_for_pool(&req.user_id, req.pool_id).await?;
+        let existing = self
+            .get_user_allocations_for_pool(&req.user_id, req.pool_id)
+            .await?;
         let total_existing: Decimal = existing
             .iter()
             .filter(|a| a.is_active())
@@ -315,8 +318,12 @@ impl ResourcePoolService {
         });
 
         // Create allocation
-        let mut allocation =
-            PoolAllocation::new_pending(req.pool_id, &req.user_id, req.requested_amount, expires_at);
+        let mut allocation = PoolAllocation::new_pending(
+            req.pool_id,
+            &req.user_id,
+            req.requested_amount,
+            expires_at,
+        );
 
         if let Some(purpose) = req.purpose {
             allocation = allocation.with_purpose(purpose);
@@ -387,7 +394,10 @@ impl ResourcePoolService {
                 return Ok(alloc.clone());
             }
         }
-        Err(HpcError::not_found("pool_allocation", allocation_id.to_string()))
+        Err(HpcError::not_found(
+            "pool_allocation",
+            allocation_id.to_string(),
+        ))
     }
 
     /// Get allocations for a pool.
@@ -445,7 +455,10 @@ impl ResourcePoolService {
         if !allocation.is_pending() {
             return Err(HpcError::invalid_input(
                 "allocation",
-                format!("Allocation is not pending (status: {:?})", allocation.status),
+                format!(
+                    "Allocation is not pending (status: {:?})",
+                    allocation.status
+                ),
             ));
         }
 
@@ -489,7 +502,10 @@ impl ResourcePoolService {
         if !allocation.is_pending() {
             return Err(HpcError::invalid_input(
                 "allocation",
-                format!("Allocation is not pending (status: {:?})", allocation.status),
+                format!(
+                    "Allocation is not pending (status: {:?})",
+                    allocation.status
+                ),
             ));
         }
 
@@ -611,7 +627,11 @@ impl ResourcePoolService {
         let allocations = self.get_pool_allocations(pool_id).await?;
 
         let pending_requests = allocations.iter().filter(|a| a.is_pending()).count() as i32;
-        let total_users = allocations.iter().map(|a| &a.user_id).collect::<std::collections::HashSet<_>>().len() as i32;
+        let total_users = allocations
+            .iter()
+            .map(|a| &a.user_id)
+            .collect::<std::collections::HashSet<_>>()
+            .len() as i32;
 
         let mut stats = pool.stats();
         stats.pending_requests = pending_requests;
@@ -626,7 +646,10 @@ impl ResourcePoolService {
 
         let mut pools = self.pools.write().await;
         for pool in pools.values_mut() {
-            if pool.is_expired() && pool.status != PoolStatus::Expired && pool.status != PoolStatus::Archived {
+            if pool.is_expired()
+                && pool.status != PoolStatus::Expired
+                && pool.status != PoolStatus::Archived
+            {
                 pool.mark_expired();
                 expired.push(pool.id);
             }
@@ -769,7 +792,10 @@ mod tests {
         let pool = service.create_pool(req).await.unwrap();
 
         assert!(pool.requires_approval);
-        assert_eq!(pool.auto_approve_domains, vec!["university.edu".to_string()]);
+        assert_eq!(
+            pool.auto_approve_domains,
+            vec!["university.edu".to_string()]
+        );
         assert_eq!(pool.max_concurrent_users, Some(10));
     }
 

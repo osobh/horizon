@@ -375,7 +375,10 @@ impl EphemeralQuota {
                 available: Decimal::ZERO,
                 requested: amount,
                 using_burst: false,
-                denial_reason: Some(format!("Quota is not usable (status: {})", self.status.as_str())),
+                denial_reason: Some(format!(
+                    "Quota is not usable (status: {})",
+                    self.status.as_str()
+                )),
                 in_time_window: None,
             };
         }

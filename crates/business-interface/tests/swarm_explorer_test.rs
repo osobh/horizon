@@ -1,5 +1,5 @@
-use stratoswarm_business_interface::BusinessInterface;
 use std::sync::{Arc, Mutex};
+use stratoswarm_business_interface::BusinessInterface;
 
 #[derive(Clone, Debug)]
 struct TestAgent {

@@ -147,7 +147,10 @@ impl ContentAddressableStore {
         debug!("Storing object {} with content hash {}", key, content_hash);
 
         // Check if content already exists (deduplication)
-        let existing = self.metadata.iter().find(|entry| entry.value().hash == content_hash);
+        let existing = self
+            .metadata
+            .iter()
+            .find(|entry| entry.value().hash == content_hash);
 
         if let Some(existing_entry) = existing {
             if self.config.enable_dedup {
@@ -201,7 +204,7 @@ impl ContentAddressableStore {
 
         self.content_index
             .entry(content_hash.clone())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(key.to_string());
 
         // Update stats
@@ -213,7 +216,8 @@ impl ContentAddressableStore {
     /// Get an object
     pub async fn get(&self, key: &str) -> Result<Vec<u8>> {
         // Get metadata
-        let meta = self.metadata
+        let meta = self
+            .metadata
             .get(key)
             .ok_or_else(|| SwarmRegistryError::Storage(format!("Object not found: {}", key)))?
             .clone();
@@ -241,7 +245,8 @@ impl ContentAddressableStore {
     /// Delete an object
     pub async fn delete(&self, key: &str) -> Result<()> {
         // Get metadata
-        let (_, meta) = self.metadata
+        let (_, meta) = self
+            .metadata
             .remove(key)
             .ok_or_else(|| SwarmRegistryError::Storage(format!("Object not found: {}", key)))?;
 
@@ -268,7 +273,8 @@ impl ContentAddressableStore {
 
     /// List all objects
     pub async fn list(&self) -> Result<Vec<(String, ObjectMetadata)>> {
-        Ok(self.metadata
+        Ok(self
+            .metadata
             .iter()
             .map(|entry| (entry.key().clone(), entry.value().clone()))
             .collect())
@@ -289,7 +295,11 @@ impl ContentAddressableStore {
         let mut space_reclaimed = 0u64;
 
         // Find orphaned content (content with no references)
-        let all_content_hashes: HashSet<_> = self.metadata.iter().map(|e| e.value().hash.clone()).collect();
+        let all_content_hashes: HashSet<_> = self
+            .metadata
+            .iter()
+            .map(|e| e.value().hash.clone())
+            .collect();
 
         // Check all tier directories
         for tier in &["gpu", "cpu", "nvme", "ssd", "hdd"] {
@@ -323,7 +333,8 @@ impl ContentAddressableStore {
 
     /// Migrate object between tiers
     pub async fn migrate(&self, key: &str, target_tier: MemoryTier) -> Result<()> {
-        let mut meta = self.metadata
+        let mut meta = self
+            .metadata
             .get_mut(key)
             .ok_or_else(|| SwarmRegistryError::Storage(format!("Object not found: {}", key)))?;
 
@@ -404,7 +415,7 @@ impl ContentAddressableStore {
     async fn add_reference(&self, content_hash: &str, key: &str) -> Result<()> {
         self.content_index
             .entry(content_hash.to_string())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(key.to_string());
 
         // Update ref count in metadata if exists

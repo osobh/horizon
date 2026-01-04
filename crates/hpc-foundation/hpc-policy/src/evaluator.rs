@@ -421,11 +421,8 @@ spec:
 "#;
 
         let policy = parse_policy(yaml).unwrap();
-        let principal = PrincipalContext::new(
-            None,
-            vec!["user".to_string()],
-            vec!["ml-team".to_string()],
-        );
+        let principal =
+            PrincipalContext::new(None, vec!["user".to_string()], vec!["ml-team".to_string()]);
         let resource = ResourceContext::new("job".to_string(), "jobs/123".to_string());
         let context = EvaluationContext::new(principal, resource, "submit".to_string());
 

@@ -29,7 +29,7 @@ impl AlgorithmSelector {
             strategy: SelectionStrategy::Balanced,
         }
     }
-    
+
     /// Select algorithm based on conditions
     pub async fn select_algorithm(
         &self,

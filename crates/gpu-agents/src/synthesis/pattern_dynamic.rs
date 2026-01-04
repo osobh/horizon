@@ -31,9 +31,12 @@ impl DynamicGpuPatternMatcher {
         let node_count = ast_data.len() / NODE_SIZE;
 
         // Allocate exact-size GPU buffers
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+        // because the memory is immediately initialized via htod_copy_into below.
         let pattern_buffer = unsafe { self.device.alloc::<u8>(pattern_data.len()) }
             .context("Failed to allocate pattern buffer")?;
 
+        // SAFETY: Same as above - memory is initialized via htod_copy_into below.
         let ast_buffer = unsafe { self.device.alloc::<u8>(ast_data.len()) }
             .context("Failed to allocate AST buffer")?;
 
@@ -49,6 +52,11 @@ impl DynamicGpuPatternMatcher {
             .htod_copy_into(ast_data, &mut ast_buffer.clone())?;
 
         // Launch kernel
+        // SAFETY: All device pointers are valid and correctly sized:
+        // - pattern_buffer was allocated with pattern_data.len() bytes and initialized
+        // - ast_buffer was allocated with ast_data.len() bytes and initialized
+        // - match_buffer was zero-initialized with node_count * 2 u32s
+        // The kernel reads from pattern/ast buffers and writes to match_buffer.
         unsafe {
             crate::synthesis::launch_match_patterns_fast(
                 *pattern_buffer.device_ptr() as *const u8,

@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use uuid::Uuid;
 
-use crate::sync_protocol::types::KnowledgeOperation;
 use crate::sync_protocol::consensus::{ConsensusProposal, ConsensusVote};
+use crate::sync_protocol::types::KnowledgeOperation;
 
 /// Message types for synchronization
 #[derive(Debug, Clone, Serialize, Deserialize)]

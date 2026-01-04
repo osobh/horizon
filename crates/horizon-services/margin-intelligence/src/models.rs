@@ -50,7 +50,8 @@ impl CustomerProfile {
         if self.total_revenue.is_zero() {
             return None;
         }
-        let margin = (self.total_revenue - self.total_cost) / self.total_revenue * Decimal::from(100);
+        let margin =
+            (self.total_revenue - self.total_cost) / self.total_revenue * Decimal::from(100);
         Some(margin)
     }
 

@@ -1,9 +1,9 @@
 //! XP reward calculation system for evolution outcomes
 
 use crate::EvolutionError;
-use stratoswarm_agent_core::agent::{Agent, EvolutionResult, EvolutionMetrics};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use stratoswarm_agent_core::agent::{Agent, EvolutionMetrics, EvolutionResult};
 
 /// XP reward category with base amounts and multipliers
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,49 +41,67 @@ pub struct EvolutionXPRewardCalculator {
 impl Default for EvolutionXPRewardCalculator {
     fn default() -> Self {
         let mut reward_categories = HashMap::new();
-        
+
         // Evolution outcome rewards
-        reward_categories.insert("level_up".to_string(), XPRewardCategory {
-            base_reward: 200,
-            level_multiplier: 1.2,
-            performance_multiplier: 1.5,
-            improvement_threshold: 0.0,
-        });
-        
-        reward_categories.insert("capability_gained".to_string(), XPRewardCategory {
-            base_reward: 150,
-            level_multiplier: 1.1,
-            performance_multiplier: 1.3,
-            improvement_threshold: 0.0,
-        });
-        
-        reward_categories.insert("performance_improvement".to_string(), XPRewardCategory {
-            base_reward: 100,
-            level_multiplier: 1.05,
-            performance_multiplier: 2.0,
-            improvement_threshold: 0.1,
-        });
-        
-        reward_categories.insert("speed_improvement".to_string(), XPRewardCategory {
-            base_reward: 80,
-            level_multiplier: 1.1,
-            performance_multiplier: 1.8,
-            improvement_threshold: 0.05,
-        });
-        
-        reward_categories.insert("memory_efficiency_gain".to_string(), XPRewardCategory {
-            base_reward: 75,
-            level_multiplier: 1.0,
-            performance_multiplier: 1.5,
-            improvement_threshold: 0.08,
-        });
-        
-        reward_categories.insert("success_rate_improvement".to_string(), XPRewardCategory {
-            base_reward: 120,
-            level_multiplier: 1.15,
-            performance_multiplier: 1.7,
-            improvement_threshold: 0.1,
-        });
+        reward_categories.insert(
+            "level_up".to_string(),
+            XPRewardCategory {
+                base_reward: 200,
+                level_multiplier: 1.2,
+                performance_multiplier: 1.5,
+                improvement_threshold: 0.0,
+            },
+        );
+
+        reward_categories.insert(
+            "capability_gained".to_string(),
+            XPRewardCategory {
+                base_reward: 150,
+                level_multiplier: 1.1,
+                performance_multiplier: 1.3,
+                improvement_threshold: 0.0,
+            },
+        );
+
+        reward_categories.insert(
+            "performance_improvement".to_string(),
+            XPRewardCategory {
+                base_reward: 100,
+                level_multiplier: 1.05,
+                performance_multiplier: 2.0,
+                improvement_threshold: 0.1,
+            },
+        );
+
+        reward_categories.insert(
+            "speed_improvement".to_string(),
+            XPRewardCategory {
+                base_reward: 80,
+                level_multiplier: 1.1,
+                performance_multiplier: 1.8,
+                improvement_threshold: 0.05,
+            },
+        );
+
+        reward_categories.insert(
+            "memory_efficiency_gain".to_string(),
+            XPRewardCategory {
+                base_reward: 75,
+                level_multiplier: 1.0,
+                performance_multiplier: 1.5,
+                improvement_threshold: 0.08,
+            },
+        );
+
+        reward_categories.insert(
+            "success_rate_improvement".to_string(),
+            XPRewardCategory {
+                base_reward: 120,
+                level_multiplier: 1.15,
+                performance_multiplier: 1.7,
+                improvement_threshold: 0.1,
+            },
+        );
 
         Self {
             reward_categories,
@@ -132,8 +150,8 @@ impl EvolutionXPRewardCalculator {
         }
 
         // Capability rewards
-        let capability_reward = evolution_result.capabilities_gained.len() as f64 *
-            self.calculate_category_reward(
+        let capability_reward = evolution_result.capabilities_gained.len() as f64
+            * self.calculate_category_reward(
                 "capability_gained",
                 1.0,
                 evolution_result.new_level,
@@ -150,9 +168,9 @@ impl EvolutionXPRewardCalculator {
         );
 
         // Calculate base total
-        let base_total = breakdown.level_up_reward + 
-            breakdown.capability_reward + 
-            breakdown.performance_rewards.iter().sum::<u64>();
+        let base_total = breakdown.level_up_reward
+            + breakdown.capability_reward
+            + breakdown.performance_rewards.iter().sum::<u64>();
 
         // Apply global multiplier
         let multiplied_total = (base_total as f64 * self.global_multiplier) as u64;
@@ -180,8 +198,13 @@ impl EvolutionXPRewardCalculator {
     ) -> u64 {
         if let Some(category_config) = self.reward_categories.get(category) {
             let base = category_config.base_reward as f64;
-            let level_bonus = base * (category_config.level_multiplier.powf(agent_level as f64 - 1.0) - 1.0);
-            let performance_bonus = base * (new_metrics.success_rate * category_config.performance_multiplier);
+            let level_bonus = base
+                * (category_config
+                    .level_multiplier
+                    .powf(agent_level as f64 - 1.0)
+                    - 1.0);
+            let performance_bonus =
+                base * (new_metrics.success_rate * category_config.performance_multiplier);
             let improvement_bonus = base * (improvement_factor * 0.5);
 
             (base + level_bonus + performance_bonus + improvement_bonus) as u64
@@ -242,7 +265,10 @@ impl EvolutionXPRewardCalculator {
     }
 
     /// Calculate streak bonus based on recent successful evolutions
-    fn calculate_streak_bonus(&self, _agent_stats: &stratoswarm_agent_core::agent::AgentStats) -> f64 {
+    fn calculate_streak_bonus(
+        &self,
+        _agent_stats: &stratoswarm_agent_core::agent::AgentStats,
+    ) -> f64 {
         // For now, return base multiplier
         // In a real implementation, we'd track evolution success streaks
         self.streak_bonus_multiplier
@@ -268,15 +294,14 @@ impl EvolutionXPRewardCalculator {
         let agent_count_multiplier = (collaborating_agents.len() as f64).sqrt();
         let improvement_multiplier = shared_improvement + 1.0;
 
-        (base_collaboration_reward as f64 * agent_count_multiplier * improvement_multiplier * self.global_multiplier) as u64
+        (base_collaboration_reward as f64
+            * agent_count_multiplier
+            * improvement_multiplier
+            * self.global_multiplier) as u64
     }
 
     /// Calculate XP penalty for failed evolution attempts
-    pub fn calculate_evolution_penalty(
-        &self,
-        agent_level: u32,
-        failure_reason: &str,
-    ) -> u64 {
+    pub fn calculate_evolution_penalty(&self, agent_level: u32, failure_reason: &str) -> u64 {
         let base_penalty = match failure_reason {
             "insufficient_xp" => 0, // No penalty for not being ready
             "evolution_failed" => 20,
@@ -341,18 +366,18 @@ impl XPRewardBreakdown {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use stratoswarm_agent_core::agent::{Agent, AgentConfig};
     use std::time::Duration;
+    use stratoswarm_agent_core::agent::{Agent, AgentConfig};
 
     async fn create_test_agent_with_level(level: u32) -> Agent {
         let config = AgentConfig {
             name: format!("test_agent_level_{}", level),
             ..Default::default()
         };
-        
+
         let agent = Agent::new(config).unwrap();
         agent.initialize().await.unwrap();
-        
+
         // Award enough XP to reach the specified level
         if level > 1 {
             let xp_needed = match level {
@@ -362,18 +387,27 @@ mod tests {
                 5 => 1000,
                 _ => 1000 + (level - 5) as u64 * 500,
             };
-            agent.award_xp(xp_needed, "Test level setup".to_string(), "test".to_string()).await.unwrap();
+            agent
+                .award_xp(
+                    xp_needed,
+                    "Test level setup".to_string(),
+                    "test".to_string(),
+                )
+                .await
+                .unwrap();
         }
-        
+
         agent
     }
 
     #[tokio::test]
     async fn test_reward_calculator_creation() {
         let calculator = EvolutionXPRewardCalculator::default();
-        
+
         assert!(calculator.reward_categories.contains_key("level_up"));
-        assert!(calculator.reward_categories.contains_key("capability_gained"));
+        assert!(calculator
+            .reward_categories
+            .contains_key("capability_gained"));
         assert_eq!(calculator.global_multiplier, 1.0);
         assert_eq!(calculator.max_reward_per_evolution, 1000);
     }
@@ -382,7 +416,7 @@ mod tests {
     async fn test_level_up_reward_calculation() {
         let calculator = EvolutionXPRewardCalculator::default();
         let agent = create_test_agent_with_level(2).await;
-        
+
         let evolution_result = EvolutionResult {
             previous_level: 2,
             new_level: 3,
@@ -403,8 +437,11 @@ mod tests {
             },
         };
 
-        let breakdown = calculator.calculate_evolution_reward(&agent, &evolution_result).await.unwrap();
-        
+        let breakdown = calculator
+            .calculate_evolution_reward(&agent, &evolution_result)
+            .await
+            .unwrap();
+
         assert!(breakdown.level_up_reward > 0);
         assert!(breakdown.capability_reward > 0);
         assert!(breakdown.total_reward > 0);
@@ -415,7 +452,7 @@ mod tests {
     async fn test_performance_improvement_rewards() {
         let calculator = EvolutionXPRewardCalculator::default();
         let agent = create_test_agent_with_level(3).await;
-        
+
         let evolution_result = EvolutionResult {
             previous_level: 3,
             new_level: 3, // No level change
@@ -436,8 +473,11 @@ mod tests {
             },
         };
 
-        let breakdown = calculator.calculate_evolution_reward(&agent, &evolution_result).await.unwrap();
-        
+        let breakdown = calculator
+            .calculate_evolution_reward(&agent, &evolution_result)
+            .await
+            .unwrap();
+
         assert_eq!(breakdown.level_up_reward, 0); // No level change
         assert_eq!(breakdown.capability_reward, 0); // No new capabilities
         assert!(!breakdown.performance_rewards.is_empty()); // Should have performance rewards
@@ -448,15 +488,18 @@ mod tests {
     async fn test_reward_capping() {
         let mut calculator = EvolutionXPRewardCalculator::default();
         calculator.max_reward_per_evolution = 100; // Very low cap for testing
-        
+
         let agent = create_test_agent_with_level(5).await;
-        
+
         let evolution_result = EvolutionResult {
             previous_level: 5,
             new_level: 6,
             xp_at_evolution: 1000,
             evolution_timestamp: chrono::Utc::now(),
-            capabilities_gained: vec!["advanced_analytics".to_string(), "gpu_acceleration".to_string()],
+            capabilities_gained: vec![
+                "advanced_analytics".to_string(),
+                "gpu_acceleration".to_string(),
+            ],
             previous_metrics: EvolutionMetrics {
                 avg_completion_time: Duration::from_secs(120),
                 success_rate: 0.5,
@@ -471,8 +514,11 @@ mod tests {
             },
         };
 
-        let breakdown = calculator.calculate_evolution_reward(&agent, &evolution_result).await.unwrap();
-        
+        let breakdown = calculator
+            .calculate_evolution_reward(&agent, &evolution_result)
+            .await
+            .unwrap();
+
         assert!(breakdown.capped);
         assert_eq!(breakdown.total_reward, 100); // Should be capped
     }
@@ -480,16 +526,17 @@ mod tests {
     #[tokio::test]
     async fn test_collaboration_bonus() {
         let calculator = EvolutionXPRewardCalculator::default();
-        
+
         let agent1 = create_test_agent_with_level(3).await;
         let agent2 = create_test_agent_with_level(4).await;
         let agent3 = create_test_agent_with_level(2).await;
-        
+
         let collaborating_agents = vec![&agent1, &agent2, &agent3];
         let shared_improvement = 0.3; // 30% shared improvement
-        
-        let bonus = calculator.calculate_collaboration_bonus(&collaborating_agents, shared_improvement);
-        
+
+        let bonus =
+            calculator.calculate_collaboration_bonus(&collaborating_agents, shared_improvement);
+
         assert!(bonus > 0);
         // Should scale with number of agents and improvement
     }
@@ -497,11 +544,11 @@ mod tests {
     #[tokio::test]
     async fn test_evolution_penalty() {
         let calculator = EvolutionXPRewardCalculator::default();
-        
+
         let penalty1 = calculator.calculate_evolution_penalty(1, "evolution_failed");
         let penalty5 = calculator.calculate_evolution_penalty(5, "evolution_failed");
         let penalty_insufficient = calculator.calculate_evolution_penalty(3, "insufficient_xp");
-        
+
         assert!(penalty5 > penalty1); // Higher level should have higher penalty
         assert_eq!(penalty_insufficient, 0); // No penalty for insufficient XP
         assert!(penalty1 > 0);
@@ -510,17 +557,19 @@ mod tests {
     #[tokio::test]
     async fn test_custom_reward_categories() {
         let mut calculator = EvolutionXPRewardCalculator::default();
-        
+
         let custom_category = XPRewardCategory {
             base_reward: 500,
             level_multiplier: 2.0,
             performance_multiplier: 3.0,
             improvement_threshold: 0.2,
         };
-        
+
         calculator.set_reward_category("custom_achievement".to_string(), custom_category.clone());
-        
-        let retrieved = calculator.get_reward_category("custom_achievement").unwrap();
+
+        let retrieved = calculator
+            .get_reward_category("custom_achievement")
+            .unwrap();
         assert_eq!(retrieved.base_reward, 500);
         assert_eq!(retrieved.level_multiplier, 2.0);
     }
@@ -536,20 +585,20 @@ mod tests {
             streak_multiplier: 1.1,
             capped: false,
         };
-        
+
         let summary = breakdown.summary();
         assert!(summary.contains("Level up: 200"));
         assert!(summary.contains("Capabilities: 150"));
         assert!(summary.contains("Performance: 275")); // Sum of performance rewards
         assert!(summary.contains("total: 675"));
         assert!(!summary.contains("capped"));
-        
+
         let capped_breakdown = XPRewardBreakdown {
             total_reward: 1000,
             capped: true,
             ..breakdown
         };
-        
+
         let capped_summary = capped_breakdown.summary();
         assert!(capped_summary.contains("capped at 1000"));
     }

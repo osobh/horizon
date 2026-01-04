@@ -280,6 +280,9 @@ mod tests {
             total_allocated: Arc::new(Mutex::new(0)),
         };
 
+        // SAFETY: Creating a null DevicePointer for testing purposes only.
+        // This handle is never dereferenced - it's used to test error handling
+        // when releasing an invalid/unknown handle to a poisoned pool.
         let handle = GpuMemoryHandle {
             #[cfg(feature = "cuda")]
             ptr: unsafe { cust::memory::DevicePointer::from_raw(0u64) },

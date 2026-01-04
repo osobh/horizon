@@ -3,21 +3,21 @@
 //! Real-time performance monitoring and autonomous optimization system
 //! with comprehensive GPU metrics collection and predictive analytics.
 
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::collections::{HashMap, VecDeque};
-use tokio::sync::{mpsc, RwLock};
-use tokio::time::{sleep, interval, timeout};
-use anyhow::{Result, anyhow, Context};
-use serde::{Deserialize, Serialize};
+use anyhow::{anyhow, Context, Result};
 #[cfg(feature = "cuda")]
 use cudarc::driver::*;
 #[cfg(feature = "cuda")]
 use cust::prelude::*;
-use uuid::Uuid;
-use futures::future::try_join_all;
 use dashmap::DashMap;
-use wide::f64x4;  // SIMD primitives for 4-wide f64 operations
+use futures::future::try_join_all;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::{mpsc, RwLock};
+use tokio::time::{interval, sleep, timeout};
+use uuid::Uuid;
+use wide::f64x4; // SIMD primitives for 4-wide f64 operations
 
 /// Comprehensive GPU performance metrics
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,11 +122,26 @@ pub struct GpuPerformanceProfiler {
 
 #[derive(Debug, Clone)]
 pub enum OptimizationCommand {
-    TuneKernel { kernel_id: String, action: OptimizationAction },
-    RecompileWithOptimizations { kernel_id: String, optimizations: Vec<String> },
-    ScaleResources { kernel_id: String, scale_factor: f64 },
-    Emergency { kernel_id: String, issue: String },
-    PredictiveScale { kernel_id: String, predicted_load: f64 },
+    TuneKernel {
+        kernel_id: String,
+        action: OptimizationAction,
+    },
+    RecompileWithOptimizations {
+        kernel_id: String,
+        optimizations: Vec<String>,
+    },
+    ScaleResources {
+        kernel_id: String,
+        scale_factor: f64,
+    },
+    Emergency {
+        kernel_id: String,
+        issue: String,
+    },
+    PredictiveScale {
+        kernel_id: String,
+        predicted_load: f64,
+    },
 }
 
 impl GpuPerformanceProfiler {
@@ -161,7 +176,7 @@ impl GpuPerformanceProfiler {
 
         // Initialize GPU profiler with CUDA context
         self.initialize_gpu_profiler().await?;
-        
+
         // Start metrics collection loop
         let profiler = self.clone();
         tokio::spawn(async move {
@@ -191,7 +206,7 @@ impl GpuPerformanceProfiler {
             let mut active = self.profiling_active.lock()?;
             *active = false;
         }
-        
+
         self.cleanup_gpu_profiler().await?;
         Ok(())
     }
@@ -203,20 +218,20 @@ impl GpuPerformanceProfiler {
         execution_time: Duration,
     ) -> Result<GpuPerformanceMetrics> {
         let profile_start = Instant::now();
-        
+
         // Set CUDA context
         // CudaDevice automatically manages the context in cudarc
-        
+
         // Collect comprehensive GPU metrics
         let gpu_metrics = self.collect_comprehensive_gpu_metrics(&kernel_id).await?;
-        
+
         // Calculate profiler overhead
         let profiler_overhead = profile_start.elapsed().as_nanos() as u64;
         {
             let mut overhead = self.profiler_overhead_ns.lock().unwrap();
             *overhead = (*overhead + profiler_overhead) / 2; // Running average
         }
-        
+
         let metrics = GpuPerformanceMetrics {
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             kernel_id: kernel_id.clone(),
@@ -240,7 +255,7 @@ impl GpuPerformanceProfiler {
         {
             let mut buffer = self.metrics_buffer.write().await;
             buffer.push_back(metrics.clone());
-            
+
             // Maintain buffer size efficiently
             while buffer.len() > self.config.metrics_buffer_size {
                 buffer.pop_front();
@@ -258,20 +273,23 @@ impl GpuPerformanceProfiler {
     /// Analyze performance trends with ML-based prediction
     pub async fn analyze_performance_trends(&self, kernel_id: &str) -> Result<PerformanceTrend> {
         let recent_metrics = self.get_recent_metrics(kernel_id, 100).await?;
-        
+
         if recent_metrics.is_empty() {
             return Err(anyhow!("No metrics available for kernel {}", kernel_id));
         }
 
         if recent_metrics.len() < 5 {
-            return Err(anyhow!("Insufficient data for trend analysis (need at least 5 samples)"));
+            return Err(anyhow!(
+                "Insufficient data for trend analysis (need at least 5 samples)"
+            ));
         }
 
         // Perform comprehensive trend analysis
         let trend = self.compute_performance_trend_ml(&recent_metrics).await?;
 
         // Store trend for future reference
-        self.performance_trends.insert(kernel_id.to_string(), trend.clone());
+        self.performance_trends
+            .insert(kernel_id.to_string(), trend.clone());
 
         // Trigger optimization if needed
         if self.config.enable_real_time_optimization {
@@ -288,7 +306,7 @@ impl GpuPerformanceProfiler {
         count: usize,
     ) -> Result<Vec<GpuPerformanceMetrics>> {
         let buffer = self.metrics_buffer.read().await;
-        
+
         let recent: Vec<GpuPerformanceMetrics> = buffer
             .iter()
             .filter(|m| m.kernel_id == kernel_id)
@@ -296,14 +314,14 @@ impl GpuPerformanceProfiler {
             .take(count)
             .cloned()
             .collect();
-        
+
         Ok(recent)
     }
 
     /// Get comprehensive performance statistics
     pub async fn get_performance_stats(&self, kernel_id: &str) -> Result<PerformanceStats> {
         let metrics = self.get_recent_metrics(kernel_id, 1000).await?;
-        
+
         if metrics.is_empty() {
             return Err(anyhow!("No performance data for kernel {}", kernel_id));
         }
@@ -314,30 +332,23 @@ impl GpuPerformanceProfiler {
             .map(|m| m.execution_time_ns as f64 / 1_000_000.0) // Convert to ms
             .collect();
 
-        let throughputs: Vec<f64> = metrics
-            .iter()
-            .map(|m| m.throughput_ops_per_sec)
-            .collect();
+        let throughputs: Vec<f64> = metrics.iter().map(|m| m.throughput_ops_per_sec).collect();
 
-        let gpu_utilizations: Vec<f64> = metrics
-            .iter()
-            .map(|m| m.gpu_utilization_percent)
-            .collect();
+        let gpu_utilizations: Vec<f64> =
+            metrics.iter().map(|m| m.gpu_utilization_percent).collect();
 
         let memory_utilizations: Vec<f64> = metrics
             .iter()
             .map(|m| m.memory_utilization_percent)
             .collect();
 
-        let power_consumptions: Vec<f64> = metrics
-            .iter()
-            .map(|m| m.power_consumption_watts)
-            .collect();
+        let power_consumptions: Vec<f64> =
+            metrics.iter().map(|m| m.power_consumption_watts).collect();
 
         // Calculate percentiles for better insight
         let mut sorted_execution_times = execution_times.clone();
         sorted_execution_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        
+
         let p50_execution_time = sorted_execution_times[sorted_execution_times.len() / 2];
         let p95_execution_time = sorted_execution_times[(sorted_execution_times.len() * 95) / 100];
         let p99_execution_time = sorted_execution_times[(sorted_execution_times.len() * 99) / 100];
@@ -345,17 +356,23 @@ impl GpuPerformanceProfiler {
         Ok(PerformanceStats {
             kernel_id: kernel_id.to_string(),
             sample_count: metrics.len(),
-            avg_execution_time_ms: execution_times.iter().sum::<f64>() / execution_times.len() as f64,
+            avg_execution_time_ms: execution_times.iter().sum::<f64>()
+                / execution_times.len() as f64,
             min_execution_time_ms: execution_times.iter().fold(f64::INFINITY, |a, &b| a.min(b)),
-            max_execution_time_ms: execution_times.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
+            max_execution_time_ms: execution_times
+                .iter()
+                .fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
             p50_execution_time_ms: p50_execution_time,
             p95_execution_time_ms: p95_execution_time,
             p99_execution_time_ms: p99_execution_time,
             avg_throughput: throughputs.iter().sum::<f64>() / throughputs.len() as f64,
             peak_throughput: throughputs.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
-            avg_gpu_utilization: gpu_utilizations.iter().sum::<f64>() / gpu_utilizations.len() as f64,
-            avg_memory_utilization: memory_utilizations.iter().sum::<f64>() / memory_utilizations.len() as f64,
-            avg_power_consumption: power_consumptions.iter().sum::<f64>() / power_consumptions.len() as f64,
+            avg_gpu_utilization: gpu_utilizations.iter().sum::<f64>()
+                / gpu_utilizations.len() as f64,
+            avg_memory_utilization: memory_utilizations.iter().sum::<f64>()
+                / memory_utilizations.len() as f64,
+            avg_power_consumption: power_consumptions.iter().sum::<f64>()
+                / power_consumptions.len() as f64,
             efficiency_score: self.calculate_efficiency_score(&metrics),
         })
     }
@@ -374,10 +391,12 @@ impl GpuPerformanceProfiler {
         // Note: In production, this would initialize NVML for system-level metrics
 
         // Pre-create CUDA events for low-latency profiling
-        for i in 0..16 { // Pre-allocate 16 event pairs
+        for i in 0..16 {
+            // Pre-allocate 16 event pairs
             let start_event = Event::new(EventFlags::DEFAULT)?;
             let stop_event = Event::new(EventFlags::DEFAULT)?;
-            self.gpu_events.insert(format!("pool_{}", i), (start_event, stop_event));
+            self.gpu_events
+                .insert(format!("pool_{}", i), (start_event, stop_event));
         }
 
         Ok(())
@@ -390,15 +409,18 @@ impl GpuPerformanceProfiler {
     }
 
     /// Collect comprehensive GPU metrics using CUDA APIs
-    async fn collect_comprehensive_gpu_metrics(&self, kernel_id: &str) -> Result<ComprehensiveGpuMetrics> {
+    async fn collect_comprehensive_gpu_metrics(
+        &self,
+        kernel_id: &str,
+    ) -> Result<ComprehensiveGpuMetrics> {
         // CudaDevice automatically manages the context in cudarc
-        
+
         // Query device properties for baseline metrics
         #[cfg(feature = "cuda")]
         let device_props = format!("{:?}", self.cuda_context.as_ref());
         #[cfg(not(feature = "cuda"))]
         let device_props = String::from("mock_device_info");
-        
+
         // Simulate comprehensive metrics collection
         // In production, this would use NVML for real system metrics
         let mock_metrics = ComprehensiveGpuMetrics {
@@ -416,23 +438,24 @@ impl GpuPerformanceProfiler {
             global_load_efficiency: self.estimate_memory_efficiency("load").await?,
             global_store_efficiency: self.estimate_memory_efficiency("store").await?,
         };
-        
+
         Ok(mock_metrics)
     }
 
     /// Compute performance trend using ML-based analysis
-    async fn compute_performance_trend_ml(&self, metrics: &[GpuPerformanceMetrics]) -> Result<PerformanceTrend> {
+    async fn compute_performance_trend_ml(
+        &self,
+        metrics: &[GpuPerformanceMetrics],
+    ) -> Result<PerformanceTrend> {
         if metrics.len() < 5 {
             return Err(anyhow!("Insufficient data for ML trend analysis"));
         }
-        
+
         let kernel_id = &metrics[0].kernel_id;
-        
+
         // Extract throughput time series
-        let throughputs: Vec<f64> = metrics.iter()
-            .map(|m| m.throughput_ops_per_sec)
-            .collect();
-        
+        let throughputs: Vec<f64> = metrics.iter().map(|m| m.throughput_ops_per_sec).collect();
+
         // Simple linear regression for trend with SIMD optimization
         let n = throughputs.len() as f64;
         let x_values: Vec<f64> = (0..throughputs.len()).map(|i| i as f64).collect();
@@ -489,16 +512,18 @@ impl GpuPerformanceProfiler {
             sum_xy += x * y;
             sum_x_squared += x * x;
         }
-        
+
         // Calculate slope (trend direction)
         let slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x_squared - sum_x * sum_x);
-        
+
         // Calculate variance for confidence estimation
         let mean_y = sum_y / n;
-        let variance = throughputs.iter()
+        let variance = throughputs
+            .iter()
             .map(|y| (y - mean_y).powi(2))
-            .sum::<f64>() / n;
-        
+            .sum::<f64>()
+            / n;
+
         // Determine trend direction based on slope
         let trend_direction = match slope {
             s if s > 0.1 => TrendDirection::Improving,
@@ -506,31 +531,32 @@ impl GpuPerformanceProfiler {
             _ if variance > mean_y * 0.1 => TrendDirection::Volatile,
             _ => TrendDirection::Stable,
         };
-        
+
         // Calculate confidence based on R-squared
-        let predicted_values: Vec<f64> = x_values.iter()
+        let predicted_values: Vec<f64> = x_values
+            .iter()
             .map(|&x| slope * x + (sum_y - slope * sum_x) / n)
             .collect();
-        
-        let ss_res: f64 = throughputs.iter()
+
+        let ss_res: f64 = throughputs
+            .iter()
             .zip(&predicted_values)
             .map(|(actual, predicted)| (actual - predicted).powi(2))
             .sum();
-        
-        let ss_tot: f64 = throughputs.iter()
-            .map(|y| (y - mean_y).powi(2))
-            .sum();
-        
+
+        let ss_tot: f64 = throughputs.iter().map(|y| (y - mean_y).powi(2)).sum();
+
         let r_squared = 1.0 - (ss_res / ss_tot);
         let confidence = r_squared.max(0.0).min(1.0);
-        
+
         // Predict performance in 5 minutes (300 data points at 1Hz sampling)
         let prediction_x = x_values.len() as f64 + 300.0;
         let predicted_performance = slope * prediction_x + (sum_y - slope * sum_x) / n;
-        
+
         // Determine recommended action
-        let recommended_action = self.determine_optimization_action(&trend_direction, slope, variance, mean_y);
-        
+        let recommended_action =
+            self.determine_optimization_action(&trend_direction, slope, variance, mean_y);
+
         Ok(PerformanceTrend {
             kernel_id: kernel_id.clone(),
             trend_direction,
@@ -547,17 +573,22 @@ impl GpuPerformanceProfiler {
     async fn trigger_optimization_if_needed(&self, trend: &PerformanceTrend) -> Result<()> {
         let should_optimize = match trend.trend_direction {
             TrendDirection::Degrading if trend.confidence > 0.8 => true,
-            TrendDirection::Volatile if trend.variance > trend.predicted_performance_in_5min * 0.2 => true,
+            TrendDirection::Volatile
+                if trend.variance > trend.predicted_performance_in_5min * 0.2 =>
+            {
+                true
+            }
             _ => false,
         };
-        
+
         if should_optimize {
-            self.optimization_sender.send(OptimizationCommand::TuneKernel {
-                kernel_id: trend.kernel_id.clone(),
-                action: trend.recommended_action.clone(),
-            })?;
+            self.optimization_sender
+                .send(OptimizationCommand::TuneKernel {
+                    kernel_id: trend.kernel_id.clone(),
+                    action: trend.recommended_action.clone(),
+                })?;
         }
-        
+
         Ok(())
     }
 
@@ -565,13 +596,13 @@ impl GpuPerformanceProfiler {
     async fn setup_predictive_model(&self, kernel_id: &str) -> Result<()> {
         // In production, this would initialize an ML model for predictive scaling
         // For now, we'll simulate this capability
-        
+
         let recent_metrics = self.get_recent_metrics(kernel_id, 50).await?;
-        
+
         if recent_metrics.len() >= 10 {
             // Analyze patterns for predictive scaling
             let _pattern_analysis = self.analyze_usage_patterns(&recent_metrics);
-            
+
             // Would train/update ML model here
             // For now, just validate we have enough data
             Ok(())
@@ -583,13 +614,13 @@ impl GpuPerformanceProfiler {
     /// Background metrics collection loop
     async fn metrics_collection_loop(&self) {
         let mut interval = interval(Duration::from_millis(self.config.sampling_interval_ms));
-        
+
         while {
             let active = self.profiling_active.lock()?;
             *active
         } {
             interval.tick().await;
-            
+
             // Collect system-wide GPU metrics if detailed profiling is enabled
             if self.config.enable_detailed_profiling {
                 if let Err(e) = self.collect_system_metrics().await {
@@ -610,7 +641,8 @@ impl GpuPerformanceProfiler {
             interval.tick().await;
 
             // Analyze trends for all active kernels
-            let kernel_ids: Vec<String> = self.active_kernels
+            let kernel_ids: Vec<String> = self
+                .active_kernels
                 .iter()
                 .map(|entry| entry.key().clone())
                 .collect();
@@ -626,13 +658,13 @@ impl GpuPerformanceProfiler {
     /// Predictive scaling loop
     async fn predictive_scaling_loop(&self) {
         let mut interval = interval(Duration::from_secs(30));
-        
+
         while {
             let active = self.profiling_active.lock()?;
             *active
         } {
             interval.tick().await;
-            
+
             // Perform predictive analysis and scaling decisions
             if let Err(e) = self.perform_predictive_scaling().await {
                 tracing::warn!("Predictive scaling failed: {}", e);
@@ -641,78 +673,98 @@ impl GpuPerformanceProfiler {
     }
 
     // Helper methods for metrics calculation
-    
+
     async fn calculate_throughput_estimate(&self, _kernel_id: &str) -> Result<f64> {
         // Mock implementation - would use actual GPU performance counters
         Ok(1000.0 + (rand::random::<f64>() - 0.5) * 200.0)
     }
-    
+
     async fn estimate_gpu_utilization(&self) -> Result<f64> {
         // Mock implementation - would query NVML
         Ok(85.0 + (rand::random::<f64>() - 0.5) * 20.0)
     }
-    
+
     fn query_memory_utilization(&self) -> Result<f64> {
         // Mock implementation - would use cudaMemGetInfo
         Ok(75.0 + (rand::random::<f64>() - 0.5) * 15.0)
     }
-    
+
     async fn estimate_power_consumption(&self) -> Result<f64> {
         // Mock implementation - would use NVML power queries
         Ok(250.0 + (rand::random::<f64>() - 0.5) * 50.0)
     }
-    
+
     fn query_gpu_temperature(&self) -> Result<f64> {
         // Mock implementation - would use NVML temperature queries
         Ok(70.0 + (rand::random::<f64>() - 0.5) * 10.0)
     }
-    
+
     async fn estimate_cache_hit_rate(&self) -> Result<f64> {
         // Mock implementation - would use performance counters
         Ok(0.95 + (rand::random::<f64>() - 0.5) * 0.1)
     }
-    
+
     async fn calculate_warp_efficiency(&self) -> Result<f64> {
         // Mock implementation - would use CUDA profiler APIs
         Ok(0.90 + (rand::random::<f64>() - 0.5) * 0.2)
     }
-    
+
     async fn calculate_theoretical_occupancy(&self, _kernel_id: &str) -> Result<f64> {
         // Mock implementation - would use CUDA occupancy calculator
         Ok(85.0 + (rand::random::<f64>() - 0.5) * 15.0)
     }
-    
+
     async fn query_register_usage(&self, _kernel_id: &str) -> Result<u32> {
         // Mock implementation - would extract from compiled kernel
         Ok(32 + (rand::random::<f64>() * 32.0) as u32)
     }
-    
+
     async fn query_shared_memory_usage(&self, _kernel_id: &str) -> Result<usize> {
         // Mock implementation - would extract from compiled kernel
         Ok(4096 + (rand::random::<f64>() * 4096.0) as usize)
     }
-    
+
     async fn estimate_memory_efficiency(&self, _access_type: &str) -> Result<f64> {
         // Mock implementation - would use memory throughput analysis
         Ok(0.88 + (rand::random::<f64>() - 0.5) * 0.2)
     }
-    
+
     fn calculate_efficiency_score(&self, metrics: &[GpuPerformanceMetrics]) -> f64 {
         if metrics.is_empty() {
             return 0.0;
         }
-        
+
         // Composite efficiency score based on multiple factors
-        let avg_gpu_util = metrics.iter().map(|m| m.gpu_utilization_percent).sum::<f64>() / metrics.len() as f64;
-        let avg_memory_util = metrics.iter().map(|m| m.memory_utilization_percent).sum::<f64>() / metrics.len() as f64;
-        let avg_cache_hit = metrics.iter().map(|m| m.cache_hit_rate).sum::<f64>() / metrics.len() as f64;
-        let avg_warp_eff = metrics.iter().map(|m| m.warp_efficiency).sum::<f64>() / metrics.len() as f64;
-        
+        let avg_gpu_util = metrics
+            .iter()
+            .map(|m| m.gpu_utilization_percent)
+            .sum::<f64>()
+            / metrics.len() as f64;
+        let avg_memory_util = metrics
+            .iter()
+            .map(|m| m.memory_utilization_percent)
+            .sum::<f64>()
+            / metrics.len() as f64;
+        let avg_cache_hit =
+            metrics.iter().map(|m| m.cache_hit_rate).sum::<f64>() / metrics.len() as f64;
+        let avg_warp_eff =
+            metrics.iter().map(|m| m.warp_efficiency).sum::<f64>() / metrics.len() as f64;
+
         // Weighted composite score
-        (avg_gpu_util * 0.3 + avg_memory_util * 0.2 + avg_cache_hit * 100.0 * 0.25 + avg_warp_eff * 100.0 * 0.25) / 100.0
+        (avg_gpu_util * 0.3
+            + avg_memory_util * 0.2
+            + avg_cache_hit * 100.0 * 0.25
+            + avg_warp_eff * 100.0 * 0.25)
+            / 100.0
     }
-    
-    fn determine_optimization_action(&self, trend_dir: &TrendDirection, slope: f64, variance: f64, mean_perf: f64) -> OptimizationAction {
+
+    fn determine_optimization_action(
+        &self,
+        trend_dir: &TrendDirection,
+        slope: f64,
+        variance: f64,
+        mean_perf: f64,
+    ) -> OptimizationAction {
         match trend_dir {
             TrendDirection::Degrading => {
                 if slope < -0.5 {
@@ -720,81 +772,93 @@ impl GpuPerformanceProfiler {
                 } else {
                     OptimizationAction::OptimizeMemoryAccess
                 }
-            },
+            }
             TrendDirection::Volatile => {
                 if variance > mean_perf * 0.3 {
                     OptimizationAction::AdjustGridSize
                 } else {
                     OptimizationAction::TuneSharedMemory
                 }
-            },
+            }
             TrendDirection::Stable => OptimizationAction::NoAction,
             TrendDirection::Improving => OptimizationAction::NoAction,
         }
     }
-    
+
     fn detect_seasonality(&self, data: &[f64]) -> bool {
         // Simple seasonality detection using autocorrelation
         if data.len() < 20 {
             return false;
         }
-        
+
         let mean = data.iter().sum::<f64>() / data.len() as f64;
-        let variance: f64 = data.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / data.len() as f64;
-        
+        let variance: f64 =
+            data.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / data.len() as f64;
+
         // Check autocorrelation at various lags
         for lag in 2..10 {
             if lag >= data.len() {
                 break;
             }
-            
+
             let mut correlation = 0.0;
             for i in lag..data.len() {
                 correlation += (data[i] - mean) * (data[i - lag] - mean);
             }
             correlation /= (data.len() - lag) as f64 * variance;
-            
+
             if correlation.abs() > 0.5 {
                 return true; // Strong correlation found
             }
         }
-        
+
         false
     }
-    
+
     fn analyze_usage_patterns(&self, metrics: &[GpuPerformanceMetrics]) -> HashMap<String, f64> {
         let mut patterns = HashMap::new();
-        
+
         if !metrics.is_empty() {
-            let avg_throughput = metrics.iter().map(|m| m.throughput_ops_per_sec).sum::<f64>() / metrics.len() as f64;
-            let peak_throughput = metrics.iter().map(|m| m.throughput_ops_per_sec).fold(0.0_f64, |a, b| a.max(b));
-            
+            let avg_throughput = metrics
+                .iter()
+                .map(|m| m.throughput_ops_per_sec)
+                .sum::<f64>()
+                / metrics.len() as f64;
+            let peak_throughput = metrics
+                .iter()
+                .map(|m| m.throughput_ops_per_sec)
+                .fold(0.0_f64, |a, b| a.max(b));
+
             patterns.insert("avg_throughput".to_string(), avg_throughput);
             patterns.insert("peak_throughput".to_string(), peak_throughput);
-            patterns.insert("throughput_ratio".to_string(), avg_throughput / peak_throughput);
+            patterns.insert(
+                "throughput_ratio".to_string(),
+                avg_throughput / peak_throughput,
+            );
         }
-        
+
         patterns
     }
-    
+
     async fn collect_system_metrics(&self) -> Result<()> {
         // Collect system-wide metrics if detailed profiling is enabled
         // This would include memory usage, temperature, power, etc.
         Ok(())
     }
-    
+
     async fn perform_predictive_scaling(&self) -> Result<()> {
         // Perform predictive scaling analysis and decisions
         for entry in self.performance_trends.iter() {
             let trend = entry.value();
-            if trend.confidence > 0.8 &&
-               matches!(trend.trend_direction, TrendDirection::Improving) &&
-               trend.predicted_performance_in_5min > trend.predicted_performance_in_5min * 1.2 {
-
-                self.optimization_sender.send(OptimizationCommand::PredictiveScale {
-                    kernel_id: trend.kernel_id.clone(),
-                    predicted_load: trend.predicted_performance_in_5min,
-                })?;
+            if trend.confidence > 0.8
+                && matches!(trend.trend_direction, TrendDirection::Improving)
+                && trend.predicted_performance_in_5min > trend.predicted_performance_in_5min * 1.2
+            {
+                self.optimization_sender
+                    .send(OptimizationCommand::PredictiveScale {
+                        kernel_id: trend.kernel_id.clone(),
+                        predicted_load: trend.predicted_performance_in_5min,
+                    })?;
             }
         }
 
@@ -888,29 +952,33 @@ impl AutonomousOptimizer {
     }
 
     /// Apply optimization based on performance feedback with learning
-    pub async fn optimize_kernel(&self, kernel_id: &str, action: OptimizationAction) -> Result<bool> {
+    pub async fn optimize_kernel(
+        &self,
+        kernel_id: &str,
+        action: OptimizationAction,
+    ) -> Result<bool> {
         // Record pre-optimization performance
         let pre_stats = self.profiler.get_performance_stats(kernel_id).await?;
         let pre_perf = pre_stats.avg_throughput;
-        
+
         // Apply the optimization (this would interface with actual optimization systems)
         let success = self.apply_optimization(kernel_id, &action).await?;
-        
+
         // Wait for metrics to stabilize
         sleep(Duration::from_millis(500)).await;
-        
+
         // Record post-optimization performance
         let post_stats = self.profiler.get_performance_stats(kernel_id).await?;
         let post_perf = post_stats.avg_throughput;
-        
+
         let improvement_ratio = if pre_perf > 0.0 {
             (post_perf - pre_perf) / pre_perf
         } else {
             0.0
         };
-        
+
         let optimization_success = success && improvement_ratio > 0.01; // At least 1% improvement
-        
+
         // Record optimization attempt for learning
         let attempt = OptimizationAttempt {
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
@@ -932,7 +1000,8 @@ impl AutonomousOptimizer {
 
     /// Learn from optimization history using success patterns
     pub async fn learn_from_history(&self, kernel_id: &str) -> Result<Vec<OptimizationAction>> {
-        let attempts = self.optimization_history
+        let attempts = self
+            .optimization_history
             .get(kernel_id)
             .map(|r| r.clone())
             .unwrap_or_default();
@@ -942,40 +1011,49 @@ impl AutonomousOptimizer {
         }
 
         // Analyze which optimization actions have been most successful
-        let recommended_actions = self.analyze_optimization_success_patterns(&attempts).await?;
+        let recommended_actions = self
+            .analyze_optimization_success_patterns(&attempts)
+            .await?;
 
         Ok(recommended_actions)
     }
 
     /// Apply optimization action (placeholder for actual implementation)
-    async fn apply_optimization(&self, _kernel_id: &str, action: &OptimizationAction) -> Result<bool> {
+    async fn apply_optimization(
+        &self,
+        _kernel_id: &str,
+        action: &OptimizationAction,
+    ) -> Result<bool> {
         // In production, this would interface with:
         // - Kernel recompilation systems
-        // - Resource allocation systems  
+        // - Resource allocation systems
         // - GPU scheduler configurations
         // - Memory management systems
-        
+
         match action {
             OptimizationAction::IncreaseThreads => {
                 // Would adjust thread block size
                 Ok(true)
-            },
+            }
             OptimizationAction::OptimizeMemoryAccess => {
                 // Would trigger memory access pattern optimization
                 Ok(true)
-            },
+            }
             OptimizationAction::RecompileWithOptimizations => {
                 // Would trigger kernel recompilation with different flags
                 Ok(true)
-            },
+            }
             _ => Ok(false), // Not implemented yet
         }
     }
 
     /// Analyze optimization success patterns for learning
-    async fn analyze_optimization_success_patterns(&self, attempts: &[OptimizationAttempt]) -> Result<Vec<OptimizationAction>> {
+    async fn analyze_optimization_success_patterns(
+        &self,
+        attempts: &[OptimizationAttempt],
+    ) -> Result<Vec<OptimizationAction>> {
         let mut action_success_rates: HashMap<String, (u32, u32)> = HashMap::new();
-        
+
         // Count successes and failures for each action type
         for attempt in attempts {
             let action_key = format!("{:?}", attempt.action);
@@ -985,7 +1063,7 @@ impl AutonomousOptimizer {
                 *successes += 1;
             }
         }
-        
+
         // Recommend actions with success rate above threshold
         let mut recommended = Vec::new();
         for (action_str, (successes, total)) in action_success_rates {
@@ -1001,7 +1079,7 @@ impl AutonomousOptimizer {
                 }
             }
         }
-        
+
         Ok(recommended)
     }
 }
@@ -1032,13 +1110,13 @@ impl PerformanceFeedbackLoop {
         }
 
         self.initialize_feedback_system().await?;
-        
+
         // Start feedback loop
         let feedback_loop = self.clone();
         tokio::spawn(async move {
             feedback_loop.run_feedback_loop().await;
         });
-        
+
         Ok(())
     }
 
@@ -1057,7 +1135,7 @@ impl PerformanceFeedbackLoop {
         if !*self.profiler.profiling_active.lock()? {
             self.profiler.start_profiling().await?;
         }
-        
+
         Ok(())
     }
 
@@ -1072,7 +1150,9 @@ impl PerformanceFeedbackLoop {
             interval.tick().await;
 
             // Get all active kernels
-            let kernel_ids: Vec<String> = self.profiler.active_kernels
+            let kernel_ids: Vec<String> = self
+                .profiler
+                .active_kernels
                 .iter()
                 .map(|entry| entry.key().clone())
                 .collect();
@@ -1090,17 +1170,21 @@ impl PerformanceFeedbackLoop {
     async fn analyze_and_optimize_kernel(&self, kernel_id: &str) -> Result<()> {
         // Get performance statistics
         let stats = self.profiler.get_performance_stats(kernel_id).await?;
-        
+
         // Analyze trends
         let trend = self.profiler.analyze_performance_trends(kernel_id).await?;
-        
+
         // Determine if optimization is needed
         if matches!(trend.trend_direction, TrendDirection::Degrading) && trend.confidence > 0.7 {
             // Try to optimize using learned patterns
-            let recommended_actions = self.optimizer.learn_from_history(kernel_id).await
+            let recommended_actions = self
+                .optimizer
+                .learn_from_history(kernel_id)
+                .await
                 .unwrap_or_else(|_| vec![trend.recommended_action.clone()]);
-            
-            for action in recommended_actions.into_iter().take(1) { // Apply one optimization at a time
+
+            for action in recommended_actions.into_iter().take(1) {
+                // Apply one optimization at a time
                 if let Ok(success) = self.optimizer.optimize_kernel(kernel_id, action).await {
                     if success {
                         tracing::info!("Successfully optimized kernel {}", kernel_id);
@@ -1111,7 +1195,7 @@ impl PerformanceFeedbackLoop {
                 }
             }
         }
-        
+
         Ok(())
     }
 }
@@ -1136,12 +1220,12 @@ mod tests {
     async fn test_profiler_initialization() {
         let (opt_sender, _opt_receiver) = mpsc::unbounded_channel();
         let config = ProfilerConfig::default();
-        
+
         // This might fail in CI environments without CUDA
         match GpuPerformanceProfiler::new(config, opt_sender) {
             Ok(profiler) => {
                 println!("Profiler created successfully");
-                
+
                 // Try to start profiling
                 match profiler.start_profiling().await {
                     Ok(_) => {

@@ -53,6 +53,6 @@ pub mod server;
 
 mod error;
 
-pub use error::{AuthError, Result};
 pub use client::ClientConfigExt;
+pub use error::{AuthError, Result};
 pub use server::ServerConfigExt;

@@ -13,6 +13,8 @@ use std::time::Duration;
 #[ignore] // Requires root and kernel module environment
 fn test_module_load_unload() {
     // Check if we're running as root
+    // SAFETY: libc::getuid() is a simple syscall with no side effects.
+    // It returns the real user ID of the calling process.
     let uid = unsafe { libc::getuid() };
     if uid != 0 {
         eprintln!("Skipping kernel module test - requires root");

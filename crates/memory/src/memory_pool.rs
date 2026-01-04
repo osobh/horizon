@@ -6,13 +6,13 @@
 // Allow Arc<Mutex<T>> where T contains raw pointers - we have explicit unsafe impl Send/Sync
 #![allow(clippy::arc_with_non_send_sync)]
 
+use anyhow::Result;
 use std::collections::{HashMap, VecDeque};
 use std::ptr::NonNull;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use anyhow::Result;
 
-use crate::gpu_memory_tier::{GpuMemoryError, MemoryLocation, AllocationType};
+use crate::gpu_memory_tier::{AllocationType, GpuMemoryError, MemoryLocation};
 
 /// Memory allocation from the pool system
 #[derive(Debug)]
@@ -62,7 +62,7 @@ impl MemoryPool {
         // Pre-allocate the pool memory
         let layout = std::alloc::Layout::from_size_align(total_size as usize, 8)
             .expect("Invalid layout for memory pool");
-        
+
         let pool_ptr = unsafe { std::alloc::alloc(layout) };
         if pool_ptr.is_null() {
             panic!("Failed to allocate memory pool of size {}", total_size);
@@ -108,14 +108,13 @@ impl MemoryPool {
         let block_index = block_index.ok_or(GpuMemoryError::AllocationFailed { size })?;
 
         let mut block = free_blocks.remove(block_index).unwrap();
-        
+
         // If block is larger than needed, split it
         if block.size > size {
             let remaining_size = block.size - size;
-            let remaining_ptr = unsafe {
-                NonNull::new(block.ptr.as_ptr().add(size as usize)).unwrap()
-            };
-            
+            let remaining_ptr =
+                unsafe { NonNull::new(block.ptr.as_ptr().add(size as usize)).unwrap() };
+
             free_blocks.push_back(PoolBlock {
                 ptr: remaining_ptr,
                 size: remaining_size,
@@ -187,9 +186,12 @@ impl MemoryPool {
         let mut i = 0;
         while i < free_blocks.len().saturating_sub(1) {
             let current_end = unsafe {
-                free_blocks[i].ptr.as_ptr().add(free_blocks[i].size as usize)
+                free_blocks[i]
+                    .ptr
+                    .as_ptr()
+                    .add(free_blocks[i].size as usize)
             };
-            
+
             if current_end == free_blocks[i + 1].ptr.as_ptr() {
                 // Coalesce blocks
                 free_blocks[i].size += free_blocks[i + 1].size;
@@ -228,7 +230,7 @@ impl MemoryPool {
 
         let largest_block = free_blocks.iter().max_by_key(|b| b.size).unwrap().size;
         let total_free = self.available_bytes();
-        
+
         if total_free == 0 {
             0.0
         } else {
@@ -375,7 +377,7 @@ impl Drop for MemoryPool {
         // Free the underlying pool memory
         let layout = std::alloc::Layout::from_size_align(self.total_size as usize, 8)
             .expect("Invalid layout for memory pool");
-        
+
         // Get the base pointer from the first block
         let free_blocks = self.free_blocks.lock().unwrap();
         if let Some(first_block) = free_blocks.front() {
@@ -391,7 +393,7 @@ impl Drop for PoolAllocation {
         // Pool allocations should be explicitly returned to the pool
         // This is just a safety net in case they're dropped without being returned
         tracing::warn!(
-            "PoolAllocation from pool '{}' dropped without being returned to pool", 
+            "PoolAllocation from pool '{}' dropped without being returned to pool",
             self.pool_name
         );
     }
@@ -413,7 +415,7 @@ mod tests {
     #[test]
     fn test_pool_allocation() {
         let pool = MemoryPool::new("test_pool".to_string(), 1024);
-        
+
         let alloc = pool.allocate(256).expect("Failed to allocate");
         assert_eq!(alloc.size(), 256);
         assert!(alloc.from_pool());
@@ -424,10 +426,10 @@ mod tests {
     #[test]
     fn test_pool_deallocation() {
         let pool = MemoryPool::new("test_pool".to_string(), 1024);
-        
+
         let alloc = pool.allocate(256).expect("Failed to allocate");
         assert_eq!(pool.used_bytes(), 256);
-        
+
         pool.deallocate(alloc);
         assert_eq!(pool.used_bytes(), 0);
         assert_eq!(pool.available_bytes(), 1024);
@@ -436,15 +438,15 @@ mod tests {
     #[test]
     fn test_pool_fragmentation() {
         let pool = MemoryPool::new("test_pool".to_string(), 1024);
-        
+
         // Allocate several blocks
         let alloc1 = pool.allocate(100).expect("Failed to allocate");
         let alloc2 = pool.allocate(100).expect("Failed to allocate");
         let alloc3 = pool.allocate(100).expect("Failed to allocate");
-        
+
         // Free middle block to create fragmentation
         pool.deallocate(alloc2);
-        
+
         // Check fragmentation
         assert!(pool.fragmentation_percent() > 0.0);
     }
@@ -452,14 +454,14 @@ mod tests {
     #[test]
     fn test_pool_coalescing() {
         let pool = MemoryPool::new("test_pool".to_string(), 1024);
-        
+
         // Allocate and free adjacent blocks
         let alloc1 = pool.allocate(256).expect("Failed to allocate");
         let alloc2 = pool.allocate(256).expect("Failed to allocate");
-        
+
         pool.deallocate(alloc1);
         pool.deallocate(alloc2);
-        
+
         // Should be able to allocate the full size again due to coalescing
         let large_alloc = pool.allocate(512);
         assert!(large_alloc.is_ok());

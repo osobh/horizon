@@ -14,6 +14,9 @@ pub mod evolution;
 // pub mod integration;  // Disabled until cpu-agents and shared-storage crates exist
 pub mod agent_manager;
 pub mod consensus_synthesis;
+pub mod distributed_swarm_tdd;
+#[cfg(test)]
+pub mod distributed_swarm_tdd_tests;
 pub mod ffi;
 pub mod gpu_buffer;
 pub mod gpudirect;
@@ -61,9 +64,6 @@ pub mod test_step3_arc_handling;
 pub mod test_step4_string_concat;
 #[cfg(test)]
 pub mod test_streaming_warnings;
-pub mod distributed_swarm_tdd;
-#[cfg(test)]
-pub mod distributed_swarm_tdd_tests;
 pub mod tests;
 pub mod time_travel;
 pub mod tui;
@@ -245,10 +245,14 @@ impl GpuSwarm {
 
         // Allocate GPU memory for agents (256 bytes per agent)
         let agents_size = agent_count * std::mem::size_of::<GpuAgent>();
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+        // because launch_agent_init below initializes all agent data.
         let gpu_agents = unsafe { self.device.alloc::<u8>(agents_size)? };
 
         // Allocate GPU memory for swarm config
         let config_size = std::mem::size_of::<ffi::SwarmConfig>();
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+        // because htod_copy_into below initializes the entire buffer with config data.
         let mut gpu_config = unsafe { self.device.alloc::<u8>(config_size)? };
 
         // Create host-side swarm config
@@ -262,6 +266,9 @@ impl GpuSwarm {
         };
 
         // Copy config to GPU
+        // SAFETY: SwarmConfig is a repr(C) struct with no padding and all POD fields.
+        // We create a byte slice view of the struct for copying to GPU. The slice
+        // lifetime is tied to swarm_config which outlives the copy operation.
         let config_bytes = unsafe {
             std::slice::from_raw_parts(&swarm_config as *const _ as *const u8, config_size)
         };
@@ -269,6 +276,9 @@ impl GpuSwarm {
             .htod_copy_into(config_bytes.to_vec(), &mut gpu_config)?;
 
         // Initialize agents on GPU
+        // SAFETY: gpu_agents was allocated with exactly agent_count * sizeof(GpuAgent)
+        // bytes. The kernel initializes all agent data, making the previously
+        // uninitialized memory safe to use after this call completes.
         unsafe {
             ffi::launch_agent_init(
                 *gpu_agents.device_ptr() as *mut GpuAgent,
@@ -293,6 +303,10 @@ impl GpuSwarm {
         let start = std::time::Instant::now();
 
         // Launch swarm update kernel
+        // SAFETY: Both gpu_agents and gpu_config are valid device pointers:
+        // - gpu_agents was allocated and initialized in initialize()
+        // - gpu_config was allocated and filled with config data in initialize()
+        // The kernel reads config and updates agent state in-place.
         unsafe {
             ffi::launch_swarm_update(
                 *self.gpu_agents.as_ref()?.device_ptr() as *mut GpuAgent,

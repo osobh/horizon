@@ -556,10 +556,11 @@ mod tests {
         system.register_agent(&agent_id).await?;
 
         // Basic agent should have ReadData permission
-        assert!(system
-            .check_permission(&agent_id, &Permission::ReadData)
-            .await
-            ?);
+        assert!(
+            system
+                .check_permission(&agent_id, &Permission::ReadData)
+                .await?
+        );
 
         // Basic agent should not have WriteData permission
         assert!(!system
@@ -577,8 +578,7 @@ mod tests {
         // Grant WriteData permission
         system
             .grant_permission(&agent_id, Permission::WriteData)
-            .await
-            ?;
+            .await?;
 
         // Check permission
         assert!(system
@@ -596,8 +596,7 @@ mod tests {
         // Grant and then revoke permission
         system
             .grant_permission(&agent_id, Permission::WriteData)
-            .await
-            ?;
+            .await?;
         assert!(system
             .check_permission(&agent_id, &Permission::WriteData)
             .await
@@ -747,10 +746,11 @@ mod tests {
         system.register_agent(&agent_id).await?;
 
         // First check should miss cache
-        assert!(system
-            .check_permission(&agent_id, &Permission::ReadData)
-            .await
-            ?);
+        assert!(
+            system
+                .check_permission(&agent_id, &Permission::ReadData)
+                .await?
+        );
 
         // Second check should hit cache
         assert_eq!(system.permission_cache.len(), 1);
@@ -769,8 +769,7 @@ mod tests {
         // Cache a permission check
         system
             .check_permission(&agent_id, &Permission::WriteData)
-            .await
-            ?;
+            .await?;
         assert_eq!(system.permission_cache.len(), 1);
 
         // Grant the permission
@@ -801,10 +800,11 @@ mod tests {
         system.register_agent(&agent_id).await?;
 
         // Should be able to grant non-admin permissions
-        assert!(system
-            .can_grant_permission(&agent_id, &Permission::WriteData)
-            .await
-            ?);
+        assert!(
+            system
+                .can_grant_permission(&agent_id, &Permission::WriteData)
+                .await?
+        );
 
         // Should not be able to grant admin permissions without admin role
         assert!(!system
@@ -822,8 +822,7 @@ mod tests {
         // Grant additional permission
         system
             .grant_permission(&agent_id, Permission::WriteData)
-            .await
-            ?;
+            .await?;
 
         let permissions = system.get_agent_permissions(&agent_id).await?;
 
@@ -903,8 +902,7 @@ mod tests {
         // Grant a permission that's already in the role
         system
             .grant_permission(&agent_id, Permission::ReadData)
-            .await
-            ?;
+            .await?;
 
         let permissions = system.get_agent_permissions(&agent_id).await?;
 

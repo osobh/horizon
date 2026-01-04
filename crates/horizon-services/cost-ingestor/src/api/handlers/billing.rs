@@ -104,11 +104,12 @@ pub async fn get_billing_record(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<BillingRecord>> {
-    let record = state
-        .repository
-        .find_by_id(id)
-        .await?
-        .ok_or_else(|| HpcError::not_found("billing_record", format!("Billing record not found: {}", id)))?;
+    let record = state.repository.find_by_id(id).await?.ok_or_else(|| {
+        HpcError::not_found(
+            "billing_record",
+            format!("Billing record not found: {}", id),
+        )
+    })?;
 
     Ok(Json(record))
 }
@@ -162,7 +163,10 @@ pub async fn delete_billing_record(
         });
         Ok(StatusCode::NO_CONTENT)
     } else {
-        Err(HpcError::not_found("billing_record", format!("Billing record not found: {}", id)))
+        Err(HpcError::not_found(
+            "billing_record",
+            format!("Billing record not found: {}", id),
+        ))
     }
 }
 
@@ -171,8 +175,8 @@ mod tests {
     use super::*;
     use crate::db::BillingRepository;
     use crate::normalize::NormalizedBillingSchema;
-    use rust_decimal_macros::dec;
     use chrono::Utc;
+    use rust_decimal_macros::dec;
 
     #[test]
     fn test_ingest_request_serialization() {

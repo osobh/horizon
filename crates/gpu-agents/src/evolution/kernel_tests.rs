@@ -29,6 +29,8 @@ fn test_adas_evaluation_kernel_launch() -> Result<()> {
     let metrics = device.alloc_zeros::<f32>(population_size * 4)?; // 4 metrics per agent
 
     // Launch evaluation kernel
+    // SAFETY: All pointers are valid device pointers from alloc_zeros calls that
+    // remain valid for this scope. population_size and code_size match allocations.
     unsafe {
         prepare_adas_evaluation(
             agents_data.as_ptr() as *const std::ffi::c_void,
@@ -69,6 +71,8 @@ fn test_adas_mutation_kernel_launch() -> Result<()> {
     let performances = device.alloc_zeros::<f32>(population_size)?;
 
     // Launch mutation kernel
+    // SAFETY: agents_gpu and performances are valid device pointers from htod_sync_copy
+    // and alloc_zeros. Sizes match the allocation parameters.
     unsafe {
         launch_adas_mutation(
             agents_gpu.as_mut_ptr() as *mut std::ffi::c_void,
@@ -117,6 +121,8 @@ fn test_adas_crossover_kernel_launch() -> Result<()> {
     let parent_indices = device.htod_sync_copy(&(0..population_size as u32).collect::<Vec<_>>())?;
 
     // Launch crossover kernel
+    // SAFETY: All device pointers are valid from htod_sync_copy and alloc_zeros.
+    // parent_indices contains valid indices within [0, population_size).
     unsafe {
         launch_adas_crossover(
             parents_gpu.as_ptr() as *const std::ffi::c_void,
@@ -173,6 +179,8 @@ fn test_adas_diversity_kernel_launch() -> Result<()> {
     let mut diversity_scores = device.alloc_zeros::<f32>(1)?;
 
     // Launch diversity kernel
+    // SAFETY: agents_gpu is valid from htod_sync_copy, diversity_scores from alloc_zeros.
+    // Sizes match the allocation parameters.
     unsafe {
         launch_adas_diversity(
             agents_gpu.as_ptr() as *const std::ffi::c_void,
@@ -215,6 +223,8 @@ fn test_dgm_self_modification_kernel_launch() -> Result<()> {
     let modification_rate = 0.2;
 
     // Launch self-modification kernel
+    // SAFETY: agents_gpu and history_gpu are valid from htod_sync_copy.
+    // history_size matches the length of performance_history.
     unsafe {
         launch_dgm_self_modification(
             agents_gpu.as_mut_ptr() as *mut std::ffi::c_void,
@@ -256,6 +266,8 @@ fn test_dgm_benchmark_kernel_launch() -> Result<()> {
     let mut benchmark_scores = device.alloc_zeros::<f32>(population_size)?;
 
     // Launch benchmark kernel
+    // SAFETY: agents_gpu is valid from htod_sync_copy, benchmark_scores from alloc_zeros.
+    // Output buffer has space for population_size scores.
     unsafe {
         launch_dgm_benchmark(
             agents_gpu.as_ptr() as *const std::ffi::c_void,
@@ -302,6 +314,8 @@ fn test_dgm_archive_update_kernel_launch() -> Result<()> {
     let mut archive_scores = device.alloc_zeros::<f32>(archive_size)?;
 
     // Launch archive update kernel
+    // SAFETY: All device pointers are valid from htod_sync_copy and alloc_zeros.
+    // archive_size < population_size, archive buffers sized for archive_size entries.
     unsafe {
         launch_dgm_archive_update(
             agents_gpu.as_ptr() as *const std::ffi::c_void,
@@ -358,6 +372,8 @@ fn test_pso_velocity_update_kernel_launch() -> Result<()> {
     let global_best_gpu = device.htod_sync_copy(&global_best)?;
 
     // Launch velocity update kernel
+    // SAFETY: All device pointers from htod_sync_copy are valid. Buffer sizes match
+    // num_particles * dimensions for positions/velocities/personal_bests, dimensions for global_best.
     unsafe {
         launch_pso_velocity_update(
             positions_gpu.as_ptr() as *const f32,
@@ -404,6 +420,8 @@ fn test_pso_position_update_kernel_launch() -> Result<()> {
     let velocities_gpu = device.htod_sync_copy(&velocities)?;
 
     // Launch position update kernel
+    // SAFETY: positions_gpu and velocities_gpu are valid from htod_sync_copy.
+    // Both buffers have num_particles * dimensions elements.
     unsafe {
         launch_pso_position_update(
             positions_gpu.as_mut_ptr() as *mut f32,
@@ -454,6 +472,8 @@ fn test_swarm_fitness_kernel_launch() -> Result<()> {
     let mut fitness_gpu = device.alloc_zeros::<f32>(num_particles)?;
 
     // Launch fitness evaluation kernel
+    // SAFETY: positions_gpu valid from htod_sync_copy with num_particles*dimensions elements.
+    // fitness_gpu valid from alloc_zeros with num_particles elements.
     unsafe {
         launch_swarm_fitness(
             positions_gpu.as_ptr() as *const f32,
@@ -511,6 +531,8 @@ fn test_swarm_communication_kernel_launch() -> Result<()> {
     let neighbors_gpu = device.htod_sync_copy(&neighbors)?;
 
     // Launch communication kernel
+    // SAFETY: All device pointers from htod_sync_copy are valid. neighbors contains
+    // valid particle indices within [0, num_particles). Buffer sizes match parameters.
     unsafe {
         launch_swarm_communication(
             positions_gpu.as_ptr() as *const f32,
@@ -562,6 +584,8 @@ fn test_kernel_performance_scaling() -> Result<()> {
 
         // Time evaluation kernel
         let eval_start = std::time::Instant::now();
+        // SAFETY: Device pointers from alloc_zeros are valid for this scope.
+        // pop_size and code_size match allocation sizes.
         unsafe {
             prepare_adas_evaluation(
                 agents.as_ptr() as *const std::ffi::c_void,
@@ -576,6 +600,8 @@ fn test_kernel_performance_scaling() -> Result<()> {
 
         // Time mutation kernel
         let mut_start = std::time::Instant::now();
+        // SAFETY: agents and performances are valid device pointers from alloc_zeros.
+        // pop_size and code_size match allocation sizes.
         unsafe {
             launch_adas_mutation(
                 agents.as_mut_ptr() as *mut std::ffi::c_void,

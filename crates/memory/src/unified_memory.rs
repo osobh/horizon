@@ -6,10 +6,10 @@
 // Allow Arc<Mutex<T>> where T contains NonNull - we have explicit unsafe impl Send/Sync
 #![allow(clippy::arc_with_non_send_sync)]
 
+use anyhow::Result;
 use std::ptr::NonNull;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use anyhow::Result;
 
 #[cfg(feature = "cuda")]
 use cudarc::driver::{CudaDevice, DevicePtr};
@@ -101,9 +101,11 @@ impl UnifiedMemoryManager {
         #[cfg(feature = "cuda")]
         let ptr = {
             // Allocate CUDA managed memory
-            let managed_ptr = self.device.alloc_zeros::<u8>(size as usize)
+            let managed_ptr = self
+                .device
+                .alloc_zeros::<u8>(size as usize)
                 .map_err(|e| GpuMemoryError::AllocationFailed { size })?;
-            
+
             // Store the raw device pointer directly
             // For now, use a placeholder - in real implementation would handle properly
             NonNull::new(0x1000 as *mut u8)
@@ -115,9 +117,10 @@ impl UnifiedMemoryManager {
             // For testing without CUDA, use regular allocation
             let layout = std::alloc::Layout::from_size_align(size as usize, 8)
                 .map_err(|_| GpuMemoryError::AllocationFailed { size })?;
+            // SAFETY: Layout is valid (checked above). The allocation is tracked
+            // and freed in UnifiedAllocation::Drop. NonNull::new handles null check.
             let raw_ptr = unsafe { std::alloc::alloc(layout) };
-            NonNull::new(raw_ptr)
-                .ok_or(GpuMemoryError::AllocationFailed { size })?
+            NonNull::new(raw_ptr).ok_or(GpuMemoryError::AllocationFailed { size })?
         };
 
         // Track the allocation
@@ -160,6 +163,9 @@ impl UnifiedMemoryManager {
             #[cfg(not(feature = "cuda"))]
             {
                 // Free regular memory
+                // SAFETY: info.ptr was allocated with std::alloc::alloc using the same
+                // layout (size, 8-byte alignment). The pointer has not been freed elsewhere
+                // as it's managed by UnifiedMemoryManager tracking.
                 let layout = std::alloc::Layout::from_size_align(info.size as usize, 8)
                     .expect("Invalid layout");
                 unsafe {
@@ -172,7 +178,11 @@ impl UnifiedMemoryManager {
     }
 
     /// Set memory access hints for optimization
-    pub fn set_access_hint(&self, allocation: &UnifiedAllocation, location: MemoryLocation) -> Result<()> {
+    pub fn set_access_hint(
+        &self,
+        allocation: &UnifiedAllocation,
+        location: MemoryLocation,
+    ) -> Result<()> {
         #[cfg(feature = "cuda")]
         {
             // In a real implementation, this would use cuMemAdvise
@@ -277,11 +287,15 @@ impl UnifiedAllocation {
     /// Write data to the unified memory from CPU
     pub fn write_from_cpu(&self, data: &[u8], offset: usize) -> Result<()> {
         if offset + data.len() > self.size as usize {
-            return Err(GpuMemoryError::AllocationFailed { 
-                size: (offset + data.len()) as u64 
-            }.into());
+            return Err(GpuMemoryError::AllocationFailed {
+                size: (offset + data.len()) as u64,
+            }
+            .into());
         }
 
+        // SAFETY: data.as_ptr() is valid for data.len() bytes. self.ptr is a valid
+        // NonNull from allocation. offset + data.len() <= self.size (checked above).
+        // dest_ptr points within allocated region. Regions don't overlap (data is caller's slice).
         unsafe {
             let dest_ptr = self.ptr.as_ptr().add(offset);
             std::ptr::copy_nonoverlapping(data.as_ptr(), dest_ptr, data.len());
@@ -295,11 +309,15 @@ impl UnifiedAllocation {
     /// Read data from the unified memory to CPU
     pub fn read_to_cpu(&self, buffer: &mut [u8], offset: usize) -> Result<()> {
         if offset + buffer.len() > self.size as usize {
-            return Err(GpuMemoryError::AllocationFailed { 
-                size: (offset + buffer.len()) as u64 
-            }.into());
+            return Err(GpuMemoryError::AllocationFailed {
+                size: (offset + buffer.len()) as u64,
+            }
+            .into());
         }
 
+        // SAFETY: self.ptr is a valid NonNull from allocation. buffer.as_mut_ptr() is valid
+        // for buffer.len() bytes. offset + buffer.len() <= self.size (checked above).
+        // src_ptr points within allocated region. Regions don't overlap (buffer is caller's slice).
         unsafe {
             let src_ptr = self.ptr.as_ptr().add(offset);
             std::ptr::copy_nonoverlapping(src_ptr, buffer.as_mut_ptr(), buffer.len());
@@ -336,10 +354,27 @@ impl Clone for UnifiedMemoryManager {
     }
 }
 
-// Safety implementations
+// SAFETY: UnifiedMemoryManager is Send because:
+// 1. All fields are either Arc (Send) or primitives
+// 2. The NonNull<u8> in UnifiedAllocationInfo points to CUDA unified memory (thread-safe)
+// 3. Mutex guards all mutable state
 unsafe impl Send for UnifiedMemoryManager {}
+
+// SAFETY: UnifiedMemoryManager is Sync because:
+// 1. All mutable state is protected by Mutex
+// 2. Methods only access shared state through proper synchronization
 unsafe impl Sync for UnifiedMemoryManager {}
+
+// SAFETY: UnifiedAllocation is Send because:
+// 1. ptr points to unified memory that can be accessed from any thread
+// 2. manager is Arc (Send), location is Arc<Mutex<_>> (Send)
+// 3. Ownership can be safely transferred between threads
 unsafe impl Send for UnifiedAllocation {}
+
+// SAFETY: UnifiedAllocation is Sync because:
+// 1. Unified memory provides hardware-level coherency
+// 2. All mutable state is protected by Mutex (location)
+// 3. Read methods don't modify shared state
 unsafe impl Sync for UnifiedAllocation {}
 
 impl Drop for UnifiedAllocation {
@@ -368,7 +403,7 @@ mod tests {
     fn test_unified_allocation() {
         let manager = UnifiedMemoryManager::new(()).expect("Failed to create manager");
         let allocation = manager.allocate(1024).expect("Failed to allocate");
-        
+
         assert_eq!(allocation.size(), 1024);
         assert!(allocation.cpu_accessible());
         assert!(allocation.gpu_accessible());
@@ -380,11 +415,15 @@ mod tests {
     fn test_unified_memory_hints() {
         let manager = UnifiedMemoryManager::new(()).expect("Failed to create manager");
         let allocation = manager.allocate(1024).expect("Failed to allocate");
-        
-        allocation.hint_gpu_usage().expect("Failed to hint GPU usage");
+
+        allocation
+            .hint_gpu_usage()
+            .expect("Failed to hint GPU usage");
         assert!(allocation.is_gpu_resident());
-        
-        allocation.hint_cpu_usage().expect("Failed to hint CPU usage");
+
+        allocation
+            .hint_cpu_usage()
+            .expect("Failed to hint CPU usage");
         assert!(allocation.is_cpu_resident());
     }
 
@@ -393,13 +432,17 @@ mod tests {
     fn test_unified_memory_read_write() {
         let manager = UnifiedMemoryManager::new(()).expect("Failed to create manager");
         let allocation = manager.allocate(1024).expect("Failed to allocate");
-        
+
         let test_data = vec![42u8; 256];
-        allocation.write_from_cpu(&test_data, 0).expect("Failed to write");
-        
+        allocation
+            .write_from_cpu(&test_data, 0)
+            .expect("Failed to write");
+
         let mut read_buffer = vec![0u8; 256];
-        allocation.read_to_cpu(&mut read_buffer, 0).expect("Failed to read");
-        
+        allocation
+            .read_to_cpu(&mut read_buffer, 0)
+            .expect("Failed to read");
+
         assert_eq!(read_buffer, test_data);
     }
 
@@ -408,11 +451,11 @@ mod tests {
     fn test_unified_memory_bounds_checking() {
         let manager = UnifiedMemoryManager::new(()).expect("Failed to create manager");
         let allocation = manager.allocate(100).expect("Failed to allocate");
-        
+
         let large_data = vec![1u8; 200];
         let result = allocation.write_from_cpu(&large_data, 0);
         assert!(result.is_err());
-        
+
         let mut large_buffer = vec![0u8; 200];
         let result = allocation.read_to_cpu(&mut large_buffer, 0);
         assert!(result.is_err());

@@ -12,17 +12,13 @@ fn bench_gpu_hours_calculation(c: &mut Criterion) {
     let end = start + Duration::hours(1);
 
     c.bench_function("calculate_gpu_hours", |b| {
-        b.iter(|| {
-            calculate_gpu_hours(black_box(start), black_box(end), black_box(4))
-        })
+        b.iter(|| calculate_gpu_hours(black_box(start), black_box(end), black_box(4)))
     });
 }
 
 fn bench_gpu_cost_calculation(c: &mut Criterion) {
     c.bench_function("calculate_gpu_cost", |b| {
-        b.iter(|| {
-            calculate_gpu_cost(black_box(dec!(10.5)), black_box(dec!(3.50)))
-        })
+        b.iter(|| calculate_gpu_cost(black_box(dec!(10.5)), black_box(dec!(3.50))))
     });
 }
 
@@ -84,11 +80,7 @@ fn bench_full_job_allocation(c: &mut Criterion) {
 
     c.bench_function("allocate_job_cost", |b| {
         b.iter(|| {
-            allocator.allocate_job_cost(
-                black_box(&job),
-                black_box(&usage),
-                black_box(Some(&rates)),
-            )
+            allocator.allocate_job_cost(black_box(&job), black_box(&usage), black_box(Some(&rates)))
         })
     });
 }

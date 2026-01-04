@@ -88,10 +88,14 @@ impl LocalAgentManager {
         let total_memory = config.max_agents * config.memory_per_agent;
 
         // Allocate GPU memory for agents
+        // SAFETY: alloc returns uninitialized memory. Agent memory will be initialized
+        // when agents are spawned via run_agent_computation().
         let gpu_memory = unsafe { device.alloc::<u8>(total_memory) }
             .context("Failed to allocate GPU memory for agents")?;
 
         // Allocate communication buffer
+        // SAFETY: alloc returns uninitialized memory. Communication buffer will be
+        // written when messages are sent between agents.
         let comm_buffer = unsafe { device.alloc::<u8>(config.comm_buffer_size) }
             .context("Failed to allocate communication buffer")?;
 
@@ -279,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn test_agent_manager_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_agent_manager_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let config = AgentConfig::default();
         let manager = LocalAgentManager::new(Arc::new(device), config);

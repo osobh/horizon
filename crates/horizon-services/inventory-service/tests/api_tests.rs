@@ -115,7 +115,12 @@ async fn test_get_asset() {
         .await
         .unwrap();
 
-    let body = create_response.into_body().collect().await.unwrap().to_bytes();
+    let body = create_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
     let created_asset: Asset = serde_json::from_slice(&body).unwrap();
 
     let get_response = app
@@ -180,7 +185,12 @@ async fn test_list_assets() {
         .unwrap();
 
     let status = list_response.status();
-    let body = list_response.into_body().collect().await.unwrap().to_bytes();
+    let body = list_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
 
     if status != StatusCode::OK {
         let error_text = String::from_utf8_lossy(&body);
@@ -253,11 +263,19 @@ async fn test_list_assets_with_filters() {
         .await
         .unwrap();
 
-    let body = list_response.into_body().collect().await.unwrap().to_bytes();
+    let body = list_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
     let list_response: ListAssetsResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(list_response.data.len(), 1);
-    assert!(list_response.data.iter().all(|a| a.asset_type == AssetType::Gpu));
+    assert!(list_response
+        .data
+        .iter()
+        .all(|a| a.asset_type == AssetType::Gpu));
 
     clean_database(&pool).await;
 }
@@ -288,7 +306,12 @@ async fn test_update_asset() {
         .await
         .unwrap();
 
-    let body = create_response.into_body().collect().await.unwrap().to_bytes();
+    let body = create_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
     let created_asset: Asset = serde_json::from_slice(&body).unwrap();
 
     let update_payload = json!({
@@ -312,7 +335,12 @@ async fn test_update_asset() {
         .unwrap();
 
     let status = update_response.status();
-    let body = update_response.into_body().collect().await.unwrap().to_bytes();
+    let body = update_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
 
     if status != StatusCode::OK {
         let error_text = String::from_utf8_lossy(&body);
@@ -352,7 +380,12 @@ async fn test_decommission_asset() {
         .await
         .unwrap();
 
-    let body = create_response.into_body().collect().await.unwrap().to_bytes();
+    let body = create_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
     let created_asset: Asset = serde_json::from_slice(&body).unwrap();
 
     let delete_response = app
@@ -369,7 +402,12 @@ async fn test_decommission_asset() {
 
     let status = delete_response.status();
     if status != StatusCode::NO_CONTENT {
-        let body = delete_response.into_body().collect().await.unwrap().to_bytes();
+        let body = delete_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
         let error_text = String::from_utf8_lossy(&body);
         eprintln!("Error response: {}", error_text);
         panic!("Expected NO_CONTENT (204), got {}", status);
@@ -514,7 +552,12 @@ async fn test_pagination() {
         .await
         .unwrap();
 
-    let body = page1_response.into_body().collect().await.unwrap().to_bytes();
+    let body = page1_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
     let page1: ListAssetsResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(page1.data.len(), 10);
@@ -533,7 +576,12 @@ async fn test_pagination() {
         .await
         .unwrap();
 
-    let body = page2_response.into_body().collect().await.unwrap().to_bytes();
+    let body = page2_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
     let page2: ListAssetsResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(page2.data.len(), 10);

@@ -39,11 +39,7 @@ pub async fn export_csv(
         .export(&attributions)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok((
-        [(header::CONTENT_TYPE, "text/csv")],
-        csv_data,
-    )
-        .into_response())
+    Ok(([(header::CONTENT_TYPE, "text/csv")], csv_data).into_response())
 }
 
 pub async fn export_json(
@@ -67,11 +63,7 @@ pub async fn export_json(
         .export(&attributions)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok((
-        [(header::CONTENT_TYPE, "application/json")],
-        json_data,
-    )
-        .into_response())
+    Ok(([(header::CONTENT_TYPE, "application/json")], json_data).into_response())
 }
 
 pub async fn export_markdown(
@@ -95,9 +87,5 @@ pub async fn export_markdown(
         .export(&attributions)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok((
-        [(header::CONTENT_TYPE, "text/markdown")],
-        markdown_data,
-    )
-        .into_response())
+    Ok(([(header::CONTENT_TYPE, "text/markdown")], markdown_data).into_response())
 }

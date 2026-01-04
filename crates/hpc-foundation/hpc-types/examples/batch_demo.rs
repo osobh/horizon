@@ -3,9 +3,9 @@
 //! This example demonstrates creating and serializing large batches
 //! of metrics, simulating a multi-GPU host reporting telemetry.
 
-use prost::Message;
 use hpc_types::create_timestamp;
 use hpc_types::telemetry_helpers::{GpuMetricBuilder, MetricBatchBuilder};
+use prost::Message;
 
 fn main() {
     println!("=== Large Batch Creation Demo ===\n");

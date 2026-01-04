@@ -19,11 +19,7 @@ pub struct InfluxDbConfig {
 
 impl InfluxDbConfig {
     /// Create a new configuration
-    pub fn new(
-        url: impl Into<String>,
-        org: impl Into<String>,
-        bucket: impl Into<String>,
-    ) -> Self {
+    pub fn new(url: impl Into<String>, org: impl Into<String>, bucket: impl Into<String>) -> Self {
         Self {
             url: url.into(),
             org: org.into(),
@@ -147,7 +143,9 @@ impl InfluxDbClient {
         line.push_str(&format!("value={}", point.value));
 
         // Add timestamp (nanoseconds)
-        let timestamp_nanos = point.timestamp.timestamp_nanos_opt()
+        let timestamp_nanos = point
+            .timestamp
+            .timestamp_nanos_opt()
             .unwrap_or(point.timestamp.timestamp() * 1_000_000_000);
         line.push(' ');
         line.push_str(&timestamp_nanos.to_string());
@@ -302,7 +300,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_check_invalid_url() {
-        let config = InfluxDbConfig::new("http://invalid-url-12345:8086", "test-org", "test-bucket");
+        let config =
+            InfluxDbConfig::new("http://invalid-url-12345:8086", "test-org", "test-bucket");
         let client = InfluxDbClient::new(config).unwrap();
 
         let result = client.health().await;
@@ -311,7 +310,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_invalid_url() {
-        let config = InfluxDbConfig::new("http://invalid-url-12345:8086", "test-org", "test-bucket");
+        let config =
+            InfluxDbConfig::new("http://invalid-url-12345:8086", "test-org", "test-bucket");
         let client = InfluxDbClient::new(config).unwrap();
 
         let result = client.query("from(bucket: \"test\")").await;
@@ -402,7 +402,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_points_invalid_url() {
-        let config = InfluxDbConfig::new("http://invalid-url-12345:8086", "test-org", "test-bucket");
+        let config =
+            InfluxDbConfig::new("http://invalid-url-12345:8086", "test-org", "test-bucket");
         let client = InfluxDbClient::new(config).unwrap();
 
         let timestamp = DateTime::parse_from_rfc3339("2025-01-15T10:00:00Z")

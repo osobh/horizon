@@ -70,6 +70,14 @@ pub enum CostOptimizationError {
         #[from]
         source: serde_json::Error,
     },
+
+    /// Budget not found
+    #[error("Budget not found: {budget_id}")]
+    BudgetNotFound { budget_id: String },
+
+    /// Internal error
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 /// Cost optimization result type

@@ -1,9 +1,5 @@
 use crate::error::{Result, VaultError};
-use argon2::{
-    password_hash::PasswordHasher,
-    password_hash::SaltString,
-    Argon2,
-};
+use argon2::{password_hash::PasswordHasher, password_hash::SaltString, Argon2};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rand::rngs::OsRng;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -72,8 +68,8 @@ impl MasterKey {
     /// Expects `VAULT_MASTER_KEY` environment variable containing
     /// a base64-encoded 32-byte key.
     pub fn from_env() -> Result<Self> {
-        let key_base64 = std::env::var("VAULT_MASTER_KEY")
-            .map_err(|_| VaultError::InvalidMasterKeyFormat)?;
+        let key_base64 =
+            std::env::var("VAULT_MASTER_KEY").map_err(|_| VaultError::InvalidMasterKeyFormat)?;
 
         Self::from_base64(&key_base64)
     }
@@ -182,7 +178,10 @@ mod tests {
         let result = MasterKey::from_passphrase("test-password", salt);
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VaultError::KeyDerivationFailed(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            VaultError::KeyDerivationFailed(_)
+        ));
     }
 
     #[test]
@@ -203,7 +202,10 @@ mod tests {
         let result = MasterKey::from_base64(&encoded);
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VaultError::InvalidKeyLength { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            VaultError::InvalidKeyLength { .. }
+        ));
     }
 
     #[test]
@@ -228,7 +230,10 @@ mod tests {
         let result = MasterKey::from_bytes(&bytes);
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VaultError::InvalidKeyLength { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            VaultError::InvalidKeyLength { .. }
+        ));
     }
 
     #[test]

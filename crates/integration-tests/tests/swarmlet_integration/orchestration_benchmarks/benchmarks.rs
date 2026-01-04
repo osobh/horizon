@@ -40,21 +40,25 @@ impl WorkloadOrchestrationBenchmarks {
     }
 
     /// Run orchestration benchmark
-    pub async fn run_benchmark(&self, name: &str, concurrent_level: u32) -> OrchestrationBenchmarkResult {
+    pub async fn run_benchmark(
+        &self,
+        name: &str,
+        concurrent_level: u32,
+    ) -> OrchestrationBenchmarkResult {
         let start = Instant::now();
-        
+
         // Simulate workload orchestration
         let actual_metrics = self.execute_workloads(concurrent_level).await;
-        
+
         // Analyze bottlenecks
         let bottleneck_analysis = self.analyze_bottlenecks(&actual_metrics).await;
-        
+
         // Calculate efficiency score
         let efficiency_score = self.calculate_efficiency(&actual_metrics);
-        
+
         // Check if targets are met
         let success = self.check_targets_met(&actual_metrics);
-        
+
         let result = OrchestrationBenchmarkResult {
             benchmark_id: self.benchmark_id,
             benchmark_name: name.to_string(),
@@ -68,10 +72,10 @@ impl WorkloadOrchestrationBenchmarks {
             bottleneck_analysis,
             timestamp: chrono::Utc::now(),
         };
-        
+
         // Store result
         self.results.write().await.push(result.clone());
-        
+
         result
     }
 
@@ -79,7 +83,7 @@ impl WorkloadOrchestrationBenchmarks {
     async fn execute_workloads(&self, concurrent_level: u32) -> OrchestrationActuals {
         // Simplified simulation
         let total_workloads = self.workloads.len() as u32;
-        
+
         OrchestrationActuals {
             avg_startup_time_ms: 250,
             peak_concurrent_workloads: concurrent_level.min(total_workloads),
@@ -95,7 +99,7 @@ impl WorkloadOrchestrationBenchmarks {
     /// Analyze performance bottlenecks
     async fn analyze_bottlenecks(&self, metrics: &OrchestrationActuals) -> Vec<BottleneckReport> {
         let mut reports = Vec::new();
-        
+
         // Check for startup bottleneck
         if metrics.avg_startup_time_ms > self.targets.max_startup_time_ms {
             reports.push(BottleneckReport {
@@ -103,17 +107,15 @@ impl WorkloadOrchestrationBenchmarks {
                 severity: BottleneckSeverity::Major,
                 impact_percent: 30.0,
                 description: "Container startup time exceeds target".to_string(),
-                suggested_optimizations: vec![
-                    OptimizationOpportunity {
-                        optimization_type: OptimizationType::ContainerCaching,
-                        expected_improvement_percent: 40.0,
-                        complexity: ComplexityLevel::Simple,
-                        impact: ImpactLevel::High,
-                    },
-                ],
+                suggested_optimizations: vec![OptimizationOpportunity {
+                    optimization_type: OptimizationType::ContainerCaching,
+                    expected_improvement_percent: 40.0,
+                    complexity: ComplexityLevel::Simple,
+                    impact: ImpactLevel::High,
+                }],
             });
         }
-        
+
         // Check for resource utilization
         if metrics.resource_utilization_percent < self.targets.min_resource_utilization_percent {
             reports.push(BottleneckReport {
@@ -121,42 +123,42 @@ impl WorkloadOrchestrationBenchmarks {
                 severity: BottleneckSeverity::Moderate,
                 impact_percent: 20.0,
                 description: "Resource utilization below target".to_string(),
-                suggested_optimizations: vec![
-                    OptimizationOpportunity {
-                        optimization_type: OptimizationType::BatchScheduling,
-                        expected_improvement_percent: 25.0,
-                        complexity: ComplexityLevel::Moderate,
-                        impact: ImpactLevel::Medium,
-                    },
-                ],
+                suggested_optimizations: vec![OptimizationOpportunity {
+                    optimization_type: OptimizationType::BatchScheduling,
+                    expected_improvement_percent: 25.0,
+                    complexity: ComplexityLevel::Moderate,
+                    impact: ImpactLevel::Medium,
+                }],
             });
         }
-        
+
         reports
     }
 
     /// Calculate efficiency score
     fn calculate_efficiency(&self, metrics: &OrchestrationActuals) -> f64 {
         let mut score = 100.0;
-        
+
         // Penalize for exceeding startup time
         if metrics.avg_startup_time_ms > self.targets.max_startup_time_ms {
             let excess = (metrics.avg_startup_time_ms - self.targets.max_startup_time_ms) as f64;
             score -= excess / self.targets.max_startup_time_ms as f64 * 20.0;
         }
-        
+
         // Penalize for low throughput
         if metrics.achieved_throughput < self.targets.min_throughput_workloads_per_sec {
-            let deficit = self.targets.min_throughput_workloads_per_sec - metrics.achieved_throughput;
+            let deficit =
+                self.targets.min_throughput_workloads_per_sec - metrics.achieved_throughput;
             score -= deficit / self.targets.min_throughput_workloads_per_sec * 30.0;
         }
-        
+
         // Penalize for low resource utilization
         if metrics.resource_utilization_percent < self.targets.min_resource_utilization_percent {
-            let deficit = self.targets.min_resource_utilization_percent - metrics.resource_utilization_percent;
+            let deficit = self.targets.min_resource_utilization_percent
+                - metrics.resource_utilization_percent;
             score -= deficit as f64 * 0.5;
         }
-        
+
         score.max(0.0).min(100.0)
     }
 

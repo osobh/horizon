@@ -117,7 +117,11 @@ impl RecoveryManager {
         // Update recovery event
         let last_event = match self.recovery_history.last_mut() {
             Some(event) => event,
-            None => return Err(EvolutionEngineError::Other("No recovery event found".to_string())),
+            None => {
+                return Err(EvolutionEngineError::Other(
+                    "No recovery event found".to_string(),
+                ))
+            }
         };
         last_event.recovery_completion_time = Some(
             std::time::SystemTime::now()

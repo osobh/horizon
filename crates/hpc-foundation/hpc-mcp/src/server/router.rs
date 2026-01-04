@@ -28,11 +28,7 @@ impl Router {
     }
 
     /// Register a tool with its handler
-    pub fn register<H: ToolHandler + 'static>(
-        mut self,
-        tool: Tool,
-        handler: H,
-    ) -> Self {
+    pub fn register<H: ToolHandler + 'static>(mut self, tool: Tool, handler: H) -> Self {
         let name = tool.name.clone();
         self.tools.insert(name.clone(), tool);
         self.handlers.insert(name, Arc::new(handler));

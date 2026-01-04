@@ -145,21 +145,21 @@ impl KnowledgeGraphAdapter {
             HashMap::from([
                 (
                     "throughput".to_string(),
-                    serde_json::Value::Number(
-                        serde_json::Number::from_f64(performance_metrics.throughput)?,
-                    ),
+                    serde_json::Value::Number(serde_json::Number::from_f64(
+                        performance_metrics.throughput,
+                    )?),
                 ),
                 (
                     "latency_ms".to_string(),
-                    serde_json::Value::Number(
-                        serde_json::Number::from_f64(performance_metrics.latency_ms)?,
-                    ),
+                    serde_json::Value::Number(serde_json::Number::from_f64(
+                        performance_metrics.latency_ms,
+                    )?),
                 ),
                 (
                     "accuracy".to_string(),
-                    serde_json::Value::Number(
-                        serde_json::Number::from_f64(performance_metrics.accuracy)?,
-                    ),
+                    serde_json::Value::Number(serde_json::Number::from_f64(
+                        performance_metrics.accuracy,
+                    )?),
                 ),
             ]),
         );
@@ -370,9 +370,7 @@ impl KnowledgeGraphAdapter {
                 ),
                 (
                     "success_rate".to_string(),
-                    serde_json::Value::Number(
-                        serde_json::Number::from_f64(outcome.success_rate)?,
-                    ),
+                    serde_json::Value::Number(serde_json::Number::from_f64(outcome.success_rate)?),
                 ),
                 (
                     "voting_strategy".to_string(),
@@ -478,14 +476,14 @@ mod tests {
     use crate::synthesis::{NodeType as SynthNodeType, Token};
 
     #[tokio::test]
-    async fn test_knowledge_graph_adapter_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_knowledge_graph_adapter_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let adapter = KnowledgeGraphAdapter::new(device).await;
         assert!(adapter.is_ok());
     }
 
     #[tokio::test]
-    async fn test_store_synthesis_pattern() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_store_synthesis_pattern() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let mut adapter = KnowledgeGraphAdapter::new(device).await?;
 
@@ -514,7 +512,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_find_similar_patterns() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_find_similar_patterns() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let mut adapter = KnowledgeGraphAdapter::new(device).await?;
 
@@ -524,7 +522,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_consensus_patterns() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_get_consensus_patterns() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let mut adapter = KnowledgeGraphAdapter::new(device).await?;
 
@@ -534,7 +532,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_store_consensus_outcome() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_store_consensus_outcome() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let mut adapter = KnowledgeGraphAdapter::new(device).await?;
 
@@ -552,7 +550,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_graph_statistics() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_get_graph_statistics() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let adapter = KnowledgeGraphAdapter::new(device).await?;
 

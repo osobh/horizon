@@ -307,8 +307,12 @@ impl BarrierBatch {
                 (s, _) => s,
             };
 
-            merged.before_resources.extend(barrier.before_resources.clone());
-            merged.after_resources.extend(barrier.after_resources.clone());
+            merged
+                .before_resources
+                .extend(barrier.before_resources.clone());
+            merged
+                .after_resources
+                .extend(barrier.after_resources.clone());
         }
 
         merged
@@ -388,8 +392,7 @@ mod tests {
             let device = std::sync::Arc::new(device);
             let buffer = Metal4Buffer::new(&device, 1024).expect("Failed to create buffer");
 
-            let resource_ref = ResourceRef::from_buffer(&buffer)
-                .with_label("test_buffer");
+            let resource_ref = ResourceRef::from_buffer(&buffer).with_label("test_buffer");
 
             assert_eq!(resource_ref.resource_type, ResourceType::Buffer);
             assert_eq!(resource_ref.label, Some("test_buffer".to_string()));

@@ -236,6 +236,10 @@ pub fn handle_page_fault(
     }
 
     // Track page access
+    // SAFETY: PAGE_TRACKER is a module-private static that is only accessed from
+    // kernel fault handling context. In kernel modules, fault handlers run with
+    // interrupts disabled or proper locking. The Option check ensures we only
+    // access after init() and before cleanup().
     unsafe {
         if let Some(tracker) = &mut PAGE_TRACKER {
             tracker.track_access(pfn, tier, agent_id.unwrap_or(0) as u16);
@@ -278,6 +282,9 @@ fn get_current_cpu() -> usize {
 pub fn get_hot_pages(max_pages: usize) -> Vec<(u64, MemoryTier)> {
     let mut hot_pages = Vec::new();
 
+    // SAFETY: PAGE_TRACKER is only modified during init/cleanup which are called
+    // during module load/unload. This read-only access during normal operation
+    // does not race with modifications. The Option check handles pre-init state.
     unsafe {
         if let Some(tracker) = &PAGE_TRACKER {
             for (bucket_idx, bucket) in tracker.buckets.iter().enumerate() {
@@ -302,6 +309,9 @@ pub fn get_hot_pages(max_pages: usize) -> Vec<(u64, MemoryTier)> {
 pub fn get_cold_pages(max_pages: usize) -> Vec<(u64, MemoryTier)> {
     let mut cold_pages = Vec::new();
 
+    // SAFETY: PAGE_TRACKER is only modified during init/cleanup which are called
+    // during module load/unload. This read-only access during normal operation
+    // does not race with modifications. The Option check handles pre-init state.
     unsafe {
         if let Some(tracker) = &PAGE_TRACKER {
             for (bucket_idx, bucket) in tracker.buckets.iter().enumerate() {
@@ -324,6 +334,9 @@ pub fn get_cold_pages(max_pages: usize) -> Vec<(u64, MemoryTier)> {
 
 /// Initialize fault handling
 pub fn init() -> KernelResult<()> {
+    // SAFETY: init() is called exactly once during module load, before any
+    // fault handling occurs. No concurrent access to PAGE_TRACKER is possible
+    // at module initialization time.
     unsafe {
         // Initialize page tracker with 1000 buckets
         // This allows tracking 10M pages with 10K pages per bucket
@@ -337,6 +350,9 @@ pub fn init() -> KernelResult<()> {
 
 /// Cleanup fault handling
 pub fn cleanup() {
+    // SAFETY: cleanup() is called exactly once during module unload, after all
+    // fault handling has stopped. No concurrent access to PAGE_TRACKER is
+    // possible at module cleanup time.
     unsafe {
         PAGE_TRACKER = None;
     }

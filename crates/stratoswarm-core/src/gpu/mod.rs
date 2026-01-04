@@ -6,10 +6,10 @@
 //!
 //! # Architecture
 //!
-//! - **GpuRuntime**: Main service that processes GPU commands from a channel
-//! - **GpuDevice**: Trait abstraction for GPU operations (enables testing)
-//! - **UnifiedMemoryPool**: Zero-copy memory management using `bytes::Bytes`
-//! - **CommandProcessor**: Logic for processing different GPU commands
+//! - **`GpuRuntime`**: Main service that processes GPU commands from a channel
+//! - **`GpuDevice`**: Trait abstraction for GPU operations (enables testing)
+//! - **`UnifiedMemoryPool`**: Zero-copy memory management using `bytes::Bytes`
+//! - **`CommandProcessor`**: Logic for processing different GPU commands
 //!
 //! # Example Usage
 //!

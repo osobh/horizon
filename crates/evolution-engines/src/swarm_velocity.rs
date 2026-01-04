@@ -6,7 +6,7 @@ use parking_lot::RwLock;
 use rand::{rngs::StdRng, Rng};
 use rayon::prelude::*;
 use std::sync::Arc;
-use wide::f64x4;  // SIMD primitives for 4-wide f64 operations
+use wide::f64x4; // SIMD primitives for 4-wide f64 operations
 
 /// Velocity updater for particle swarm optimization
 pub struct VelocityUpdater {
@@ -36,10 +36,7 @@ impl VelocityUpdater {
 
         // Pre-generate random numbers for all particles (serial, fast)
         // Each particle needs 2 random numbers per velocity dimension
-        let total_random_needed: usize = particles
-            .iter()
-            .map(|p| p.velocity.len() * 2)
-            .sum();
+        let total_random_needed: usize = particles.iter().map(|p| p.velocity.len() * 2).sum();
 
         let random_numbers: Vec<f64> = {
             let mut rng = self.rng.write();

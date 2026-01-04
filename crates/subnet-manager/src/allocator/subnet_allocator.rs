@@ -115,7 +115,7 @@ impl SubnetAllocator {
                 if aligned < block_start && aligned + block_size - 1 < block_start {
                     // Verify it's within address space
                     if aligned + block_size - 1 <= space_end {
-                        return Some(Ipv4Net::new(Self::u32_to_ip(aligned), prefix_len).ok()?);
+                        return Ipv4Net::new(Self::u32_to_ip(aligned), prefix_len).ok();
                     }
                 }
             }
@@ -127,7 +127,7 @@ impl SubnetAllocator {
         // Check if there's space after the last block
         let aligned = self.align_to_prefix(current, prefix_len);
         if aligned + block_size - 1 <= space_end {
-            return Some(Ipv4Net::new(Self::u32_to_ip(aligned), prefix_len).ok()?);
+            return Ipv4Net::new(Self::u32_to_ip(aligned), prefix_len).ok();
         }
 
         None
@@ -149,8 +149,10 @@ impl SubnetAllocator {
 
     /// Check if two CIDR blocks overlap
     fn blocks_overlap(a: &Ipv4Net, b: &Ipv4Net) -> bool {
-        a.contains(&b.network()) || a.contains(&b.broadcast())
-            || b.contains(&a.network()) || b.contains(&a.broadcast())
+        a.contains(&b.network())
+            || a.contains(&b.broadcast())
+            || b.contains(&a.network())
+            || b.contains(&a.broadcast())
     }
 }
 
@@ -200,10 +202,7 @@ impl CidrAllocator for SubnetAllocator {
         // Check for overlaps with existing allocations
         for existing in self.allocated.values() {
             if Self::blocks_overlap(&cidr, existing) {
-                return Err(Error::CidrOverlap(
-                    cidr.to_string(),
-                    existing.to_string(),
-                ));
+                return Err(Error::CidrOverlap(cidr.to_string(), existing.to_string()));
             }
         }
 

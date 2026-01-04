@@ -92,30 +92,41 @@ impl CostOptimizer {
         strategy: &CostStrategy,
     ) -> Result<OptimizedInstance> {
         match strategy {
-            CostStrategy::SpotFirst { fallback_to_on_demand, max_interruption_rate } => {
+            CostStrategy::SpotFirst {
+                fallback_to_on_demand,
+                max_interruption_rate,
+            } => {
                 self.optimize_spot_first(
                     provider,
                     requirements,
                     *fallback_to_on_demand,
-                    *max_interruption_rate
-                ).await
+                    *max_interruption_rate,
+                )
+                .await
             }
-            CostStrategy::Balanced { spot_percentage, on_demand_percentage } => {
+            CostStrategy::Balanced {
+                spot_percentage,
+                on_demand_percentage,
+            } => {
                 self.optimize_balanced(
                     provider,
                     requirements,
                     *spot_percentage,
-                    *on_demand_percentage
-                ).await
+                    *on_demand_percentage,
+                )
+                .await
             }
             CostStrategy::AggressiveSavings => {
-                self.optimize_aggressive_savings(provider, requirements).await
+                self.optimize_aggressive_savings(provider, requirements)
+                    .await
             }
             CostStrategy::ReliabilityFirst => {
-                self.optimize_reliability_first(provider, requirements).await
+                self.optimize_reliability_first(provider, requirements)
+                    .await
             }
             CostStrategy::Custom(provider_strategies) => {
-                self.optimize_custom(provider, requirements, provider_strategies).await
+                self.optimize_custom(provider, requirements, provider_strategies)
+                    .await
             }
         }
     }
@@ -141,9 +152,10 @@ impl CostOptimizer {
                 .check_spot_availability(&region.id, &requirements.id)
                 .await?;
 
-            if availability.available && 
-               availability.interruption_rate <= max_interruption_rate &&
-               availability.savings_percentage > best_savings {
+            if availability.available
+                && availability.interruption_rate <= max_interruption_rate
+                && availability.savings_percentage > best_savings
+            {
                 best_savings = availability.savings_percentage;
                 best_option = Some(OptimizedInstance {
                     provider: provider.name().to_string(),
@@ -159,7 +171,8 @@ impl CostOptimizer {
 
         // Fallback to on-demand if needed
         if best_option.is_none() && fallback_to_on_demand {
-            let region = regions.iter()
+            let region = regions
+                .iter()
                 .filter(|r| r.gpu_available)
                 .min_by(|a, b| a.latency_ms.partial_cmp(&b.latency_ms)?)
                 .unwrap();
@@ -188,9 +201,9 @@ impl CostOptimizer {
     ) -> Result<OptimizedInstance> {
         // For balanced strategy, check spot availability but with stricter requirements
         let regions = provider.list_regions().await?;
-        
+
         let mut candidates = Vec::new();
-        
+
         for region in regions {
             if !region.gpu_available {
                 continue;
@@ -202,13 +215,12 @@ impl CostOptimizer {
 
             // Score based on cost savings and reliability
             let score = availability.savings_percentage * (1.0 - availability.interruption_rate);
-            
+
             candidates.push((region, availability, score));
         }
 
         // Pick the best scoring option
-        let best = candidates.into_iter()
-            .max_by(|a, b| a.2.partial_cmp(&b.2)?);
+        let best = candidates.into_iter().max_by(|a, b| a.2.partial_cmp(&b.2)?);
 
         if let Some((region, availability, _)) = best {
             Ok(OptimizedInstance {
@@ -278,9 +290,10 @@ impl CostOptimizer {
     ) -> Result<OptimizedInstance> {
         // Always use on-demand in the most reliable region
         let regions = provider.list_regions().await?;
-        
+
         // Pick lowest latency region (usually most reliable)
-        let best_region = regions.into_iter()
+        let best_region = regions
+            .into_iter()
             .filter(|r| r.gpu_available)
             .min_by(|a, b| a.latency_ms.partial_cmp(&b.latency_ms)?)
             .ok_or_else(|| anyhow::anyhow!("No GPU regions available"))?;
@@ -303,7 +316,8 @@ impl CostOptimizer {
         requirements: &InstanceType,
         provider_strategies: &HashMap<String, ProviderStrategy>,
     ) -> Result<OptimizedInstance> {
-        let strategy = provider_strategies.get(provider.name())
+        let strategy = provider_strategies
+            .get(provider.name())
             .ok_or_else(|| anyhow::anyhow!("No strategy for provider {}", provider.name()))?;
 
         // Apply custom strategy
@@ -311,7 +325,8 @@ impl CostOptimizer {
             provider.list_regions().await?
         } else {
             let all_regions = provider.list_regions().await?;
-            all_regions.into_iter()
+            all_regions
+                .into_iter()
                 .filter(|r| strategy.preferred_regions.contains(&r.id))
                 .collect()
         };
@@ -374,23 +389,22 @@ impl CostOptimizer {
 
     /// Analyze cost trends
     pub fn analyze_cost_trends(&self, provider: &str, instance_type: &str) -> CostTrend {
-        let history = self.historical_prices.get(&format!("{}-{}", provider, instance_type));
-        
+        let history = self
+            .historical_prices
+            .get(&format!("{}-{}", provider, instance_type));
+
         if let Some(prices) = history {
-            let recent_prices: Vec<f64> = prices.iter()
-                .rev()
-                .take(10)
-                .map(|p| p.spot_price)
-                .collect();
-            
+            let recent_prices: Vec<f64> =
+                prices.iter().rev().take(10).map(|p| p.spot_price).collect();
+
             if recent_prices.len() >= 2 {
                 let avg_recent = recent_prices.iter().sum::<f64>() / recent_prices.len() as f64;
                 let first = recent_prices.last()?;
                 let trend = (avg_recent - first) / first;
-                
+
                 return CostTrend {
-                    direction: if trend > 0.05 { 
-                        TrendDirection::Increasing 
+                    direction: if trend > 0.05 {
+                        TrendDirection::Increasing
                     } else if trend < -0.05 {
                         TrendDirection::Decreasing
                     } else {
@@ -407,7 +421,7 @@ impl CostOptimizer {
                 };
             }
         }
-        
+
         CostTrend {
             direction: TrendDirection::Unknown,
             percentage_change: 0.0,
@@ -418,7 +432,7 @@ impl CostOptimizer {
     /// Get cost optimization recommendations
     pub fn get_recommendations(&self, current_spend: f64) -> Vec<CostRecommendation> {
         let mut recommendations = Vec::new();
-        
+
         // Basic recommendations based on spend
         if current_spend > 10000.0 {
             recommendations.push(CostRecommendation {
@@ -428,23 +442,24 @@ impl CostOptimizer {
                 estimated_savings: current_spend * 0.3, // 30% typical savings
             });
         }
-        
+
         if current_spend > 5000.0 {
             recommendations.push(CostRecommendation {
                 priority: Priority::Medium,
                 category: "Spot Instances".to_string(),
-                description: "Increase spot instance usage for fault-tolerant workloads".to_string(),
+                description: "Increase spot instance usage for fault-tolerant workloads"
+                    .to_string(),
                 estimated_savings: current_spend * 0.5, // 50% typical savings
             });
         }
-        
+
         recommendations.push(CostRecommendation {
             priority: Priority::Low,
             category: "Right-sizing".to_string(),
             description: "Review instance sizes and downsize underutilized resources".to_string(),
             estimated_savings: current_spend * 0.15, // 15% typical savings
         });
-        
+
         recommendations
     }
 }

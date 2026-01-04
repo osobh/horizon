@@ -21,8 +21,11 @@ impl AnomalyDetector {
             },
         }
     }
-    
-    pub async fn detect(&self, data: Vec<f64>) -> Result<AnomalyResult, Box<dyn std::error::Error>> {
+
+    pub async fn detect(
+        &self,
+        data: Vec<f64>,
+    ) -> Result<AnomalyResult, Box<dyn std::error::Error>> {
         // Simplified detection
         Ok(AnomalyResult {
             timestamp: chrono::Utc::now(),

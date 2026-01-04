@@ -355,7 +355,8 @@ impl TemporalKnowledgeGraph {
 
     /// Get evolution of a specific node
     pub fn get_node_evolution(&self, node_id: u32) -> Result<NodeEvolution> {
-        let node_versions = self.node_versions
+        let node_versions = self
+            .node_versions
             .get(&node_id)
             .ok_or_else(|| anyhow!("Node {} not found", node_id))?
             .value()
@@ -445,8 +446,7 @@ impl TemporalKnowledgeGraph {
             })
             .unwrap();
 
-        let total_delay =
-            best_path.timestamps.last()? - best_path.timestamps.first()?;
+        let total_delay = best_path.timestamps.last()? - best_path.timestamps.first()?;
 
         Ok(CausalityAnalysis {
             is_causal: true,

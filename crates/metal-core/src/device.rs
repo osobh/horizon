@@ -21,11 +21,7 @@ pub fn recommended_threadgroup_size(total_threads: u64, max_threads: u64) -> u64
 }
 
 /// Get recommended 2D threadgroup dimensions.
-pub fn recommended_threadgroup_size_2d(
-    width: u64,
-    height: u64,
-    max_threads: u64,
-) -> (u64, u64) {
+pub fn recommended_threadgroup_size_2d(width: u64, height: u64, max_threads: u64) -> (u64, u64) {
     // Try common 2D sizes
     const SIZES: [(u64, u64); 4] = [(16, 16), (8, 8), (16, 8), (8, 16)];
 
@@ -42,7 +38,7 @@ pub fn recommended_threadgroup_size_2d(
 
 /// Calculate the number of threadgroups needed.
 pub fn calculate_threadgroups(total: u64, group_size: u64) -> u64 {
-    (total + group_size - 1) / group_size
+    total.div_ceil(group_size)
 }
 
 /// Calculate 2D threadgroup count.
@@ -52,10 +48,7 @@ pub fn calculate_threadgroups_2d(
     group_width: u64,
     group_height: u64,
 ) -> (u64, u64) {
-    (
-        (width + group_width - 1) / group_width,
-        (height + group_height - 1) / group_height,
-    )
+    (width.div_ceil(group_width), height.div_ceil(group_height))
 }
 
 /// Parse a GPU family from device information.
@@ -146,8 +139,14 @@ mod tests {
 
     #[test]
     fn test_parse_gpu_family() {
-        assert!(matches!(parse_gpu_family("Apple M3 Max"), GpuFamily::Apple(3)));
+        assert!(matches!(
+            parse_gpu_family("Apple M3 Max"),
+            GpuFamily::Apple(3)
+        ));
         assert!(matches!(parse_gpu_family("Apple M1"), GpuFamily::Apple(1)));
-        assert!(matches!(parse_gpu_family("AMD Radeon Pro 5500M"), GpuFamily::Mac(_)));
+        assert!(matches!(
+            parse_gpu_family("AMD Radeon Pro 5500M"),
+            GpuFamily::Mac(_)
+        ));
     }
 }

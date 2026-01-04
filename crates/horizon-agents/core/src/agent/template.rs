@@ -29,7 +29,10 @@
 
 use async_trait::async_trait;
 
-use super::{Agent, AgentConfig, AgentRequest, AgentResponse, AgentState, AutonomyLevel, HealthStatus, Lifecycle};
+use super::{
+    Agent, AgentConfig, AgentRequest, AgentResponse, AgentState, AutonomyLevel, HealthStatus,
+    Lifecycle,
+};
 use crate::error::{AgentError, Result};
 
 /// Trait for implementing agent-specific processing logic.
@@ -174,10 +177,12 @@ pub struct StubLogic;
 #[async_trait]
 impl AgentLogic for StubLogic {
     async fn process(&self, name: &str, request: AgentRequest) -> Result<AgentResponse> {
-        Ok(AgentResponse::new(
-            request.id,
-            format!("Stub agent {} processed request", name),
-        ).with_recommendation("This is a stub agent with minimal implementation".to_string()))
+        Ok(
+            AgentResponse::new(request.id, format!("Stub agent {} processed request", name))
+                .with_recommendation(
+                    "This is a stub agent with minimal implementation".to_string(),
+                ),
+        )
     }
 }
 
@@ -285,7 +290,9 @@ mod tests {
     #[tokio::test]
     async fn test_custom_logic() {
         let config = AgentConfig::new("custom-agent".to_string());
-        let logic = CustomLogic { prefix: "Custom".to_string() };
+        let logic = CustomLogic {
+            prefix: "Custom".to_string(),
+        };
         let mut agent = BaseAgent::new(config, logic).unwrap();
         agent.init().await.unwrap();
 

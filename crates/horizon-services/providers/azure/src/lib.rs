@@ -1,7 +1,6 @@
 use hpc_provider::{
     Availability, CapacityProvider, HealthStatus, Instance, InstanceState, ProviderError,
-    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas,
-    SpotPrices,
+    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas, SpotPrices,
 };
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -175,9 +174,15 @@ impl CapacityProvider for AzureProvider {
         let rate = if spec.spot {
             self.pricing
                 .get_spot_price(&spec.instance_type)
-                .unwrap_or_else(|| self.pricing.get_on_demand_price(&spec.instance_type).unwrap())
+                .unwrap_or_else(|| {
+                    self.pricing
+                        .get_on_demand_price(&spec.instance_type)
+                        .unwrap()
+                })
         } else {
-            self.pricing.get_on_demand_price(&spec.instance_type).unwrap()
+            self.pricing
+                .get_on_demand_price(&spec.instance_type)
+                .unwrap()
         };
 
         let mut instances = Vec::new();
@@ -266,4 +271,3 @@ impl CapacityProvider for AzureProvider {
         })
     }
 }
-

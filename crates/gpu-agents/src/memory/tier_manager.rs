@@ -327,7 +327,7 @@ impl TierManager {
     }
 
     /// Access a page (updates LRU)
-    pub fn access_page(&self, page_id: PageId) -> Result<(), Box<dyn std::error::Error>>  {
+    pub fn access_page(&self, page_id: PageId) -> Result<(), Box<dyn std::error::Error>> {
         let mut page_table = self.page_table.lock()?;
         page_table.access_page(page_id);
     }

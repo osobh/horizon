@@ -79,11 +79,11 @@ impl IntegrityMetrics {
         } else {
             self.failed_verifications += 1;
         }
-        
+
         // Update average verification time
         let total_time = self.avg_verification_time * self.total_verifications as i32;
         self.avg_verification_time = (total_time + duration) / self.total_verifications as i32;
-        
+
         self.last_verification = Some(Utc::now());
     }
 
@@ -103,7 +103,7 @@ impl IntegrityMetrics {
         } else {
             self.failed_repairs += 1;
         }
-        
+
         // Update average repair time
         let total_time = self.avg_repair_time * self.repairs_attempted as i32;
         self.avg_repair_time = (total_time + duration) / self.repairs_attempted as i32;

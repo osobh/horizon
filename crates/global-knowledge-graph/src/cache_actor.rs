@@ -332,7 +332,8 @@ impl CacheActor {
                     })
                     .collect();
 
-                keys_with_freq.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                keys_with_freq
+                    .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
                 for (key, _) in keys_with_freq.into_iter().take(self.config.l1_size / 10) {
                     self.warming_queue.push(key);
@@ -672,7 +673,10 @@ mod tests {
         let (actor, handle) = create_cache_actor(CacheConfig::default()).unwrap();
         tokio::spawn(actor.run());
 
-        handle.put("key1".to_string(), "value1".to_string(), None).await.unwrap();
+        handle
+            .put("key1".to_string(), "value1".to_string(), None)
+            .await
+            .unwrap();
         let result: Option<String> = handle.get("key1").await.unwrap();
         assert_eq!(result, Some("value1".to_string()));
 
@@ -695,7 +699,10 @@ mod tests {
         let (actor, handle) = create_cache_actor(CacheConfig::default()).unwrap();
         tokio::spawn(actor.run());
 
-        handle.put("key1".to_string(), "value1".to_string(), None).await.unwrap();
+        handle
+            .put("key1".to_string(), "value1".to_string(), None)
+            .await
+            .unwrap();
         handle.invalidate("key1").await.unwrap();
         let result: Option<String> = handle.get("key1").await.unwrap();
         assert!(result.is_none());
@@ -717,7 +724,10 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         // Actor should still be responsive
-        handle.put("key2".to_string(), "value2".to_string(), None).await.unwrap();
+        handle
+            .put("key2".to_string(), "value2".to_string(), None)
+            .await
+            .unwrap();
         let result: Option<String> = handle.get("key2").await.unwrap();
         assert_eq!(result, Some("value2".to_string()));
 

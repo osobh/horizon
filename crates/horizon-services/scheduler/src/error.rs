@@ -21,7 +21,11 @@ pub trait SchedulerErrorExt {
     fn invalid_state_transition(from: impl Into<String>, to: impl Into<String>) -> HpcError {
         HpcError::invalid_input(
             "state_transition",
-            format!("Invalid state transition from {} to {}", from.into(), to.into()),
+            format!(
+                "Invalid state transition from {} to {}",
+                from.into(),
+                to.into()
+            ),
         )
     }
 

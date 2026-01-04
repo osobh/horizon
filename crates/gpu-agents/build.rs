@@ -10,7 +10,9 @@ fn main() {
     // Check if CUDA is available
     if !check_cuda_available() {
         println!("cargo:warning=CUDA not found - gpu-agents will use stub implementations");
-        println!("cargo:warning=To enable CUDA support, install CUDA toolkit and ensure nvcc is in PATH");
+        println!(
+            "cargo:warning=To enable CUDA support, install CUDA toolkit and ensure nvcc is in PATH"
+        );
         return;
     }
 
@@ -18,7 +20,10 @@ fn main() {
     let cuda_info = detect_cuda_environment();
     println!("cargo:warning=CUDA Version: {}", cuda_info.version);
     println!("cargo:warning=GPU: {}", cuda_info.gpu_name);
-    println!("cargo:warning=Compute Capability: sm_{}", cuda_info.compute_capability);
+    println!(
+        "cargo:warning=Compute Capability: sm_{}",
+        cuda_info.compute_capability
+    );
 
     // Set cfg flag for conditional compilation in Rust code
     println!("cargo:rustc-cfg=has_cuda");
@@ -35,11 +40,11 @@ fn main() {
 
     // Set architecture based on detection
     let cuda_arch = if cuda_info.is_rtx5090 {
-        "75;80;86;89;90;110"  // Include RTX 5090 (sm_110)
+        "75;80;86;89;90;110" // Include RTX 5090 (sm_110)
     } else if cuda_info.compute_capability >= 89 {
-        "75;80;86;89;90"  // RTX 4090 and similar
+        "75;80;86;89;90" // RTX 4090 and similar
     } else {
-        "75;80;86"  // Older GPUs
+        "75;80;86" // Older GPUs
     };
 
     // Find CUDA installation for CMake
@@ -52,7 +57,10 @@ fn main() {
         .arg("-DCMAKE_BUILD_TYPE=Release")
         .arg(format!("-DCMAKE_CUDA_ARCHITECTURES={}", cuda_arch))
         .arg("-DCMAKE_CXX_COMPILER=g++")
-        .arg(format!("-DCMAKE_CUDA_COMPILER={}/bin/nvcc", cuda_install_path))
+        .arg(format!(
+            "-DCMAKE_CUDA_COMPILER={}/bin/nvcc",
+            cuda_install_path
+        ))
         .arg(format!("-DCUDAToolkit_ROOT={}", cuda_install_path))
         .env("CXX", "g++")
         .env("CUDA_PATH", &cuda_install_path)
@@ -88,13 +96,13 @@ fn main() {
     // Link CUDA runtime libraries
     println!("cargo:rustc-link-lib=cudart");
     println!("cargo:rustc-link-lib=curand");
-    println!("cargo:rustc-link-lib=cuda");  // CUDA driver API for async operations
+    println!("cargo:rustc-link-lib=cuda"); // CUDA driver API for async operations
 
     // Link CUDA 13.0 specific libraries if available
     if cuda_info.version_major >= 13 {
-        println!("cargo:rustc-link-lib=cudadevrt");  // Device runtime for RDC
-        println!("cargo:rustc-link-lib=nvrtc");       // Runtime compilation
-        // nvJitLink is optional and may not be available
+        println!("cargo:rustc-link-lib=cudadevrt"); // Device runtime for RDC
+        println!("cargo:rustc-link-lib=nvrtc"); // Runtime compilation
+                                                // nvJitLink is optional and may not be available
         println!("cargo:rustc-link-lib=nvJitLink");
     }
 
@@ -173,7 +181,7 @@ fn detect_cuda_environment() -> CudaInfo {
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .unwrap_or_default();
 
-    let mut version_major = 12;  // Default to CUDA 12
+    let mut version_major = 12; // Default to CUDA 12
     let mut version = "12.0".to_string();
 
     // Parse CUDA version from nvcc output
@@ -198,7 +206,7 @@ fn detect_cuda_environment() -> CudaInfo {
         .unwrap_or_default();
 
     let mut gpu_name = "Unknown GPU".to_string();
-    let mut compute_capability = 86;  // Default to sm_86
+    let mut compute_capability = 86; // Default to sm_86
     let mut is_rtx5090 = false;
 
     if let Some(line) = smi_output.lines().next() {
@@ -209,13 +217,13 @@ fn detect_cuda_environment() -> CudaInfo {
             // Check for RTX 5090
             if gpu_name.contains("RTX 5090") || gpu_name.contains("RTX 50") {
                 is_rtx5090 = true;
-                compute_capability = 110;  // sm_110 for Blackwell
+                compute_capability = 110; // sm_110 for Blackwell
             } else if parts.len() > 1 {
                 // Parse compute capability (e.g., "8.9" -> 89)
                 let cc_str = parts[1].trim();
                 if let Some(dot_pos) = cc_str.find('.') {
                     let major = cc_str[..dot_pos].parse().unwrap_or(8);
-                    let minor = cc_str[dot_pos+1..].parse().unwrap_or(6);
+                    let minor = cc_str[dot_pos + 1..].parse().unwrap_or(6);
                     compute_capability = major * 10 + minor;
                 }
             }

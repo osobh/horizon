@@ -497,10 +497,7 @@ mod tests {
         let request = create_test_request();
         let statistics = create_test_statistics(20.0, 25.0, 10.0); // Low utilization
 
-        let opportunity = generator
-            .create_rightsizing_opportunity(&request, &statistics)
-            ?
-            ?;
+        let opportunity = generator.create_rightsizing_opportunity(&request, &statistics)??;
 
         assert_eq!(opportunity.optimization_type, OptimizationType::Rightsize);
         assert!(opportunity.estimated_savings > 0.0);
@@ -517,10 +514,8 @@ mod tests {
         let request = create_test_request();
         let statistics = create_test_statistics(5.0, 10.0, 90.0); // Mostly idle
 
-        let opportunity = generator
-            .create_idle_termination_opportunity(&request, &statistics)
-            ?
-            ?;
+        let opportunity =
+            generator.create_idle_termination_opportunity(&request, &statistics)??;
 
         assert_eq!(
             opportunity.optimization_type,
@@ -538,10 +533,7 @@ mod tests {
         let request = create_test_request();
         let pattern = UsagePattern::Spiky;
 
-        let opportunity = generator
-            .create_spot_opportunity(&request, &pattern)
-            ?
-            ?;
+        let opportunity = generator.create_spot_opportunity(&request, &pattern)??;
 
         assert_eq!(
             opportunity.optimization_type,
@@ -560,10 +552,7 @@ mod tests {
         let request = create_test_request();
         let temporal = create_test_temporal();
 
-        let opportunity = generator
-            .create_autoscaling_opportunity(&request, &temporal)
-            ?
-            ?;
+        let opportunity = generator.create_autoscaling_opportunity(&request, &temporal)??;
 
         assert_eq!(
             opportunity.optimization_type,
@@ -582,10 +571,7 @@ mod tests {
         let request = create_test_request();
         let temporal = create_test_temporal();
 
-        let opportunity = generator
-            .create_schedule_opportunity(&request, &temporal)
-            ?
-            ?;
+        let opportunity = generator.create_schedule_opportunity(&request, &temporal)??;
 
         assert_eq!(
             opportunity.optimization_type,
@@ -604,10 +590,7 @@ mod tests {
         let request = create_test_request();
         let statistics = create_test_statistics(15.0, 35.0, 20.0); // Low utilization, low peaks
 
-        let opportunity = generator
-            .create_consolidation_opportunity(&request, &statistics)
-            ?
-            ?;
+        let opportunity = generator.create_consolidation_opportunity(&request, &statistics)??;
 
         assert_eq!(opportunity.optimization_type, OptimizationType::Consolidate);
         assert!(opportunity.estimated_savings > 0.0);
@@ -623,10 +606,7 @@ mod tests {
         let request = create_test_request();
         let pattern = UsagePattern::ConstantHigh;
 
-        let opportunity = generator
-            .create_reserved_instance_opportunity(&request, &pattern)
-            ?
-            ?;
+        let opportunity = generator.create_reserved_instance_opportunity(&request, &pattern)??;
 
         assert_eq!(opportunity.optimization_type, OptimizationType::UseReserved);
         assert_eq!(opportunity.savings_percent, 40.0);
@@ -642,9 +622,7 @@ mod tests {
         let request = create_test_request();
         let pattern = UsagePattern::Spiky; // Not suitable for reserved instances
 
-        let opportunity = generator
-            .create_reserved_instance_opportunity(&request, &pattern)
-            ?;
+        let opportunity = generator.create_reserved_instance_opportunity(&request, &pattern)?;
 
         assert!(opportunity.is_none());
     }

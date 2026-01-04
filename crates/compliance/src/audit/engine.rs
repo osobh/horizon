@@ -9,9 +9,14 @@ use uuid::Uuid;
 
 use crate::audit::{
     chain::{AuditChain, ChainState},
-    compliance::{AuditComplianceReport, ComplianceIssue, ComplianceIssueType, ComplianceIssueSeverity, CoverageAssessment},
+    compliance::{
+        AuditComplianceReport, ComplianceIssue, ComplianceIssueSeverity, ComplianceIssueType,
+        CoverageAssessment,
+    },
     entry::AuditLogEntry,
-    integrity::{IntegrityError, IntegrityErrorType, IntegrityErrorSeverity, IntegrityVerificationResult},
+    integrity::{
+        IntegrityError, IntegrityErrorSeverity, IntegrityErrorType, IntegrityVerificationResult,
+    },
     query::{AuditQuery, SortOrder},
     types::{AuditEventType, AuditOutcome, AuditSeverity},
 };
@@ -55,10 +60,10 @@ impl AuditLogEngine {
     pub fn create_audit_chain(&mut self, max_entries: usize) -> ComplianceResult<Uuid> {
         let mut chain = AuditChain::new(max_entries);
         let chain_id = chain.chain_id;
-        
+
         self.chains.insert(chain_id, chain);
         self.entries_by_chain.insert(chain_id, Vec::new());
-        
+
         Ok(chain_id)
     }
 
@@ -93,8 +98,13 @@ impl AuditLogEngine {
         // Add metadata if provided
         if let Some(meta) = metadata {
             entry.data_categories = vec![meta.category];
-            for (key, value) in meta.tags {
-                entry.add_metadata(key, value);
+            // Add classification and owner info as metadata
+            entry.add_metadata(
+                "classification".to_string(),
+                format!("{:?}", meta.classification),
+            );
+            if let Some(owner) = &meta.owner {
+                entry.add_metadata("owner".to_string(), owner.clone());
             }
         }
 
@@ -120,12 +130,12 @@ impl AuditLogEngine {
             .entry(event_type)
             .or_insert_with(Vec::new)
             .push(entry_id);
-        
+
         self.actor_index
             .entry(actor)
             .or_insert_with(Vec::new)
             .push(entry_id);
-        
+
         self.target_index
             .entry(target)
             .or_insert_with(Vec::new)
@@ -146,11 +156,12 @@ impl AuditLogEngine {
         let mut results = Vec::new();
 
         // Start with all entries or filtered by time
-        let candidate_ids: Vec<Uuid> = if let (Some(start), Some(end)) = (query.start_time, query.end_time) {
-            self.get_entries_in_time_range(start, end)
-        } else {
-            self.entries.keys().cloned().collect()
-        };
+        let candidate_ids: Vec<Uuid> =
+            if let (Some(start), Some(end)) = (query.start_time, query.end_time) {
+                self.get_entries_in_time_range(start, end)
+            } else {
+                self.entries.keys().cloned().collect()
+            };
 
         for entry_id in candidate_ids {
             if let Some(entry) = self.entries.get(&entry_id) {
@@ -181,7 +192,10 @@ impl AuditLogEngine {
     }
 
     /// Verify integrity of a chain
-    pub fn verify_chain_integrity(&self, chain_id: Uuid) -> ComplianceResult<IntegrityVerificationResult> {
+    pub fn verify_chain_integrity(
+        &self,
+        chain_id: Uuid,
+    ) -> ComplianceResult<IntegrityVerificationResult> {
         let start = Instant::now();
         let mut result = IntegrityVerificationResult::new();
 
@@ -212,10 +226,7 @@ impl AuditLogEngine {
             result.entries_verified += 1;
         }
 
-        result.set_statistics(
-            chain.entries.len(),
-            start.elapsed().as_millis() as u64,
-        );
+        result.set_statistics(chain.entries.len(), start.elapsed().as_millis() as u64);
 
         Ok(result)
     }
@@ -243,9 +254,7 @@ impl AuditLogEngine {
 
         // Determine covered event types
         coverage.event_types_covered = event_type_counts.keys().cloned().collect();
-        coverage.severity_distribution = severity_counts.iter()
-            .map(|(k, v)| (*k, *v))
-            .collect();
+        coverage.severity_distribution = severity_counts.iter().map(|(k, v)| (*k, *v)).collect();
         coverage.calculate_coverage();
 
         report.coverage = coverage;
@@ -265,7 +274,7 @@ impl AuditLogEngine {
     fn get_entries_in_time_range(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Vec<Uuid> {
         let start_hour = start.timestamp() / 3600;
         let end_hour = end.timestamp() / 3600;
-        
+
         let mut result = Vec::new();
         for hour in start_hour..=end_hour {
             if let Some(entries) = self.time_index.get(&hour) {

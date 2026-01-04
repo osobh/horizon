@@ -35,16 +35,16 @@ impl NormalizedBillingSchema {
         self.normalizers.insert(provider, normalizer);
     }
 
-    pub fn normalize(&self, raw: &RawBillingData) -> crate::error::Result<Vec<CreateBillingRecord>> {
-        let normalizer = self
-            .normalizers
-            .get(&raw.provider)
-            .ok_or_else(|| {
-                HpcError::invalid_provider(format!(
-                    "No normalizer registered for provider: {}",
-                    raw.provider
-                ))
-            })?;
+    pub fn normalize(
+        &self,
+        raw: &RawBillingData,
+    ) -> crate::error::Result<Vec<CreateBillingRecord>> {
+        let normalizer = self.normalizers.get(&raw.provider).ok_or_else(|| {
+            HpcError::invalid_provider(format!(
+                "No normalizer registered for provider: {}",
+                raw.provider
+            ))
+        })?;
 
         normalizer.normalize(raw)
     }
@@ -75,14 +75,10 @@ impl GenericBillingRecord {
     ) -> crate::error::Result<CreateBillingRecord> {
         let raw_data = serde_json::to_value(&self.metadata)?;
 
-        let mut record = CreateBillingRecord::new(
-            provider,
-            self.usage_start,
-            self.usage_end,
-            self.amount,
-        )
-        .with_currency(self.currency)
-        .with_raw_data(raw_data);
+        let mut record =
+            CreateBillingRecord::new(provider, self.usage_start, self.usage_end, self.amount)
+                .with_currency(self.currency)
+                .with_raw_data(raw_data);
 
         if let Some(account_id) = self.account_id {
             record = record.with_account_id(account_id);
@@ -122,7 +118,10 @@ mod tests {
     }
 
     impl BillingNormalizer for MockNormalizer {
-        fn normalize(&self, raw: &RawBillingData) -> crate::error::Result<Vec<CreateBillingRecord>> {
+        fn normalize(
+            &self,
+            raw: &RawBillingData,
+        ) -> crate::error::Result<Vec<CreateBillingRecord>> {
             let amount = raw.data["amount"]
                 .as_str()
                 .ok_or_else(|| HpcError::parse_error("Missing amount"))?;
@@ -192,7 +191,10 @@ mod tests {
 
         let result = schema.normalize(&raw);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No normalizer registered"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No normalizer registered"));
     }
 
     #[test]

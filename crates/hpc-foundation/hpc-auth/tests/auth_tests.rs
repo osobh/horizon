@@ -1,7 +1,9 @@
-use hpc_auth::cert::{generate_ca_cert, generate_self_signed_cert, generate_signed_cert, ServiceIdentity};
-use hpc_auth::server::{create_server_config, create_server_config_with_client_auth};
+use hpc_auth::cert::{
+    generate_ca_cert, generate_self_signed_cert, generate_signed_cert, ServiceIdentity,
+};
 use hpc_auth::client::{create_client_config, create_client_config_with_server_ca};
-use hpc_auth::{ServerConfigExt, ClientConfigExt};
+use hpc_auth::server::{create_server_config, create_server_config_with_client_auth};
+use hpc_auth::{ClientConfigExt, ServerConfigExt};
 use std::sync::Arc;
 
 #[test]
@@ -62,7 +64,10 @@ fn test_cert_expiry_validation() {
     let cert = generate_self_signed_cert(&identity).expect("Failed to generate cert");
 
     let info = cert.info().expect("Failed to get cert info");
-    assert!(!info.is_expired(), "Newly generated cert should not be expired");
+    assert!(
+        !info.is_expired(),
+        "Newly generated cert should not be expired"
+    );
 }
 
 #[test]
@@ -84,7 +89,9 @@ fn test_cert_subject_alternative_names() {
 
     assert!(info.dns_names.contains(&"san-test".to_string()));
     assert!(info.dns_names.contains(&"service.local".to_string()));
-    assert!(info.dns_names.contains(&"service.cluster.local".to_string()));
+    assert!(info
+        .dns_names
+        .contains(&"service.cluster.local".to_string()));
 }
 
 #[test]
@@ -100,7 +107,8 @@ fn test_server_config_creation() {
 fn test_server_config_with_client_auth() {
     let ca = generate_ca_cert("Test CA").expect("Failed to generate CA");
     let server_identity = ServiceIdentity::new("server-mtls");
-    let server_cert = generate_signed_cert(&server_identity, &ca).expect("Failed to generate server cert");
+    let server_cert =
+        generate_signed_cert(&server_identity, &ca).expect("Failed to generate server cert");
 
     let config = create_server_config_with_client_auth(&server_cert, &ca)
         .expect("Failed to create server config with client auth");
@@ -120,7 +128,8 @@ fn test_client_config_creation() {
 fn test_client_config_with_server_ca() {
     let ca = generate_ca_cert("Test CA").expect("Failed to generate CA");
     let client_identity = ServiceIdentity::new("client-mtls");
-    let client_cert = generate_signed_cert(&client_identity, &ca).expect("Failed to generate client cert");
+    let client_cert =
+        generate_signed_cert(&client_identity, &ca).expect("Failed to generate client cert");
 
     let config = create_client_config_with_server_ca(&client_cert, &ca)
         .expect("Failed to create client config with server CA");
@@ -134,11 +143,13 @@ fn test_mtls_handshake_simulation() {
 
     // Generate server cert
     let server_identity = ServiceIdentity::new("test-server");
-    let server_cert = generate_signed_cert(&server_identity, &ca).expect("Failed to generate server cert");
+    let server_cert =
+        generate_signed_cert(&server_identity, &ca).expect("Failed to generate server cert");
 
     // Generate client cert
     let client_identity = ServiceIdentity::new("test-client");
-    let client_cert = generate_signed_cert(&client_identity, &ca).expect("Failed to generate client cert");
+    let client_cert =
+        generate_signed_cert(&client_identity, &ca).expect("Failed to generate client cert");
 
     // Create configs
     let server_config = create_server_config_with_client_auth(&server_cert, &ca)
@@ -179,14 +190,19 @@ fn test_invalid_cert_signature() {
 
 #[test]
 fn test_cert_hostname_validation() {
-    let identity = ServiceIdentity::new("hostname-test")
-        .with_dns_names(vec!["valid.example.com"]);
+    let identity = ServiceIdentity::new("hostname-test").with_dns_names(vec!["valid.example.com"]);
 
     let cert = generate_self_signed_cert(&identity).expect("Failed to generate cert");
 
-    assert!(cert.validate_hostname("hostname-test").expect("Failed to validate hostname"));
-    assert!(cert.validate_hostname("valid.example.com").expect("Failed to validate hostname"));
-    assert!(!cert.validate_hostname("invalid.example.com").expect("Failed to validate hostname"));
+    assert!(cert
+        .validate_hostname("hostname-test")
+        .expect("Failed to validate hostname"));
+    assert!(cert
+        .validate_hostname("valid.example.com")
+        .expect("Failed to validate hostname"));
+    assert!(!cert
+        .validate_hostname("invalid.example.com")
+        .expect("Failed to validate hostname"));
 }
 
 #[test]
@@ -195,13 +211,15 @@ fn test_thread_safety() {
 
     let ca = Arc::new(generate_ca_cert("Thread Test CA").expect("Failed to generate CA"));
 
-    let handles: Vec<_> = (0..10).map(|i| {
-        let ca = Arc::clone(&ca);
-        thread::spawn(move || {
-            let identity = ServiceIdentity::new(&format!("service-{}", i));
-            generate_signed_cert(&identity, &ca).expect("Failed to generate cert")
+    let handles: Vec<_> = (0..10)
+        .map(|i| {
+            let ca = Arc::clone(&ca);
+            thread::spawn(move || {
+                let identity = ServiceIdentity::new(&format!("service-{}", i));
+                generate_signed_cert(&identity, &ca).expect("Failed to generate cert")
+            })
         })
-    }).collect();
+        .collect();
 
     for handle in handles {
         handle.join().expect("Thread panicked");
@@ -265,7 +283,8 @@ mod security_tests {
     fn test_reject_self_signed_with_ca_validation() {
         let ca = generate_ca_cert("Security CA").expect("Failed to generate CA");
         let identity = ServiceIdentity::new("self-signed-test");
-        let self_signed = generate_self_signed_cert(&identity).expect("Failed to generate self-signed cert");
+        let self_signed =
+            generate_self_signed_cert(&identity).expect("Failed to generate self-signed cert");
 
         // Self-signed cert should not validate against unrelated CA
         assert!(!self_signed.verify_with_ca(&ca).expect("Failed to verify"));
@@ -279,15 +298,19 @@ mod security_tests {
 
         // RSA should be at least 2048 bits, or use EC (rcgen defaults to RSA 2048 or EC)
         // Key size is reported in bits from the DER data
-        assert!(info.key_size >= 256, "Key size should be at least 256 bits, got: {}", info.key_size);
+        assert!(
+            info.key_size >= 256,
+            "Key size should be at least 256 bits, got: {}",
+            info.key_size
+        );
     }
 }
 
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_cert_file_persistence() {
@@ -317,17 +340,21 @@ mod integration_tests {
 
         // 2. Generate server cert (signed by CA)
         let server_identity = ServiceIdentity::new("workflow-server");
-        let server_cert = generate_signed_cert(&server_identity, &ca)
-            .expect("Failed to generate server cert");
+        let server_cert =
+            generate_signed_cert(&server_identity, &ca).expect("Failed to generate server cert");
 
         // 3. Generate client cert (signed by CA)
         let client_identity = ServiceIdentity::new("workflow-client");
-        let client_cert = generate_signed_cert(&client_identity, &ca)
-            .expect("Failed to generate client cert");
+        let client_cert =
+            generate_signed_cert(&client_identity, &ca).expect("Failed to generate client cert");
 
         // 4. Verify certs are signed by CA (issuer validation)
-        let server_valid = server_cert.verify_with_ca(&ca).expect("Server cert verification failed");
-        let client_valid = client_cert.verify_with_ca(&ca).expect("Client cert verification failed");
+        let server_valid = server_cert
+            .verify_with_ca(&ca)
+            .expect("Server cert verification failed");
+        let client_valid = client_cert
+            .verify_with_ca(&ca)
+            .expect("Client cert verification failed");
         assert!(server_valid, "Server cert should be valid");
         assert!(client_valid, "Client cert should be valid");
 

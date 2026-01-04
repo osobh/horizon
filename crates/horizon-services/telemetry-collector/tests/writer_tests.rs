@@ -1,6 +1,6 @@
-use telemetry_collector::writers::{InfluxDbWriter, ParquetWriter};
+use hpc_types::{CpuMetric, GpuMetric, MetricBatch, NicMetric, Timestamp};
 use telemetry_collector::config::{InfluxDbConfig, ParquetConfig};
-use hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch, Timestamp};
+use telemetry_collector::writers::{InfluxDbWriter, ParquetWriter};
 use tempfile::TempDir;
 
 fn create_test_batch() -> MetricBatch {
@@ -8,7 +8,10 @@ fn create_test_batch() -> MetricBatch {
         gpu_metrics: vec![GpuMetric {
             host_id: "host1".to_string(),
             gpu_id: "gpu0".to_string(),
-            timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+            timestamp: Some(Timestamp {
+                seconds: 1234567890,
+                nanos: 0,
+            }),
             utilization: 0.75,
             sm_occupancy: 0.80,
             memory_used_gb: 10.0,
@@ -23,7 +26,10 @@ fn create_test_batch() -> MetricBatch {
         }],
         cpu_metrics: vec![CpuMetric {
             host_id: "host1".to_string(),
-            timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+            timestamp: Some(Timestamp {
+                seconds: 1234567890,
+                nanos: 0,
+            }),
             socket: 0,
             utilization: 0.6,
             ipc: 1.8,
@@ -31,7 +37,10 @@ fn create_test_batch() -> MetricBatch {
         }],
         nic_metrics: vec![NicMetric {
             host_id: "host1".to_string(),
-            timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+            timestamp: Some(Timestamp {
+                seconds: 1234567890,
+                nanos: 0,
+            }),
             interface: "eth0".to_string(),
             rx_gbps: 10.0,
             tx_gbps: 8.0,
@@ -61,7 +70,10 @@ fn test_influxdb_line_protocol_gpu() {
     let metric = GpuMetric {
         host_id: "host1".to_string(),
         gpu_id: "gpu0".to_string(),
-        timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+        timestamp: Some(Timestamp {
+            seconds: 1234567890,
+            nanos: 0,
+        }),
         utilization: 0.75,
         sm_occupancy: 0.80,
         memory_used_gb: 10.0,
@@ -86,7 +98,10 @@ fn test_influxdb_line_protocol_gpu() {
 fn test_influxdb_line_protocol_cpu() {
     let metric = CpuMetric {
         host_id: "host1".to_string(),
-        timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+        timestamp: Some(Timestamp {
+            seconds: 1234567890,
+            nanos: 0,
+        }),
         socket: 0,
         utilization: 0.6,
         ipc: 1.8,
@@ -104,7 +119,10 @@ fn test_influxdb_line_protocol_cpu() {
 fn test_influxdb_line_protocol_nic() {
     let metric = NicMetric {
         host_id: "host1".to_string(),
-        timestamp: Some(Timestamp { seconds: 1234567890, nanos: 0 }),
+        timestamp: Some(Timestamp {
+            seconds: 1234567890,
+            nanos: 0,
+        }),
         interface: "eth0".to_string(),
         rx_gbps: 10.0,
         tx_gbps: 8.0,
@@ -248,7 +266,10 @@ async fn test_parquet_large_batch() {
         gpu_metrics.push(GpuMetric {
             host_id: format!("host{}", i % 10),
             gpu_id: format!("gpu{}", i % 8),
-            timestamp: Some(Timestamp { seconds: 1234567890 + i, nanos: 0 }),
+            timestamp: Some(Timestamp {
+                seconds: 1234567890 + i,
+                nanos: 0,
+            }),
             utilization: (i % 100) as f32 / 100.0,
             sm_occupancy: 0.80,
             memory_used_gb: 10.0,

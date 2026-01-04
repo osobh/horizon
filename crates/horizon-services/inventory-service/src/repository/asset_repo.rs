@@ -1,4 +1,4 @@
-use sqlx::{PgPool, QueryBuilder, Postgres};
+use sqlx::{PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
 use crate::api::models::{CreateAssetRequest, ListAssetsQuery, UpdateAssetRequest};
@@ -125,7 +125,12 @@ impl AssetRepository {
         )
         .fetch_optional(&self.pool)
         .await?
-        .ok_or_else(|| HpcError::not_found("asset", format!("Asset with hostname {} not found", hostname)))?;
+        .ok_or_else(|| {
+            HpcError::not_found(
+                "asset",
+                format!("Asset with hostname {} not found", hostname),
+            )
+        })?;
 
         Ok(asset)
     }
@@ -183,17 +188,15 @@ impl AssetRepository {
         qb.push(" OFFSET ");
         qb.push_bind(query.offset());
 
-        let assets = qb
-            .build_query_as::<Asset>()
-            .fetch_all(&self.pool)
-            .await?;
+        let assets = qb.build_query_as::<Asset>().fetch_all(&self.pool).await?;
 
         Ok(assets)
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn count(&self, query: &ListAssetsQuery) -> Result<i64> {
-        let mut qb: QueryBuilder<Postgres> = QueryBuilder::new("SELECT COUNT(*) FROM assets WHERE 1=1");
+        let mut qb: QueryBuilder<Postgres> =
+            QueryBuilder::new("SELECT COUNT(*) FROM assets WHERE 1=1");
 
         if let Some(asset_type) = query.asset_type {
             qb.push(" AND asset_type = ");
@@ -215,10 +218,7 @@ impl AssetRepository {
             qb.push_bind(format!("{}%", location));
         }
 
-        let count: (i64,) = qb
-            .build_query_as()
-            .fetch_one(&self.pool)
-            .await?;
+        let count: (i64,) = qb.build_query_as().fetch_one(&self.pool).await?;
 
         Ok(count.0)
     }

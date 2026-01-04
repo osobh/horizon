@@ -78,7 +78,8 @@ impl GpuUtilizationOptimizer {
             aggressive_mode: true,
             ..Default::default()
         };
-        let controller = UtilizationController::new(Arc::clone(&self.device), controller_config).await?;
+        let controller =
+            UtilizationController::new(Arc::clone(&self.device), controller_config).await?;
 
         // Start optimization
         controller.start().await?;
@@ -198,7 +199,8 @@ impl GpuUtilizationOptimizer {
             predictive_mode: true,
             ..Default::default()
         };
-        let controller = UtilizationController::new(Arc::clone(&self.device), controller_config).await?;
+        let controller =
+            UtilizationController::new(Arc::clone(&self.device), controller_config).await?;
 
         // Start dynamic balancing
         controller.start().await?;

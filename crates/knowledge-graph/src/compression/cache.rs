@@ -46,11 +46,11 @@ impl CompressionCache {
             entry.access_count += 1;
             entry.last_accessed = std::time::Instant::now();
             self.stats.hits += 1;
-            
+
             // Move to front of access order
             self.access_order.retain(|&x| x != *id);
             self.access_order.push_front(*id);
-            
+
             Some(&entry.compressed)
         } else {
             self.stats.misses += 1;

@@ -363,6 +363,9 @@ impl CoalescingBenchmark {
         iterations: usize,
     ) -> Result<std::time::Duration> {
         // Allocate device memory
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
+        // the benchmark synchronizes the device before measuring, and the data content
+        // doesn't affect the memory bandwidth measurement (we're timing access patterns).
         let mut device_data = unsafe { self.device.alloc::<f32>(data_size / 4)? };
 
         let start = std::time::Instant::now();
@@ -383,6 +386,9 @@ impl CoalescingBenchmark {
         iterations: usize,
         stride: usize,
     ) -> Result<std::time::Duration> {
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
+        // the benchmark synchronizes the device before measuring, and the data content
+        // doesn't affect the memory bandwidth measurement (we're timing access patterns).
         let mut device_data = unsafe { self.device.alloc::<f32>(data_size / 4)? };
 
         let start = std::time::Instant::now();
@@ -402,6 +408,9 @@ impl CoalescingBenchmark {
         data_size: usize,
         iterations: usize,
     ) -> Result<std::time::Duration> {
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
+        // the benchmark synchronizes the device before measuring, and the data content
+        // doesn't affect the memory bandwidth measurement (we're timing access patterns).
         let mut device_data = unsafe { self.device.alloc::<f32>(data_size / 4)? };
 
         let start = std::time::Instant::now();
@@ -435,7 +444,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_coalescing_analysis() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_coalescing_analysis() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let mut optimizer = MemoryCoalescingOptimizer::new(device);
 
@@ -443,9 +452,8 @@ mod tests {
         let coalesced_accesses: Vec<(u32, u64)> =
             (0..32).map(|i| (i, 0x1000 + i as u64 * 4)).collect();
 
-        let pattern = optimizer
-            .analyze_access_pattern("coalesced_kernel", 0x1000, &coalesced_accesses)
-            ?;
+        let pattern =
+            optimizer.analyze_access_pattern("coalesced_kernel", 0x1000, &coalesced_accesses)?;
 
         assert!(pattern.coalescing_efficiency > 0.9);
         assert_eq!(pattern.access_stride, 4);
@@ -453,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn test_strided_access_detection() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_strided_access_detection() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let mut optimizer = MemoryCoalescingOptimizer::new(device);
 
@@ -478,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aos_to_soa_transformation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_aos_to_soa_transformation() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let optimizer = MemoryCoalescingOptimizer::new(device);
 

@@ -139,12 +139,12 @@ impl ReplayEngine for MockReplayEngine {
 
     async fn start_replay(&self, session_id: Uuid) -> Result<(), DebugError> {
         {
-            let mut session = self
-                .sessions
-                .get_mut(&session_id)
-                .ok_or_else(|| DebugError::ReplayFailed {
-                    reason: "Session not found".to_string(),
-                })?;
+            let mut session =
+                self.sessions
+                    .get_mut(&session_id)
+                    .ok_or_else(|| DebugError::ReplayFailed {
+                        reason: "Session not found".to_string(),
+                    })?;
 
             if session.status != ReplayStatus::Pending && session.status != ReplayStatus::Paused {
                 return Err(DebugError::ReplayFailed {
@@ -189,12 +189,12 @@ impl ReplayEngine for MockReplayEngine {
     }
 
     async fn pause_replay(&self, session_id: Uuid) -> Result<(), DebugError> {
-        let mut session = self
-            .sessions
-            .get_mut(&session_id)
-            .ok_or_else(|| DebugError::ReplayFailed {
-                reason: "Session not found".to_string(),
-            })?;
+        let mut session =
+            self.sessions
+                .get_mut(&session_id)
+                .ok_or_else(|| DebugError::ReplayFailed {
+                    reason: "Session not found".to_string(),
+                })?;
 
         if session.status != ReplayStatus::Running {
             return Err(DebugError::ReplayFailed {
@@ -207,12 +207,12 @@ impl ReplayEngine for MockReplayEngine {
     }
 
     async fn resume_replay(&self, session_id: Uuid) -> Result<(), DebugError> {
-        let mut session = self
-            .sessions
-            .get_mut(&session_id)
-            .ok_or_else(|| DebugError::ReplayFailed {
-                reason: "Session not found".to_string(),
-            })?;
+        let mut session =
+            self.sessions
+                .get_mut(&session_id)
+                .ok_or_else(|| DebugError::ReplayFailed {
+                    reason: "Session not found".to_string(),
+                })?;
 
         if session.status != ReplayStatus::Paused {
             return Err(DebugError::ReplayFailed {
@@ -244,12 +244,12 @@ impl ReplayEngine for MockReplayEngine {
     }
 
     async fn stop_replay(&self, session_id: Uuid) -> Result<ReplayResults, DebugError> {
-        let mut session = self
-            .sessions
-            .get_mut(&session_id)
-            .ok_or_else(|| DebugError::ReplayFailed {
-                reason: "Session not found".to_string(),
-            })?;
+        let mut session =
+            self.sessions
+                .get_mut(&session_id)
+                .ok_or_else(|| DebugError::ReplayFailed {
+                    reason: "Session not found".to_string(),
+                })?;
 
         session.status = ReplayStatus::Cancelled;
         session.end_time = Some(

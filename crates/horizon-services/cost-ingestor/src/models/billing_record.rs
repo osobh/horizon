@@ -226,7 +226,10 @@ mod tests {
         let record = CreateBillingRecord::new(Provider::Aws, now, later, dec!(-10.0));
         let result = record.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Amount cannot be negative"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Amount cannot be negative"));
     }
 
     #[test]
@@ -237,7 +240,10 @@ mod tests {
         let record = CreateBillingRecord::new(Provider::Aws, now, earlier, dec!(100.0));
         let result = record.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Usage end must be after usage start"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Usage end must be after usage start"));
     }
 
     #[test]
@@ -249,7 +255,10 @@ mod tests {
             .with_currency("US".to_string());
         let result = record.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Currency must be 3-letter code"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Currency must be 3-letter code"));
     }
 
     #[test]

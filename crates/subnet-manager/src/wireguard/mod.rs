@@ -41,24 +41,19 @@ pub mod subnet_aware;
 mod sync;
 
 pub use backend::{AutoSelectBackend, BackendType, InterfaceStats, PeerStats, WireGuardBackend};
-pub use config::{
-    InterfaceConfig, PeerConfig, WireGuardConfigGenerator, WireGuardSubnetConfig,
-};
+pub use config::{InterfaceConfig, PeerConfig, WireGuardConfigGenerator, WireGuardSubnetConfig};
 pub use keys::{KeyPair, WireGuardKeys};
 pub use migration_coord::{
     InMemoryNodeRegistry, MigrationCoordError, MigrationCoordStatus, MigrationCoordinator,
     NodeInfo, NodeRegistry, ProbeConfig, ProbeResult,
 };
-pub use subnet_aware::{
-    InterfaceInfo, SubnetAwareWireGuard, SubnetPeer, SubnetWireGuardError,
-};
-pub use sync::{
-    ConfigChange, ConfigSyncService, NodeConfigResponse, NodeHttpClient,
-    NodePeerConfig, NodeWireGuardConfigRequest, SyncEvent, SyncResult, SyncStatus,
-};
 pub use quality::{ConnectionQuality, QualityMetrics, QualityRating};
 pub use router::{
-    PeerRoute, QualityAwareRouter, QualityProber, QualityThresholds,
-    RouteStrategy, RouterError, RouterStats,
-    ProbeConfig as RouterProbeConfig, ProbeResult as RouterProbeResult,
+    PeerRoute, ProbeConfig as RouterProbeConfig, ProbeResult as RouterProbeResult,
+    QualityAwareRouter, QualityProber, QualityThresholds, RouteStrategy, RouterError, RouterStats,
+};
+pub use subnet_aware::{InterfaceInfo, SubnetAwareWireGuard, SubnetPeer, SubnetWireGuardError};
+pub use sync::{
+    ConfigChange, ConfigSyncService, NodeConfigResponse, NodeHttpClient, NodePeerConfig,
+    NodeWireGuardConfigRequest, SyncEvent, SyncResult, SyncStatus,
 };

@@ -8,4 +8,4 @@ pub mod profiler;
 pub mod simulator;
 
 pub use config::Config;
-pub use error::{HpcError, Result, MarginErrorExt};
+pub use error::{HpcError, MarginErrorExt, Result};

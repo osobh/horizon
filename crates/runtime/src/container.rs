@@ -220,9 +220,11 @@ impl GpuContainer {
         let uptime = self.created_at.elapsed();
 
         // Calculate last activity time
-        let last_activity_seconds = self.last_activity.lock().ok().and_then(|guard| {
-            guard.map(|instant| instant.elapsed().as_secs())
-        });
+        let last_activity_seconds = self
+            .last_activity
+            .lock()
+            .ok()
+            .and_then(|guard| guard.map(|instant| instant.elapsed().as_secs()));
 
         Ok(ContainerStats {
             container_id: self.id.clone(),
@@ -600,6 +602,8 @@ mod tests {
         let mut container = GpuContainer::new(ContainerConfig::default());
 
         // Mock memory handle
+        // SAFETY: Creating a null DevicePointer for testing purposes only.
+        // This pointer is never dereferenced - it's used purely for stats testing.
         let handle = stratoswarm_memory::GpuMemoryHandle {
             #[cfg(feature = "cuda")]
             ptr: unsafe { cust::memory::DevicePointer::from_raw(0u64) },

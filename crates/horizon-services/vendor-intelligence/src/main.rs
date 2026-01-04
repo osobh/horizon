@@ -1,12 +1,12 @@
 use anyhow::Context;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tracing::info;
 use vendor_intelligence::{
     api::{create_router, handlers::AppState},
     config::Config,
     db::{create_pool, VendorRepository},
 };
-use std::sync::Arc;
-use tokio::net::TcpListener;
-use tracing::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

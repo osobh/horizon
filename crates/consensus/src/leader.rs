@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "hpc-channels")]
-use crate::hpc_bridge::{SharedConsensusChannelBridge, shared_channel_bridge};
+use crate::hpc_bridge::{shared_channel_bridge, SharedConsensusChannelBridge};
 
 /// Leader election state
 #[derive(Debug, Clone, PartialEq)]
@@ -167,7 +167,8 @@ impl LeaderElection {
 
         // Publish election started event
         #[cfg(feature = "hpc-channels")]
-        self.event_bridge.publish_election_started(self.current_term, &self.validator_id);
+        self.event_bridge
+            .publish_election_started(self.current_term, &self.validator_id);
 
         Ok(ElectionMessage::RequestVote {
             term: self.current_term,
@@ -349,7 +350,8 @@ impl LeaderElection {
 
         // Publish leader elected event
         #[cfg(feature = "hpc-channels")]
-        self.event_bridge.publish_leader_elected(self.current_term, &self.validator_id);
+        self.event_bridge
+            .publish_leader_elected(self.current_term, &self.validator_id);
 
         Ok(())
     }
@@ -396,7 +398,8 @@ impl LeaderElection {
     pub fn step_down(&mut self) {
         // Publish leader stepped down event before changing state
         #[cfg(feature = "hpc-channels")]
-        self.event_bridge.publish_leader_stepped_down(self.current_term, &self.validator_id);
+        self.event_bridge
+            .publish_leader_stepped_down(self.current_term, &self.validator_id);
 
         self.state = LeaderState::Follower { leader_id: None };
         tracing::info!("Stepped down from leadership in term {}", self.current_term);

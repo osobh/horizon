@@ -80,7 +80,8 @@ impl GenesisLoader {
         self.phase = BootstrapPhase::SelfSustaining;
         self.enable_self_sustaining_mode().await?;
 
-        let elapsed = self.initialization_time
+        let elapsed = self
+            .initialization_time
             .ok_or_else(|| anyhow::anyhow!("Initialization time not set"))?
             .elapsed();
         tracing::info!("Bootstrap completed in {:?}", elapsed);

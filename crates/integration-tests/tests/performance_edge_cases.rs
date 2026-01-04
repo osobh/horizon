@@ -7,6 +7,12 @@ use cpu_agents::{
     io_manager::{IoManager, IoOperation},
     orchestrator::{Orchestrator, Workflow, WorkflowStep},
 };
+use gpu_agents::{
+    evolution::{GpuEvolutionEngine, PopulationBuffer},
+    streaming::{StreamConfig, StreamProcessor},
+};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use stratoswarm_agent_core::{Agent, AgentConfig, Goal, GoalPriority, MemoryType};
 use stratoswarm_evolution::{EvolutionEngine, GeneticEvolutionEngine, Population};
 use stratoswarm_knowledge_graph::{KnowledgeGraph, KnowledgeGraphConfig, Query, QueryType};
@@ -14,12 +20,6 @@ use stratoswarm_memory::{GpuMemoryAllocator, MemoryPool};
 use stratoswarm_net::{Network, ZeroCopyTransport};
 use stratoswarm_runtime::{ContainerRuntime, SecureContainerRuntime};
 use stratoswarm_storage::{NvmeConfig, NvmeStorage, Storage};
-use gpu_agents::{
-    evolution::{GpuEvolutionEngine, PopulationBuffer},
-    streaming::{StreamConfig, StreamProcessor},
-};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Semaphore};
 use tokio::time::{sleep, timeout};
 

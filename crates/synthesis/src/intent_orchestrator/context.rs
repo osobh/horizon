@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::intents::Intent;
 use super::execution::ExecutionRecord;
+use super::intents::Intent;
 
 /// Intent context containing all relevant information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,7 +40,7 @@ pub struct SessionContext {
 }
 
 /// Current system state
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SystemState {
     /// Active services
     pub active_services: Vec<String>,
@@ -98,7 +98,7 @@ pub struct AmbientContext {
 }
 
 /// Resource constraints
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResourceConstraints {
     /// Maximum CPU cores
     pub max_cpu: Option<u32>,
@@ -127,7 +127,7 @@ impl IntentContext {
     /// Add execution record to history
     pub fn add_execution_record(&mut self, record: ExecutionRecord) {
         self.history.push(record);
-        
+
         // Keep only last 10 records
         if self.history.len() > 10 {
             self.history.remove(0);
@@ -142,17 +142,21 @@ impl IntentContext {
     /// Get resource availability
     pub fn get_available_resources(&self) -> HashMap<String, f64> {
         let mut available = HashMap::new();
-        
+
         if let Some(max_cpu) = self.ambient.constraints.max_cpu {
             let used = self.system_state.resource_usage.get("cpu").unwrap_or(&0.0);
             available.insert("cpu".to_string(), max_cpu as f64 - used);
         }
-        
+
         if let Some(max_memory) = self.ambient.constraints.max_memory_gb {
-            let used = self.system_state.resource_usage.get("memory_gb").unwrap_or(&0.0);
+            let used = self
+                .system_state
+                .resource_usage
+                .get("memory_gb")
+                .unwrap_or(&0.0);
             available.insert("memory_gb".to_string(), max_memory as f64 - used);
         }
-        
+
         available
     }
 
@@ -171,11 +175,26 @@ impl IntentContext {
 
     /// Get context priority based on alerts
     pub fn get_priority(&self) -> u8 {
-        if self.system_state.alerts.iter().any(|a| matches!(a.level, AlertLevel::Critical)) {
+        if self
+            .system_state
+            .alerts
+            .iter()
+            .any(|a| matches!(a.level, AlertLevel::Critical))
+        {
             1 // Highest priority
-        } else if self.system_state.alerts.iter().any(|a| matches!(a.level, AlertLevel::Error)) {
+        } else if self
+            .system_state
+            .alerts
+            .iter()
+            .any(|a| matches!(a.level, AlertLevel::Error))
+        {
             2
-        } else if self.system_state.alerts.iter().any(|a| matches!(a.level, AlertLevel::Warning)) {
+        } else if self
+            .system_state
+            .alerts
+            .iter()
+            .any(|a| matches!(a.level, AlertLevel::Warning))
+        {
             3
         } else {
             5 // Normal priority
@@ -196,18 +215,6 @@ impl Default for SessionContext {
     }
 }
 
-impl Default for SystemState {
-    fn default() -> Self {
-        Self {
-            active_services: Vec::new(),
-            resource_usage: HashMap::new(),
-            alerts: Vec::new(),
-            metrics: HashMap::new(),
-            config: HashMap::new(),
-        }
-    }
-}
-
 impl Default for AmbientContext {
     fn default() -> Self {
         Self {
@@ -217,18 +224,6 @@ impl Default for AmbientContext {
             compliance_requirements: Vec::new(),
             constraints: ResourceConstraints::default(),
             feature_flags: HashMap::new(),
-        }
-    }
-}
-
-impl Default for ResourceConstraints {
-    fn default() -> Self {
-        Self {
-            max_cpu: None,
-            max_memory_gb: None,
-            max_storage_gb: None,
-            max_bandwidth_mbps: None,
-            budget_limit: None,
         }
     }
 }

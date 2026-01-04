@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn test_availability_schedule_serialization() {
         let schedule = AvailabilitySchedule {
-            days: vec![1, 2, 3, 4, 5], // Monday-Friday
+            days: vec![1, 2, 3, 4, 5],                      // Monday-Friday
             hours: vec![9, 10, 11, 12, 13, 14, 15, 16, 17], // 9am-5pm
             timezone: "America/New_York".to_string(),
         };

@@ -52,9 +52,8 @@ pub struct StrategicKPIDb {
 impl From<StrategicKPIDb> for StrategicKPI {
     fn from(db: StrategicKPIDb) -> Self {
         use std::str::FromStr;
-        let to_f64 = |bd: sqlx::types::Decimal| -> f64 {
-            f64::from_str(&bd.to_string()).unwrap_or(0.0)
-        };
+        let to_f64 =
+            |bd: sqlx::types::Decimal| -> f64 { f64::from_str(&bd.to_string()).unwrap_or(0.0) };
 
         Self {
             id: db.id,
@@ -139,9 +138,8 @@ pub struct InitiativeDb {
 impl From<InitiativeDb> for Initiative {
     fn from(db: InitiativeDb) -> Self {
         use std::str::FromStr;
-        let to_f64 = |bd: sqlx::types::Decimal| -> f64 {
-            f64::from_str(&bd.to_string()).unwrap_or(0.0)
-        };
+        let to_f64 =
+            |bd: sqlx::types::Decimal| -> f64 { f64::from_str(&bd.to_string()).unwrap_or(0.0) };
 
         Self {
             id: db.id,
@@ -250,9 +248,8 @@ pub struct InvestmentRecommendationDb {
 impl From<InvestmentRecommendationDb> for InvestmentRecommendation {
     fn from(db: InvestmentRecommendationDb) -> Self {
         use std::str::FromStr;
-        let to_f64 = |bd: sqlx::types::Decimal| -> f64 {
-            f64::from_str(&bd.to_string()).unwrap_or(0.0)
-        };
+        let to_f64 =
+            |bd: sqlx::types::Decimal| -> f64 { f64::from_str(&bd.to_string()).unwrap_or(0.0) };
 
         Self {
             id: db.id,

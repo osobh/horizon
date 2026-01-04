@@ -115,6 +115,9 @@ impl GpuIoBuffer {
         let aligned_size = (size + 4095) & !4095; // Align to 4KB
 
         // Allocate GPU memory
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+        // because the buffer will be populated via GPUDirect I/O operations before
+        // any kernel reads from it.
         let buffer = unsafe { device.alloc::<u8>(aligned_size)? };
 
         Ok(Self {
@@ -140,6 +143,8 @@ impl GpuIoBuffer {
         Self::allocate(size).or_else(|_| {
             // Fallback to regular allocation
             let device = CudaDevice::new(0)?;
+            // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+            // because the buffer will be populated via I/O operations before kernel use.
             let buffer = unsafe { device.alloc::<u8>(size)? };
             Ok(Self {
                 device,

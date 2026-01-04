@@ -83,6 +83,8 @@ fn benchmark_raw_kernel(device: Arc<CudaDevice>) -> Result<f64> {
     let pattern_size = NODE_SIZE * 32; // 32 patterns
     let ast_size = NODE_SIZE * BATCH_SIZE; // Large AST forest
 
+    // SAFETY: alloc returns uninitialized memory. pattern_buffer and ast_buffer
+    // will be written via htod_copy_into before any kernel reads.
     let pattern_buffer = unsafe { device.alloc::<u8>(pattern_size)? };
     let ast_buffer = unsafe { device.alloc::<u8>(ast_size)? };
     let match_buffer = device.alloc_zeros::<u32>(BATCH_SIZE * 2)?;
@@ -98,6 +100,8 @@ fn benchmark_raw_kernel(device: Arc<CudaDevice>) -> Result<f64> {
     let measure_iters = 1000;
 
     // Warmup
+    // SAFETY: All pointers are valid device pointers. pattern_buffer and ast_buffer
+    // were initialized via htod_copy_into. Parameters match allocation sizes.
     for _ in 0..warmup_iters {
         unsafe {
             launch_match_patterns_fast(
@@ -112,6 +116,7 @@ fn benchmark_raw_kernel(device: Arc<CudaDevice>) -> Result<f64> {
     device.synchronize()?;
 
     // Measure
+    // SAFETY: Same as warmup - all pointers valid, buffers initialized.
     let start = Instant::now();
     for _ in 0..measure_iters {
         unsafe {
@@ -165,6 +170,8 @@ fn benchmark_pattern_scale(device: Arc<CudaDevice>) -> Result<f64> {
         let pattern_size = NODE_SIZE * num_patterns;
         let ast_size = NODE_SIZE * num_nodes;
 
+        // SAFETY: alloc returns uninitialized memory. Buffers will be written
+        // via htod_copy_into before kernel execution.
         let pattern_buffer = unsafe { device.alloc::<u8>(pattern_size)? };
         let ast_buffer = unsafe { device.alloc::<u8>(ast_size)? };
         let match_buffer = device.alloc_zeros::<u32>(num_nodes * 2)?;
@@ -177,6 +184,8 @@ fn benchmark_pattern_scale(device: Arc<CudaDevice>) -> Result<f64> {
         device.htod_copy_into(ast_data, &mut ast_buffer.clone())?;
 
         // Time a single run
+        // SAFETY: All pointers are valid device pointers. Buffers were initialized
+        // via htod_copy_into. Parameters match allocation sizes for this scale.
         let start = Instant::now();
         unsafe {
             launch_match_patterns_fast(

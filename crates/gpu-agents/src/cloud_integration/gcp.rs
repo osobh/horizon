@@ -4,7 +4,7 @@
 //! preemptible instances, and global load balancing.
 
 use super::core::*;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -21,49 +21,72 @@ impl GcpProvider {
     pub async fn new(config: CloudConfig) -> Result<Self> {
         // Initialize with GCP regions
         let mut regions = HashMap::new();
-        
+
         // US regions
-        regions.insert("us-central1".to_string(), CloudRegion {
-            id: "us-central1".to_string(),
-            name: "US Central (Iowa)".to_string(),
-            location: "Iowa, USA".to_string(),
-            availability_zones: vec!["us-central1-a".to_string(), "us-central1-b".to_string(), "us-central1-c".to_string()],
-            gpu_available: true,
-            latency_ms: 20.0,
-        });
-        
-        regions.insert("us-west1".to_string(), CloudRegion {
-            id: "us-west1".to_string(),
-            name: "US West (Oregon)".to_string(),
-            location: "Oregon, USA".to_string(),
-            availability_zones: vec!["us-west1-a".to_string(), "us-west1-b".to_string()],
-            gpu_available: true,
-            latency_ms: 40.0,
-        });
-        
+        regions.insert(
+            "us-central1".to_string(),
+            CloudRegion {
+                id: "us-central1".to_string(),
+                name: "US Central (Iowa)".to_string(),
+                location: "Iowa, USA".to_string(),
+                availability_zones: vec![
+                    "us-central1-a".to_string(),
+                    "us-central1-b".to_string(),
+                    "us-central1-c".to_string(),
+                ],
+                gpu_available: true,
+                latency_ms: 20.0,
+            },
+        );
+
+        regions.insert(
+            "us-west1".to_string(),
+            CloudRegion {
+                id: "us-west1".to_string(),
+                name: "US West (Oregon)".to_string(),
+                location: "Oregon, USA".to_string(),
+                availability_zones: vec!["us-west1-a".to_string(), "us-west1-b".to_string()],
+                gpu_available: true,
+                latency_ms: 40.0,
+            },
+        );
+
         // Europe regions
-        regions.insert("europe-west1".to_string(), CloudRegion {
-            id: "europe-west1".to_string(),
-            name: "Europe West (Belgium)".to_string(),
-            location: "Belgium".to_string(),
-            availability_zones: vec!["europe-west1-b".to_string(), "europe-west1-c".to_string(), "europe-west1-d".to_string()],
-            gpu_available: true,
-            latency_ms: 90.0,
-        });
-        
+        regions.insert(
+            "europe-west1".to_string(),
+            CloudRegion {
+                id: "europe-west1".to_string(),
+                name: "Europe West (Belgium)".to_string(),
+                location: "Belgium".to_string(),
+                availability_zones: vec![
+                    "europe-west1-b".to_string(),
+                    "europe-west1-c".to_string(),
+                    "europe-west1-d".to_string(),
+                ],
+                gpu_available: true,
+                latency_ms: 90.0,
+            },
+        );
+
         // Asia regions
-        regions.insert("asia-southeast1".to_string(), CloudRegion {
-            id: "asia-southeast1".to_string(),
-            name: "Asia Southeast (Singapore)".to_string(),
-            location: "Singapore".to_string(),
-            availability_zones: vec!["asia-southeast1-a".to_string(), "asia-southeast1-b".to_string()],
-            gpu_available: true,
-            latency_ms: 160.0,
-        });
+        regions.insert(
+            "asia-southeast1".to_string(),
+            CloudRegion {
+                id: "asia-southeast1".to_string(),
+                name: "Asia Southeast (Singapore)".to_string(),
+                location: "Singapore".to_string(),
+                availability_zones: vec![
+                    "asia-southeast1-a".to_string(),
+                    "asia-southeast1-b".to_string(),
+                ],
+                gpu_available: true,
+                latency_ms: 160.0,
+            },
+        );
 
         // Initialize instance types (GCP GPU instances)
         let mut instance_types = HashMap::new();
-        
+
         let gpu_instances = vec![
             InstanceType {
                 id: "n1-standard-8-v100".to_string(),
@@ -114,7 +137,7 @@ impl GcpProvider {
                 price_per_hour: 3.67,
             },
         ];
-        
+
         // Add instance types to all regions
         for region_id in regions.keys() {
             instance_types.insert(region_id.clone(), gpu_instances.clone());
@@ -128,30 +151,42 @@ impl GcpProvider {
     }
 
     /// Simulate GCE instance provisioning
-    async fn simulate_gce_provisioning(&self, request: &ProvisionRequest) -> Result<Vec<CloudInstance>> {
+    async fn simulate_gce_provisioning(
+        &self,
+        request: &ProvisionRequest,
+    ) -> Result<Vec<CloudInstance>> {
         let mut instances = Vec::new();
-        
+
         for i in 0..request.count {
             let instance = CloudInstance {
                 instance_id: format!("gce-{}-{}", uuid::Uuid::new_v4(), i),
-                public_ip: if request.tags.get("external_ip").map(|v| v == "true").unwrap_or(false) {
-                    Some(format!("34.{}.{}.{}", 
+                public_ip: if request
+                    .tags
+                    .get("external_ip")
+                    .map(|v| v == "true")
+                    .unwrap_or(false)
+                {
+                    Some(format!(
+                        "34.{}.{}.{}",
                         100 + (rand::random::<u8>() % 50),
                         rand::random::<u8>() % 255,
-                        rand::random::<u8>() % 255))
+                        rand::random::<u8>() % 255
+                    ))
                 } else {
                     None
                 },
-                private_ip: format!("10.{}.{}.{}", 
+                private_ip: format!(
+                    "10.{}.{}.{}",
                     128 + (i / 255) as u8,
                     (i % 255) as u8,
-                    rand::random::<u8>() % 255),
+                    rand::random::<u8>() % 255
+                ),
                 state: InstanceState::Running,
                 launch_time: Duration::from_secs(15 + i as u64 * 2),
             };
             instances.push(instance);
         }
-        
+
         Ok(instances)
     }
 
@@ -164,7 +199,11 @@ impl GcpProvider {
                 let discount = 0.6 + (rand::random::<f64>() * 0.31); // 60-91% discount
                 Ok(instance.price_per_hour * (1.0 - discount))
             } else {
-                Err(anyhow!("Instance type {} not found in region {}", instance_type, region))
+                Err(anyhow!(
+                    "Instance type {} not found in region {}",
+                    instance_type,
+                    region
+                ))
             }
         } else {
             Err(anyhow!("Region {} not found", region))
@@ -183,39 +222,44 @@ impl CloudProvider for GcpProvider {
     }
 
     async fn list_instance_types(&self, region: &str) -> Result<Vec<InstanceType>> {
-        self.instance_types.get(region)
+        self.instance_types
+            .get(region)
             .cloned()
             .ok_or_else(|| anyhow!("Region {} not found", region))
     }
 
     async fn provision(&self, request: &ProvisionRequest) -> Result<ProvisionResponse> {
         let start_time = Instant::now();
-        
+
         // Validate region
         if !self.regions.contains_key(&request.region) {
             return Err(anyhow!("Region {} not supported", request.region));
         }
-        
+
         // Validate instance type
-        let instance_types = self.instance_types.get(&request.region)
+        let instance_types = self
+            .instance_types
+            .get(&request.region)
             .ok_or_else(|| anyhow!("No instance types for region {}", request.region))?;
-        
-        let instance_type = instance_types.iter()
+
+        let instance_type = instance_types
+            .iter()
             .find(|t| t.id == request.instance_type)
             .ok_or_else(|| anyhow!("Instance type {} not found", request.instance_type))?;
-        
+
         // Simulate provisioning
         let instances = self.simulate_gce_provisioning(request).await?;
-        
+
         // Calculate cost (use preemptible if spot requested)
         let price_per_hour = if request.use_spot {
-            self.get_preemptible_price(&request.region, &request.instance_type).await?
+            self.get_preemptible_price(&request.region, &request.instance_type)
+                .await?
         } else {
             instance_type.price_per_hour
         };
-        
+
         let total_cost_estimate = price_per_hour * request.count as f64;
-        
+
         Ok(ProvisionResponse {
             resource_id: format!("gcp-deployment-{}", uuid::Uuid::new_v4()),
             instances,
@@ -252,18 +296,22 @@ impl CloudProvider for GcpProvider {
         })
     }
 
-    async fn estimate_cost(&self, instance_type: &InstanceType, duration: Duration) -> Result<CostEstimate> {
+    async fn estimate_cost(
+        &self,
+        instance_type: &InstanceType,
+        duration: Duration,
+    ) -> Result<CostEstimate> {
         let hours = duration.as_secs_f64() / 3600.0;
         let instance_cost = instance_type.price_per_hour * hours;
-        
+
         // GCP pricing model
         let storage_cost = 0.08 * instance_type.storage_gb as f64 * hours / 730.0; // $0.08/GB/month for SSD
         let network_cost = 0.01 * hours; // Simplified egress cost
-        
+
         // Apply sustained use discount for long-running instances
         let sustained_use_discount = if hours > 730.0 { 0.3 } else { 0.0 };
         let discounted_instance_cost = instance_cost * (1.0 - sustained_use_discount);
-        
+
         Ok(CostEstimate {
             instance_cost: discounted_instance_cost,
             storage_cost,
@@ -280,23 +328,30 @@ impl CloudProvider for GcpProvider {
         })
     }
 
-    async fn check_spot_availability(&self, region: &str, instance_type: &str) -> Result<SpotAvailability> {
+    async fn check_spot_availability(
+        &self,
+        region: &str,
+        instance_type: &str,
+    ) -> Result<SpotAvailability> {
         // GCP calls them preemptible instances
         let preemptible_price = self.get_preemptible_price(region, instance_type).await?;
-        
-        let on_demand_price = self.instance_types.get(region)
+
+        let on_demand_price = self
+            .instance_types
+            .get(region)
             .and_then(|types| types.iter().find(|t| t.id == instance_type))
             .map(|t| t.price_per_hour)
             .ok_or_else(|| anyhow!("Instance type not found"))?;
-        
+
         let savings_percentage = ((on_demand_price - preemptible_price) / on_demand_price) * 100.0;
-        
+
         Ok(SpotAvailability {
             available: true,
             current_price: preemptible_price,
             savings_percentage,
             interruption_rate: 0.15, // Higher interruption rate than AWS (24hr max)
-            recommended: savings_percentage > 60.0 && self.config.cost_optimization.use_spot_instances,
+            recommended: savings_percentage > 60.0
+                && self.config.cost_optimization.use_spot_instances,
         })
     }
 }

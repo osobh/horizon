@@ -153,13 +153,11 @@ pub fn load_from_file<P: AsRef<Path>, T: DeserializeOwned>(
     let config = Config::builder()
         .add_source(File::from(path).format(format))
         .build()
-        .map_err(|e| {
-            hpc_error::HpcError::Config(format!("failed to load config: {}", e))
-        })?;
+        .map_err(|e| hpc_error::HpcError::Config(format!("failed to load config: {}", e)))?;
 
-    config.try_deserialize().map_err(|e| {
-        hpc_error::HpcError::Config(format!("failed to deserialize config: {}", e))
-    })
+    config
+        .try_deserialize()
+        .map_err(|e| hpc_error::HpcError::Config(format!("failed to deserialize config: {}", e)))
 }
 
 /// Loads configuration from a file with environment variable overrides
@@ -219,12 +217,9 @@ pub fn load_with_env<P: AsRef<Path>, T: DeserializeOwned>(
 /// let secret = load_secret_from_file("/run/secrets/db_password").unwrap();
 /// let password: &str = secret.expose_secret();
 /// ```
-pub fn load_secret_from_file<P: AsRef<Path>>(
-    path: P,
-) -> Result<SecretString, hpc_error::HpcError> {
-    let content = std::fs::read_to_string(path.as_ref()).map_err(|e| {
-        hpc_error::HpcError::Config(format!("failed to read secret file: {}", e))
-    })?;
+pub fn load_secret_from_file<P: AsRef<Path>>(path: P) -> Result<SecretString, hpc_error::HpcError> {
+    let content = std::fs::read_to_string(path.as_ref())
+        .map_err(|e| hpc_error::HpcError::Config(format!("failed to read secret file: {}", e)))?;
 
     // Trim trailing newline that might be present in secret files
     let trimmed = content.trim_end().to_string();
@@ -363,9 +358,10 @@ impl ConfigBuilder {
     ///
     /// The deserialized configuration or an error
     pub fn build<T: DeserializeOwned>(self) -> Result<T, hpc_error::HpcError> {
-        let config = self.builder.build().map_err(|e| {
-            hpc_error::HpcError::Config(format!("failed to build config: {}", e))
-        })?;
+        let config = self
+            .builder
+            .build()
+            .map_err(|e| hpc_error::HpcError::Config(format!("failed to build config: {}", e)))?;
 
         config.try_deserialize().map_err(|e| {
             hpc_error::HpcError::Config(format!("failed to deserialize config: {}", e))
@@ -390,10 +386,7 @@ impl Default for ConfigBuilder {
 /// Detects the file format from the file extension
 fn detect_format(path: &Path) -> Result<FileFormat, hpc_error::HpcError> {
     let extension = path.extension().and_then(|s| s.to_str()).ok_or_else(|| {
-        hpc_error::HpcError::Config(format!(
-            "cannot detect format for path: {}",
-            path.display()
-        ))
+        hpc_error::HpcError::Config(format!("cannot detect format for path: {}", path.display()))
     })?;
 
     match extension.to_lowercase().as_str() {

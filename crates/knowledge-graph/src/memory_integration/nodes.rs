@@ -1,8 +1,8 @@
 //! Memory node types for knowledge graph integration
 
 use crate::semantic::EmbeddingVector;
-use stratoswarm_agent_core::{memory::MemoryType, AgentId};
 use serde::{Deserialize, Serialize};
+use stratoswarm_agent_core::{memory::MemoryType, AgentId};
 
 /// Memory node in knowledge graph
 #[derive(Debug, Clone, Serialize, Deserialize)]

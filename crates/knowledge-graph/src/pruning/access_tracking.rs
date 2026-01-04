@@ -4,7 +4,7 @@
 //! usage-based pruning strategies.
 
 use super::types::EntityAccess;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use std::collections::HashMap;
 
 /// Access tracking manager

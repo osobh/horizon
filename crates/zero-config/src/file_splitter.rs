@@ -2,7 +2,6 @@
 //! TDD RED Phase - Create failing tests for file splitting
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -104,7 +103,7 @@ impl FileSplitter {
         let mut in_impl_block = false;
         let mut in_test_module = false;
 
-        for (line_num, line) in content.lines().enumerate() {
+        for line in content.lines() {
             // Detect test modules
             if line.contains("#[cfg(test)]") || line.contains("mod tests") {
                 in_test_module = true;
@@ -321,18 +320,13 @@ struct FileSection {
     line_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 enum SectionType {
     Types,
     Implementation,
     Tests,
+    #[default]
     Utils,
-}
-
-impl Default for SectionType {
-    fn default() -> Self {
-        SectionType::Utils
-    }
 }
 
 #[derive(Debug, Default)]
@@ -344,10 +338,7 @@ struct ModulePlan {
 
 fn extract_name_from_line(line: &str, prefix: &str) -> Option<String> {
     line.strip_prefix(prefix)
-        .and_then(|s| {
-            s.split(|c: char| c == ' ' || c == '<' || c == '(' || c == '{')
-                .next()
-        })
+        .and_then(|s| s.split([' ', '<', '(', '{']).next())
         .map(|s| s.to_string())
 }
 

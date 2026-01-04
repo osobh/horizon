@@ -392,7 +392,10 @@ async fn list_tokens(args: ListArgs) -> Result<()> {
             }
 
             if args.format == "json" {
-                println!("{}", serde_json::to_string_pretty(&tokens).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&tokens).unwrap_or_default()
+                );
             } else {
                 output::header(&format!("Active Tokens ({})", tokens.len()));
                 println!();
@@ -433,7 +436,9 @@ async fn list_tokens(args: ListArgs) -> Result<()> {
         }
         Err(e) => {
             output::error(&format!("Failed to list tokens: {}", e));
-            output::info("Make sure the cluster is running and you have proper authentication configured.");
+            output::info(
+                "Make sure the cluster is running and you have proper authentication configured.",
+            );
             output::info("Configure with: stratoswarm config set api_endpoint <URL>");
         }
     }
@@ -453,7 +458,9 @@ async fn revoke_token(args: RevokeArgs) -> Result<()> {
         }
         Err(e) => {
             output::error(&format!("Failed to revoke token: {}", e));
-            output::info("Make sure the cluster is running and you have proper authentication configured.");
+            output::info(
+                "Make sure the cluster is running and you have proper authentication configured.",
+            );
         }
     }
 

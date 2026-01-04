@@ -1,4 +1,6 @@
-use crate::api::dto::{CreatePolicyRequest, PolicyResponse, PolicyVersionResponse, UpdatePolicyRequest};
+use crate::api::dto::{
+    CreatePolicyRequest, PolicyResponse, PolicyVersionResponse, UpdatePolicyRequest,
+};
 use crate::api::routes::AppState;
 use crate::error::Result;
 use crate::models::Policy;
@@ -24,7 +26,8 @@ pub async fn create_policy(
 ) -> Result<(StatusCode, Json<PolicyResponse>)> {
     let created_by = request.created_by.clone();
 
-    let policy = state.repo
+    let policy = state
+        .repo
         .create(
             &request.name,
             &request.content,
@@ -98,7 +101,8 @@ pub async fn update_policy(
     let previous_version = previous_policy.version;
     let updated_by = request.created_by.clone();
 
-    let policy = state.repo
+    let policy = state
+        .repo
         .update(
             &name,
             &request.content,
@@ -136,9 +140,7 @@ pub async fn delete_policy(
     state.repo.delete(&name).await?;
 
     // Publish policy deleted event
-    state.publish_policy_event(GovernorMessage::PolicyDeleted {
-        policy_name: name,
-    });
+    state.publish_policy_event(GovernorMessage::PolicyDeleted { policy_name: name });
 
     Ok(StatusCode::NO_CONTENT)
 }

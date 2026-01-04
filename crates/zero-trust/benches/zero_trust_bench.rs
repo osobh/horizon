@@ -1,9 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::collections::HashMap;
 use stratoswarm_zero_trust::{
     attestation::*, behavior_analysis::*, device_trust::*, identity::*, network_policy::*,
     risk_engine::*, session_manager::*,
 };
-use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
 fn bench_identity_operations(c: &mut Criterion) {

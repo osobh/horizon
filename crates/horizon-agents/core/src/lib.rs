@@ -15,7 +15,9 @@ pub use execution::{
     ValidationContext, ValidationRule, Validator,
 };
 pub use memory::{HistoricalEntry, LongTermMemory, MemoryEntry, ShortTermMemory};
-pub use observability::{AgentMetrics, LogEntry, LogLevel, MetricPoint, MetricsCollector, StructuredLogger};
+pub use observability::{
+    AgentMetrics, LogEntry, LogLevel, MetricPoint, MetricsCollector, StructuredLogger,
+};
 pub use safety::{
     ActionCost, ApprovalGate, ApprovalRequest, ApprovalStatus, RiskLevel, RollbackManager,
     RollbackOperation, RollbackPoint, RollbackStatus, ThresholdManager,

@@ -68,6 +68,8 @@ impl VariableBufferManager {
         if self.pattern_buffer.is_none()
             || self.pattern_buffer.as_ref()?.len() < aligned_pattern_size
         {
+            // SAFETY: alloc returns uninitialized memory. Buffer will be written
+            // via htod_copy_into before any kernel reads from it.
             self.pattern_buffer = Some(
                 unsafe { self.device.alloc::<u8>(aligned_pattern_size) }
                     .context("Failed to allocate pattern buffer")?,
@@ -76,6 +78,8 @@ impl VariableBufferManager {
 
         // Check AST buffer
         if self.ast_buffer.is_none() || self.ast_buffer.as_ref()?.len() < aligned_ast_size {
+            // SAFETY: alloc returns uninitialized memory. Buffer will be written
+            // via htod_copy_into before any kernel reads from it.
             self.ast_buffer = Some(
                 unsafe { self.device.alloc::<u8>(aligned_ast_size) }
                     .context("Failed to allocate AST buffer")?,
@@ -84,8 +88,7 @@ impl VariableBufferManager {
 
         // Check match buffer (u32 elements)
         let match_elements = aligned_match_size / 4;
-        if self.match_buffer.is_none() || self.match_buffer.as_ref()?.len() < match_elements
-        {
+        if self.match_buffer.is_none() || self.match_buffer.as_ref()?.len() < match_elements {
             self.match_buffer = Some(
                 self.device
                     .alloc_zeros::<u32>(match_elements)
@@ -101,9 +104,9 @@ impl VariableBufferManager {
         let aligned_size = self.align_size(required_size);
 
         // Ensure capacity
-        if self.pattern_buffer.is_none()
-            || self.pattern_buffer.as_ref()?.len() < aligned_size
-        {
+        if self.pattern_buffer.is_none() || self.pattern_buffer.as_ref()?.len() < aligned_size {
+            // SAFETY: alloc returns uninitialized memory. Caller must write data
+            // via htod_copy_into before any kernel reads from the buffer.
             self.pattern_buffer = Some(
                 unsafe { self.device.alloc::<u8>(aligned_size) }
                     .context("Failed to allocate pattern buffer")?,
@@ -121,6 +124,8 @@ impl VariableBufferManager {
 
         // Ensure capacity
         if self.ast_buffer.is_none() || self.ast_buffer.as_ref()?.len() < aligned_size {
+            // SAFETY: alloc returns uninitialized memory. Caller must write data
+            // via htod_copy_into before any kernel reads from the buffer.
             self.ast_buffer = Some(
                 unsafe { self.device.alloc::<u8>(aligned_size) }
                     .context("Failed to allocate AST buffer")?,
@@ -252,6 +257,11 @@ impl VariableKernelLauncher {
             )
         };
 
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
+        // - pattern_ptr: populated via htod_copy_into above
+        // - ast_ptr: populated via htod_copy_into above
+        // - match_ptr: cleared to zeros above, kernel writes match results
+        // - pattern_count and node_count match the input data sizes
         unsafe {
             crate::synthesis::launch_match_patterns_fast(
                 pattern_ptr,
@@ -285,7 +295,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_buffer_manager_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_buffer_manager_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let config = BufferConfig::default();
         let manager = VariableBufferManager::new(Arc::new(device), config);
@@ -293,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn test_buffer_allocation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_buffer_allocation() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let mut manager = VariableBufferManager::new(device, BufferConfig::default()).unwrap();
 
@@ -303,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn test_buffer_resizing() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_buffer_resizing() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let mut manager = VariableBufferManager::new(device, BufferConfig::default()).unwrap();
 
@@ -314,7 +324,7 @@ mod tests {
     }
 
     #[test]
-    fn test_alignment() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_alignment() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let manager = VariableBufferManager::new(device, BufferConfig::default())?;
 
@@ -324,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn test_kernel_launcher() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_kernel_launcher() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let mut launcher = VariableKernelLauncher::new(device)?;
 

@@ -6,10 +6,10 @@
 //! - Metrics recording overhead
 //! - Subscriber filtering performance
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use hpc_tracing::init_metrics;
 use std::net::SocketAddr;
-use tracing::{info, debug, warn, error, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 // Helper to generate unique ports for metrics benchmarks
 fn unique_port() -> u16 {
@@ -45,20 +45,14 @@ fn bench_logging_throughput(c: &mut Criterion) {
     // Benchmark warn! macro
     group.bench_function("warn_macro", |b| {
         b.iter(|| {
-            warn!(
-                error_code = black_box("E001"),
-                "Warning message"
-            );
+            warn!(error_code = black_box("E001"), "Warning message");
         });
     });
 
     // Benchmark error! macro
     group.bench_function("error_macro", |b| {
         b.iter(|| {
-            error!(
-                error = black_box("connection failed"),
-                "Error occurred"
-            );
+            error!(error = black_box("connection failed"), "Error occurred");
         });
     });
 
@@ -80,17 +74,13 @@ fn bench_instrumented_functions(c: &mut Criterion) {
 
     // Benchmark simple instrumented function
     group.bench_function("simple_instrumented", |b| {
-        b.iter(|| {
-            simple_function(black_box(42))
-        });
+        b.iter(|| simple_function(black_box(42)));
     });
 
     // Benchmark instrumented function with skip
     group.bench_function("instrumented_with_skip", |b| {
         let data = vec![0u8; 1024];
-        b.iter(|| {
-            function_with_skip(black_box(42), black_box(&data))
-        });
+        b.iter(|| function_with_skip(black_box(42), black_box(&data)));
     });
 
     group.finish();

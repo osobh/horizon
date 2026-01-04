@@ -3,18 +3,17 @@
 //! Provides multi-subnet WireGuard routing with automatic peer discovery
 //! and cross-subnet connectivity management.
 
-use super::{InterfaceConfig, PeerConfig, WireGuardConfigGenerator};
-use crate::events::{SubnetEventPublisher, SubnetMessage, PeerConfigUpdatedEvent};
-use crate::models::{CrossSubnetRoute, RouteDirection, Subnet, SubnetAssignment};
+use super::WireGuardConfigGenerator;
+use crate::events::{PeerConfigUpdatedEvent, SubnetEventPublisher, SubnetMessage};
+use crate::models::{CrossSubnetRoute, RouteDirection, Subnet};
 use chrono::Utc;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 use uuid::Uuid;
 
 /// Errors for subnet-aware WireGuard operations
@@ -59,12 +58,7 @@ pub struct SubnetPeer {
 
 impl SubnetPeer {
     /// Create a new subnet peer
-    pub fn new(
-        node_id: Uuid,
-        public_key: &str,
-        assigned_ip: Ipv4Addr,
-        subnet_id: Uuid,
-    ) -> Self {
+    pub fn new(node_id: Uuid, public_key: &str, assigned_ip: Ipv4Addr, subnet_id: Uuid) -> Self {
         Self {
             node_id,
             public_key: public_key.to_string(),
@@ -188,13 +182,13 @@ impl SubnetAwareWireGuard {
             .ok_or(SubnetWireGuardError::SubnetNotFound(peer.subnet_id))?;
 
         // Add to address map
-        self.address_map.insert(
-            peer.assigned_ip,
-            (peer.subnet_id, peer.public_key.clone()),
-        );
+        self.address_map
+            .insert(peer.assigned_ip, (peer.subnet_id, peer.public_key.clone()));
 
         // Add to interface peers
-        interface.peers.insert(peer.public_key.clone(), peer.clone());
+        interface
+            .peers
+            .insert(peer.public_key.clone(), peer.clone());
 
         debug!("Added peer to subnet interface");
 

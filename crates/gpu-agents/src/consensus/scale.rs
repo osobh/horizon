@@ -55,12 +55,18 @@ impl ScaledConsensus {
     /// Create a new scaled consensus handler
     pub fn new(device: Arc<CudaDevice>, config: ScalingConfig) -> Result<Self> {
         // Allocate buffers for scaled consensus
+        // SAFETY: alloc returns uninitialized memory. vote_buffer will be written via
+        // htod_copy_into in vote_batch() before any reads. Size is from valid config.
         let vote_buffer = unsafe { device.alloc::<u32>(config.node_count) }
             .context("Failed to allocate vote buffer")?;
 
+        // SAFETY: alloc returns uninitialized memory. node_states will be initialized
+        // via htod_copy_into in initialize_nodes() before use. Size is from valid config.
         let node_states = unsafe { device.alloc::<u32>(config.node_count) }
             .context("Failed to allocate node states")?;
 
+        // SAFETY: alloc returns uninitialized memory for single u32. Will be written
+        // via htod_copy_into in elect_leader_scaled() before any reads.
         let leader_buffer =
             unsafe { device.alloc::<u32>(1) }.context("Failed to allocate leader buffer")?;
 
@@ -231,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn test_consensus_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_consensus_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let config = ScalingConfig::default();
         let consensus = ScaledConsensus::new(Arc::new(device), config);

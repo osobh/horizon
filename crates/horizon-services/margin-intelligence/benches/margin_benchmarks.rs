@@ -8,7 +8,9 @@ fn benchmark_calculations(c: &mut Criterion) {
     });
 
     c.bench_function("contribution_margin", |b| {
-        b.iter(|| MarginCalculator::contribution_margin(black_box(dec!(10000)), black_box(dec!(7000))))
+        b.iter(|| {
+            MarginCalculator::contribution_margin(black_box(dec!(10000)), black_box(dec!(7000)))
+        })
     });
 }
 

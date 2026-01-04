@@ -101,7 +101,7 @@ impl ResourceAllocation {
         };
 
         // Return average utilization across resources
-        let ratios = vec![cpu_ratio, memory_ratio];
+        let ratios = [cpu_ratio, memory_ratio];
         ratios.iter().sum::<f64>() / ratios.len() as f64
     }
 

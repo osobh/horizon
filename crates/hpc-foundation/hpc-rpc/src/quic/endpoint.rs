@@ -1,6 +1,6 @@
 //! QUIC endpoint creation and management
 
-use crate::error::{RpcError, Result};
+use crate::error::{Result, RpcError};
 use hpc_auth::cert::CertificateWithKey;
 use quinn::{ClientConfig, Connection, Endpoint, ServerConfig};
 use std::net::SocketAddr;
@@ -189,7 +189,9 @@ impl QuicEndpoint {
         transport.keep_alive_interval(Some(std::time::Duration::from_secs(5)));
         client_config.transport_config(Arc::new(transport));
 
-        let connecting = self.endpoint.connect_with(client_config, server_addr, server_name)?;
+        let connecting = self
+            .endpoint
+            .connect_with(client_config, server_addr, server_name)?;
         let connection = connecting.await?;
 
         info!("QUIC connection established");

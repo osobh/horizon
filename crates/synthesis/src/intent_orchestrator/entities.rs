@@ -227,14 +227,16 @@ impl ExtractionResult {
 
     /// Get entities by type
     pub fn get_entities_by_type(&self, entity_type: &EntityType) -> Vec<&Entity> {
-        self.entities.iter()
+        self.entities
+            .iter()
             .filter(|e| &e.entity_type == entity_type)
             .collect()
     }
 
     /// Get relations by type
     pub fn get_relations_by_type(&self, relation_type: &RelationType) -> Vec<&EntityRelation> {
-        self.relations.iter()
+        self.relations
+            .iter()
             .filter(|r| &r.relation_type == relation_type)
             .collect()
     }

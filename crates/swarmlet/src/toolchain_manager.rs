@@ -44,11 +44,11 @@ impl ToolchainManager {
     /// Create a new toolchain manager
     pub async fn new(toolchains_dir: PathBuf) -> Result<Self> {
         // Create the toolchains directory if it doesn't exist
-        tokio::fs::create_dir_all(&toolchains_dir).await.map_err(|e| {
-            SwarmletError::Configuration(format!(
-                "Failed to create toolchains directory: {e}"
-            ))
-        })?;
+        tokio::fs::create_dir_all(&toolchains_dir)
+            .await
+            .map_err(|e| {
+                SwarmletError::Configuration(format!("Failed to create toolchains directory: {e}"))
+            })?;
 
         // Scan for existing toolchains
         let installed = Self::scan_toolchains(&toolchains_dir).await?;
@@ -73,17 +73,15 @@ impl ToolchainManager {
         }
 
         let mut entries = tokio::fs::read_dir(dir).await.map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to read toolchains directory: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to read toolchains directory: {e}"
+            )))
         })?;
 
         while let Some(entry) = entries.next_entry().await.map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to read directory entry: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to read directory entry: {e}"
+            )))
         })? {
             let path = entry.path();
             if path.is_dir() {
@@ -156,12 +154,16 @@ impl ToolchainManager {
         let output = tokio::process::Command::new("rustup")
             .env("RUSTUP_HOME", &rustup_home)
             .env("CARGO_HOME", &cargo_home)
-            .args(["toolchain", "install", &toolchain_str, "--profile", "minimal"])
+            .args([
+                "toolchain",
+                "install",
+                &toolchain_str,
+                "--profile",
+                "minimal",
+            ])
             .output()
             .await
-            .map_err(|e| {
-                SwarmletError::WorkloadExecution(format!("Failed to run rustup: {e}"))
-            })?;
+            .map_err(|e| SwarmletError::WorkloadExecution(format!("Failed to run rustup: {e}")))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -177,13 +179,7 @@ impl ToolchainManager {
             let result = tokio::process::Command::new("rustup")
                 .env("RUSTUP_HOME", &rustup_home)
                 .env("CARGO_HOME", &cargo_home)
-                .args([
-                    "component",
-                    "add",
-                    component,
-                    "--toolchain",
-                    &toolchain_str,
-                ])
+                .args(["component", "add", component, "--toolchain", &toolchain_str])
                 .output()
                 .await;
 
@@ -233,10 +229,9 @@ impl ToolchainManager {
         // Save toolchain info
         let info_path = toolchain_path.join("toolchain.json");
         let info_json = serde_json::to_string_pretty(&info).map_err(|e| {
-            SwarmletError::Serialization(serde_json::Error::io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to serialize toolchain info: {e}"),
-            )))
+            SwarmletError::Serialization(serde_json::Error::io(std::io::Error::other(format!(
+                "Failed to serialize toolchain info: {e}"
+            ))))
         })?;
         tokio::fs::write(&info_path, info_json).await?;
 
@@ -366,10 +361,7 @@ mod tests {
         };
 
         assert!(manager.has_all_components(&info, &["rustfmt".to_string()]));
-        assert!(manager.has_all_components(
-            &info,
-            &["rustfmt".to_string(), "clippy".to_string()]
-        ));
+        assert!(manager.has_all_components(&info, &["rustfmt".to_string(), "clippy".to_string()]));
         assert!(!manager.has_all_components(&info, &["rust-src".to_string()]));
     }
 }

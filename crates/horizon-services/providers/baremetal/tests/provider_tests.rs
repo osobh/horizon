@@ -1,4 +1,6 @@
-use horizon_baremetal_provider::{calculate_hourly_rate, BareMetalConfig, BareMetalProvider, ServerStatus};
+use horizon_baremetal_provider::{
+    calculate_hourly_rate, BareMetalConfig, BareMetalProvider, ServerStatus,
+};
 use hpc_provider::{CapacityProvider, InstanceState, ProvisionSpec, QuoteRequest};
 use rust_decimal_macros::dec;
 use std::collections::HashMap;

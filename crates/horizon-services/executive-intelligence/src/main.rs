@@ -17,10 +17,14 @@ async fn main() -> Result<()> {
     info!("Starting Executive Intelligence Service");
 
     // Get database URL from environment
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://horizon:horizon@localhost:5432/horizon_intelligence".to_string());
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://horizon:horizon@localhost:5432/horizon_intelligence".to_string()
+    });
 
-    info!("Connecting to database: {}", database_url.split('@').last().unwrap_or("unknown"));
+    info!(
+        "Connecting to database: {}",
+        database_url.split('@').last().unwrap_or("unknown")
+    );
 
     // Create database connection pool
     let pool = PgPoolOptions::new()
@@ -32,9 +36,7 @@ async fn main() -> Result<()> {
 
     // Run database migrations
     info!("Running database migrations...");
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
     info!("Database migrations completed");
 
     // Create app state with database pool

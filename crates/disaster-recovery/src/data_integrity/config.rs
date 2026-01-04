@@ -3,8 +3,8 @@
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
 
-use super::types::{ChecksumAlgorithm, IntegrityCheckType, VerificationSchedule};
 use super::repair::RepairConfig;
+use super::types::{ChecksumAlgorithm, IntegrityCheckType, VerificationSchedule};
 
 /// Data integrity configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,10 +63,7 @@ impl DataIntegrityConfig {
     pub fn high_security() -> Self {
         Self {
             default_algorithm: ChecksumAlgorithm::SHA512,
-            enabled_algorithms: vec![
-                ChecksumAlgorithm::SHA512,
-                ChecksumAlgorithm::Blake2b,
-            ],
+            enabled_algorithms: vec![ChecksumAlgorithm::SHA512, ChecksumAlgorithm::Blake2b],
             default_check_type: IntegrityCheckType::Full,
             verification_schedule: VerificationSchedule::Continuous,
             block_size: 1024,
@@ -88,10 +85,7 @@ impl DataIntegrityConfig {
     pub fn high_performance() -> Self {
         Self {
             default_algorithm: ChecksumAlgorithm::XXHash,
-            enabled_algorithms: vec![
-                ChecksumAlgorithm::XXHash,
-                ChecksumAlgorithm::CRC32,
-            ],
+            enabled_algorithms: vec![ChecksumAlgorithm::XXHash, ChecksumAlgorithm::CRC32],
             default_check_type: IntegrityCheckType::Block,
             verification_schedule: VerificationSchedule::Weekly {
                 day_of_week: 0,

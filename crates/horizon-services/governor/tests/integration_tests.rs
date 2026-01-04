@@ -8,8 +8,9 @@ struct TestContext {
 
 impl TestContext {
     async fn new() -> Self {
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/governor_test".to_string());
+        let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://postgres:postgres@localhost:5432/governor_test".to_string()
+        });
 
         let pool = PgPool::connect(&database_url)
             .await
@@ -62,7 +63,12 @@ spec:
 
     let created = ctx
         .service
-        .create_policy("lifecycle-test", policy_yaml, Some("Lifecycle test"), "test-user")
+        .create_policy(
+            "lifecycle-test",
+            policy_yaml,
+            Some("Lifecycle test"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -92,7 +98,12 @@ spec:
 
     let updated = ctx
         .service
-        .update_policy("lifecycle-test", updated_yaml, Some("Lifecycle test v2"), "test-user")
+        .update_policy(
+            "lifecycle-test",
+            updated_yaml,
+            Some("Lifecycle test v2"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -129,9 +140,14 @@ spec:
 
     let repo = PolicyRepository::new(ctx.pool.clone());
 
-    repo.create("version-history-test", policy_yaml_v1, Some("Version 1"), "user1")
-        .await
-        .unwrap();
+    repo.create(
+        "version-history-test",
+        policy_yaml_v1,
+        Some("Version 1"),
+        "user1",
+    )
+    .await
+    .unwrap();
 
     let policy_yaml_v2 = r#"
 apiVersion: policy.horizon.dev/v1
@@ -150,9 +166,14 @@ spec:
       actions: [submit, cancel]
 "#;
 
-    repo.update("version-history-test", policy_yaml_v2, Some("Version 2"), "user2")
-        .await
-        .unwrap();
+    repo.update(
+        "version-history-test",
+        policy_yaml_v2,
+        Some("Version 2"),
+        "user2",
+    )
+    .await
+    .unwrap();
 
     let policy_yaml_v3 = r#"
 apiVersion: policy.horizon.dev/v1
@@ -171,9 +192,14 @@ spec:
       actions: [view]
 "#;
 
-    repo.update("version-history-test", policy_yaml_v3, Some("Version 3"), "user3")
-        .await
-        .unwrap();
+    repo.update(
+        "version-history-test",
+        policy_yaml_v3,
+        Some("Version 3"),
+        "user3",
+    )
+    .await
+    .unwrap();
 
     let versions = repo.get_versions("version-history-test").await.unwrap();
 
@@ -203,8 +229,9 @@ async fn test_policy_validation() {
 
 #[tokio::test]
 async fn test_database_persistence() {
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/governor_test".to_string());
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://postgres:postgres@localhost:5432/governor_test".to_string()
+    });
 
     let pool = PgPool::connect(&database_url)
         .await
@@ -240,7 +267,12 @@ spec:
 "#;
 
     let created = repo
-        .create("persistence-test", policy_yaml, Some("Persistence test"), "test-user")
+        .create(
+            "persistence-test",
+            policy_yaml,
+            Some("Persistence test"),
+            "test-user",
+        )
         .await
         .unwrap();
 
@@ -288,17 +320,32 @@ spec:
 
     let repo = PolicyRepository::new(ctx.pool.clone());
 
-    repo.create("filter-test-1", policy_yaml, Some("Filter test 1"), "test-user")
-        .await
-        .unwrap();
+    repo.create(
+        "filter-test-1",
+        policy_yaml,
+        Some("Filter test 1"),
+        "test-user",
+    )
+    .await
+    .unwrap();
 
-    repo.create("filter-test-2", policy_yaml, Some("Filter test 2"), "test-user")
-        .await
-        .unwrap();
+    repo.create(
+        "filter-test-2",
+        policy_yaml,
+        Some("Filter test 2"),
+        "test-user",
+    )
+    .await
+    .unwrap();
 
-    repo.create("filter-test-3", policy_yaml, Some("Filter test 3"), "test-user")
-        .await
-        .unwrap();
+    repo.create(
+        "filter-test-3",
+        policy_yaml,
+        Some("Filter test 3"),
+        "test-user",
+    )
+    .await
+    .unwrap();
 
     let all_policies = repo.list(false).await.unwrap();
     assert_eq!(all_policies.len(), 3);
@@ -333,7 +380,12 @@ spec:
     let repo = PolicyRepository::new(ctx.pool.clone());
 
     let created = repo
-        .create("update-version-test", policy_yaml_v1, Some("Version 1"), "user1")
+        .create(
+            "update-version-test",
+            policy_yaml_v1,
+            Some("Version 1"),
+            "user1",
+        )
         .await
         .unwrap();
 
@@ -357,7 +409,12 @@ spec:
 "#;
 
     let updated = repo
-        .update("update-version-test", policy_yaml_v2, Some("Version 2"), "user2")
+        .update(
+            "update-version-test",
+            policy_yaml_v2,
+            Some("Version 2"),
+            "user2",
+        )
         .await
         .unwrap();
 
@@ -392,13 +449,23 @@ spec:
 
     let repo = PolicyRepository::new(ctx.pool.clone());
 
-    repo.create("cascade-test", policy_yaml, Some("Cascade test"), "test-user")
-        .await
-        .unwrap();
+    repo.create(
+        "cascade-test",
+        policy_yaml,
+        Some("Cascade test"),
+        "test-user",
+    )
+    .await
+    .unwrap();
 
-    repo.update("cascade-test", policy_yaml, Some("Cascade test v2"), "test-user")
-        .await
-        .unwrap();
+    repo.update(
+        "cascade-test",
+        policy_yaml,
+        Some("Cascade test v2"),
+        "test-user",
+    )
+    .await
+    .unwrap();
 
     let versions_before = repo.get_versions("cascade-test").await.unwrap();
     assert_eq!(versions_before.len(), 2);
@@ -504,9 +571,14 @@ spec:
 
     let repo = PolicyRepository::new(ctx.pool.clone());
 
-    repo.create("eval-integration-test", policy_yaml, Some("Eval integration test"), "test-user")
-        .await
-        .unwrap();
+    repo.create(
+        "eval-integration-test",
+        policy_yaml,
+        Some("Eval integration test"),
+        "test-user",
+    )
+    .await
+    .unwrap();
 
     let policies = repo.get_all_enabled_policies().await.unwrap();
     assert_eq!(policies.len(), 1);

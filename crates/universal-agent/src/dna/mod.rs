@@ -10,15 +10,15 @@
 //! - Capability advertisement for service discovery
 //! - Fitness profiling with benchmarks
 
-mod version;
-mod skills;
-mod genome;
 mod capabilities;
+mod genome;
+mod skills;
+mod version;
 
-pub use version::*;
-pub use skills::*;
-pub use genome::*;
 pub use capabilities::*;
+pub use genome::*;
+pub use skills::*;
+pub use version::*;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -294,7 +294,9 @@ impl AgentDNA {
         // Add capability
         dna.add_capability(
             Capability::new("efficiency_analysis", "Efficiency Analysis")
-                .with_description("Analyze system efficiency and identify optimization opportunities")
+                .with_description(
+                    "Analyze system efficiency and identify optimization opportunities",
+                )
                 .with_required_skills(vec![
                     "detect_idle_resources".to_string(),
                     "calculate_savings".to_string(),

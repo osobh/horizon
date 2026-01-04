@@ -7,4 +7,4 @@ pub mod models;
 pub mod reports;
 
 pub use config::ReporterConfig;
-pub use error::{HpcError, Result, ReporterErrorExt};
+pub use error::{HpcError, ReporterErrorExt, Result};

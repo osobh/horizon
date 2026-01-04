@@ -6,7 +6,7 @@ mod manager;
 mod market;
 mod types;
 
-pub use bidding::{BiddingStrategy, BidCalculator};
+pub use bidding::{BidCalculator, BiddingStrategy};
 pub use config::SpotManagerConfig;
 pub use manager::SpotManager;
 pub use market::{SpotMarketAnalysis, SpotPrice};

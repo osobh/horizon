@@ -86,6 +86,10 @@ pub struct CGpuDmaStats {
 }
 
 /// Convert Rust string to C string buffer
+///
+/// # Safety
+/// - `dst` must be a valid mutable slice with at least 1 byte for null terminator
+/// - The caller must ensure dst has enough space for the copied string
 unsafe fn rust_str_to_c_buf(src: &str, dst: &mut [c_char]) {
     let bytes = src.as_bytes();
     let copy_len = core::cmp::min(bytes.len(), dst.len() - 1);
@@ -97,23 +101,36 @@ unsafe fn rust_str_to_c_buf(src: &str, dst: &mut [c_char]) {
 }
 
 /// Convert C string to Rust string
+///
+/// # Safety
+/// - `ptr` must be a valid pointer to a null-terminated C string
+/// - The memory pointed to must remain valid for the 'static lifetime
+/// - The string must be valid UTF-8
 unsafe fn c_str_to_rust(ptr: *const c_char) -> Result<&'static str, KernelError> {
     if ptr.is_null() {
         return Err(KernelError::InvalidArgument);
     }
 
     let len = c_strlen(ptr);
+    // SAFETY: ptr is non-null (checked above), and c_strlen found a null terminator
+    // within 4096 bytes. The slice is valid for len bytes from ptr.
     let slice = slice::from_raw_parts(ptr as *const u8, len);
     core::str::from_utf8(slice).map_err(|_| KernelError::InvalidArgument)
 }
 
 /// Get length of C string
+///
+/// # Safety
+/// - `ptr` must be a valid pointer to a null-terminated C string
+/// - The memory from ptr to ptr+4096 must be readable (safety limit applied)
 unsafe fn c_strlen(ptr: *const c_char) -> usize {
     let mut len = 0;
+    // SAFETY: ptr.offset(len) is valid as long as len <= 4096 (our safety limit)
+    // and the caller guarantees ptr points to valid memory.
     while *ptr.offset(len as isize) != 0 {
         len += 1;
         if len > 4096 {
-            // Safety limit
+            // Safety limit to prevent reading unbounded memory
             break;
         }
     }
@@ -170,6 +187,9 @@ pub extern "C" fn gpu_dma_register_device(
     name: *const c_char,
     total_memory: c_ulong,
 ) -> c_int {
+    // SAFETY: This is an FFI function. The caller (C code) must ensure:
+    // - `name` is a valid pointer to a null-terminated string
+    // - The string remains valid for the duration of this call
     unsafe {
         let device_name = match c_str_to_rust(name) {
             Ok(s) => s,
@@ -200,6 +220,8 @@ pub extern "C" fn gpu_dma_get_device_info(device_id: u32, info: *mut CGpuDeviceI
     let devices = manager.devices.read();
 
     if let Some(device) = devices.iter().find(|d| d.id() == device_id) {
+        // SAFETY: info is non-null (checked at function start). The caller guarantees
+        // info points to a valid CGpuDeviceInfo struct with proper alignment.
         unsafe {
             (*info).id = device.id();
             rust_str_to_c_buf(device.name(), &mut (*info).name);
@@ -268,6 +290,8 @@ pub extern "C" fn gpu_dma_get_allocation_info(
     let allocations = tracker.allocations.read();
 
     if let Some(alloc) = allocations.get(&(allocation_id as u64)) {
+        // SAFETY: info is non-null (checked at function start). The caller guarantees
+        // info points to a valid CAllocationInfo struct with proper alignment.
         unsafe {
             (*info).id = allocation_id;
             (*info).agent_id = alloc.agent_id as c_ulong;
@@ -364,6 +388,8 @@ pub extern "C" fn gpu_dma_get_context_info(context_id: c_ulong, info: *mut CGpuC
     let contexts = manager.contexts.read();
 
     if let Some(ctx) = contexts.get(&(context_id as u64)) {
+        // SAFETY: info is non-null (checked at function start). The caller guarantees
+        // info points to a valid CGpuContext struct with proper alignment.
         unsafe {
             (*info).id = context_id;
             (*info).agent_id = ctx.agent_id as c_ulong;
@@ -385,6 +411,8 @@ pub extern "C" fn gpu_dma_get_stats(stats_out: *mut CGpuDmaStats) -> c_int {
     }
 
     let stats = &crate::GPU_DMA_STATS;
+    // SAFETY: stats_out is non-null (checked at function start). The caller guarantees
+    // stats_out points to a valid CGpuDmaStats struct with proper alignment.
     unsafe {
         (*stats_out).total_allocations = stats.total_allocations.load(Ordering::Relaxed) as c_ulong;
         (*stats_out).total_deallocations =
@@ -421,6 +449,8 @@ pub extern "C" fn gpu_dma_get_detailed_stats(buffer: *mut c_char, buffer_size: c
         let bytes = detailed.as_bytes();
         let copy_len = core::cmp::min(bytes.len(), buffer_size as usize - 1);
 
+        // SAFETY: buffer is non-null and buffer_size > 0 (checked at function start).
+        // copy_len is bounded by buffer_size - 1, so all writes are within bounds.
         unsafe {
             for i in 0..copy_len {
                 *buffer.offset(i as isize) = bytes[i] as c_char;
@@ -494,6 +524,8 @@ pub extern "C" fn gpu_dma_get_version(buffer: *mut c_char, buffer_size: c_ulong)
     let bytes = version.as_bytes();
     let copy_len = core::cmp::min(bytes.len(), buffer_size as usize - 1);
 
+    // SAFETY: buffer is non-null and buffer_size > 0 (checked at function start).
+    // copy_len is bounded by buffer_size - 1, so all writes are within bounds.
     unsafe {
         for i in 0..copy_len {
             *buffer.offset(i as isize) = bytes[i] as c_char;

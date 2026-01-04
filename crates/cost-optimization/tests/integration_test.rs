@@ -1,10 +1,10 @@
 use chrono::{Duration, Utc};
+use ordered_float::OrderedFloat;
+use std::collections::HashMap;
 use stratoswarm_cost_optimization::{
     budget_manager::*, cloud_pricing::*, cost_predictor::*, gpu_optimizer::*, resource_tracker::*,
     spot_manager::*, usage_analyzer::*, workload_scheduler::*, CostOptimizationError,
 };
-use ordered_float::OrderedFloat;
-use std::collections::HashMap;
 use tokio;
 
 #[tokio::test]

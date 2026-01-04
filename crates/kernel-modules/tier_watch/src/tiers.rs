@@ -172,16 +172,23 @@ static mut PER_CPU_STATS: Option<Vec<PerCpuTierStats>> = None;
 
 /// Get tier statistics
 pub fn get_tier_stats(tier: MemoryTier) -> Option<&'static TierStats> {
+    // SAFETY: TIER_STATS is initialized at module load and read-only thereafter.
+    // The TierStats struct uses atomics internally for thread-safe access.
     unsafe { TIER_STATS.as_ref()?.get(tier as usize) }
 }
 
 /// Get mutable tier statistics
 pub fn get_tier_stats_mut(tier: MemoryTier) -> Option<&'static mut TierStats> {
+    // SAFETY: TIER_STATS is initialized at module load. All mutable operations
+    // on TierStats use atomic operations, making concurrent access safe.
     unsafe { TIER_STATS.as_mut()?.get_mut(tier as usize) }
 }
 
 /// Record a fault on current CPU
 pub fn record_cpu_fault(tier: MemoryTier, cpu_id: usize) {
+    // SAFETY: PER_CPU_STATS is initialized at module load. Each CPU accesses
+    // its own slot indexed by cpu_id. PerCpuCounter uses atomics for updates,
+    // ensuring thread-safe access even in the unlikely event of cross-CPU access.
     unsafe {
         if let Some(per_cpu) = &PER_CPU_STATS {
             if let Some(cpu_stats) = per_cpu.get(cpu_id) {
@@ -193,6 +200,9 @@ pub fn record_cpu_fault(tier: MemoryTier, cpu_id: usize) {
 
 /// Record an access on current CPU
 pub fn record_cpu_access(tier: MemoryTier, cpu_id: usize) {
+    // SAFETY: PER_CPU_STATS is initialized at module load. Each CPU accesses
+    // its own slot indexed by cpu_id. PerCpuCounter uses atomics for updates,
+    // ensuring thread-safe access.
     unsafe {
         if let Some(per_cpu) = &PER_CPU_STATS {
             if let Some(cpu_stats) = per_cpu.get(cpu_id) {
@@ -204,6 +214,10 @@ pub fn record_cpu_access(tier: MemoryTier, cpu_id: usize) {
 
 /// Consolidate per-CPU statistics into global stats
 pub fn consolidate_stats() {
+    // SAFETY: Both TIER_STATS and PER_CPU_STATS are initialized at module load.
+    // All counter access uses atomics. This consolidation is typically called
+    // from a single context (stats collection) but remains thread-safe due to
+    // atomic operations on both the per-CPU and global counters.
     unsafe {
         if let (Some(global), Some(per_cpu)) = (&mut TIER_STATS, &PER_CPU_STATS) {
             for (tier_idx, tier_stats) in global.iter_mut().enumerate() {
@@ -236,6 +250,8 @@ pub fn consolidate_stats() {
 pub fn check_memory_pressure() -> Vec<(MemoryTier, u8)> {
     let mut pressure_tiers = Vec::new();
 
+    // SAFETY: TIER_STATS is read-only here; initialized at module load
+    // and all internal state access uses atomics.
     unsafe {
         if let Some(stats) = &TIER_STATS {
             for tier_stats in stats.iter() {
@@ -252,6 +268,9 @@ pub fn check_memory_pressure() -> Vec<(MemoryTier, u8)> {
 
 /// Initialize tier management
 pub fn init() -> KernelResult<()> {
+    // SAFETY: This function is called exactly once during kernel module
+    // initialization, before any other threads can access TIER_STATS or
+    // PER_CPU_STATS. The kernel module init sequence is single-threaded.
     unsafe {
         // Initialize global tier statistics
         let mut stats = Vec::with_capacity(5);
@@ -275,6 +294,8 @@ pub fn init() -> KernelResult<()> {
 
 /// Cleanup tier management
 pub fn cleanup() {
+    // SAFETY: This function is called exactly once during kernel module
+    // unload, after all other operations have completed.
     unsafe {
         TIER_STATS = None;
         PER_CPU_STATS = None;

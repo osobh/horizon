@@ -786,11 +786,7 @@ mod tests {
     #[tokio::test]
     async fn test_apply_pii_removal() {
         let mut config = ComplianceConfig::default();
-        config
-            .regional_rules
-            .get_mut("us-east-1")
-            ?
-            .pii_handling = PiiHandling::Remove;
+        config.regional_rules.get_mut("us-east-1")?.pii_handling = PiiHandling::Remove;
 
         let handler = ComplianceHandler::new(config);
 
@@ -822,11 +818,7 @@ mod tests {
     #[tokio::test]
     async fn test_apply_pii_pseudonymization() {
         let mut config = ComplianceConfig::default();
-        config
-            .regional_rules
-            .get_mut("us-east-1")
-            ?
-            .pii_handling = PiiHandling::Pseudonymize;
+        config.regional_rules.get_mut("us-east-1")?.pii_handling = PiiHandling::Pseudonymize;
 
         let handler = ComplianceHandler::new(config);
 

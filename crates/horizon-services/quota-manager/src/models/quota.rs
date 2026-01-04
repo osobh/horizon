@@ -5,7 +5,7 @@ use sqlx::FromRow;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::error::{HpcError, Result, QuotaErrorExt};
+use crate::error::{HpcError, QuotaErrorExt, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "text", rename_all = "lowercase")]
@@ -31,7 +31,10 @@ impl EntityType {
             "organization" => Ok(EntityType::Organization),
             "team" => Ok(EntityType::Team),
             "user" => Ok(EntityType::User),
-            _ => Err(HpcError::invalid_input("entity_type", format!("Invalid entity type: {}", s))),
+            _ => Err(HpcError::invalid_input(
+                "entity_type",
+                format!("Invalid entity type: {}", s),
+            )),
         }
     }
 
@@ -115,7 +118,10 @@ impl ResourceType {
             "network_gbps_hours" => Ok(ResourceType::NetworkGbpsHours),
             "custom_licenses" => Ok(ResourceType::CustomLicenses),
             "custom_api_credits" => Ok(ResourceType::CustomApiCredits),
-            _ => Err(HpcError::invalid_input("resource_type", format!("Invalid resource type: {}", s))),
+            _ => Err(HpcError::invalid_input(
+                "resource_type",
+                format!("Invalid resource type: {}", s),
+            )),
         }
     }
 
@@ -153,7 +159,9 @@ impl ResourceType {
             ResourceType::MemoryGb | ResourceType::MemoryGbHours => ResourceCategory::Memory,
             ResourceType::StorageGb | ResourceType::StorageGbHours => ResourceCategory::Storage,
             ResourceType::NetworkGbps | ResourceType::NetworkGbpsHours => ResourceCategory::Network,
-            ResourceType::CustomLicenses | ResourceType::CustomApiCredits => ResourceCategory::Custom,
+            ResourceType::CustomLicenses | ResourceType::CustomApiCredits => {
+                ResourceCategory::Custom
+            }
         }
     }
 }
@@ -278,17 +286,26 @@ mod tests {
     #[test]
     fn test_entity_type_hierarchy() {
         assert_eq!(EntityType::Organization.parent_type(), None);
-        assert_eq!(EntityType::Team.parent_type(), Some(EntityType::Organization));
+        assert_eq!(
+            EntityType::Team.parent_type(),
+            Some(EntityType::Organization)
+        );
         assert_eq!(EntityType::User.parent_type(), Some(EntityType::Team));
 
-        assert_eq!(EntityType::Organization.child_type(), Some(EntityType::Team));
+        assert_eq!(
+            EntityType::Organization.child_type(),
+            Some(EntityType::Team)
+        );
         assert_eq!(EntityType::Team.child_type(), Some(EntityType::User));
         assert_eq!(EntityType::User.child_type(), None);
     }
 
     #[test]
     fn test_entity_type_from_str() {
-        assert_eq!(EntityType::from_str("organization").unwrap(), EntityType::Organization);
+        assert_eq!(
+            EntityType::from_str("organization").unwrap(),
+            EntityType::Organization
+        );
         assert_eq!(EntityType::from_str("team").unwrap(), EntityType::Team);
         assert_eq!(EntityType::from_str("user").unwrap(), EntityType::User);
         assert!(EntityType::from_str("invalid").is_err());
@@ -296,13 +313,34 @@ mod tests {
 
     #[test]
     fn test_resource_type_from_str() {
-        assert_eq!(ResourceType::from_str("gpu_hours").unwrap(), ResourceType::GpuHours);
-        assert_eq!(ResourceType::from_str("concurrent_gpus").unwrap(), ResourceType::ConcurrentGpus);
-        assert_eq!(ResourceType::from_str("cpu_hours").unwrap(), ResourceType::CpuHours);
-        assert_eq!(ResourceType::from_str("tpu_hours").unwrap(), ResourceType::TpuHours);
-        assert_eq!(ResourceType::from_str("memory_gb").unwrap(), ResourceType::MemoryGb);
-        assert_eq!(ResourceType::from_str("storage_gb_hours").unwrap(), ResourceType::StorageGbHours);
-        assert_eq!(ResourceType::from_str("network_gbps").unwrap(), ResourceType::NetworkGbps);
+        assert_eq!(
+            ResourceType::from_str("gpu_hours").unwrap(),
+            ResourceType::GpuHours
+        );
+        assert_eq!(
+            ResourceType::from_str("concurrent_gpus").unwrap(),
+            ResourceType::ConcurrentGpus
+        );
+        assert_eq!(
+            ResourceType::from_str("cpu_hours").unwrap(),
+            ResourceType::CpuHours
+        );
+        assert_eq!(
+            ResourceType::from_str("tpu_hours").unwrap(),
+            ResourceType::TpuHours
+        );
+        assert_eq!(
+            ResourceType::from_str("memory_gb").unwrap(),
+            ResourceType::MemoryGb
+        );
+        assert_eq!(
+            ResourceType::from_str("storage_gb_hours").unwrap(),
+            ResourceType::StorageGbHours
+        );
+        assert_eq!(
+            ResourceType::from_str("network_gbps").unwrap(),
+            ResourceType::NetworkGbps
+        );
         assert!(ResourceType::from_str("invalid").is_err());
     }
 
@@ -336,13 +374,25 @@ mod tests {
     #[test]
     fn test_resource_type_category() {
         assert_eq!(ResourceType::GpuHours.category(), ResourceCategory::Gpu);
-        assert_eq!(ResourceType::ConcurrentGpus.category(), ResourceCategory::Gpu);
+        assert_eq!(
+            ResourceType::ConcurrentGpus.category(),
+            ResourceCategory::Gpu
+        );
         assert_eq!(ResourceType::CpuHours.category(), ResourceCategory::Cpu);
         assert_eq!(ResourceType::TpuHours.category(), ResourceCategory::Tpu);
         assert_eq!(ResourceType::MemoryGb.category(), ResourceCategory::Memory);
-        assert_eq!(ResourceType::StorageGbHours.category(), ResourceCategory::Storage);
-        assert_eq!(ResourceType::NetworkGbps.category(), ResourceCategory::Network);
-        assert_eq!(ResourceType::CustomLicenses.category(), ResourceCategory::Custom);
+        assert_eq!(
+            ResourceType::StorageGbHours.category(),
+            ResourceCategory::Storage
+        );
+        assert_eq!(
+            ResourceType::NetworkGbps.category(),
+            ResourceCategory::Network
+        );
+        assert_eq!(
+            ResourceType::CustomLicenses.category(),
+            ResourceCategory::Custom
+        );
     }
 
     #[test]

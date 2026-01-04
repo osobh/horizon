@@ -3,9 +3,7 @@
 //! Request and response types for API endpoints.
 
 use crate::migration::{MigrationReason, MigrationStatus, MigrationStep};
-use crate::models::{
-    NodeType, Region, RouteDirection, SubnetPurpose, SubnetStatus,
-};
+use crate::models::{NodeType, Region, RouteDirection, SubnetPurpose, SubnetStatus};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;

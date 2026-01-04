@@ -106,7 +106,11 @@ impl GovernorClient {
         Ok(self.client.get(&url).send().await?)
     }
 
-    pub async fn update_policy(&self, name: &str, request: &UpdatePolicyRequest) -> Result<Response> {
+    pub async fn update_policy(
+        &self,
+        name: &str,
+        request: &UpdatePolicyRequest,
+    ) -> Result<Response> {
         let url = format!("{}/api/v1/policies/{}", self.base_url, name);
         Ok(self.client.put(&url).json(request).send().await?)
     }
@@ -228,10 +232,7 @@ impl ApiGatewayClient {
     pub fn with_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         let mut headers = reqwest::header::HeaderMap::new();
         let token_value = format!("Bearer {}", token.into());
-        headers.insert(
-            reqwest::header::AUTHORIZATION,
-            token_value.parse().unwrap(),
-        );
+        headers.insert(reqwest::header::AUTHORIZATION, token_value.parse().unwrap());
 
         Self {
             base_url: base_url.into(),

@@ -2,16 +2,15 @@
 
 use super::{
     config::MemoryIntegrationConfig,
-    nodes::*,
     stats::MemoryIntegrationStats,
     sync::{MemorySync, MemoryUpdateType},
 };
 use crate::error::{KnowledgeGraphError, KnowledgeGraphResult};
 use crate::graph::{KnowledgeGraph, Node, NodeType};
 use crate::semantic::SemanticSearchEngine;
-use chrono::{DateTime, Utc};
-use stratoswarm_agent_core::{memory::*, Agent, AgentId};
+use chrono::Utc;
 use std::collections::HashMap;
+use stratoswarm_agent_core::{memory::*, Agent, AgentId};
 
 /// Agent memory integration system
 pub struct MemoryIntegration {
@@ -190,8 +189,7 @@ impl MemoryIntegration {
         let mut results = Vec::new();
 
         for memory in memories {
-            let combined_text =
-                format!("{} {}", memory.key, memory.value.to_string()).to_lowercase();
+            let combined_text = format!("{} {}", memory.key, memory.value).to_lowercase();
             let query_lower = query.to_lowercase();
 
             if combined_text.contains(&query_lower) {

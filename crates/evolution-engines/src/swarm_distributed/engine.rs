@@ -355,8 +355,7 @@ impl DistributedSwarmEngine {
         let message = DistributedMessage::Heartbeat {
             node_id: self.config.node_id.clone(),
             timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                ?
+                .duration_since(std::time::UNIX_EPOCH)?
                 .as_millis() as u64,
             load: node_manager.local_node.current_load,
         };

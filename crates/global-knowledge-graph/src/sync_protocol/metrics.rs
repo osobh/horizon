@@ -137,7 +137,7 @@ impl MetricsCollector for DefaultMetricsCollector {
     async fn report_anomaly(&self, anomaly: PerformanceAnomaly) {
         let mut anomalies = self.anomalies.write().await;
         anomalies.push(anomaly);
-        
+
         // Keep only last 1000 anomalies
         if anomalies.len() > 1000 {
             anomalies.drain(0..anomalies.len() - 1000);

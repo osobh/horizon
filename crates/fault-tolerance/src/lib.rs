@@ -9,21 +9,21 @@
 //! - Byzantine fault detection
 //! - Network partition recovery
 
+pub mod byzantine;
 pub mod checkpoint;
 pub mod coordinator;
 pub mod error;
-pub mod recovery;
-pub mod predictive_scaler;
-pub mod byzantine;
 pub mod partition;
+pub mod predictive_scaler;
+pub mod recovery;
 
+pub use byzantine::*;
 pub use checkpoint::*;
 pub use coordinator::*;
 pub use error::*;
-pub use recovery::*;
-pub use predictive_scaler::*;
-pub use byzantine::*;
 pub use partition::*;
+pub use predictive_scaler::*;
+pub use recovery::*;
 
 /// Main fault tolerance manager
 pub struct FaultToleranceManager {

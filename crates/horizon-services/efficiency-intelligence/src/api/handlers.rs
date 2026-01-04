@@ -49,9 +49,7 @@ pub async fn list_detections(
     Ok(Json(detections))
 }
 
-pub async fn get_summary(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<SavingsSummary>> {
+pub async fn get_summary(State(state): State<Arc<AppState>>) -> Result<Json<SavingsSummary>> {
     let summary = state.repository.get_savings_summary().await?;
     Ok(Json(summary))
 }

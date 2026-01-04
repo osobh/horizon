@@ -1,5 +1,5 @@
-pub mod api;
 pub mod analyzer;
+pub mod api;
 pub mod config;
 pub mod db;
 pub mod detector;

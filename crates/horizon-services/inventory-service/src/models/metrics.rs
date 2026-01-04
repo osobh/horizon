@@ -94,6 +94,9 @@ mod tests {
         let deserialized: AssetMetrics = serde_json::from_str(&json).unwrap();
 
         assert_eq!(metrics.asset_id, deserialized.asset_id);
-        assert_eq!(metrics.gpu_utilization_percent, deserialized.gpu_utilization_percent);
+        assert_eq!(
+            metrics.gpu_utilization_percent,
+            deserialized.gpu_utilization_percent
+        );
     }
 }

@@ -1,13 +1,13 @@
 //! Security management for package integrity and access control
 
-use std::sync::Arc;
+use anyhow::{anyhow, Result};
+use dashmap::DashMap;
+use sha2::{Digest, Sha256};
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use anyhow::{Result, anyhow};
 use uuid::Uuid;
-use sha2::{Sha256, Digest};
-use dashmap::DashMap;
 
 /// Security manager for package integrity and access control
 #[derive(Debug)]
@@ -45,28 +45,33 @@ impl SecurityManager {
             audit_log: Arc::new(RwLock::new(Vec::new())),
         }
     }
-    
+
     pub async fn add_trusted_cluster(&self, cluster_id: String) -> Result<()> {
         let mut trusted = self.trusted_clusters.write().await;
         trusted.insert(cluster_id.clone());
-        
+
         self.log_audit_entry(
             cluster_id,
             "add_trusted_cluster".to_string(),
             None,
             true,
             "Cluster added to trusted list".to_string(),
-        ).await;
-        
+        )
+        .await;
+
         Ok(())
     }
-    
+
     pub async fn is_trusted(&self, cluster_id: &str) -> bool {
         let trusted = self.trusted_clusters.read().await;
         trusted.contains(cluster_id)
     }
-    
-    pub async fn verify_package_signature(&self, package_id: Uuid, signature: &str) -> Result<bool> {
+
+    pub async fn verify_package_signature(
+        &self,
+        package_id: Uuid,
+        signature: &str,
+    ) -> Result<bool> {
         if let Some(expected_sig) = self.package_signatures.get(&package_id) {
             Ok(expected_sig.value() == signature)
         } else {
@@ -81,11 +86,12 @@ impl SecurityManager {
         let hash = hasher.finalize();
         let signature = format!("{:x}", hash);
 
-        self.package_signatures.insert(package_id, signature.clone());
+        self.package_signatures
+            .insert(package_id, signature.clone());
 
         Ok(signature)
     }
-    
+
     pub async fn check_access(&self, cluster_id: &str, operation: &str) -> Result<bool> {
         if let Some(policy) = self.access_control_policies.get(cluster_id) {
             let allowed = policy.allowed_operations.contains(&operation.to_string());
@@ -96,7 +102,8 @@ impl SecurityManager {
                 None,
                 allowed,
                 format!("Access check for operation: {}", operation),
-            ).await;
+            )
+            .await;
 
             Ok(allowed)
         } else {
@@ -107,12 +114,13 @@ impl SecurityManager {
                 None,
                 false,
                 "No access policy found".to_string(),
-            ).await;
+            )
+            .await;
 
             Ok(false)
         }
     }
-    
+
     pub async fn set_access_policy(
         &self,
         cluster_id: String,
@@ -127,7 +135,8 @@ impl SecurityManager {
             security_clearance,
         };
 
-        self.access_control_policies.insert(cluster_id.clone(), policy);
+        self.access_control_policies
+            .insert(cluster_id.clone(), policy);
 
         self.log_audit_entry(
             cluster_id,
@@ -135,11 +144,12 @@ impl SecurityManager {
             None,
             true,
             format!("Security clearance level: {}", security_clearance),
-        ).await;
+        )
+        .await;
 
         Ok(())
     }
-    
+
     async fn log_audit_entry(
         &self,
         cluster_id: String,
@@ -159,22 +169,18 @@ impl SecurityManager {
             success,
             details,
         };
-        
+
         let mut log = self.audit_log.write().await;
         log.push(entry);
-        
+
         // Keep only last 10000 entries
         if log.len() > 10000 {
             log.drain(0..log.len() - 10000);
         }
     }
-    
+
     pub async fn get_audit_log(&self, limit: usize) -> Vec<SecurityAuditEntry> {
         let log = self.audit_log.read().await;
-        log.iter()
-            .rev()
-            .take(limit)
-            .cloned()
-            .collect()
+        log.iter().rev().take(limit).cloned().collect()
     }
 }

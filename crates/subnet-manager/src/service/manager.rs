@@ -8,8 +8,8 @@
 
 use crate::allocator::{CidrAllocator, IpAllocator, SubnetAllocator, SubnetIpAllocator};
 use crate::models::{
-    AssignmentPolicy, CrossSubnetRoute, NodeType, Region, Subnet, SubnetAssignment,
-    SubnetPurpose, SubnetStatus, SubnetTemplate,
+    AssignmentPolicy, CrossSubnetRoute, NodeType, Region, Subnet, SubnetAssignment, SubnetPurpose,
+    SubnetStatus, SubnetTemplate,
 };
 use crate::policy_engine::{NodeAttributes, PolicyEngine, PolicyEvaluator};
 use crate::{Error, Result};
@@ -744,10 +744,9 @@ mod tests {
             .unwrap();
 
         // Create policy
-        let policy = AssignmentPolicy::new("DC Policy", subnet.id, 100)
-            .with_rule(crate::models::PolicyRule::node_type_equals(
-                NodeType::DataCenter,
-            ));
+        let policy = AssignmentPolicy::new("DC Policy", subnet.id, 100).with_rule(
+            crate::models::PolicyRule::node_type_equals(NodeType::DataCenter),
+        );
         manager.add_policy(policy).unwrap();
 
         // Assign using policy

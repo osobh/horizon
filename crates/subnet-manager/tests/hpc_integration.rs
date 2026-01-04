@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use subnet_manager::events::{
-    create_shared_bridge, SubnetEventPublisher, SubnetHpcBridge, SubnetMessage,
-    SUBNET_ASSIGNMENTS, SUBNET_LIFECYCLE, SUBNET_MIGRATIONS,
+    create_shared_bridge, SubnetEventPublisher, SubnetHpcBridge, SubnetMessage, SUBNET_ASSIGNMENTS,
+    SUBNET_LIFECYCLE, SUBNET_MIGRATIONS,
 };
 use subnet_manager::models::{Subnet, SubnetPurpose};
 use subnet_manager::policy_engine::PolicyEngine;
@@ -68,7 +68,9 @@ async fn test_publisher_with_hpc_channels() {
         51821,
     );
 
-    let result = publisher.subnet_created(&subnet, Some(Uuid::new_v4())).await;
+    let result = publisher
+        .subnet_created(&subnet, Some(Uuid::new_v4()))
+        .await;
     assert!(result.is_ok());
 
     // Check stats
@@ -185,9 +187,9 @@ fn test_subscribe_all_channels() {
 /// Test migration events flow to the correct channel
 #[tokio::test]
 async fn test_migration_events() {
-    use subnet_manager::migration::{Migration, MigrationReason, MigrationStatus};
-    use std::net::Ipv4Addr;
     use chrono::Utc;
+    use std::net::Ipv4Addr;
+    use subnet_manager::migration::{Migration, MigrationReason, MigrationStatus};
 
     let bridge = create_shared_bridge();
     let mut rx = bridge.subscribe_broadcast(SUBNET_MIGRATIONS);

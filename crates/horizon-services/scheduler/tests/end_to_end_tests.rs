@@ -17,8 +17,9 @@ struct TestApp {
 impl TestApp {
     async fn new() -> Self {
         // Get database URL from environment or use default
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string());
+        let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string()
+        });
 
         // Create connection pool
         let pool = PgPool::connect(&database_url)
@@ -326,7 +327,11 @@ async fn test_multiple_jobs_same_user() {
             .user_id("heavy_user")
             .job_name(&format!("job-{}", i))
             .gpu_count((i % 4) + 1)
-            .priority(if i < 3 { Priority::High } else { Priority::Normal })
+            .priority(if i < 3 {
+                Priority::High
+            } else {
+                Priority::Normal
+            })
             .build()
             .unwrap();
 
@@ -341,7 +346,10 @@ async fn test_multiple_jobs_same_user() {
 
     // List all jobs for this user
     let all_jobs = test_app.scheduler.list_jobs(None).await.unwrap();
-    let user_jobs: Vec<_> = all_jobs.iter().filter(|j| j.user_id == "heavy_user").collect();
+    let user_jobs: Vec<_> = all_jobs
+        .iter()
+        .filter(|j| j.user_id == "heavy_user")
+        .collect();
     assert_eq!(user_jobs.len(), 10);
 
     test_app.cleanup().await;
@@ -379,11 +387,19 @@ async fn test_job_listing_with_state_filters() {
     }
 
     // Filter by Queued state
-    let queued_jobs = test_app.scheduler.list_jobs(Some(JobState::Queued)).await.unwrap();
+    let queued_jobs = test_app
+        .scheduler
+        .list_jobs(Some(JobState::Queued))
+        .await
+        .unwrap();
     assert_eq!(queued_jobs.len(), 3);
 
     // Filter by Scheduled state
-    let scheduled_jobs = test_app.scheduler.list_jobs(Some(JobState::Scheduled)).await.unwrap();
+    let scheduled_jobs = test_app
+        .scheduler
+        .list_jobs(Some(JobState::Scheduled))
+        .await
+        .unwrap();
     assert_eq!(scheduled_jobs.len(), 2);
 
     // List all jobs
@@ -447,8 +463,14 @@ async fn test_job_with_all_optional_fields_e2e() {
     // CPU cores and memory might not persist depending on DB schema
     // Just verify they're set if available
     assert_eq!(retrieved.priority, Priority::High);
-    assert_eq!(retrieved.command.as_deref(), Some("python train.py --distributed --epochs 200"));
-    assert_eq!(retrieved.working_dir.as_deref(), Some("/workspace/ml-project"));
+    assert_eq!(
+        retrieved.command.as_deref(),
+        Some("python train.py --distributed --epochs 200")
+    );
+    assert_eq!(
+        retrieved.working_dir.as_deref(),
+        Some("/workspace/ml-project")
+    );
 
     test_app.cleanup().await;
 }
@@ -530,8 +552,9 @@ async fn test_cancel_multiple_jobs() {
 // ==================== E2E TEST 13: Job Persistence Across Scheduler Restart ====================
 #[tokio::test]
 async fn test_job_persistence_across_restart() {
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string());
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string()
+    });
 
     let pool = PgPool::connect(&database_url).await.unwrap();
 
@@ -626,9 +649,7 @@ async fn test_concurrent_cancellations() {
     let mut handles = vec![];
     for job_id in job_ids {
         let scheduler = scheduler.clone();
-        let handle = tokio::spawn(async move {
-            scheduler.cancel_job(job_id).await
-        });
+        let handle = tokio::spawn(async move { scheduler.cancel_job(job_id).await });
         handles.push(handle);
     }
 
@@ -794,7 +815,11 @@ async fn test_job_completion_recording() {
     repository.update(&submitted).await.unwrap();
 
     // Record completion
-    test_app.scheduler.record_job_completion(&submitted).await.unwrap();
+    test_app
+        .scheduler
+        .record_job_completion(&submitted)
+        .await
+        .unwrap();
 
     // This verifies the fair-share system records the usage
     // (actual fair-share calculations are tested in unit tests)

@@ -45,7 +45,10 @@ impl BillingRepository {
         Ok(row)
     }
 
-    pub async fn create_batch(&self, records: &[CreateBillingRecord]) -> Result<Vec<BillingRecord>> {
+    pub async fn create_batch(
+        &self,
+        records: &[CreateBillingRecord],
+    ) -> Result<Vec<BillingRecord>> {
         let mut results = Vec::new();
 
         for record in records {
@@ -170,12 +173,11 @@ impl BillingRepository {
     }
 
     pub async fn count_by_provider(&self, provider: Provider) -> Result<i64> {
-        let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM raw_billing_records WHERE provider = $1"
-        )
-        .bind(provider.to_string())
-        .fetch_one(&self.pool)
-        .await?;
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM raw_billing_records WHERE provider = $1")
+                .bind(provider.to_string())
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok(row.0)
     }

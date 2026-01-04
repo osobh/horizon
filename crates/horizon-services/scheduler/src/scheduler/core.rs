@@ -195,7 +195,9 @@ impl Scheduler {
                 let duration = completed.signed_duration_since(started);
                 let hours = duration.num_seconds() as f64 / 3600.0;
 
-                let gpu_count = job.resources.get_gpu_spec()
+                let gpu_count = job
+                    .resources
+                    .get_gpu_spec()
                     .map(|s| s.amount)
                     .unwrap_or(0.0);
                 let gpu_hours = hours * gpu_count;

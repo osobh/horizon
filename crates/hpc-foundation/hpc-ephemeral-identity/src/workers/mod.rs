@@ -7,4 +7,4 @@
 
 mod cleanup_worker;
 
-pub use cleanup_worker::{CleanupWorker, CleanupWorkerConfig, CleanupWorkerHandle, CleanupStats};
+pub use cleanup_worker::{CleanupStats, CleanupWorker, CleanupWorkerConfig, CleanupWorkerHandle};

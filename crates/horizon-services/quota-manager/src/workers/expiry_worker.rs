@@ -88,10 +88,7 @@ impl ExpiryWorker {
 
         let running_clone = Arc::clone(&running);
         let handle = tokio::spawn(async move {
-            info!(
-                "Expiry worker started with interval {:?}",
-                config.interval
-            );
+            info!("Expiry worker started with interval {:?}", config.interval);
 
             loop {
                 // Check if we should stop
@@ -118,10 +115,7 @@ impl ExpiryWorker {
                         stats.quotas_expired, stats.allocations_expired, stats.pools_expired
                     );
                 } else {
-                    warn!(
-                        "Expiry run completed with {} errors",
-                        stats.errors.len()
-                    );
+                    warn!("Expiry run completed with {} errors", stats.errors.len());
                 }
 
                 // Wait for next interval
@@ -232,10 +226,7 @@ impl ExpiryWorker {
         //
         // Could also archive to cold storage instead of deleting
 
-        debug!(
-            "Purging records older than {} hours",
-            retention_hours
-        );
+        debug!("Purging records older than {} hours", retention_hours);
 
         // Placeholder
         Ok(0)

@@ -92,10 +92,19 @@ pub fn create_router(repository: QuotaRepository) -> Router {
         .route("/api/v1/quotas/:id", delete(quotas::delete_quota))
         .route("/api/v1/quotas/:id/usage", get(quotas::get_usage_stats))
         .route("/api/v1/quotas/:id/history", get(quotas::get_usage_history))
-        .route("/api/v1/allocations/check", post(allocations::check_allocation))
+        .route(
+            "/api/v1/allocations/check",
+            post(allocations::check_allocation),
+        )
         .route("/api/v1/allocations", post(allocations::create_allocation))
         .route("/api/v1/allocations/:id", get(allocations::get_allocation))
-        .route("/api/v1/allocations/:id", delete(allocations::release_allocation))
-        .route("/api/v1/quotas/:id/allocations", get(allocations::list_allocations))
+        .route(
+            "/api/v1/allocations/:id",
+            delete(allocations::release_allocation),
+        )
+        .route(
+            "/api/v1/quotas/:id/allocations",
+            get(allocations::list_allocations),
+        )
         .with_state(state)
 }

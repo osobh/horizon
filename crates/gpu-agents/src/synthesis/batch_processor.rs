@@ -194,7 +194,7 @@ mod tests {
     }
 
     #[test]
-    fn test_batch_processor_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_batch_processor_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let config = BatchConfig::default();
         let processor = BatchProcessor::new(device, config);
@@ -202,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    fn test_single_batch_processing() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_single_batch_processing() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let processor = BatchProcessor::new(device, BatchConfig::default())?;
 
@@ -224,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_batch_processing() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_multiple_batch_processing() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let processor = BatchProcessor::new(device, BatchConfig::default())?;
 
@@ -248,7 +248,7 @@ mod tests {
     }
 
     #[test]
-    fn test_batch_size_limits() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_batch_size_limits() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let config = BatchConfig {
             max_patterns_per_batch: 2,

@@ -4,7 +4,10 @@ use crate::error::{GovernorErrorExt, HpcError, Result};
 use axum::extract::State;
 use axum::Json;
 use hpc_channels::GovernorMessage;
-use hpc_policy::{parse_policy, evaluate as evaluate_policy, Decision, EvaluationContext, PrincipalContext, ResourceContext};
+use hpc_policy::{
+    evaluate as evaluate_policy, parse_policy, Decision, EvaluationContext, PrincipalContext,
+    ResourceContext,
+};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -29,8 +32,12 @@ pub async fn evaluate(
     let mut final_decision = Decision::Deny;
 
     for db_policy in &policies {
-        let policy = parse_policy(&db_policy.content)
-            .map_err(|e| HpcError::invalid_policy_content(format!("Failed to parse policy {}: {}", db_policy.name, e)))?;
+        let policy = parse_policy(&db_policy.content).map_err(|e| {
+            HpcError::invalid_policy_content(format!(
+                "Failed to parse policy {}: {}",
+                db_policy.name, e
+            ))
+        })?;
 
         let principal = PrincipalContext::new(
             Some(request.principal.user_id.clone()),
@@ -47,11 +54,7 @@ pub async fn evaluate(
             resource = resource.with_attribute(key.clone(), value.clone());
         }
 
-        let context = EvaluationContext::new(
-            principal,
-            resource,
-            request.action.clone(),
-        );
+        let context = EvaluationContext::new(principal, resource, request.action.clone());
 
         let decision = evaluate_policy(&policy, &context)
             .map_err(|e| HpcError::evaluation_error(format!("Policy evaluation failed: {}", e)))?;

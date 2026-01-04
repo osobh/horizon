@@ -6,5 +6,5 @@ pub mod models;
 pub mod service;
 
 pub use config::Config;
-pub use error::{HpcError, Result, CapacityErrorExt};
+pub use error::{CapacityErrorExt, HpcError, Result};
 pub use service::ForecastService;

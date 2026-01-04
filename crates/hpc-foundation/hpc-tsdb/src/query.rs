@@ -170,7 +170,8 @@ mod tests {
             .build()
             .unwrap();
 
-        assert!(query.contains("range(start: 2025-01-01T00:00:00+00:00, stop: 2025-01-02T00:00:00+00:00)"));
+        assert!(query
+            .contains("range(start: 2025-01-01T00:00:00+00:00, stop: 2025-01-02T00:00:00+00:00)"));
     }
 
     #[test]

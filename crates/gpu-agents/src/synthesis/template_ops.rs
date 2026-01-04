@@ -125,6 +125,9 @@ impl TemplateEngine {
         let max_buffer_size = 1024 * 1024; // 1MB default
 
         // Allocate GPU buffers
+        // SAFETY: alloc returns uninitialized memory. These buffers are optional and will
+        // be written via encode_templates/encode_variables before any GPU kernel reads.
+        // Failures return None and the engine operates in CPU-only mode.
         let variable_buffer = unsafe { device.alloc::<u8>(max_buffer_size) }.ok();
         let template_buffer = unsafe { device.alloc::<u8>(max_buffer_size) }.ok();
         let output_buffer = unsafe { device.alloc::<u8>(max_buffer_size) }.ok();
@@ -351,7 +354,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_variable_substitution() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_variable_substitution() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let engine = TemplateEngine::new(device)?;
 
@@ -366,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn test_loop_expansion() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_loop_expansion() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let engine = TemplateEngine::new(device)?;
 

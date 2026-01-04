@@ -5,11 +5,8 @@
 
 use super::channels::ChannelId;
 use super::messages::*;
-use crate::models::{
-    AssignmentPolicy, CrossSubnetRoute, RouteDirection, Subnet, SubnetAssignment, SubnetPurpose,
-    SubnetStatus,
-};
 use crate::migration::Migration;
+use crate::models::{AssignmentPolicy, CrossSubnetRoute, Subnet, SubnetAssignment, SubnetStatus};
 use async_trait::async_trait;
 use chrono::Utc;
 use parking_lot::RwLock;
@@ -22,7 +19,11 @@ use uuid::Uuid;
 #[async_trait]
 pub trait EventTransport: Send + Sync {
     /// Publish a message to a channel
-    async fn publish(&self, channel: ChannelId, message: &SubnetMessage) -> Result<(), PublishError>;
+    async fn publish(
+        &self,
+        channel: ChannelId,
+        message: &SubnetMessage,
+    ) -> Result<(), PublishError>;
 
     /// Subscribe to a channel
     async fn subscribe(&self, channel: ChannelId) -> Result<EventSubscription, SubscribeError>;
@@ -198,10 +199,7 @@ impl SubnetEventPublisher {
 
     /// Flush buffered messages (call when transport reconnects)
     pub async fn flush_buffer(&self) -> Result<usize, PublishError> {
-        let transport = self
-            .transport
-            .as_ref()
-            .ok_or(PublishError::NotConnected)?;
+        let transport = self.transport.as_ref().ok_or(PublishError::NotConnected)?;
 
         if !transport.is_connected() {
             return Err(PublishError::NotConnected);
@@ -254,13 +252,15 @@ impl SubnetEventPublisher {
         new_status: SubnetStatus,
         reason: Option<String>,
     ) -> Result<(), PublishError> {
-        self.publish(SubnetMessage::SubnetStatusChanged(SubnetStatusChangedEvent {
-            subnet_id,
-            old_status,
-            new_status,
-            reason,
-            changed_at: Utc::now(),
-        }))
+        self.publish(SubnetMessage::SubnetStatusChanged(
+            SubnetStatusChangedEvent {
+                subnet_id,
+                old_status,
+                new_status,
+                reason,
+                changed_at: Utc::now(),
+            },
+        ))
         .await
     }
 
@@ -355,7 +355,9 @@ impl SubnetEventPublisher {
 
     /// Publish a migration started event
     pub async fn migration_started(&self, migration: &Migration) -> Result<(), PublishError> {
-        let target_ip = migration.target_ip.unwrap_or(std::net::Ipv4Addr::new(0, 0, 0, 0));
+        let target_ip = migration
+            .target_ip
+            .unwrap_or(std::net::Ipv4Addr::new(0, 0, 0, 0));
         self.publish(SubnetMessage::MigrationStarted(MigrationStartedEvent {
             migration_id: migration.id,
             node_id: migration.node_id,
@@ -374,7 +376,9 @@ impl SubnetEventPublisher {
         migration: &Migration,
         duration_ms: u64,
     ) -> Result<(), PublishError> {
-        let final_ip = migration.target_ip.unwrap_or(std::net::Ipv4Addr::new(0, 0, 0, 0));
+        let final_ip = migration
+            .target_ip
+            .unwrap_or(std::net::Ipv4Addr::new(0, 0, 0, 0));
         self.publish(SubnetMessage::MigrationCompleted(MigrationCompletedEvent {
             migration_id: migration.id,
             node_id: migration.node_id,
@@ -551,7 +555,11 @@ impl Default for InMemoryTransport {
 
 #[async_trait]
 impl EventTransport for InMemoryTransport {
-    async fn publish(&self, channel: ChannelId, message: &SubnetMessage) -> Result<(), PublishError> {
+    async fn publish(
+        &self,
+        channel: ChannelId,
+        message: &SubnetMessage,
+    ) -> Result<(), PublishError> {
         if !self.is_connected() {
             return Err(PublishError::NotConnected);
         }
@@ -560,8 +568,11 @@ impl EventTransport for InMemoryTransport {
     }
 
     async fn subscribe(&self, channel: ChannelId) -> Result<EventSubscription, SubscribeError> {
-        let (tx, rx) = tokio::sync::mpsc::channel(100);
-        Ok(EventSubscription { channel, receiver: rx })
+        let (_tx, rx) = tokio::sync::mpsc::channel(100);
+        Ok(EventSubscription {
+            channel,
+            receiver: rx,
+        })
     }
 
     fn is_connected(&self) -> bool {

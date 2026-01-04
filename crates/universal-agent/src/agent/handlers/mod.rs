@@ -35,7 +35,7 @@ pub mod efficiency {
 
     pub async fn handle(request: AgentRequest) -> Result<AgentResponse> {
         // Simulated efficiency analysis
-        let detections = vec![
+        let detections = [
             WasteDetection {
                 resource_id: "gpu-001".to_string(),
                 resource_type: "GPU".to_string(),
@@ -64,7 +64,9 @@ pub mod efficiency {
         );
 
         let mut response = AgentResponse::new(request.id, content);
-        response.recommendations.push("Consider rightsizing or consolidating underutilized resources".to_string());
+        response
+            .recommendations
+            .push("Consider rightsizing or consolidating underutilized resources".to_string());
         Ok(response)
     }
 }
@@ -83,7 +85,7 @@ pub mod cost {
     }
 
     pub async fn handle(request: AgentRequest) -> Result<AgentResponse> {
-        let opportunities = vec![
+        let opportunities = [
             SavingsOpportunity {
                 category: "Reserved Instances".to_string(),
                 description: "Convert on-demand to reserved".to_string(),
@@ -118,8 +120,7 @@ pub mod capacity {
     use super::*;
 
     pub async fn handle(request: AgentRequest) -> Result<AgentResponse> {
-        let content = format!(
-            "Capacity Planning Analysis\n\n\
+        let content = "Capacity Planning Analysis\n\n\
             Current Utilization:\n\
             - GPU Cluster: 72% (trending up 3%/week)\n\
             - CPU Cluster: 58% (stable)\n\
@@ -128,10 +129,12 @@ pub mod capacity {
             - GPU Cluster: Expected to reach 85% capacity\n\
             - Storage: Expected to reach 72% capacity\n\n\
             Recommendation: Consider provisioning additional GPU capacity within 2 weeks"
-        );
+            .to_string();
 
         let mut response = AgentResponse::new(request.id, content);
-        response.recommendations.push("Provision additional GPU capacity".to_string());
+        response
+            .recommendations
+            .push("Provision additional GPU capacity".to_string());
         Ok(response)
     }
 }
@@ -141,8 +144,7 @@ pub mod scheduler {
     use super::*;
 
     pub async fn handle(request: AgentRequest) -> Result<AgentResponse> {
-        let content = format!(
-            "Scheduler Optimization Analysis\n\n\
+        let content = "Scheduler Optimization Analysis\n\n\
             Current Queue Status:\n\
             - Pending jobs: 47\n\
             - Average wait time: 12.5 minutes\n\
@@ -152,7 +154,7 @@ pub mod scheduler {
             - Implement gang scheduling for multi-GPU jobs\n\
             - Consider preemption for high-priority workloads\n\n\
             Estimated improvement: 25% reduction in wait times"
-        );
+            .to_string();
 
         Ok(AgentResponse::new(request.id, content))
     }
@@ -163,8 +165,7 @@ pub mod policy {
     use super::*;
 
     pub async fn handle(request: AgentRequest) -> Result<AgentResponse> {
-        let content = format!(
-            "Policy Governance Check\n\n\
+        let content = "Policy Governance Check\n\n\
             Compliance Status: PASS\n\n\
             Checked Policies:\n\
             - Resource quotas: Compliant\n\
@@ -172,7 +173,7 @@ pub mod policy {
             - Security policies: Compliant\n\
             - Data retention: Compliant\n\n\
             No policy violations detected."
-        );
+            .to_string();
 
         Ok(AgentResponse::new(request.id, content))
     }
@@ -183,15 +184,14 @@ pub mod incident {
     use super::*;
 
     pub async fn handle(request: AgentRequest) -> Result<AgentResponse> {
-        let content = format!(
-            "Incident Response Status\n\n\
+        let content = "Incident Response Status\n\n\
             Active Incidents: 0\n\
             Resolved (24h): 2\n\n\
             System Health:\n\
             - All clusters: Healthy\n\
             - All services: Operational\n\n\
             No active incidents requiring attention."
-        );
+            .to_string();
 
         Ok(AgentResponse::new(request.id, content))
     }
@@ -202,8 +202,7 @@ pub mod telemetry {
     use super::*;
 
     pub async fn handle(request: AgentRequest) -> Result<AgentResponse> {
-        let content = format!(
-            "Telemetry Summary\n\n\
+        let content = "Telemetry Summary\n\n\
             Metrics Collected (24h): 2.5M data points\n\
             Active Alerts: 0\n\
             Anomalies Detected: 1 (minor)\n\n\
@@ -212,7 +211,7 @@ pub mod telemetry {
             - Memory usage: avg 54%\n\
             - Network I/O: avg 120 MB/s\n\n\
             All systems operating within normal parameters."
-        );
+            .to_string();
 
         Ok(AgentResponse::new(request.id, content))
     }
@@ -223,8 +222,7 @@ pub mod audit {
     use super::*;
 
     pub async fn handle(request: AgentRequest) -> Result<AgentResponse> {
-        let content = format!(
-            "Audit Log Summary (24h)\n\n\
+        let content = "Audit Log Summary (24h)\n\n\
             Total Events: 15,234\n\
             Security Events: 12\n\
             Configuration Changes: 8\n\
@@ -234,7 +232,7 @@ pub mod audit {
             - 2 policy updates applied\n\
             - 1 failed authentication attempt\n\n\
             No suspicious activity detected."
-        );
+            .to_string();
 
         Ok(AgentResponse::new(request.id, content))
     }
@@ -248,25 +246,29 @@ pub mod orchestrator {
         // Simple intent classification
         let content_lower = request.content.to_lowercase();
 
-        let (intent, target_agent) = if content_lower.contains("cost") || content_lower.contains("spend") {
-            ("Cost Analysis", "cost_optimizer")
-        } else if content_lower.contains("efficiency") || content_lower.contains("idle") || content_lower.contains("waste") {
-            ("Efficiency Analysis", "efficiency_hunter")
-        } else if content_lower.contains("capacity") || content_lower.contains("forecast") {
-            ("Capacity Planning", "capacity_planner")
-        } else if content_lower.contains("schedule") || content_lower.contains("queue") {
-            ("Scheduler Optimization", "scheduler_optimizer")
-        } else if content_lower.contains("policy") || content_lower.contains("compliance") {
-            ("Policy Governance", "policy_governor")
-        } else if content_lower.contains("incident") || content_lower.contains("alert") {
-            ("Incident Response", "incident_responder")
-        } else if content_lower.contains("metric") || content_lower.contains("telemetry") {
-            ("Telemetry Monitoring", "telemetry_monitor")
-        } else if content_lower.contains("audit") || content_lower.contains("log") {
-            ("Audit Logging", "audit_logger")
-        } else {
-            ("General Query", "general")
-        };
+        let (intent, target_agent) =
+            if content_lower.contains("cost") || content_lower.contains("spend") {
+                ("Cost Analysis", "cost_optimizer")
+            } else if content_lower.contains("efficiency")
+                || content_lower.contains("idle")
+                || content_lower.contains("waste")
+            {
+                ("Efficiency Analysis", "efficiency_hunter")
+            } else if content_lower.contains("capacity") || content_lower.contains("forecast") {
+                ("Capacity Planning", "capacity_planner")
+            } else if content_lower.contains("schedule") || content_lower.contains("queue") {
+                ("Scheduler Optimization", "scheduler_optimizer")
+            } else if content_lower.contains("policy") || content_lower.contains("compliance") {
+                ("Policy Governance", "policy_governor")
+            } else if content_lower.contains("incident") || content_lower.contains("alert") {
+                ("Incident Response", "incident_responder")
+            } else if content_lower.contains("metric") || content_lower.contains("telemetry") {
+                ("Telemetry Monitoring", "telemetry_monitor")
+            } else if content_lower.contains("audit") || content_lower.contains("log") {
+                ("Audit Logging", "audit_logger")
+            } else {
+                ("General Query", "general")
+            };
 
         let content = format!(
             "Orchestrator Analysis\n\n\
@@ -277,7 +279,9 @@ pub mod orchestrator {
         );
 
         let mut response = AgentResponse::new(request.id, content);
-        response.actions_taken.push(format!("route_to:{}", target_agent));
+        response
+            .actions_taken
+            .push(format!("route_to:{}", target_agent));
         Ok(response)
     }
 }

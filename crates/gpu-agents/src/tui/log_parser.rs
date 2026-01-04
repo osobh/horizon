@@ -246,7 +246,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_percentage_from_line() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_extract_percentage_from_line() -> Result<(), Box<dyn std::error::Error>> {
         let parser = ProgressLogParser::new("test.log")?;
 
         assert_eq!(
@@ -261,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_counts_from_line() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_extract_counts_from_line() -> Result<(), Box<dyn std::error::Error>> {
         let parser = ProgressLogParser::new("test.log")?;
 
         assert_eq!(
@@ -276,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_current_phase() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_extract_current_phase() -> Result<(), Box<dyn std::error::Error>> {
         let mut parser = ProgressLogParser::new("test.log")?;
 
         // Test phase detection
@@ -297,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_latest_state_with_nonexistent_file() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_get_latest_state_with_nonexistent_file() -> Result<(), Box<dyn std::error::Error>> {
         let mut parser = ProgressLogParser::new("nonexistent.log")?;
         let state = parser.get_latest_state()?;
         assert!(state.is_none());
@@ -330,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_recent_entries() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_get_recent_entries() -> Result<(), Box<dyn std::error::Error>> {
         let mut parser = ProgressLogParser::new("test.log")?;
         parser.recent_entries = vec![
             "Entry 1".to_string(),
@@ -349,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_current_operation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_extract_current_operation() -> Result<(), Box<dyn std::error::Error>> {
         let mut parser = ProgressLogParser::new("test.log")?;
 
         parser.recent_entries = vec![

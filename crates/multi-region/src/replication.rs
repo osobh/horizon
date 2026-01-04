@@ -721,7 +721,10 @@ impl ReplicationManager {
 
     /// Get replication status for all regions
     pub async fn get_replication_status(&self) -> Vec<ReplicationStatus> {
-        self.region_status.iter().map(|e| e.value().clone()).collect()
+        self.region_status
+            .iter()
+            .map(|e| e.value().clone())
+            .collect()
     }
 
     /// Update replication status for a region
@@ -835,7 +838,8 @@ impl VectorClockManager {
 
     /// Increment clock for a region
     pub async fn increment_clock(&self, region: &str) -> VectorClock {
-        let mut clock = self.region_clocks
+        let mut clock = self
+            .region_clocks
             .entry(region.to_string())
             .or_insert_with(VectorClock::new);
         clock.increment(region);
@@ -844,7 +848,10 @@ impl VectorClockManager {
 
     /// Get current clock for a region
     pub async fn get_clock(&self, region: &str) -> VectorClock {
-        self.region_clocks.get(region).map(|r| r.clone()).unwrap_or_else(VectorClock::new)
+        self.region_clocks
+            .get(region)
+            .map(|r| r.clone())
+            .unwrap_or_else(VectorClock::new)
     }
 }
 

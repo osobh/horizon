@@ -165,7 +165,10 @@ impl JobRepositoryV2 {
             "normal" => Ok(Priority::Normal),
             "high" => Ok(Priority::High),
             "urgent" => Ok(Priority::Urgent),
-            _ => Err(HpcError::internal(format!("Invalid priority: {}", priority))),
+            _ => Err(HpcError::internal(format!(
+                "Invalid priority: {}",
+                priority
+            ))),
         }
     }
 
@@ -199,16 +202,28 @@ mod tests {
     #[test]
     fn test_state_serialization() {
         assert_eq!(JobRepositoryV2::state_to_string(JobState::Queued), "queued");
-        assert_eq!(JobRepositoryV2::state_to_string(JobState::Running), "running");
-        assert_eq!(JobRepositoryV2::state_to_string(JobState::Completed), "completed");
+        assert_eq!(
+            JobRepositoryV2::state_to_string(JobState::Running),
+            "running"
+        );
+        assert_eq!(
+            JobRepositoryV2::state_to_string(JobState::Completed),
+            "completed"
+        );
     }
 
     #[test]
     fn test_priority_serialization() {
         assert_eq!(JobRepositoryV2::priority_to_string(Priority::Low), "low");
-        assert_eq!(JobRepositoryV2::priority_to_string(Priority::Normal), "normal");
+        assert_eq!(
+            JobRepositoryV2::priority_to_string(Priority::Normal),
+            "normal"
+        );
         assert_eq!(JobRepositoryV2::priority_to_string(Priority::High), "high");
-        assert_eq!(JobRepositoryV2::priority_to_string(Priority::Urgent), "urgent");
+        assert_eq!(
+            JobRepositoryV2::priority_to_string(Priority::Urgent),
+            "urgent"
+        );
     }
 
     #[test]

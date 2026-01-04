@@ -69,10 +69,7 @@ async fn bench_e2e_job_submission_latency() -> Result<()> {
     // Measure end-to-end latency for job submission through gateway
     // Target: < 50ms p99
 
-    let services = vec![
-        ServiceEndpoint::api_gateway(),
-        ServiceEndpoint::scheduler(),
-    ];
+    let services = vec![ServiceEndpoint::api_gateway(), ServiceEndpoint::scheduler()];
     require_services(&services).await?;
 
     let gateway_client = ApiGatewayClient::from_env();
@@ -288,10 +285,7 @@ async fn bench_concurrent_throughput() -> Result<()> {
     // Measure throughput under concurrent load
     // Target: > 100 req/s
 
-    let services = vec![
-        ServiceEndpoint::api_gateway(),
-        ServiceEndpoint::scheduler(),
-    ];
+    let services = vec![ServiceEndpoint::api_gateway(), ServiceEndpoint::scheduler()];
     require_services(&services).await?;
 
     let gateway_client = ApiGatewayClient::from_env();
@@ -563,10 +557,7 @@ async fn bench_quota_manager_check() -> Result<()> {
         stats.p99
     );
 
-    println!(
-        "\n✓ Quota check target met: P99 = {:?} < 2ms",
-        stats.p99
-    );
+    println!("\n✓ Quota check target met: P99 = {:?} < 2ms", stats.p99);
 
     // Cleanup
     let _ = quota_client.delete_quota(quota_id).await;

@@ -485,7 +485,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_scheduler_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_scheduler_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let config = SchedulerConfig::default();
         let scheduler = AdvancedKernelScheduler::new(device, config)?;
@@ -494,7 +494,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_kernel_submission() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_kernel_submission() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let scheduler = AdvancedKernelScheduler::new(device, SchedulerConfig::default())?;
 

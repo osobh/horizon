@@ -3,7 +3,7 @@
 //! Executes migrations using a state machine approach for reliable,
 //! resumable, and rollback-capable migrations.
 
-use super::{Migration, MigrationPlan, MigrationReason, MigrationStatus};
+use super::{Migration, MigrationPlan, MigrationStatus};
 use crate::{Error, Result};
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
@@ -296,9 +296,10 @@ impl MigrationStateMachine {
 
     /// Advance to next step
     pub fn advance(&mut self) -> Result<()> {
-        let next_step = self.step.next().ok_or_else(|| {
-            Error::MigrationFailed(format!("No next step from {:?}", self.step))
-        })?;
+        let next_step = self
+            .step
+            .next()
+            .ok_or_else(|| Error::MigrationFailed(format!("No next step from {:?}", self.step)))?;
 
         self.advance_to(next_step)
     }
@@ -532,7 +533,7 @@ impl MigrationExecutor {
         let mut active = self.active_migrations.write();
         let sm = active
             .get_mut(&migration_id)
-            .ok_or_else(|| Error::MigrationNotFound(migration_id))?;
+            .ok_or(Error::MigrationNotFound(migration_id))?;
 
         sm.start()
     }
@@ -573,7 +574,7 @@ impl MigrationExecutor {
         let mut active = self.active_migrations.write();
         let sm = active
             .get_mut(&migration_id)
-            .ok_or_else(|| Error::MigrationNotFound(migration_id))?;
+            .ok_or(Error::MigrationNotFound(migration_id))?;
 
         sm.advance()?;
         let new_step = sm.step;
@@ -593,7 +594,7 @@ impl MigrationExecutor {
         let mut active = self.active_migrations.write();
         let sm = active
             .get_mut(&migration_id)
-            .ok_or_else(|| Error::MigrationNotFound(migration_id))?;
+            .ok_or(Error::MigrationNotFound(migration_id))?;
 
         sm.fail_step(error)?;
 
@@ -612,7 +613,7 @@ impl MigrationExecutor {
         let mut active = self.active_migrations.write();
         let sm = active
             .get_mut(&migration_id)
-            .ok_or_else(|| Error::MigrationNotFound(migration_id))?;
+            .ok_or(Error::MigrationNotFound(migration_id))?;
 
         if !sm.migration.status.can_cancel() {
             return Err(Error::MigrationFailed(format!(
@@ -638,7 +639,7 @@ impl MigrationExecutor {
         let mut active = self.active_migrations.write();
         let sm = active
             .get_mut(&migration_id)
-            .ok_or_else(|| Error::MigrationNotFound(migration_id))?;
+            .ok_or(Error::MigrationNotFound(migration_id))?;
 
         if !sm.migration.status.can_rollback() {
             return Err(Error::MigrationFailed(format!(

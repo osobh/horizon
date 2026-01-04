@@ -178,10 +178,18 @@ impl EnhancedGpuKnowledgeGraph {
 
         // Allocate results
         let results_size = k.min(self.num_nodes);
+        // SAFETY: alloc returns uninitialized memory but we write before reading via the kernel.
+        // results_size is bounded by num_nodes which is a valid count from construction.
         let gpu_indices = unsafe { self.device.alloc::<u32>(results_size)? };
+        // SAFETY: Same rationale - kernel writes all k distances before we read them back.
         let gpu_distances = unsafe { self.device.alloc::<f32>(results_size)? };
 
         // Launch KNN kernel
+        // SAFETY: All pointers are valid device pointers:
+        // - node_embeddings: allocated in new() with size num_nodes * embedding_dim
+        // - gpu_query: just created via htod_sync_copy from valid query_embedding
+        // - gpu_indices/gpu_distances: just allocated above with size results_size
+        // Parameters num_nodes, embedding_dim, k match allocation sizes.
         unsafe {
             launch_tensor_core_knn(
                 *self.node_embeddings.device_ptr() as *const f32,
@@ -203,6 +211,8 @@ impl EnhancedGpuKnowledgeGraph {
 
     /// Run PageRank algorithm
     pub fn pagerank(&self, iterations: u32, damping: f32) -> Result<Vec<f32>> {
+        // SAFETY: alloc returns uninitialized memory but we immediately initialize
+        // via htod_copy_into below before the kernel reads it.
         let mut gpu_scores = unsafe { self.device.alloc::<f32>(self.num_nodes)? };
 
         // Initialize scores
@@ -213,6 +223,10 @@ impl EnhancedGpuKnowledgeGraph {
 
         // Run PageRank iterations
         let csr_pointers = self.csr_graph.gpu_pointers();
+        // SAFETY: All pointers are valid device pointers:
+        // - csr_pointers.row_offsets/column_indices: from CSR graph, valid for graph lifetime
+        // - gpu_scores: allocated above with num_nodes elements, initialized via htod_copy_into
+        // - num_nodes matches the actual graph size
         unsafe {
             launch_pagerank(
                 csr_pointers.row_offsets,
@@ -230,7 +244,9 @@ impl EnhancedGpuKnowledgeGraph {
 
     /// Find shortest path using GPU BFS
     pub fn shortest_path(&self, source: u32, target: u32) -> Result<Option<Vec<u32>>> {
+        // SAFETY: alloc returns uninitialized memory but kernel writes path data before we read.
         let gpu_path = unsafe { self.device.alloc::<u32>(self.num_nodes)? };
+        // SAFETY: alloc returns uninitialized memory but we initialize via htod_copy_into below.
         let mut gpu_found = unsafe { self.device.alloc::<bool>(1)? };
 
         // Initialize found flag
@@ -238,6 +254,11 @@ impl EnhancedGpuKnowledgeGraph {
 
         // Run BFS
         let csr_pointers = self.csr_graph.gpu_pointers();
+        // SAFETY: All pointers are valid device pointers:
+        // - csr_pointers: from CSR graph, valid for graph lifetime
+        // - gpu_path: allocated above with num_nodes elements
+        // - gpu_found: allocated above, initialized to false
+        // - source/target are u32 node IDs, num_nodes bounds them
         unsafe {
             launch_gpu_bfs(
                 csr_pointers.row_offsets,
@@ -263,6 +284,8 @@ impl EnhancedGpuKnowledgeGraph {
 
     /// Detect communities using parallel label propagation
     pub fn detect_communities(&self) -> Result<Vec<u32>> {
+        // SAFETY: alloc returns uninitialized memory but we immediately initialize
+        // via htod_copy_into below before the kernel reads it.
         let mut gpu_labels = unsafe { self.device.alloc::<u32>(self.num_nodes)? };
 
         // Initialize labels
@@ -272,6 +295,10 @@ impl EnhancedGpuKnowledgeGraph {
 
         // Run label propagation
         let csr_pointers = self.csr_graph.gpu_pointers();
+        // SAFETY: All pointers are valid device pointers:
+        // - csr_pointers: from CSR graph, valid for graph lifetime
+        // - gpu_labels: allocated above with num_nodes elements, initialized via htod_copy_into
+        // - num_nodes matches actual graph size
         unsafe {
             launch_label_propagation(
                 csr_pointers.row_offsets,
@@ -306,6 +333,8 @@ impl SpatialIndex {
         // Placeholder for actual spatial index construction
         // Could implement IVF, HNSW, or other GPU-friendly index
         let index_size = num_nodes * std::mem::size_of::<u32>();
+        // SAFETY: alloc returns uninitialized memory. This is a placeholder that will
+        // be properly initialized when the actual spatial index algorithm is implemented.
         let index_data = unsafe { device.alloc::<u8>(index_size)? };
 
         Ok(Self {

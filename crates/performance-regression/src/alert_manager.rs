@@ -3,13 +3,13 @@
 use crate::error::{PerformanceRegressionError, PerformanceRegressionResult};
 use crate::metrics_collector::{MetricStatistics, MetricType};
 use chrono::{DateTime, Duration, Utc};
+use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
-use dashmap::DashMap;
 
 /// Alert severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -185,7 +185,10 @@ impl AlertManager {
 
     /// Get all alert conditions
     pub fn get_conditions(&self) -> Vec<AlertCondition> {
-        self.conditions.iter().map(|entry| entry.value().clone()).collect()
+        self.conditions
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 
     /// Evaluate alert conditions against metric statistics
@@ -193,7 +196,8 @@ impl AlertManager {
         &self,
         stats: &MetricStatistics,
     ) -> PerformanceRegressionResult<()> {
-        let conditions: Vec<AlertCondition> = self.conditions
+        let conditions: Vec<AlertCondition> = self
+            .conditions
             .iter()
             .filter(|entry| entry.value().metric_type == stats.metric_type)
             .map(|entry| entry.value().clone())
@@ -248,7 +252,8 @@ impl AlertManager {
         stats: &MetricStatistics,
     ) -> PerformanceRegressionResult<()> {
         let should_alert = {
-            let mut count = self.breach_counters
+            let mut count = self
+                .breach_counters
                 .entry(condition.id.clone())
                 .or_insert(0);
             *count += 1;
@@ -336,7 +341,8 @@ impl AlertManager {
         let now = Utc::now();
         let one_minute_ago = now - Duration::seconds(60);
 
-        let mut timestamps = self.rate_limiter
+        let mut timestamps = self
+            .rate_limiter
             .entry(condition_id.to_string())
             .or_insert_with(VecDeque::new);
 
@@ -509,7 +515,9 @@ impl AlertManager {
         let now = Utc::now();
 
         // Collect alerts to escalate (to avoid holding lock during async operations)
-        let alerts_to_escalate: Vec<_> = self.active_alerts.iter()
+        let alerts_to_escalate: Vec<_> = self
+            .active_alerts
+            .iter()
             .filter(|entry| {
                 let alert = entry.value();
                 alert.resolved_at.is_none() && now - alert.triggered_at > escalation_timeout
@@ -586,7 +594,10 @@ impl AlertManager {
 
     /// Get active alerts
     pub fn get_active_alerts(&self) -> Vec<Alert> {
-        self.active_alerts.iter().map(|entry| entry.value().clone()).collect()
+        self.active_alerts
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 
     /// Get alert by ID
@@ -596,7 +607,8 @@ impl AlertManager {
 
     /// Clear resolved alerts
     pub fn clear_resolved_alerts(&self) -> PerformanceRegressionResult<()> {
-        self.active_alerts.retain(|_, alert| alert.resolved_at.is_none());
+        self.active_alerts
+            .retain(|_, alert| alert.resolved_at.is_none());
         Ok(())
     }
 }

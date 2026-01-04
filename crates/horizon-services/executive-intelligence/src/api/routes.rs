@@ -28,8 +28,14 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/executive/initiatives", get(get_initiatives))
         .route("/api/v1/executive/initiatives", post(create_initiative))
         .route("/api/v1/executive/initiatives/:id", get(get_initiative))
-        .route("/api/v1/executive/initiatives/:id", patch(update_initiative))
-        .route("/api/v1/executive/initiatives/:id", delete(delete_initiative))
+        .route(
+            "/api/v1/executive/initiatives/:id",
+            patch(update_initiative),
+        )
+        .route(
+            "/api/v1/executive/initiatives/:id",
+            delete(delete_initiative),
+        )
         // Capacity Insights
         .route(
             "/api/v1/executive/capacity/insights",

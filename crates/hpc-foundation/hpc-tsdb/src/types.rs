@@ -14,9 +14,10 @@ impl TimeRange {
     /// Create a new time range
     pub fn new(start: DateTime<Utc>, end: DateTime<Utc>) -> crate::Result<Self> {
         if start >= end {
-            return Err(crate::TsdbError::InvalidTimeRange(
-                format!("start ({}) must be before end ({})", start, end),
-            ));
+            return Err(crate::TsdbError::InvalidTimeRange(format!(
+                "start ({}) must be before end ({})",
+                start, end
+            )));
         }
         Ok(Self { start, end })
     }

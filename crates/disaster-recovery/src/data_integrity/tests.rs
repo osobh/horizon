@@ -3,11 +3,11 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
-    use tempfile::NamedTempFile;
-    use std::io::Write;
-    use uuid::Uuid;
     use chrono::Utc;
     use std::collections::HashMap;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+    use uuid::Uuid;
 
     fn create_test_object(path: &str) -> DataObject {
         DataObject {
@@ -78,14 +78,16 @@ mod tests {
         let mut repair = RepairRecord::new(
             detection_id,
             object_id,
-            RepairStrategy::RestoreFromBackup { backup_id: Uuid::new_v4() },
+            RepairStrategy::RestoreFromBackup {
+                backup_id: Uuid::new_v4(),
+            },
         );
 
         assert_eq!(repair.status, RepairStatus::Pending);
-        
+
         repair.start();
         assert_eq!(repair.status, RepairStatus::InProgress);
-        
+
         repair.complete(true, 1024);
         assert_eq!(repair.status, RepairStatus::Completed);
         assert!(repair.success);
@@ -116,18 +118,18 @@ mod tests {
     fn test_metrics_recording() {
         use chrono::Duration;
         let mut metrics = IntegrityMetrics::default();
-        
+
         metrics.record_verification(true, Duration::seconds(5));
         assert_eq!(metrics.total_verifications, 1);
         assert_eq!(metrics.successful_verifications, 1);
-        
+
         metrics.record_corruption(CorruptionSeverity::High);
         assert_eq!(metrics.corruptions_detected, 1);
-        
+
         metrics.record_repair(true, 1024, Duration::minutes(2));
         assert_eq!(metrics.successful_repairs, 1);
         assert_eq!(metrics.bytes_repaired, 1024);
-        
+
         assert_eq!(metrics.verification_success_rate(), 1.0);
         assert_eq!(metrics.repair_success_rate(), 1.0);
     }
@@ -143,10 +145,10 @@ mod tests {
         );
 
         assert!(task.should_run_now());
-        
+
         task.calculate_next_run();
         assert!(task.next_run.is_some());
-        
+
         task.record_execution(true);
         assert_eq!(task.run_count, 1);
         assert_eq!(task.success_count, 1);

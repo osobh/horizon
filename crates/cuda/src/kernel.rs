@@ -878,8 +878,7 @@ mod tests {
 
         module
             .compile_kernel("test_kernel", source, SourceType::CudaC, options)
-            .await
-            ?;
+            .await?;
 
         // Get kernel
         let kernel = module.get_kernel("test_kernel").await.unwrap();

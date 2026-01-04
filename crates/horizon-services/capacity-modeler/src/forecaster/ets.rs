@@ -1,4 +1,4 @@
-use crate::error::{HpcError, Result, CapacityErrorExt};
+use crate::error::{CapacityErrorExt, HpcError, Result};
 use augurs_core::{Fit, Predict};
 use augurs_ets::{AutoETS, FittedAutoETS};
 
@@ -36,9 +36,7 @@ impl EtsForecaster {
     /// * `Err(Error)` if data is insufficient or training fails
     pub fn train(&mut self, data: &[f64]) -> Result<()> {
         if data.is_empty() {
-            return Err(HpcError::insufficient_data(
-                "Cannot train on empty data",
-            ));
+            return Err(HpcError::insufficient_data("Cannot train on empty data"));
         }
 
         if data.len() < 10 {

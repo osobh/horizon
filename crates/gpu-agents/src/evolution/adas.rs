@@ -50,6 +50,10 @@ impl AdasPopulation {
         max_code_size: usize,
     ) -> Result<Self> {
         // Allocate GPU memory
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because:
+        // 1. The memory will be initialized via htod_copy_into in upload_to_gpu
+        // 2. The data is never read from GPU before being initialized
+        // 3. The CudaDevice handles proper GPU memory management
         let total_code_size = population_size * max_code_size;
         let agent_codes = unsafe { device.alloc::<u8>(total_code_size)? };
         let performances = unsafe { device.alloc::<f32>(population_size)? };
@@ -160,6 +164,10 @@ impl AdasPopulation {
     /// Evaluate population performance on benchmark
     fn evaluate_population(&mut self, benchmark_fn: &dyn Fn(&str) -> f64) -> Result<()> {
         // Launch GPU kernel for parallel evaluation setup
+        // SAFETY: The kernel function is called with valid device pointers obtained from
+        // CudaSlice::device_ptr(). agent_codes has population_size * max_code_size bytes,
+        // and performances has population_size f32 elements. Both buffers were properly
+        // allocated and match the sizes passed to the kernel.
         unsafe {
             crate::evolution::kernels::prepare_adas_evaluation(
                 *self.agent_codes.device_ptr() as *const u8,
@@ -335,7 +343,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_adas_population_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_adas_population_creation() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let pop = AdasPopulation::new(device, 32, 1024)?;
@@ -345,7 +353,7 @@ mod tests {
     }
 
     #[test]
-    fn test_adas_seed_initialization() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_adas_seed_initialization() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let mut pop = AdasPopulation::new(device, 4, 256)?;

@@ -83,13 +83,10 @@ use uuid::Uuid;
 
 // Re-export main types
 pub use mesh_orchestrator::{
-    NodeSubnetInfo, OrchestrationError, OrchestratorConfig, SubnetAffinity,
-    SubnetMeshOrchestrator,
+    NodeSubnetInfo, OrchestrationError, OrchestratorConfig, SubnetAffinity, SubnetMeshOrchestrator,
 };
 
-pub use node_mapper::{
-    ClusterNodeInfo, HardwareInfo, NetworkInfo, NodeClass, NodeClassMapper,
-};
+pub use node_mapper::{ClusterNodeInfo, HardwareInfo, NetworkInfo, NodeClass, NodeClassMapper};
 
 /// Trait for mesh integration callbacks.
 ///
@@ -122,7 +119,10 @@ pub trait MeshCallbacks: Send + Sync {
     ///
     /// Should evaluate policies and assign the node to an appropriate subnet.
     /// Returns the subnet assignment info that can be stored on the node.
-    async fn on_node_joined(&self, node: &ClusterNodeInfo) -> Result<NodeSubnetInfo, OrchestrationError>;
+    async fn on_node_joined(
+        &self,
+        node: &ClusterNodeInfo,
+    ) -> Result<NodeSubnetInfo, OrchestrationError>;
 
     /// Called when a node leaves the mesh.
     ///
@@ -133,7 +133,10 @@ pub trait MeshCallbacks: Send + Sync {
     ///
     /// May trigger a subnet migration if policies no longer match.
     /// Default implementation does nothing.
-    async fn on_node_updated(&self, _node: &ClusterNodeInfo) -> Result<Option<NodeSubnetInfo>, OrchestrationError> {
+    async fn on_node_updated(
+        &self,
+        _node: &ClusterNodeInfo,
+    ) -> Result<Option<NodeSubnetInfo>, OrchestrationError> {
         Ok(None)
     }
 }

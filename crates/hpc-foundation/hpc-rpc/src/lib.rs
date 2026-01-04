@@ -117,12 +117,12 @@
 //! }
 //! ```
 
+pub mod error;
 pub mod grpc;
 pub mod quic;
-pub mod error;
 
-pub use error::{RpcError, Result};
+pub use error::{Result, RpcError};
 
 // Re-export key types for convenience
-pub use grpc::{GrpcServerBuilder, GrpcServer, GrpcClientBuilder};
-pub use quic::{QuicEndpoint, QuicBiStream, QuicUniStream};
+pub use grpc::{GrpcClientBuilder, GrpcServer, GrpcServerBuilder};
+pub use quic::{QuicBiStream, QuicEndpoint, QuicUniStream};

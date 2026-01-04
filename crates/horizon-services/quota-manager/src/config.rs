@@ -26,8 +26,9 @@ impl Default for Config {
                 port: 8082,
             },
             database: DatabaseConfig {
-                url: std::env::var("DATABASE_URL")
-                    .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/horizon_quota".to_string()),
+                url: std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+                    "postgres://postgres:postgres@localhost/horizon_quota".to_string()
+                }),
                 max_connections: 10,
             },
         }

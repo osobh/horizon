@@ -6,7 +6,6 @@ use crate::executor::ExecutionEngine;
 use crate::improvement::ImprovementEngine;
 use crate::interpreter::{GoalInterpreter, InterpreterConfig};
 use crate::synthesizer::{KernelSynthesizer, SynthesizerConfig};
-use std::error::Error;
 // use stratoswarm_agent_core::Goal;
 use crate::interpreter::Goal;
 
@@ -197,7 +196,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_goal_processing_with_different_priorities() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_goal_processing_with_different_priorities(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let config = PipelineConfig {
             interpreter_config: InterpreterConfig {
                 use_mock: true,
@@ -228,7 +228,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_goal_processing_with_various_descriptions() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_goal_processing_with_various_descriptions(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let config = PipelineConfig {
             interpreter_config: InterpreterConfig {
                 use_mock: true,
@@ -281,7 +282,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_goal_processing_performance_target_failure() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_goal_processing_performance_target_failure(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let config = PipelineConfig {
             interpreter_config: InterpreterConfig {
                 use_mock: true,
@@ -497,7 +499,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_pipeline_with_complex_goal_structures() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_pipeline_with_complex_goal_structures() -> Result<(), Box<dyn std::error::Error>>
+    {
         let config = PipelineConfig {
             interpreter_config: InterpreterConfig {
                 use_mock: true,

@@ -123,6 +123,8 @@ impl SwarmEngine {
         params: SwarmParams,
     ) -> Result<Self> {
         // Allocate GPU memory
+        // SAFETY: alloc returns uninitialized memory. All buffers will be initialized
+        // via htod_copy_into in upload_to_gpu() before any kernel reads from them.
         let positions = unsafe { device.alloc::<f32>(population_size * dimensions)? };
         let velocities = unsafe { device.alloc::<f32>(population_size * dimensions)? };
         let personal_bests = unsafe { device.alloc::<f32>(population_size * dimensions)? };
@@ -345,6 +347,9 @@ impl SwarmEngine {
             .htod_copy_into(fitness_data, &mut self.fitness_scores.clone())?;
 
         // Launch GPU fitness computation kernel for validation
+        // SAFETY: positions and fitness_scores are valid device pointers from CudaSlice.
+        // population_size and dimensions match allocation sizes.
+        // target_function is null as a placeholder.
         unsafe {
             crate::evolution::kernels::compute_swarm_fitness(
                 *self.positions.device_ptr() as *const f32,
@@ -364,6 +369,9 @@ impl SwarmEngine {
     /// Update velocities using PSO algorithm
     pub fn update_velocities(&mut self) -> Result<()> {
         // Launch GPU velocity update kernel
+        // SAFETY: velocities, positions, personal_bests are valid device pointers.
+        // global_best.as_ptr() is a valid host pointer (kernel copies from host).
+        // population_size and dimensions match allocation sizes.
         unsafe {
             crate::evolution::kernels::launch_pso_velocity_update(
                 *self.velocities.device_ptr() as *mut f32,
@@ -384,6 +392,8 @@ impl SwarmEngine {
     /// Update positions using velocities
     pub fn update_positions(&mut self) -> Result<()> {
         // Launch GPU position update kernel
+        // SAFETY: positions and velocities are valid device pointers from CudaSlice.
+        // population_size and dimensions match allocation sizes.
         unsafe {
             crate::evolution::kernels::launch_pso_position_update(
                 *self.positions.device_ptr() as *mut f32,
@@ -403,11 +413,15 @@ impl SwarmEngine {
     /// Enable swarm communication
     pub fn swarm_communication(&mut self) -> Result<()> {
         // Launch swarm communication kernel
+        // SAFETY: alloc returns uninitialized memory. shared_knowledge will be
+        // written by the communication kernel before any reads.
         let shared_knowledge = unsafe {
             self.device
                 .alloc::<f32>(self.population_size * self.dimensions)?
         };
 
+        // SAFETY: positions, shared_knowledge, neighborhood_matrix are valid device pointers.
+        // population_size and dimensions match allocation sizes.
         unsafe {
             crate::evolution::kernels::launch_swarm_communication(
                 *self.positions.device_ptr() as *const f32,
@@ -601,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    fn test_swarm_engine_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_swarm_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let params = SwarmParams::default();
@@ -612,7 +626,7 @@ mod tests {
     }
 
     #[test]
-    fn test_agent_system_generation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_agent_system_generation() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let params = SwarmParams::default();

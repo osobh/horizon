@@ -3,13 +3,13 @@
 //! This tool validates that all components are working together for a complete
 //! "Hello World" GPU agent demonstration.
 
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use stratoswarm_business_interface::{
     benchmarks::LlmBenchmark,
     ollama_client::{OllamaClient, OllamaConfig, TaskType},
     BusinessInterface, GoalCategory, GoalPriority, GoalSubmissionRequest,
 };
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use tokio::time::timeout;
 
 #[derive(Debug, Clone)]

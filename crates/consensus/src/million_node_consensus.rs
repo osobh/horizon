@@ -6,12 +6,10 @@
 //! recovery mechanisms optimized for extreme scale.
 
 use crate::error::{ConsensusError, ConsensusResult};
-use crate::protocol::{ConsensusMessage, ConsensusConfig};
+use crate::protocol::{ConsensusConfig, ConsensusMessage};
 use crate::validator::{ValidatorId, ValidatorInfo};
 use crate::voting::{RoundId, Vote, VoteType};
 use dashmap::DashMap;
-use stratoswarm_cuda::{Context as GpuContext, MemoryPool as GpuMemoryPool, Stream as CudaStream};
-use stratoswarm_fault_tolerance::{ByzantineDetector, PartitionRecovery};
 use futures::stream::{FuturesUnordered, StreamExt};
 use parking_lot::RwLock;
 use ring::digest::{Context as RingContext, SHA256};
@@ -19,6 +17,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use stratoswarm_cuda::{Context as GpuContext, MemoryPool as GpuMemoryPool, Stream as CudaStream};
+use stratoswarm_fault_tolerance::{ByzantineDetector, PartitionRecovery};
 use tokio::sync::{mpsc, RwLock as AsyncRwLock};
 use tokio::time::timeout;
 use uuid::Uuid;
@@ -142,6 +142,9 @@ struct ValidatorRegistry {
     validator_groups: Arc<RwLock<HashMap<u32, Vec<ValidatorId>>>>,
 }
 
+/// Default message queue buffer size for bounded channels
+const DEFAULT_MESSAGE_QUEUE_SIZE: usize = 10_000;
+
 /// Optimized validator node representation
 #[derive(Debug, Clone)]
 struct ValidatorNode {
@@ -152,7 +155,8 @@ struct ValidatorNode {
     last_heartbeat: Instant,
     byzantine_score: f32,
     partition_group: Option<u32>,
-    message_queue: mpsc::UnboundedSender<ConsensusMessage>,
+    /// Bounded channel sender to prevent memory exhaustion under load
+    message_queue: mpsc::Sender<ConsensusMessage>,
 }
 
 /// GPU-accelerated consensus engine
@@ -228,10 +232,10 @@ struct NetworkPartition {
 
 #[derive(Debug, Clone)]
 enum PartitionSeverity {
-    Minor,     // < 10% of network
-    Moderate,  // 10-30% of network
-    Major,     // 30-50% of network
-    Critical,  // > 50% of network
+    Minor,    // < 10% of network
+    Moderate, // 10-30% of network
+    Major,    // 30-50% of network
+    Critical, // > 50% of network
 }
 
 /// Partition detection monitoring
@@ -316,12 +320,17 @@ struct LatencyStats {
     sample_count: u64,
 }
 
-/// High-performance message routing
+/// High-performance message routing with bounded channels
 struct MessageRouter {
-    routing_table: Arc<DashMap<ValidatorId, mpsc::UnboundedSender<ConsensusMessage>>>,
-    message_queues: Arc<DashMap<ValidatorId, mpsc::UnboundedReceiver<ConsensusMessage>>>,
-    broadcast_channels: Vec<mpsc::UnboundedSender<ConsensusMessage>>,
+    /// Bounded channel senders for backpressure control
+    routing_table: Arc<DashMap<ValidatorId, mpsc::Sender<ConsensusMessage>>>,
+    /// Bounded channel receivers for message consumption
+    message_queues: Arc<DashMap<ValidatorId, mpsc::Receiver<ConsensusMessage>>>,
+    /// Bounded broadcast channels for partition-wide messages
+    broadcast_channels: Vec<mpsc::Sender<ConsensusMessage>>,
     compression_enabled: bool,
+    /// Message queue buffer size for backpressure
+    queue_buffer_size: usize,
 }
 
 /// Performance monitoring and optimization
@@ -423,35 +432,39 @@ impl MillionNodeConsensus {
     pub async fn new(config: MillionNodeConfig) -> ConsensusResult<Self> {
         // Initialize GPU contexts
         let gpu_engine = Arc::new(GpuConsensusEngine::new(&config.gpu_config).await?);
-        
+
         // Initialize validator registry
         let validator_registry = Arc::new(ValidatorRegistry::new(&config.memory_config)?);
-        
+
         // Initialize vote aggregator
         let vote_aggregator = Arc::new(VoteAggregator::new(
             config.algorithm_config.aggregation_strategy.clone(),
             gpu_engine.clone(),
             config.byzantine_threshold,
         )?);
-        
+
         // Initialize partition manager
         let partition_manager = Arc::new(PartitionManager::new(&config.partition_config).await?);
-        
+
         // Initialize Byzantine detector
-        let byzantine_detector = Arc::new(ByzantineDetector::new(
-            config.byzantine_threshold,
-            config.max_nodes,
-        ).map_err(|e| ConsensusError::ValidationFailed(e.to_string()))?);
-        
+        let byzantine_detector = Arc::new(
+            ByzantineDetector::new(config.byzantine_threshold, config.max_nodes)
+                .map_err(|e| ConsensusError::ValidationFailed(e.to_string()))?,
+        );
+
         // Initialize consensus state
         let consensus_state = Arc::new(AsyncRwLock::new(ConsensusState::new()));
-        
-        // Initialize message router
-        let message_router = Arc::new(MessageRouter::new(config.max_nodes)?);
-        
+
+        // Initialize message router with bounded queue size from config or default
+        let queue_buffer_size = config
+            .memory_config
+            .message_queue_size
+            .max(DEFAULT_MESSAGE_QUEUE_SIZE);
+        let message_router = Arc::new(MessageRouter::new(config.max_nodes, queue_buffer_size)?);
+
         // Initialize performance monitor
         let performance_monitor = Arc::new(PerformanceMonitor::new()?);
-        
+
         Ok(Self {
             config,
             validator_registry,
@@ -473,11 +486,15 @@ impl MillionNodeConsensus {
     ) -> ConsensusResult<()> {
         if self.validator_registry.validators.len() >= self.config.max_nodes {
             return Err(ConsensusError::ValidationFailed(
-                "Maximum node capacity reached".to_string()
+                "Maximum node capacity reached".to_string(),
             ));
         }
 
-        let (tx, rx) = mpsc::unbounded_channel();
+        // Use bounded channel to prevent memory exhaustion under high load
+        // Buffer size from config or default (10K messages per validator)
+        let queue_size = self.message_router.queue_buffer_size;
+        debug_assert!(queue_size > 0, "Message queue buffer size must be positive");
+        let (tx, rx) = mpsc::channel(queue_size);
         let tx_clone = tx.clone();
         let validator_node = ValidatorNode {
             id: validator_info.id.clone(),
@@ -490,15 +507,21 @@ impl MillionNodeConsensus {
             message_queue: tx,
         };
 
-        self.validator_registry.validators.insert(validator_info.id.clone(), validator_node);
-        self.message_router.routing_table.insert(validator_info.id.clone(), tx_clone);
-        self.message_router.message_queues.insert(validator_info.id, rx);
+        self.validator_registry
+            .validators
+            .insert(validator_info.id.clone(), validator_node);
+        self.message_router
+            .routing_table
+            .insert(validator_info.id.clone(), tx_clone);
+        self.message_router
+            .message_queues
+            .insert(validator_info.id, rx);
 
         // Update registry counters
         {
             let mut active_count = self.validator_registry.active_count.write();
             *active_count += 1;
-            
+
             let mut total_stake = self.validator_registry.total_stake.write();
             *total_stake += validator_info.stake;
         }
@@ -514,17 +537,17 @@ impl MillionNodeConsensus {
     ) -> ConsensusResult<MillionNodeConsensusResult> {
         let start_time = Instant::now();
         let round_id = RoundId::new();
-        
+
         // Update performance tracking
-        self.performance_monitor.latency_tracker.start_tracking(round_id.clone());
-        
+        self.performance_monitor
+            .latency_tracker
+            .start_tracking(round_id.clone());
+
         // Phase 1: Pre-vote with GPU acceleration
-        let pre_vote_result = self.run_pre_vote_phase(
-            round_id.clone(),
-            height,
-            proposed_value.clone()
-        ).await?;
-        
+        let pre_vote_result = self
+            .run_pre_vote_phase(round_id.clone(), height, proposed_value.clone())
+            .await?;
+
         if !pre_vote_result.threshold_met {
             return Ok(MillionNodeConsensusResult {
                 consensus_achieved: false,
@@ -541,12 +564,10 @@ impl MillionNodeConsensus {
         }
 
         // Phase 2: Pre-commit with Byzantine detection
-        let pre_commit_result = self.run_pre_commit_phase(
-            round_id.clone(),
-            height,
-            proposed_value.clone()
-        ).await?;
-        
+        let pre_commit_result = self
+            .run_pre_commit_phase(round_id.clone(), height, proposed_value.clone())
+            .await?;
+
         if !pre_commit_result.threshold_met {
             return Ok(MillionNodeConsensusResult {
                 consensus_achieved: false,
@@ -563,21 +584,21 @@ impl MillionNodeConsensus {
         }
 
         // Phase 3: Final commit
-        let commit_result = self.run_commit_phase(
-            round_id.clone(),
-            height,
-            proposed_value.clone()
-        ).await?;
+        let commit_result = self
+            .run_commit_phase(round_id.clone(), height, proposed_value.clone())
+            .await?;
 
         let consensus_latency = start_time.elapsed();
-        
+
         // Update consensus state
         {
             let mut state = self.consensus_state.write().await;
             state.current_height = height;
             state.last_consensus_time = Some(start_time);
-            state.consensus_latency_stats.update_stats(consensus_latency);
-            
+            state
+                .consensus_latency_stats
+                .update_stats(consensus_latency);
+
             let committed_block = CommittedBlock {
                 height,
                 value: proposed_value.clone(),
@@ -585,16 +606,16 @@ impl MillionNodeConsensus {
                 commit_time: Instant::now(),
                 consensus_latency,
             };
-            
+
             state.committed_blocks.insert(height, committed_block);
         }
-        
+
         // Calculate performance metrics
         let gpu_utilization = self.get_gpu_utilization().await;
         let memory_efficiency = self.calculate_memory_efficiency().await;
         let compression_ratio = self.calculate_compression_ratio().await;
         let partition_heal_time = self.partition_manager.get_last_heal_time().await;
-        
+
         Ok(MillionNodeConsensusResult {
             consensus_achieved: true,
             agreed_value: Some(proposed_value),
@@ -616,9 +637,10 @@ impl MillionNodeConsensus {
         byzantine_percentage: f32,
     ) -> ConsensusResult<()> {
         if node_count > self.config.max_nodes {
-            return Err(ConsensusError::ValidationFailed(
-                format!("Cannot simulate {} nodes, maximum is {}", node_count, self.config.max_nodes)
-            ));
+            return Err(ConsensusError::ValidationFailed(format!(
+                "Cannot simulate {} nodes, maximum is {}",
+                node_count, self.config.max_nodes
+            )));
         }
 
         let byzantine_count = (node_count as f32 * byzantine_percentage) as usize;
@@ -652,25 +674,33 @@ impl MillionNodeConsensus {
         partition_percentage: f32,
         duration: Duration,
     ) -> ConsensusResult<Duration> {
-        let affected_count = (self.validator_registry.active_count.read().clone() as f32 * partition_percentage) as usize;
-        let partition_id = self.partition_manager.create_partition(affected_count, duration).await?;
-        
+        let affected_count = (self.validator_registry.active_count.read().clone() as f32
+            * partition_percentage) as usize;
+        let partition_id = self
+            .partition_manager
+            .create_partition(affected_count, duration)
+            .await?;
+
         // Monitor partition healing
         let start_time = Instant::now();
         loop {
-            if self.partition_manager.is_partition_healed(partition_id).await? {
+            if self
+                .partition_manager
+                .is_partition_healed(partition_id)
+                .await?
+            {
                 break;
             }
-            
+
             if start_time.elapsed() > self.config.partition_config.max_heal_time {
-                return Err(ConsensusError::Timeout { 
-                    duration: self.config.partition_config.max_heal_time 
+                return Err(ConsensusError::Timeout {
+                    duration: self.config.partition_config.max_heal_time,
                 });
             }
-            
+
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        
+
         Ok(start_time.elapsed())
     }
 
@@ -682,23 +712,26 @@ impl MillionNodeConsensus {
         let gpu_utilization = self.get_gpu_utilization().await;
         let memory_usage = self.calculate_memory_usage().await;
         let partition_count = self.partition_manager.get_active_partition_count().await;
-        
+
         Ok(MillionNodeHealthMetrics {
             total_validators: active_validators,
             byzantine_validators: byzantine_count,
             current_height: state.current_height,
-            last_consensus_latency: state.last_consensus_time
+            last_consensus_latency: state
+                .last_consensus_time
                 .map(|t| t.elapsed())
                 .unwrap_or(Duration::ZERO),
             gpu_utilization_percent: gpu_utilization,
             memory_usage_mb: memory_usage,
             active_partitions: partition_count,
-            consensus_health_score: self.calculate_health_score(&state, active_validators, byzantine_count).await,
+            consensus_health_score: self
+                .calculate_health_score(&state, active_validators, byzantine_count)
+                .await,
         })
     }
 
     // Private helper methods
-    
+
     async fn run_pre_vote_phase(
         &self,
         round_id: RoundId,
@@ -706,7 +739,7 @@ impl MillionNodeConsensus {
         proposed_value: String,
     ) -> ConsensusResult<PhaseResult> {
         let start_time = Instant::now();
-        
+
         // Broadcast pre-vote message to all validators using GPU acceleration
         let pre_vote_task = GpuTask {
             task_id: format!("prevote_{}", round_id),
@@ -715,18 +748,25 @@ impl MillionNodeConsensus {
             priority: 255, // Highest priority
             created_at: start_time,
         };
-        
+
         self.gpu_engine.submit_task(pre_vote_task).await?;
-        
+
         // Collect and aggregate votes with timeout
         let timeout_duration = self.config.target_latency * 10; // Allow 10x target latency
         let vote_collection = timeout(
             timeout_duration,
-            self.collect_votes(round_id.clone(), VoteType::PreVote)
-        ).await.map_err(|_| ConsensusError::Timeout { duration: timeout_duration })?;
-        
+            self.collect_votes(round_id.clone(), VoteType::PreVote),
+        )
+        .await
+        .map_err(|_| ConsensusError::Timeout {
+            duration: timeout_duration,
+        })?;
+
         // Check threshold and detect Byzantine behavior
-        let threshold_met = self.vote_aggregator.check_threshold(&vote_collection).await?;
+        let threshold_met = self
+            .vote_aggregator
+            .check_threshold(&vote_collection)
+            .await?;
         let byzantine_detected = self.detect_byzantine_in_votes(&vote_collection.votes).await;
 
         Ok(PhaseResult {
@@ -737,7 +777,7 @@ impl MillionNodeConsensus {
             participants: vote_collection.votes.keys().cloned().collect(),
         })
     }
-    
+
     async fn run_pre_commit_phase(
         &self,
         round_id: RoundId,
@@ -748,10 +788,17 @@ impl MillionNodeConsensus {
         let timeout_duration = self.config.target_latency * 10;
         let vote_collection = timeout(
             timeout_duration,
-            self.collect_votes(round_id.clone(), VoteType::PreCommit)
-        ).await.map_err(|_| ConsensusError::Timeout { duration: timeout_duration })?;
-        
-        let threshold_met = self.vote_aggregator.check_threshold(&vote_collection).await?;
+            self.collect_votes(round_id.clone(), VoteType::PreCommit),
+        )
+        .await
+        .map_err(|_| ConsensusError::Timeout {
+            duration: timeout_duration,
+        })?;
+
+        let threshold_met = self
+            .vote_aggregator
+            .check_threshold(&vote_collection)
+            .await?;
         let byzantine_detected = self.detect_byzantine_in_votes(&vote_collection.votes).await;
 
         Ok(PhaseResult {
@@ -772,14 +819,22 @@ impl MillionNodeConsensus {
         let timeout_duration = self.config.target_latency * 10;
         let vote_collection = timeout(
             timeout_duration,
-            self.collect_votes(round_id.clone(), VoteType::Commit)
-        ).await.map_err(|_| ConsensusError::Timeout { duration: timeout_duration })?;
-        
-        let threshold_met = self.vote_aggregator.check_threshold(&vote_collection).await?;
+            self.collect_votes(round_id.clone(), VoteType::Commit),
+        )
+        .await
+        .map_err(|_| ConsensusError::Timeout {
+            duration: timeout_duration,
+        })?;
+
+        let threshold_met = self
+            .vote_aggregator
+            .check_threshold(&vote_collection)
+            .await?;
         let byzantine_detected = self.detect_byzantine_in_votes(&vote_collection.votes).await;
 
         // Extract signatures for the committed block
-        let signatures: HashMap<ValidatorId, Vec<u8>> = vote_collection.votes
+        let signatures: HashMap<ValidatorId, Vec<u8>> = vote_collection
+            .votes
             .iter()
             .map(|(id, vote)| (id.clone(), vote.signature.clone()))
             .collect();
@@ -792,14 +847,12 @@ impl MillionNodeConsensus {
             participants: vote_collection.votes.keys().cloned().collect(),
         })
     }
-    
+
     /// Detect Byzantine behavior in votes using the fault-tolerance detector
     async fn detect_byzantine_in_votes(&self, votes: &HashMap<ValidatorId, Vote>) -> usize {
         // Convert ValidatorId keys to String for the fault-tolerance API
-        let string_votes: HashMap<String, &Vote> = votes
-            .iter()
-            .map(|(k, v)| (k.to_string(), v))
-            .collect();
+        let string_votes: HashMap<String, &Vote> =
+            votes.iter().map(|(k, v)| (k.to_string(), v)).collect();
 
         // Use the Byzantine detector - returns Vec<String> of suspicious node IDs
         match self.byzantine_detector.detect_in_votes(&string_votes).await {
@@ -818,43 +871,58 @@ impl MillionNodeConsensus {
             threshold_met: false,
             completion_time: None,
         };
-        
+
         // Cache the collection for reuse
-        self.vote_aggregator.vote_cache.insert(round_id, collection.clone());
+        self.vote_aggregator
+            .vote_cache
+            .insert(round_id, collection.clone());
         collection
     }
-    
+
     async fn get_gpu_utilization(&self) -> f32 {
-        self.performance_monitor.gpu_utilization_tracker
+        self.performance_monitor
+            .gpu_utilization_tracker
             .device_utilization
             .read()
             .values()
-            .sum::<f32>() / self.config.gpu_config.device_count as f32
+            .sum::<f32>()
+            / self.config.gpu_config.device_count as f32
     }
-    
+
     async fn calculate_memory_efficiency(&self) -> f32 {
-        let heap_usage = *self.performance_monitor.memory_usage_tracker.heap_usage.read();
-        let pool_usage: u64 = self.performance_monitor.memory_usage_tracker
+        let heap_usage = *self
+            .performance_monitor
+            .memory_usage_tracker
+            .heap_usage
+            .read();
+        let pool_usage: u64 = self
+            .performance_monitor
+            .memory_usage_tracker
             .pool_usage
             .read()
             .values()
             .sum();
-        
+
         let total_available = self.config.memory_config.validator_pool_size * 1024 * 1024; // Convert MB to bytes
         let efficiency = 1.0 - ((heap_usage + pool_usage) as f32 / total_available as f32);
         efficiency.max(0.0).min(1.0)
     }
-    
+
     async fn calculate_compression_ratio(&self) -> f32 {
         // Mock compression ratio calculation
         // In real implementation, this would query the compression engine
         0.95 // 95% compression ratio
     }
-    
+
     async fn calculate_memory_usage(&self) -> u64 {
-        *self.performance_monitor.memory_usage_tracker.heap_usage.read() / (1024 * 1024) // Convert to MB
+        *self
+            .performance_monitor
+            .memory_usage_tracker
+            .heap_usage
+            .read()
+            / (1024 * 1024) // Convert to MB
     }
-    
+
     async fn calculate_health_score(
         &self,
         state: &ConsensusState,
@@ -863,17 +931,18 @@ impl MillionNodeConsensus {
     ) -> f32 {
         let byzantine_ratio = byzantine_count as f32 / active_validators as f32;
         let health_base = 1.0 - (byzantine_ratio / self.config.byzantine_threshold);
-        
+
         let latency_score = if let Some(last_latency) = state.last_consensus_time {
-            let latency_ratio = last_latency.elapsed().as_nanos() as f32 / self.config.target_latency.as_nanos() as f32;
+            let latency_ratio = last_latency.elapsed().as_nanos() as f32
+                / self.config.target_latency.as_nanos() as f32;
             (1.0 / latency_ratio).min(1.0)
         } else {
             0.5
         };
-        
+
         (health_base * 0.7 + latency_score * 0.3).max(0.0).min(1.0)
     }
-    
+
     async fn create_validator_batch(
         &self,
         start_idx: usize,
@@ -884,7 +953,7 @@ impl MillionNodeConsensus {
             let is_byzantine = i < start_idx + byzantine_count;
             let stake = if i < end_idx / 10 { 10000 } else { 1000 }; // 10% high stake validators
             let gpu_capacity = if i < end_idx / 5 { 8000 } else { 4000 }; // 20% high GPU validators
-            
+
             let validator_info = ValidatorInfo {
                 id: ValidatorId::new(),
                 address: format!("127.0.0.1:{}", 8000 + (i % 60000)).parse().unwrap(),
@@ -897,15 +966,16 @@ impl MillionNodeConsensus {
                     .as_secs(),
                 public_key: vec![i as u8; 32], // Mock public key
             };
-            
-            self.register_validator(validator_info, gpu_capacity).await?;
-            
+
+            self.register_validator(validator_info, gpu_capacity)
+                .await?;
+
             if is_byzantine {
                 let mut byzantine_count = self.validator_registry.byzantine_count.write();
                 *byzantine_count += 1;
             }
         }
-        
+
         Ok(())
     }
 }
@@ -952,7 +1022,7 @@ impl GpuConsensusEngine {
         let contexts = Vec::new(); // Would initialize actual GPU contexts
         let memory_pools = Vec::new(); // Would initialize actual memory pools
         let streams = Vec::new(); // Would initialize actual CUDA streams
-        
+
         Ok(Self {
             contexts,
             memory_pools,
@@ -961,7 +1031,7 @@ impl GpuConsensusEngine {
             execution_queue: Arc::new(AsyncRwLock::new(Vec::new())),
         })
     }
-    
+
     async fn submit_task(&self, task: GpuTask) -> ConsensusResult<()> {
         let mut queue = self.execution_queue.write().await;
         queue.push(task);
@@ -983,7 +1053,7 @@ impl VoteAggregator {
             threshold_calculator: Arc::new(ThresholdCalculator::new(byzantine_threshold)),
         })
     }
-    
+
     async fn check_threshold(&self, collection: &VoteCollection) -> ConsensusResult<bool> {
         Ok(collection.threshold_met)
     }
@@ -1006,13 +1076,17 @@ impl PartitionManager {
             active_partitions: Arc::new(DashMap::new()),
             recovery_engine: Arc::new(
                 PartitionRecovery::new()
-                    .map_err(|e| ConsensusError::ValidationFailed(e.to_string()))?
+                    .map_err(|e| ConsensusError::ValidationFailed(e.to_string()))?,
             ),
             detection_monitor: Arc::new(PartitionDetectionMonitor::new()),
         })
     }
-    
-    async fn create_partition(&self, affected_count: usize, duration: Duration) -> ConsensusResult<u32> {
+
+    async fn create_partition(
+        &self,
+        affected_count: usize,
+        duration: Duration,
+    ) -> ConsensusResult<u32> {
         let partition_id = rand::random::<u32>();
         let partition = NetworkPartition {
             partition_id,
@@ -1026,21 +1100,23 @@ impl PartitionManager {
             recovery_strategy: self.config.recovery_algorithm.clone(),
             heal_progress: 0.0,
         };
-        
+
         self.active_partitions.insert(partition_id, partition);
         Ok(partition_id)
     }
-    
+
     async fn is_partition_healed(&self, partition_id: u32) -> ConsensusResult<bool> {
-        Ok(self.active_partitions.get(&partition_id)
+        Ok(self
+            .active_partitions
+            .get(&partition_id)
             .map(|p| p.heal_progress >= 1.0)
             .unwrap_or(true))
     }
-    
+
     async fn get_last_heal_time(&self) -> Duration {
         Duration::from_millis(100) // Mock heal time
     }
-    
+
     async fn get_active_partition_count(&self) -> usize {
         self.active_partitions.len()
     }
@@ -1088,7 +1164,7 @@ impl LatencyStats {
             sample_count: 0,
         }
     }
-    
+
     fn update_stats(&mut self, latency: Duration) {
         self.sample_count += 1;
         if latency < self.min_latency {
@@ -1098,17 +1174,20 @@ impl LatencyStats {
             self.max_latency = latency;
         }
         // Simple average update - in production would use more sophisticated statistics
-        self.avg_latency = ((self.avg_latency * (self.sample_count - 1) as u32) + latency) / self.sample_count as u32;
+        self.avg_latency = ((self.avg_latency * (self.sample_count - 1) as u32) + latency)
+            / self.sample_count as u32;
     }
 }
 
 impl MessageRouter {
-    fn new(max_nodes: usize) -> ConsensusResult<Self> {
+    fn new(max_nodes: usize, queue_buffer_size: usize) -> ConsensusResult<Self> {
+        debug_assert!(queue_buffer_size > 0, "Queue buffer size must be positive");
         Ok(Self {
             routing_table: Arc::new(DashMap::new()),
             message_queues: Arc::new(DashMap::new()),
             broadcast_channels: Vec::new(),
             compression_enabled: true,
+            queue_buffer_size,
         })
     }
 }
@@ -1132,7 +1211,7 @@ impl LatencyTracker {
             current_stats: Arc::new(RwLock::new(LatencyStats::new())),
         }
     }
-    
+
     fn start_tracking(&self, _round_id: RoundId) {
         // Implementation would start tracking for this round
     }
@@ -1167,4 +1246,3 @@ impl MemoryUsageTracker {
         }
     }
 }
-

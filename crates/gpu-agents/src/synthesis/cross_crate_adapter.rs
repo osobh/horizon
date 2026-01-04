@@ -36,7 +36,8 @@ impl SynthesisCrateAdapter {
     /// Create a new synthesis crate adapter
     pub fn new(device: Arc<cudarc::driver::CudaDevice>) -> Result<Self> {
         // Configure the synthesis pipeline with mock mode disabled
-        let mut interpreter_config = stratoswarm_synthesis::interpreter::InterpreterConfig::default();
+        let mut interpreter_config =
+            stratoswarm_synthesis::interpreter::InterpreterConfig::default();
         interpreter_config.use_mock = true; // Keep mock for now since LLM not configured
 
         let config = PipelineConfig {
@@ -218,14 +219,14 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_synthesis_adapter_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_synthesis_adapter_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let adapter = SynthesisCrateAdapter::new(device);
         assert!(adapter.is_ok());
     }
 
     #[tokio::test]
-    async fn test_goal_to_synthesis_task() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_goal_to_synthesis_task() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let adapter = SynthesisCrateAdapter::new(device)?;
 
@@ -239,7 +240,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_synthesize_optimized_kernel() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_synthesize_optimized_kernel() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let mut adapter = SynthesisCrateAdapter::new(device)?;
 
@@ -285,7 +286,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_validate_synthesis() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_validate_synthesis() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let adapter = SynthesisCrateAdapter::new(device)?;
 
@@ -299,7 +300,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_synthesis_metrics() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_get_synthesis_metrics() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let adapter = SynthesisCrateAdapter::new(device)?;
 
@@ -312,7 +313,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_multiple_synthesis_caching() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_multiple_synthesis_caching() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let mut adapter = SynthesisCrateAdapter::new(device)?;
 

@@ -84,6 +84,10 @@ impl GpuMutationEngine {
     /// Perform adaptive mutation based on population diversity
     fn adaptive_mutation(&mut self, pointers: &PopulationPointers, diversity: f32) -> Result<()> {
         // Use existing adaptive mutation kernel from evolution_kernel.cu
+        // SAFETY: pointers.genomes is a valid device pointer from GpuPopulation allocation.
+        // population_size matches the actual genome array size. RNG states are null
+        // because the kernel manages its own internal RNG. mutation_rate and diversity
+        // are valid f32 values.
         unsafe {
             crate::ffi::launch_adaptive_mutation(
                 pointers.genomes as *mut f32, // Assuming float genomes for adaptive mutation
@@ -167,7 +171,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_mutation_engine_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_mutation_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let engine = GpuMutationEngine::new(device, 0.01)?;
@@ -176,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mutation_rate_clamping() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_mutation_rate_clamping() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let mut engine = GpuMutationEngine::new(device, 0.5)?;

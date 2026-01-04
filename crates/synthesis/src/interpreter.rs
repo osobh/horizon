@@ -1,12 +1,12 @@
 //! Goal interpretation engine using LLMs
 
 use crate::error::{SynthesisError, SynthesisResult};
-use std::error::Error;
 use async_openai::types::{
     ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
     ChatCompletionRequestUserMessage, CreateChatCompletionRequestArgs,
 };
 use async_openai::{config::OpenAIConfig, Client};
+use std::error::Error;
 // use stratoswarm_agent_core::{Goal, GoalConstraints};
 // Mock for testing
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -327,10 +327,7 @@ Generate only valid JSON, no explanations."#,
             // If mock-llm is enabled but use_mock is false, return a mock response
             return self
                 .mock_interpret(
-                    &Goal::new(
-                        "Mock goal".to_string(),
-                        GoalPriority::Normal,
-                    ),
+                    &Goal::new("Mock goal".to_string(), GoalPriority::Normal),
                     prompt,
                 )
                 .await;
@@ -423,7 +420,12 @@ Generate only valid JSON, no explanations."#,
         // Limit cache size
         if self.context_cache.len() > 1000 {
             // Remove oldest entries (simple FIFO for now)
-            let to_remove: Vec<_> = self.context_cache.iter().take(100).map(|e| *e.key()).collect();
+            let to_remove: Vec<_> = self
+                .context_cache
+                .iter()
+                .take(100)
+                .map(|e| *e.key())
+                .collect();
             for key in to_remove {
                 self.context_cache.remove(&key);
             }
@@ -434,14 +436,14 @@ Generate only valid JSON, no explanations."#,
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[derive(Clone, Debug)]
     pub enum GoalPriority {
         Low,
         Normal,
         High,
     }
-    
+
     impl Goal {
         fn new(description: String, _priority: GoalPriority) -> Self {
             Goal {
@@ -455,7 +457,7 @@ mod tests {
             }
         }
     }
-    
+
     impl Default for GoalConstraints {
         fn default() -> Self {
             GoalConstraints {
@@ -572,7 +574,10 @@ mod tests {
 
         let result = interpreter.validate_specification(&spec, &constraints);
         assert!(result.is_err());
-        assert!(result.expect_err("Expected error").to_string().contains("Memory usage"));
+        assert!(result
+            .expect_err("Expected error")
+            .to_string()
+            .contains("Memory usage"));
     }
 
     #[tokio::test]

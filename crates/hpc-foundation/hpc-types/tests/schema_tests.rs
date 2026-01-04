@@ -1,7 +1,7 @@
-use prost::Message;
 use hpc_types::common::v1::{HealthCheckRequest, HealthCheckResponse, Timestamp};
 use hpc_types::telemetry::v1::{CpuMetric, GpuMetric, MetricBatch, NicMetric};
 use hpc_types::{create_timestamp, timestamp_from_system_time, timestamp_to_system_time};
+use prost::Message;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[test]

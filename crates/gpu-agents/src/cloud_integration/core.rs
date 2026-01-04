@@ -13,32 +13,29 @@ use std::time::Duration;
 pub trait CloudProvider: Send + Sync {
     /// Get provider name
     fn name(&self) -> &str;
-    
+
     /// List available regions
     async fn list_regions(&self) -> Result<Vec<CloudRegion>>;
-    
+
     /// List available instance types
     async fn list_instance_types(&self, region: &str) -> Result<Vec<InstanceType>>;
-    
+
     /// Provision resources
-    async fn provision(
-        &self,
-        request: &ProvisionRequest,
-    ) -> Result<ProvisionResponse>;
-    
+    async fn provision(&self, request: &ProvisionRequest) -> Result<ProvisionResponse>;
+
     /// Deprovision resources
     async fn deprovision(&self, resource_id: &str) -> Result<()>;
-    
+
     /// Get resource status
     async fn get_status(&self, resource_id: &str) -> Result<ResourceStatus>;
-    
+
     /// Estimate costs
     async fn estimate_cost(
         &self,
         instance_type: &InstanceType,
         duration: Duration,
     ) -> Result<CostEstimate>;
-    
+
     /// Check spot/preemptible availability
     async fn check_spot_availability(
         &self,

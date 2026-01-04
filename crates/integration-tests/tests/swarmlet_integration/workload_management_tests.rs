@@ -15,8 +15,8 @@
 
 use exorust_swarmlet::{
     agent::{ActiveWorkload, ResourceLimits, WorkAssignment, WorkloadStatus},
-    Config, SwarmletAgent, SwarmletError,
     workload::{ResourceUsage, WorkloadManager},
+    Config, SwarmletAgent, SwarmletError,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -33,8 +33,8 @@ pub struct SwarmletWorkloadManagementTests {
 
 #[derive(Debug, Clone, PartialEq)]
 enum TddPhase {
-    Red,    // Write failing tests
-    Green,  // Make tests pass with minimal implementation
+    Red,      // Write failing tests
+    Green,    // Make tests pass with minimal implementation
     Refactor, // Optimize for production
 }
 
@@ -77,7 +77,9 @@ impl SwarmletWorkloadManagementTests {
     }
 
     /// Execute complete TDD cycle for swarmlet workload management
-    pub async fn execute_complete_tdd_cycle(&mut self) -> Result<WorkloadManagementTestResults, SwarmletError> {
+    pub async fn execute_complete_tdd_cycle(
+        &mut self,
+    ) -> Result<WorkloadManagementTestResults, SwarmletError> {
         println!("🚀 Swarmlet Workload Management TDD Test Suite");
         println!("==============================================");
 
@@ -112,9 +114,13 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             result.unwrap_or_default(),
-            result.is_err().then(|| "Container workload lifecycle not implemented".to_string()),
+            result
+                .is_err()
+                .then(|| "Container workload lifecycle not implemented".to_string()),
         );
-        println!("  ❌ Container workload lifecycle requirement: FAILING (as expected in RED phase)");
+        println!(
+            "  ❌ Container workload lifecycle requirement: FAILING (as expected in RED phase)"
+        );
 
         // Test 2: Process workload management requirement
         let test_start = Instant::now();
@@ -124,9 +130,13 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             result.unwrap_or_default(),
-            result.is_err().then(|| "Process workload management not implemented".to_string()),
+            result
+                .is_err()
+                .then(|| "Process workload management not implemented".to_string()),
         );
-        println!("  ❌ Process workload management requirement: FAILING (as expected in RED phase)");
+        println!(
+            "  ❌ Process workload management requirement: FAILING (as expected in RED phase)"
+        );
 
         // Test 3: Resource limit enforcement requirement
         let test_start = Instant::now();
@@ -136,19 +146,25 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             result.unwrap_or_default(),
-            result.is_err().then(|| "Resource limit enforcement not implemented".to_string()),
+            result
+                .is_err()
+                .then(|| "Resource limit enforcement not implemented".to_string()),
         );
         println!("  ❌ Resource limit enforcement requirement: FAILING (as expected in RED phase)");
 
         // Test 4: Health monitoring and status reporting requirement
         let test_start = Instant::now();
-        let result = self.test_health_monitoring_status_reporting_requirement().await;
+        let result = self
+            .test_health_monitoring_status_reporting_requirement()
+            .await;
         self.record_test_result(
             "Health Monitoring Status Reporting Requirement",
             result.is_ok(),
             test_start.elapsed(),
             result.unwrap_or_default(),
-            result.is_err().then(|| "Health monitoring status reporting not implemented".to_string()),
+            result
+                .is_err()
+                .then(|| "Health monitoring status reporting not implemented".to_string()),
         );
         println!("  ❌ Health monitoring status reporting requirement: FAILING (as expected in RED phase)");
 
@@ -160,12 +176,17 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             result.unwrap_or_default(),
-            result.is_err().then(|| "Workload migration not implemented".to_string()),
+            result
+                .is_err()
+                .then(|| "Workload migration not implemented".to_string()),
         );
         println!("  ❌ Workload migration requirement: FAILING (as expected in RED phase)");
 
         let failed_count = self.test_results.iter().filter(|r| !r.success).count();
-        println!("🔴 RED Phase Summary: {} failing tests created (expected behavior)", failed_count);
+        println!(
+            "🔴 RED Phase Summary: {} failing tests created (expected behavior)",
+            failed_count
+        );
 
         Ok(())
     }
@@ -174,7 +195,7 @@ impl SwarmletWorkloadManagementTests {
     async fn execute_green_phase_implementation(&mut self) -> Result<(), SwarmletError> {
         // Clear previous test results for green phase
         self.test_results.clear();
-        
+
         println!("Implementing minimal workload management functionality:");
 
         // Implementation 1: Basic container workload lifecycle
@@ -186,11 +207,22 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             metrics.clone(),
-            result.is_err().then(|| "Container workload lifecycle failed".to_string()),
+            result
+                .is_err()
+                .then(|| "Container workload lifecycle failed".to_string()),
         );
-        let status = if result.is_ok() { "✅ PASS" } else { "❌ FAIL" };
-        println!("  {} Container workload lifecycle: {}ms startup, {}/{} success",
-                 status, metrics.container_startup_time_ms, metrics.workloads_completed, metrics.workloads_started);
+        let status = if result.is_ok() {
+            "✅ PASS"
+        } else {
+            "❌ FAIL"
+        };
+        println!(
+            "  {} Container workload lifecycle: {}ms startup, {}/{} success",
+            status,
+            metrics.container_startup_time_ms,
+            metrics.workloads_completed,
+            metrics.workloads_started
+        );
 
         // Implementation 2: Basic process workload management
         let test_start = Instant::now();
@@ -201,11 +233,21 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             metrics.clone(),
-            result.is_err().then(|| "Process workload management failed".to_string()),
+            result
+                .is_err()
+                .then(|| "Process workload management failed".to_string()),
         );
-        let status = if result.is_ok() { "✅ PASS" } else { "❌ FAIL" };
-        println!("  {} Process workload management: {}ms startup, {:.1}% success rate",
-                 status, metrics.process_startup_time_ms, metrics.workload_success_rate * 100.0);
+        let status = if result.is_ok() {
+            "✅ PASS"
+        } else {
+            "❌ FAIL"
+        };
+        println!(
+            "  {} Process workload management: {}ms startup, {:.1}% success rate",
+            status,
+            metrics.process_startup_time_ms,
+            metrics.workload_success_rate * 100.0
+        );
 
         // Implementation 3: Basic resource limit enforcement
         let test_start = Instant::now();
@@ -216,11 +258,21 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             metrics.clone(),
-            result.is_err().then(|| "Resource limit enforcement failed".to_string()),
+            result
+                .is_err()
+                .then(|| "Resource limit enforcement failed".to_string()),
         );
-        let status = if result.is_ok() { "✅ PASS" } else { "❌ FAIL" };
-        println!("  {} Resource limit enforcement: {}ms enforcement time, {:.1}MB allocated",
-                 status, metrics.resource_limit_enforcement_time_ms, metrics.total_resource_allocation_mb);
+        let status = if result.is_ok() {
+            "✅ PASS"
+        } else {
+            "❌ FAIL"
+        };
+        println!(
+            "  {} Resource limit enforcement: {}ms enforcement time, {:.1}MB allocated",
+            status,
+            metrics.resource_limit_enforcement_time_ms,
+            metrics.total_resource_allocation_mb
+        );
 
         // Implementation 4: Basic health monitoring
         let test_start = Instant::now();
@@ -231,11 +283,19 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             metrics.clone(),
-            result.is_err().then(|| "Health monitoring failed".to_string()),
+            result
+                .is_err()
+                .then(|| "Health monitoring failed".to_string()),
         );
-        let status = if result.is_ok() { "✅ PASS" } else { "❌ FAIL" };
-        println!("  {} Health monitoring: {}ms check interval, {:.1}% CPU usage",
-                 status, metrics.health_check_interval_ms, metrics.average_cpu_usage_percent);
+        let status = if result.is_ok() {
+            "✅ PASS"
+        } else {
+            "❌ FAIL"
+        };
+        println!(
+            "  {} Health monitoring: {}ms check interval, {:.1}% CPU usage",
+            status, metrics.health_check_interval_ms, metrics.average_cpu_usage_percent
+        );
 
         // Implementation 5: Basic workload migration
         let test_start = Instant::now();
@@ -246,14 +306,25 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             metrics.clone(),
-            result.is_err().then(|| "Workload migration failed".to_string()),
+            result
+                .is_err()
+                .then(|| "Workload migration failed".to_string()),
         );
-        let status = if result.is_ok() { "✅ PASS" } else { "❌ FAIL" };
-        println!("  {} Workload migration: {}ms migration time",
-                 status, metrics.workload_migration_time_ms);
+        let status = if result.is_ok() {
+            "✅ PASS"
+        } else {
+            "❌ FAIL"
+        };
+        println!(
+            "  {} Workload migration: {}ms migration time",
+            status, metrics.workload_migration_time_ms
+        );
 
         let passed_count = self.test_results.iter().filter(|r| r.success).count();
-        println!("🟢 GREEN Phase Summary: {} implementations passing", passed_count);
+        println!(
+            "🟢 GREEN Phase Summary: {} implementations passing",
+            passed_count
+        );
 
         Ok(())
     }
@@ -262,7 +333,7 @@ impl SwarmletWorkloadManagementTests {
     async fn execute_refactor_phase_optimization(&mut self) -> Result<(), SwarmletError> {
         // Clear previous test results for refactor phase
         self.test_results.clear();
-        
+
         println!("Optimizing for production workload scenarios:");
 
         // Optimization 1: High-performance concurrent workload handling
@@ -274,11 +345,21 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             metrics.clone(),
-            result.is_err().then(|| "High-performance concurrent workloads optimization failed".to_string()),
+            result
+                .is_err()
+                .then(|| "High-performance concurrent workloads optimization failed".to_string()),
         );
-        let status = if result.is_ok() { "🚀 OPTIMIZED" } else { "❌ FAIL" };
-        println!("  {} High-performance concurrent workloads: {} peak concurrent, {:.1}% efficiency",
-                 status, metrics.peak_concurrent_workloads, metrics.resource_utilization_efficiency * 100.0);
+        let status = if result.is_ok() {
+            "🚀 OPTIMIZED"
+        } else {
+            "❌ FAIL"
+        };
+        println!(
+            "  {} High-performance concurrent workloads: {} peak concurrent, {:.1}% efficiency",
+            status,
+            metrics.peak_concurrent_workloads,
+            metrics.resource_utilization_efficiency * 100.0
+        );
 
         // Optimization 2: Advanced resource management and optimization
         let test_start = Instant::now();
@@ -289,11 +370,19 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             metrics.clone(),
-            result.is_err().then(|| "Advanced resource management optimization failed".to_string()),
+            result
+                .is_err()
+                .then(|| "Advanced resource management optimization failed".to_string()),
         );
-        let status = if result.is_ok() { "🚀 OPTIMIZED" } else { "❌ FAIL" };
-        println!("  {} Advanced resource management: {:.1}MB avg memory, {:.1}% avg CPU",
-                 status, metrics.average_memory_usage_mb, metrics.average_cpu_usage_percent);
+        let status = if result.is_ok() {
+            "🚀 OPTIMIZED"
+        } else {
+            "❌ FAIL"
+        };
+        println!(
+            "  {} Advanced resource management: {:.1}MB avg memory, {:.1}% avg CPU",
+            status, metrics.average_memory_usage_mb, metrics.average_cpu_usage_percent
+        );
 
         // Optimization 3: Production-grade health monitoring
         let test_start = Instant::now();
@@ -304,11 +393,19 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             metrics.clone(),
-            result.is_err().then(|| "Production health monitoring optimization failed".to_string()),
+            result
+                .is_err()
+                .then(|| "Production health monitoring optimization failed".to_string()),
         );
-        let status = if result.is_ok() { "🚀 OPTIMIZED" } else { "❌ FAIL" };
-        println!("  {} Production health monitoring: {}ms check interval",
-                 status, metrics.health_check_interval_ms);
+        let status = if result.is_ok() {
+            "🚀 OPTIMIZED"
+        } else {
+            "❌ FAIL"
+        };
+        println!(
+            "  {} Production health monitoring: {}ms check interval",
+            status, metrics.health_check_interval_ms
+        );
 
         // Optimization 4: Intelligent workload migration and load balancing
         let test_start = Instant::now();
@@ -319,58 +416,81 @@ impl SwarmletWorkloadManagementTests {
             result.is_ok(),
             test_start.elapsed(),
             metrics.clone(),
-            result.is_err().then(|| "Intelligent workload migration optimization failed".to_string()),
+            result
+                .is_err()
+                .then(|| "Intelligent workload migration optimization failed".to_string()),
         );
-        let status = if result.is_ok() { "🚀 OPTIMIZED" } else { "❌ FAIL" };
-        println!("  {} Intelligent workload migration: {}ms migration time, {}ms cleanup",
-                 status, metrics.workload_migration_time_ms, metrics.cleanup_time_ms);
+        let status = if result.is_ok() {
+            "🚀 OPTIMIZED"
+        } else {
+            "❌ FAIL"
+        };
+        println!(
+            "  {} Intelligent workload migration: {}ms migration time, {}ms cleanup",
+            status, metrics.workload_migration_time_ms, metrics.cleanup_time_ms
+        );
 
         let optimized_count = self.test_results.iter().filter(|r| r.success).count();
-        println!("🔵 REFACTOR Phase Summary: {} optimizations completed", optimized_count);
+        println!(
+            "🔵 REFACTOR Phase Summary: {} optimizations completed",
+            optimized_count
+        );
 
         Ok(())
     }
 
     // RED Phase Test Methods (designed to fail initially)
 
-    async fn test_container_workload_lifecycle_requirement(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn test_container_workload_lifecycle_requirement(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         // RED phase: This should fail as container workload lifecycle isn't implemented yet
         Err(SwarmletError::NotImplemented(
-            "Container workload lifecycle not implemented".to_string()
+            "Container workload lifecycle not implemented".to_string(),
         ))
     }
 
-    async fn test_process_workload_management_requirement(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn test_process_workload_management_requirement(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         // RED phase: This should fail as process workload management isn't implemented yet
         Err(SwarmletError::NotImplemented(
-            "Process workload management not implemented".to_string()
+            "Process workload management not implemented".to_string(),
         ))
     }
 
-    async fn test_resource_limit_enforcement_requirement(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn test_resource_limit_enforcement_requirement(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         // RED phase: This should fail as resource limit enforcement isn't implemented yet
         Err(SwarmletError::NotImplemented(
-            "Resource limit enforcement not implemented".to_string()
+            "Resource limit enforcement not implemented".to_string(),
         ))
     }
 
-    async fn test_health_monitoring_status_reporting_requirement(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn test_health_monitoring_status_reporting_requirement(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         // RED phase: This should fail as health monitoring status reporting isn't implemented yet
         Err(SwarmletError::NotImplemented(
-            "Health monitoring status reporting not implemented".to_string()
+            "Health monitoring status reporting not implemented".to_string(),
         ))
     }
 
-    async fn test_workload_migration_requirement(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn test_workload_migration_requirement(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         // RED phase: This should fail as workload migration isn't implemented yet
         Err(SwarmletError::NotImplemented(
-            "Workload migration not implemented".to_string()
+            "Workload migration not implemented".to_string(),
         ))
     }
 
     // GREEN Phase Implementation Methods (minimal to make tests pass)
 
-    async fn implement_basic_container_workload_lifecycle(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn implement_basic_container_workload_lifecycle(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         println!("    → Creating basic container workload lifecycle...");
         let lifecycle_start = Instant::now();
 
@@ -385,21 +505,28 @@ impl SwarmletWorkloadManagementTests {
         let container_assignment = self.create_test_container_assignment("nginx:alpine");
 
         let startup_start = Instant::now();
-        let workload_id = workload_manager.start_workload(container_assignment).await?;
+        let workload_id = workload_manager
+            .start_workload(container_assignment)
+            .await?;
         let startup_time = startup_start.elapsed().as_millis() as f64;
 
         // Check workload status
         sleep(Duration::from_millis(100)).await;
         let active_workloads = workload_manager.get_active_workloads().await;
-        let workload_found = active_workloads.iter().find(|w| w.id == workload_id).is_some();
+        let workload_found = active_workloads
+            .iter()
+            .find(|w| w.id == workload_id)
+            .is_some();
 
         // Stop workload
         let _stop_result = workload_manager.stop_workload(workload_id).await;
 
         let lifecycle_time = lifecycle_start.elapsed().as_millis() as f64;
 
-        println!("    → Container lifecycle: {}ms startup, workload found: {}",
-                 startup_time, workload_found);
+        println!(
+            "    → Container lifecycle: {}ms startup, workload found: {}",
+            startup_time, workload_found
+        );
 
         Ok(WorkloadManagementMetrics {
             workloads_started: 1,
@@ -420,7 +547,9 @@ impl SwarmletWorkloadManagementTests {
         })
     }
 
-    async fn implement_basic_process_workload_management(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn implement_basic_process_workload_management(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         println!("    → Creating basic process workload management...");
         let process_start = Instant::now();
 
@@ -448,7 +577,7 @@ impl SwarmletWorkloadManagementTests {
                     successful_starts += 1;
                     let startup_time = startup_start.elapsed().as_millis() as f64;
                     total_startup_time += startup_time;
-                    
+
                     // Brief wait then stop
                     sleep(Duration::from_millis(50)).await;
                     let _ = workload_manager.stop_workload(workload_id).await;
@@ -459,12 +588,19 @@ impl SwarmletWorkloadManagementTests {
             }
         }
 
-        let avg_startup_time = if successful_starts > 0 { total_startup_time / successful_starts as f64 } else { 0.0 };
+        let avg_startup_time = if successful_starts > 0 {
+            total_startup_time / successful_starts as f64
+        } else {
+            0.0
+        };
         let success_rate = successful_starts as f32 / 3.0;
         let process_time = process_start.elapsed().as_millis() as f64;
 
-        println!("    → Process management: {}ms avg startup, {:.1}% success rate",
-                 avg_startup_time, success_rate * 100.0);
+        println!(
+            "    → Process management: {}ms avg startup, {:.1}% success rate",
+            avg_startup_time,
+            success_rate * 100.0
+        );
 
         Ok(WorkloadManagementMetrics {
             workloads_started: 3,
@@ -485,7 +621,9 @@ impl SwarmletWorkloadManagementTests {
         })
     }
 
-    async fn implement_basic_resource_limit_enforcement(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn implement_basic_resource_limit_enforcement(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         println!("    → Implementing basic resource limit enforcement...");
         let enforcement_start = Instant::now();
 
@@ -495,7 +633,8 @@ impl SwarmletWorkloadManagementTests {
         let workload_manager = WorkloadManager::new(config).await?;
 
         // Create workload assignment with specific resource limits
-        let mut assignment = self.create_test_process_assignment(vec!["sleep".to_string(), "2".to_string()]);
+        let mut assignment =
+            self.create_test_process_assignment(vec!["sleep".to_string(), "2".to_string()]);
         assignment.resource_limits = ResourceLimits {
             cpu_cores: Some(1.0),
             memory_gb: Some(0.5), // 512MB limit
@@ -514,14 +653,16 @@ impl SwarmletWorkloadManagementTests {
                 // Check that workload is running within limits
                 sleep(Duration::from_millis(100)).await;
                 let active_workloads = workload_manager.get_active_workloads().await;
-                
+
                 if let Some(workload) = active_workloads.iter().find(|w| w.id == workload_id) {
                     allocated_memory = 512.0; // 512MB as specified in limits
                     enforcement_successful = workload.status == WorkloadStatus::Running;
-                    println!("      → Resource limits applied: {}MB memory limit",
-                             allocated_memory);
+                    println!(
+                        "      → Resource limits applied: {}MB memory limit",
+                        allocated_memory
+                    );
                 }
-                
+
                 let _ = workload_manager.stop_workload(workload_id).await;
             }
             Err(_) => {
@@ -532,8 +673,10 @@ impl SwarmletWorkloadManagementTests {
 
         let total_enforcement_time = enforcement_start.elapsed().as_millis() as f64;
 
-        println!("    → Resource enforcement: {}ms enforcement, {:.1}MB allocated",
-                 enforcement_time, allocated_memory);
+        println!(
+            "    → Resource enforcement: {}ms enforcement, {:.1}MB allocated",
+            enforcement_time, allocated_memory
+        );
 
         Ok(WorkloadManagementMetrics {
             workloads_started: 1,
@@ -545,7 +688,7 @@ impl SwarmletWorkloadManagementTests {
             health_check_interval_ms: 0.0,
             workload_migration_time_ms: 0.0,
             average_memory_usage_mb: allocated_memory * 0.7, // Simulated usage
-            average_cpu_usage_percent: 15.0, // Simulated CPU usage
+            average_cpu_usage_percent: 15.0,                 // Simulated CPU usage
             peak_concurrent_workloads: 1,
             resource_utilization_efficiency: if enforcement_successful { 0.70 } else { 0.0 },
             workload_success_rate: if enforcement_successful { 1.0 } else { 0.0 },
@@ -554,7 +697,9 @@ impl SwarmletWorkloadManagementTests {
         })
     }
 
-    async fn implement_basic_health_monitoring(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn implement_basic_health_monitoring(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         println!("    → Implementing basic health monitoring...");
         let monitoring_start = Instant::now();
 
@@ -564,7 +709,8 @@ impl SwarmletWorkloadManagementTests {
         let workload_manager = WorkloadManager::new(config).await?;
 
         // Start a workload to monitor
-        let assignment = self.create_test_process_assignment(vec!["sleep".to_string(), "3".to_string()]);
+        let assignment =
+            self.create_test_process_assignment(vec!["sleep".to_string(), "3".to_string()]);
         let workload_id = workload_manager.start_workload(assignment).await?;
 
         // Simulate health monitoring intervals
@@ -575,19 +721,24 @@ impl SwarmletWorkloadManagementTests {
 
         for i in 0..monitoring_cycles {
             sleep(Duration::from_millis(health_check_interval as u64)).await;
-            
+
             // Simulate health check collection
             let active_workloads = workload_manager.get_active_workloads().await;
             if let Some(workload) = active_workloads.iter().find(|w| w.id == workload_id) {
                 // Simulate resource usage monitoring
                 let cpu_usage = 5.0 + (i as f64 * 2.0); // Gradual increase
                 let memory_usage = 32.0 + (i as f64 * 8.0); // Gradual increase
-                
+
                 total_cpu_usage += cpu_usage;
                 total_memory_usage += memory_usage;
-                
-                println!("      → Health check {}: {:.1}% CPU, {:.1}MB memory, status: {:?}",
-                         i + 1, cpu_usage, memory_usage, workload.status);
+
+                println!(
+                    "      → Health check {}: {:.1}% CPU, {:.1}MB memory, status: {:?}",
+                    i + 1,
+                    cpu_usage,
+                    memory_usage,
+                    workload.status
+                );
             }
         }
 
@@ -598,8 +749,10 @@ impl SwarmletWorkloadManagementTests {
         let avg_memory_usage = total_memory_usage / monitoring_cycles as f64;
         let monitoring_time = monitoring_start.elapsed().as_millis() as f64;
 
-        println!("    → Health monitoring: {}ms intervals, {:.1}% avg CPU, {:.1}MB avg memory",
-                 health_check_interval, avg_cpu_usage, avg_memory_usage);
+        println!(
+            "    → Health monitoring: {}ms intervals, {:.1}% avg CPU, {:.1}MB avg memory",
+            health_check_interval, avg_cpu_usage, avg_memory_usage
+        );
 
         Ok(WorkloadManagementMetrics {
             workloads_started: 1,
@@ -620,22 +773,29 @@ impl SwarmletWorkloadManagementTests {
         })
     }
 
-    async fn implement_basic_workload_migration(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn implement_basic_workload_migration(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         println!("    → Implementing basic workload migration...");
         let migration_start = Instant::now();
 
         // Create two workload managers (simulating two swarmlets)
         let temp_dir1 = TempDir::new().map_err(|e| SwarmletError::FileSystem(e.to_string()))?;
         let temp_dir2 = TempDir::new().map_err(|e| SwarmletError::FileSystem(e.to_string()))?;
-        
-        let config1 = Arc::new(Config::default_with_data_dir(temp_dir1.path().to_path_buf()));
-        let config2 = Arc::new(Config::default_with_data_dir(temp_dir2.path().to_path_buf()));
-        
+
+        let config1 = Arc::new(Config::default_with_data_dir(
+            temp_dir1.path().to_path_buf(),
+        ));
+        let config2 = Arc::new(Config::default_with_data_dir(
+            temp_dir2.path().to_path_buf(),
+        ));
+
         let workload_manager1 = WorkloadManager::new(config1).await?;
         let workload_manager2 = WorkloadManager::new(config2).await?;
 
         // Start workload on first manager
-        let assignment = self.create_test_process_assignment(vec!["sleep".to_string(), "5".to_string()]);
+        let assignment =
+            self.create_test_process_assignment(vec!["sleep".to_string(), "5".to_string()]);
         let original_assignment = assignment.clone();
         let workload_id = workload_manager1.start_workload(assignment).await?;
 
@@ -643,13 +803,15 @@ impl SwarmletWorkloadManagementTests {
 
         // Simulate migration: stop on first manager, start on second
         let migration_operation_start = Instant::now();
-        
+
         // Stop workload on first manager
         let _stop_result = workload_manager1.stop_workload(workload_id).await;
-        
+
         // Start workload on second manager (migration)
-        let new_workload_id = workload_manager2.start_workload(original_assignment).await?;
-        
+        let new_workload_id = workload_manager2
+            .start_workload(original_assignment)
+            .await?;
+
         let migration_time = migration_operation_start.elapsed().as_millis() as f64;
 
         // Verify migration success
@@ -662,8 +824,10 @@ impl SwarmletWorkloadManagementTests {
 
         let total_migration_time = migration_start.elapsed().as_millis() as f64;
 
-        println!("    → Workload migration: {}ms migration time, success: {}",
-                 migration_time, migration_successful);
+        println!(
+            "    → Workload migration: {}ms migration time, success: {}",
+            migration_time, migration_successful
+        );
 
         Ok(WorkloadManagementMetrics {
             workloads_started: 2,
@@ -686,7 +850,9 @@ impl SwarmletWorkloadManagementTests {
 
     // REFACTOR Phase Optimization Methods (production-ready)
 
-    async fn optimize_high_performance_concurrent_workloads(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn optimize_high_performance_concurrent_workloads(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         println!("    → Optimizing high-performance concurrent workload handling...");
         let optimization_start = Instant::now();
 
@@ -701,7 +867,7 @@ impl SwarmletWorkloadManagementTests {
         let mut successful_starts = 0;
 
         let concurrent_start = Instant::now();
-        
+
         // Launch workloads concurrently using futures
         let mut start_tasks = Vec::new();
         for i in 0..concurrent_count {
@@ -709,11 +875,9 @@ impl SwarmletWorkloadManagementTests {
                 "sleep".to_string(),
                 format!("{}", 1 + i % 3), // Varying durations
             ]);
-            
+
             // Clone manager for async task
-            let task = async {
-                workload_manager.start_workload(assignment).await
-            };
+            let task = async { workload_manager.start_workload(assignment).await };
             start_tasks.push(tokio::spawn(task));
         }
 
@@ -754,7 +918,7 @@ impl SwarmletWorkloadManagementTests {
             container_startup_time_ms: concurrent_startup_time / concurrent_count as f64,
             process_startup_time_ms: concurrent_startup_time / concurrent_count as f64,
             resource_limit_enforcement_time_ms: 5.0, // Optimized enforcement
-            health_check_interval_ms: 100.0, // Fast health checks
+            health_check_interval_ms: 100.0,         // Fast health checks
             workload_migration_time_ms: 0.0,
             average_memory_usage_mb: 32.0 * successful_starts as f64,
             average_cpu_usage_percent: 3.0 * successful_starts as f64,
@@ -766,7 +930,9 @@ impl SwarmletWorkloadManagementTests {
         })
     }
 
-    async fn optimize_advanced_resource_management(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn optimize_advanced_resource_management(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         println!("    → Optimizing advanced resource management...");
         let resource_start = Instant::now();
 
@@ -777,9 +943,21 @@ impl SwarmletWorkloadManagementTests {
 
         // Create workloads with varying resource requirements
         let workload_configs = vec![
-            (vec!["sleep".to_string(), "2".to_string()], Some(0.5), Some(256.0)), // Light workload
-            (vec!["sleep".to_string(), "2".to_string()], Some(1.0), Some(512.0)), // Medium workload
-            (vec!["sleep".to_string(), "2".to_string()], Some(2.0), Some(1024.0)), // Heavy workload
+            (
+                vec!["sleep".to_string(), "2".to_string()],
+                Some(0.5),
+                Some(256.0),
+            ), // Light workload
+            (
+                vec!["sleep".to_string(), "2".to_string()],
+                Some(1.0),
+                Some(512.0),
+            ), // Medium workload
+            (
+                vec!["sleep".to_string(), "2".to_string()],
+                Some(2.0),
+                Some(1024.0),
+            ), // Heavy workload
         ];
 
         let mut total_memory_allocated = 0.0;
@@ -800,8 +978,12 @@ impl SwarmletWorkloadManagementTests {
                     total_memory_allocated += memory_mb.unwrap_or(128.0);
                     total_cpu_allocated += cpu_cores.unwrap_or(0.5);
 
-                    println!("      → Workload {}: {:.1} CPU cores, {:.1}MB memory allocated",
-                             i + 1, cpu_cores.unwrap_or(0.5), memory_mb.unwrap_or(128.0));
+                    println!(
+                        "      → Workload {}: {:.1} CPU cores, {:.1}MB memory allocated",
+                        i + 1,
+                        cpu_cores.unwrap_or(0.5),
+                        memory_mb.unwrap_or(128.0)
+                    );
 
                     // Let it run briefly then stop
                     sleep(Duration::from_millis(100)).await;
@@ -813,18 +995,24 @@ impl SwarmletWorkloadManagementTests {
             }
         }
 
-        let avg_memory_usage = if successful_workloads > 0 { 
+        let avg_memory_usage = if successful_workloads > 0 {
             total_memory_allocated / successful_workloads as f64 * 0.75 // 75% utilization
-        } else { 0.0 };
-        
-        let avg_cpu_usage = if successful_workloads > 0 { 
+        } else {
+            0.0
+        };
+
+        let avg_cpu_usage = if successful_workloads > 0 {
             total_cpu_allocated / successful_workloads as f64 * 60.0 // Convert to percentage
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         let resource_time = resource_start.elapsed().as_millis() as f64;
 
-        println!("    → Advanced resource management: {:.1}MB avg memory, {:.1}% avg CPU utilization",
-                 avg_memory_usage, avg_cpu_usage);
+        println!(
+            "    → Advanced resource management: {:.1}MB avg memory, {:.1}% avg CPU utilization",
+            avg_memory_usage, avg_cpu_usage
+        );
 
         Ok(WorkloadManagementMetrics {
             workloads_started: 3,
@@ -845,7 +1033,9 @@ impl SwarmletWorkloadManagementTests {
         })
     }
 
-    async fn optimize_production_health_monitoring(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn optimize_production_health_monitoring(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         println!("    → Optimizing production-grade health monitoring...");
         let health_start = Instant::now();
 
@@ -859,10 +1049,8 @@ impl SwarmletWorkloadManagementTests {
         let mut workload_ids = Vec::new();
 
         for i in 0..monitoring_workloads {
-            let assignment = self.create_test_process_assignment(vec![
-                "sleep".to_string(),
-                "4".to_string(),
-            ]);
+            let assignment =
+                self.create_test_process_assignment(vec!["sleep".to_string(), "4".to_string()]);
 
             match workload_manager.start_workload(assignment).await {
                 Ok(workload_id) => workload_ids.push(workload_id),
@@ -873,24 +1061,30 @@ impl SwarmletWorkloadManagementTests {
         // Optimized health monitoring with faster intervals
         let optimized_interval = 50.0; // 50ms intervals for production
         let monitoring_cycles = 10;
-        
+
         let mut health_data = Vec::new();
-        
+
         for cycle in 0..monitoring_cycles {
             sleep(Duration::from_millis(optimized_interval as u64)).await;
-            
+
             let active_workloads = workload_manager.get_active_workloads().await;
-            
+
             // Collect comprehensive health metrics
             for (i, workload) in active_workloads.iter().enumerate() {
                 let simulated_cpu = 8.0 + (cycle as f64 * 1.5) + (i as f64 * 2.0);
                 let simulated_memory = 64.0 + (cycle as f64 * 4.0) + (i as f64 * 8.0);
-                
+
                 health_data.push((simulated_cpu, simulated_memory));
-                
-                if cycle % 3 == 0 { // Log every 3rd cycle
-                    println!("      → Workload {}: {:.1}% CPU, {:.1}MB memory, status: {:?}",
-                             i + 1, simulated_cpu, simulated_memory, workload.status);
+
+                if cycle % 3 == 0 {
+                    // Log every 3rd cycle
+                    println!(
+                        "      → Workload {}: {:.1}% CPU, {:.1}MB memory, status: {:?}",
+                        i + 1,
+                        simulated_cpu,
+                        simulated_memory,
+                        workload.status
+                    );
                 }
             }
         }
@@ -903,11 +1097,15 @@ impl SwarmletWorkloadManagementTests {
         // Calculate health monitoring statistics
         let avg_cpu = if !health_data.is_empty() {
             health_data.iter().map(|(cpu, _)| *cpu).sum::<f64>() / health_data.len() as f64
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         let avg_memory = if !health_data.is_empty() {
             health_data.iter().map(|(_, mem)| *mem).sum::<f64>() / health_data.len() as f64
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         let health_time = health_start.elapsed().as_millis() as f64;
 
@@ -933,7 +1131,9 @@ impl SwarmletWorkloadManagementTests {
         })
     }
 
-    async fn optimize_intelligent_workload_migration(&self) -> Result<WorkloadManagementMetrics, SwarmletError> {
+    async fn optimize_intelligent_workload_migration(
+        &self,
+    ) -> Result<WorkloadManagementMetrics, SwarmletError> {
         println!("    → Optimizing intelligent workload migration with load balancing...");
         let migration_start = Instant::now();
 
@@ -955,10 +1155,8 @@ impl SwarmletWorkloadManagementTests {
         let mut workload_assignments = Vec::new();
 
         for i in 0..total_workloads {
-            let assignment = self.create_test_process_assignment(vec![
-                "sleep".to_string(),
-                "6".to_string(),
-            ]);
+            let assignment =
+                self.create_test_process_assignment(vec!["sleep".to_string(), "6".to_string()]);
             workload_assignments.push((assignment, i % cluster_size));
         }
 
@@ -984,28 +1182,31 @@ impl SwarmletWorkloadManagementTests {
 
         for i in 0..migration_operations.min(distributed_workloads.len()) {
             let migration_op_start = Instant::now();
-            
+
             let (workload_id, source_idx) = distributed_workloads[i];
             let target_idx = (source_idx + 1) % cluster_size;
 
             // Get original assignment (simplified recreation)
-            let new_assignment = self.create_test_process_assignment(vec![
-                "sleep".to_string(),
-                "3".to_string(),
-            ]);
+            let new_assignment =
+                self.create_test_process_assignment(vec!["sleep".to_string(), "3".to_string()]);
 
             // Migrate: stop on source, start on target
             let _stop_result = managers[source_idx].stop_workload(workload_id).await;
-            
+
             match managers[target_idx].start_workload(new_assignment).await {
                 Ok(new_workload_id) => {
                     successful_migrations += 1;
                     let migration_time = migration_op_start.elapsed().as_millis() as f64;
                     total_migration_time += migration_time;
-                    
-                    println!("      → Migration {}: swarmlet {} → {}, {}ms",
-                             i + 1, source_idx + 1, target_idx + 1, migration_time);
-                    
+
+                    println!(
+                        "      → Migration {}: swarmlet {} → {}, {}ms",
+                        i + 1,
+                        source_idx + 1,
+                        target_idx + 1,
+                        migration_time
+                    );
+
                     // Update tracking
                     distributed_workloads[i] = (new_workload_id, target_idx);
                 }
@@ -1022,7 +1223,9 @@ impl SwarmletWorkloadManagementTests {
 
         let avg_migration_time = if successful_migrations > 0 {
             total_migration_time / successful_migrations as f64
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         let total_time = migration_start.elapsed().as_millis() as f64;
 
@@ -1038,7 +1241,7 @@ impl SwarmletWorkloadManagementTests {
             resource_limit_enforcement_time_ms: 0.0,
             health_check_interval_ms: 0.0,
             workload_migration_time_ms: avg_migration_time,
-            average_memory_usage_mb: 72.0, // Optimized memory usage
+            average_memory_usage_mb: 72.0,   // Optimized memory usage
             average_cpu_usage_percent: 12.0, // Optimized CPU usage
             peak_concurrent_workloads: distributed_workloads.len(),
             resource_utilization_efficiency: 0.94, // Very high efficiency with load balancing
@@ -1109,7 +1312,9 @@ impl SwarmletWorkloadManagementTests {
         });
     }
 
-    async fn generate_comprehensive_results(&self) -> Result<WorkloadManagementTestResults, SwarmletError> {
+    async fn generate_comprehensive_results(
+        &self,
+    ) -> Result<WorkloadManagementTestResults, SwarmletError> {
         let total_tests = self.test_results.len();
         let passed_tests = self.test_results.iter().filter(|r| r.success).count();
         let failed_tests = total_tests - passed_tests;
@@ -1117,15 +1322,21 @@ impl SwarmletWorkloadManagementTests {
         let total_duration: Duration = self.test_results.iter().map(|r| r.duration).sum();
 
         // Separate results by phase
-        let red_results = self.test_results.iter()
+        let red_results = self
+            .test_results
+            .iter()
             .filter(|r| r.phase == TddPhase::Red)
             .cloned()
             .collect();
-        let green_results = self.test_results.iter()
+        let green_results = self
+            .test_results
+            .iter()
             .filter(|r| r.phase == TddPhase::Green)
             .cloned()
             .collect();
-        let refactor_results = self.test_results.iter()
+        let refactor_results = self
+            .test_results
+            .iter()
             .filter(|r| r.phase == TddPhase::Refactor)
             .cloned()
             .collect();
@@ -1141,7 +1352,11 @@ impl SwarmletWorkloadManagementTests {
             red_phase_results: red_results,
             green_phase_results: green_results,
             refactor_phase_results: refactor_results,
-            tdd_phases_completed: vec!["RED".to_string(), "GREEN".to_string(), "REFACTOR".to_string()],
+            tdd_phases_completed: vec![
+                "RED".to_string(),
+                "GREEN".to_string(),
+                "REFACTOR".to_string(),
+            ],
             workload_management_features_validated: vec![
                 "Container Workload Lifecycle".to_string(),
                 "Process Workload Management".to_string(),
@@ -1178,36 +1393,63 @@ impl WorkloadManagementTestResults {
     pub fn print_summary(&self) {
         println!("\n📋 Swarmlet Workload Management Test Results Summary");
         println!("===================================================");
-        
+
         println!("Total Tests: {}", self.test_summary.total_tests);
         println!("Passed: {} ✅", self.test_summary.passed_tests);
         println!("Failed: {} ❌", self.test_summary.failed_tests);
-        println!("Success Rate: {:.1}%", self.test_summary.success_rate * 100.0);
+        println!(
+            "Success Rate: {:.1}%",
+            self.test_summary.success_rate * 100.0
+        );
         println!("Total Duration: {:?}", self.test_summary.total_duration);
 
         // GREEN Phase Summary (most important for workload management)
         if !self.green_phase_results.is_empty() {
             println!("\n🟢 GREEN Phase (Basic Workload Management):");
-            let green_passed = self.green_phase_results.iter().filter(|r| r.success).count();
-            println!("   {} / {} implementations passing", green_passed, self.green_phase_results.len());
-            
+            let green_passed = self
+                .green_phase_results
+                .iter()
+                .filter(|r| r.success)
+                .count();
+            println!(
+                "   {} / {} implementations passing",
+                green_passed,
+                self.green_phase_results.len()
+            );
+
             for result in &self.green_phase_results {
                 let status = if result.success { "✅" } else { "❌" };
-                println!("   {} {} ({:.1}ms)",
-                         status, result.test_name, result.duration.as_millis());
+                println!(
+                    "   {} {} ({:.1}ms)",
+                    status,
+                    result.test_name,
+                    result.duration.as_millis()
+                );
                 if result.success {
                     let m = &result.metrics;
                     if m.container_startup_time_ms > 0.0 {
-                        println!("      📊 Container startup: {:.1}ms", m.container_startup_time_ms);
+                        println!(
+                            "      📊 Container startup: {:.1}ms",
+                            m.container_startup_time_ms
+                        );
                     }
                     if m.process_startup_time_ms > 0.0 {
-                        println!("      📊 Process startup: {:.1}ms", m.process_startup_time_ms);
+                        println!(
+                            "      📊 Process startup: {:.1}ms",
+                            m.process_startup_time_ms
+                        );
                     }
                     if m.workload_migration_time_ms > 0.0 {
-                        println!("      📊 Migration time: {:.1}ms", m.workload_migration_time_ms);
+                        println!(
+                            "      📊 Migration time: {:.1}ms",
+                            m.workload_migration_time_ms
+                        );
                     }
                     if m.workload_success_rate > 0.0 {
-                        println!("      📊 Success rate: {:.1}%", m.workload_success_rate * 100.0);
+                        println!(
+                            "      📊 Success rate: {:.1}%",
+                            m.workload_success_rate * 100.0
+                        );
                     }
                 }
             }
@@ -1216,23 +1458,44 @@ impl WorkloadManagementTestResults {
         // REFACTOR Phase Summary (production optimizations)
         if !self.refactor_phase_results.is_empty() {
             println!("\n🔵 REFACTOR Phase (Production Optimizations):");
-            let refactor_passed = self.refactor_phase_results.iter().filter(|r| r.success).count();
-            println!("   {} / {} optimizations completed", refactor_passed, self.refactor_phase_results.len());
-            
+            let refactor_passed = self
+                .refactor_phase_results
+                .iter()
+                .filter(|r| r.success)
+                .count();
+            println!(
+                "   {} / {} optimizations completed",
+                refactor_passed,
+                self.refactor_phase_results.len()
+            );
+
             for result in &self.refactor_phase_results {
                 let status = if result.success { "🚀" } else { "❌" };
-                println!("   {} {} ({:.1}ms)",
-                         status, result.test_name, result.duration.as_millis());
+                println!(
+                    "   {} {} ({:.1}ms)",
+                    status,
+                    result.test_name,
+                    result.duration.as_millis()
+                );
                 if result.success {
                     let m = &result.metrics;
                     if m.peak_concurrent_workloads > 0 {
-                        println!("      📊 Peak concurrent: {} workloads", m.peak_concurrent_workloads);
+                        println!(
+                            "      📊 Peak concurrent: {} workloads",
+                            m.peak_concurrent_workloads
+                        );
                     }
                     if m.resource_utilization_efficiency > 0.0 {
-                        println!("      📊 Resource efficiency: {:.1}%", m.resource_utilization_efficiency * 100.0);
+                        println!(
+                            "      📊 Resource efficiency: {:.1}%",
+                            m.resource_utilization_efficiency * 100.0
+                        );
                     }
                     if m.workload_migration_time_ms > 0.0 {
-                        println!("      📊 Migration time: {:.1}ms", m.workload_migration_time_ms);
+                        println!(
+                            "      📊 Migration time: {:.1}ms",
+                            m.workload_migration_time_ms
+                        );
                     }
                 }
             }
@@ -1261,77 +1524,97 @@ mod tests {
     #[tokio::test]
     async fn test_tdd_complete_workload_management_cycle() -> Result<(), SwarmletError> {
         let mut workload_tests = SwarmletWorkloadManagementTests::new();
-        
+
         let results = workload_tests.execute_complete_tdd_cycle().await?;
-        
+
         // Verify TDD methodology was followed
         assert_eq!(results.tdd_phases_completed.len(), 3);
         assert!(results.tdd_phases_completed.contains(&"RED".to_string()));
         assert!(results.tdd_phases_completed.contains(&"GREEN".to_string()));
-        assert!(results.tdd_phases_completed.contains(&"REFACTOR".to_string()));
-        
+        assert!(results
+            .tdd_phases_completed
+            .contains(&"REFACTOR".to_string()));
+
         // Verify workload management features were validated
         assert!(results.workload_management_features_validated.len() >= 5);
-        
+
         results.print_summary();
-        
-        println!("✅ Complete TDD cycle: {} tests, {:.1}% success rate",
-                 results.test_summary.total_tests,
-                 results.test_summary.success_rate * 100.0);
-        
+
+        println!(
+            "✅ Complete TDD cycle: {} tests, {:.1}% success rate",
+            results.test_summary.total_tests,
+            results.test_summary.success_rate * 100.0
+        );
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_basic_container_workload_lifecycle() -> Result<(), SwarmletError> {
         let workload_tests = SwarmletWorkloadManagementTests::new();
-        
-        let metrics = workload_tests.implement_basic_container_workload_lifecycle().await?;
-        
+
+        let metrics = workload_tests
+            .implement_basic_container_workload_lifecycle()
+            .await?;
+
         // Verify container workload metrics
         assert!(metrics.container_startup_time_ms > 0.0);
         assert!(metrics.container_startup_time_ms < 5000.0); // Under 5 seconds
         assert!(metrics.workloads_started >= 1);
-        
-        println!("✅ Container workload: {}ms startup, {}/{} success",
-                 metrics.container_startup_time_ms, metrics.workloads_completed, metrics.workloads_started);
-        
+
+        println!(
+            "✅ Container workload: {}ms startup, {}/{} success",
+            metrics.container_startup_time_ms,
+            metrics.workloads_completed,
+            metrics.workloads_started
+        );
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_process_workload_management() -> Result<(), SwarmletError> {
         let workload_tests = SwarmletWorkloadManagementTests::new();
-        
-        let metrics = workload_tests.implement_basic_process_workload_management().await?;
-        
+
+        let metrics = workload_tests
+            .implement_basic_process_workload_management()
+            .await?;
+
         // Verify process workload metrics
         assert_eq!(metrics.workloads_started, 3);
         assert!(metrics.process_startup_time_ms >= 0.0);
         assert!(metrics.workload_success_rate >= 0.0);
         assert!(metrics.workload_success_rate <= 1.0);
-        
-        println!("✅ Process workloads: {}ms avg startup, {:.1}% success rate",
-                 metrics.process_startup_time_ms, metrics.workload_success_rate * 100.0);
-        
+
+        println!(
+            "✅ Process workloads: {}ms avg startup, {:.1}% success rate",
+            metrics.process_startup_time_ms,
+            metrics.workload_success_rate * 100.0
+        );
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_optimized_concurrent_workloads() -> Result<(), SwarmletError> {
         let workload_tests = SwarmletWorkloadManagementTests::new();
-        
-        let metrics = workload_tests.optimize_high_performance_concurrent_workloads().await?;
-        
+
+        let metrics = workload_tests
+            .optimize_high_performance_concurrent_workloads()
+            .await?;
+
         // Verify optimized concurrent workload metrics
         assert_eq!(metrics.workloads_started, 20);
         assert!(metrics.peak_concurrent_workloads > 0);
         assert!(metrics.resource_utilization_efficiency > 0.0);
         assert!(metrics.cleanup_time_ms >= 0.0);
-        
-        println!("✅ Optimized concurrent: {} peak concurrent, {:.1}% efficiency",
-                 metrics.peak_concurrent_workloads, metrics.resource_utilization_efficiency * 100.0);
-        
+
+        println!(
+            "✅ Optimized concurrent: {} peak concurrent, {:.1}% efficiency",
+            metrics.peak_concurrent_workloads,
+            metrics.resource_utilization_efficiency * 100.0
+        );
+
         Ok(())
     }
 }

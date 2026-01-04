@@ -9,9 +9,9 @@
 
 use anyhow::{Context, Result};
 use colored::*;
-use stratoswarm_business_interface::BusinessInterface;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use stratoswarm_business_interface::BusinessInterface;
 use sysinfo::{CpuExt, System, SystemExt};
 use tokio::time::sleep;
 

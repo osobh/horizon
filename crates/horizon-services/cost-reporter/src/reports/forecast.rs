@@ -1,7 +1,7 @@
 use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
 
-use crate::error::{HpcError, Result, ReporterErrorExt};
+use crate::error::{HpcError, ReporterErrorExt, Result};
 use crate::models::summary::HasCostBreakdown;
 use crate::models::trend::{CostForecast, ForecastPoint};
 
@@ -16,11 +16,7 @@ impl CostForecaster {
     }
 
     /// Forecast costs using linear regression
-    pub fn forecast<T>(
-        &self,
-        historical: &[T],
-        days_ahead: usize,
-    ) -> Result<CostForecast>
+    pub fn forecast<T>(&self, historical: &[T], days_ahead: usize) -> Result<CostForecast>
     where
         T: HasCostBreakdown,
     {
@@ -59,7 +55,11 @@ impl CostForecaster {
             // Calculate confidence - decreases with distance
             let confidence = self.calculate_forecast_confidence(historical, day);
 
-            points.push(ForecastPoint::new(forecast_date, forecasted_cost, confidence));
+            points.push(ForecastPoint::new(
+                forecast_date,
+                forecasted_cost,
+                confidence,
+            ));
         }
 
         Ok(CostForecast::new(
@@ -134,8 +134,7 @@ impl CostForecaster {
             .collect();
 
         let mean = values.iter().sum::<f64>() / values.len() as f64;
-        let variance =
-            values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
+        let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
 
         // Coefficient of variation (normalized variance)
         if mean > 0.0 {

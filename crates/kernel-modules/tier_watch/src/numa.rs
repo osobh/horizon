@@ -109,11 +109,14 @@ const REMOTE_DISTANCE: u8 = 20;
 
 /// Get number of NUMA nodes
 pub fn get_num_nodes() -> usize {
+    // SAFETY: NUMA_NODES is read-only here; initialized at module load.
     unsafe { NUMA_NODES.as_ref().map(|nodes| nodes.len()).unwrap_or(1) }
 }
 
 /// Get NUMA node for a CPU
 pub fn get_node_for_cpu(cpu_id: u32) -> Option<u8> {
+    // SAFETY: NUMA_NODES is read-only here; initialized at module load
+    // and never modified afterward.
     unsafe {
         if let Some(nodes) = &NUMA_NODES {
             for node in nodes {
@@ -130,6 +133,8 @@ pub fn get_node_for_cpu(cpu_id: u32) -> Option<u8> {
 pub fn get_node_for_pfn(pfn: u64) -> Option<u8> {
     let addr = pfn << 12; // Convert PFN to physical address
 
+    // SAFETY: NUMA_NODES is read-only here; initialized at module load.
+    // We only iterate and read the node configuration.
     unsafe {
         if let Some(nodes) = &NUMA_NODES {
             for node in nodes {
@@ -150,6 +155,7 @@ pub fn get_node_distance(from_node: u8, to_node: u8) -> u8 {
         return LOCAL_DISTANCE;
     }
 
+    // SAFETY: NUMA_NODES is read-only here; initialized at module load.
     unsafe {
         if let Some(nodes) = &NUMA_NODES {
             if let Some(node) = nodes.iter().find(|n| n.id == from_node) {
@@ -179,6 +185,8 @@ pub fn record_numa_access(cpu_id: u32, pfn: u64) {
     let is_local = is_local_access(cpu_id, pfn);
 
     if let Some(cpu_node) = get_node_for_cpu(cpu_id) {
+        // SAFETY: NUMA_STATS is initialized at module load. NumaStats uses
+        // atomics for all counter updates, ensuring thread-safe access.
         unsafe {
             if let Some(stats) = &NUMA_STATS {
                 if let Some(node_stats) = stats.get(cpu_node as usize) {
@@ -201,6 +209,9 @@ pub fn find_best_allocation(
     preferred_node: u8,
     size_pages: usize,
 ) -> Option<(u8, MemoryZone)> {
+    // SAFETY: NUMA_NODES is read-only here. MemoryZone.free_pages uses atomics
+    // for thread-safe access. We clone zones before returning to avoid holding
+    // references to the static data.
     unsafe {
         if let Some(nodes) = &NUMA_NODES {
             // First try preferred node
@@ -246,6 +257,8 @@ pub fn find_best_allocation(
 pub fn get_numa_stats_summary() -> Vec<NumaStatsSummary> {
     let mut summaries = Vec::new();
 
+    // SAFETY: NUMA_STATS is read-only here. NumaStats uses atomics for all
+    // counter access, ensuring thread-safe reads.
     unsafe {
         if let Some(stats) = &NUMA_STATS {
             for (node_id, node_stats) in stats.iter().enumerate() {
@@ -277,6 +290,9 @@ pub struct NumaStatsSummary {
 
 /// Initialize NUMA subsystem
 pub fn init() -> KernelResult<()> {
+    // SAFETY: This function is called exactly once during kernel module
+    // initialization, before any other threads can access NUMA_NODES or
+    // NUMA_STATS. The kernel module init sequence is single-threaded.
     unsafe {
         // In real kernel, would parse ACPI SRAT/SLIT tables
         // For now, create a simple 2-node system
@@ -344,6 +360,8 @@ pub fn init() -> KernelResult<()> {
 
 /// Cleanup NUMA subsystem
 pub fn cleanup() {
+    // SAFETY: This function is called exactly once during kernel module
+    // unload, after all other operations have completed.
     unsafe {
         NUMA_NODES = None;
         NUMA_STATS = None;

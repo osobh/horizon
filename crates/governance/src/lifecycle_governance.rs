@@ -676,8 +676,7 @@ mod tests {
         // Valid transition: Pending -> Initializing
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
 
         let state = governor.get_agent_state(&agent_id).await?;
         assert_eq!(state.phase, LifecyclePhase::Initializing);
@@ -705,8 +704,7 @@ mod tests {
         // Transition to active state
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await
@@ -761,8 +759,7 @@ mod tests {
         governor.register_agent(&agent_id).await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await
@@ -799,8 +796,7 @@ mod tests {
         governor.register_agent(&agent_id).await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await
@@ -847,8 +843,7 @@ mod tests {
         governor.register_agent(&agent_id).await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await
@@ -894,8 +889,7 @@ mod tests {
         governor.register_agent(&agent_id).await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await
@@ -1019,8 +1013,7 @@ mod tests {
         governor.register_agent(&agent_id).await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await
@@ -1064,8 +1057,7 @@ mod tests {
         governor.register_agent(&agent_id).await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await
@@ -1102,8 +1094,7 @@ mod tests {
         governor.register_agent(&agent_id).await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await
@@ -1131,8 +1122,7 @@ mod tests {
         governor.register_agent(&agent_id).await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await
@@ -1171,8 +1161,7 @@ mod tests {
         governor.register_agent(&agent_id).await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Initializing)
-            .await
-            ?;
+            .await?;
         governor
             .transition_phase(&agent_id, LifecyclePhase::Active)
             .await

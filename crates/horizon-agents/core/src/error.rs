@@ -36,15 +36,10 @@ pub enum AgentError {
     HealthCheckFailed(String),
 
     #[error("Invalid autonomy level transition from {from:?} to {to:?}")]
-    InvalidAutonomyTransition {
-        from: String,
-        to: String,
-    },
+    InvalidAutonomyTransition { from: String, to: String },
 
     #[error("Operation not allowed at autonomy level {level:?}")]
-    OperationNotAllowed {
-        level: String,
-    },
+    OperationNotAllowed { level: String },
 
     #[error("Retry limit exceeded: {0}")]
     RetryLimitExceeded(String),

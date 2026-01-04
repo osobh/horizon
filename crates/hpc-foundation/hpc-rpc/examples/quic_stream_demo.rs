@@ -47,7 +47,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Echo back with modification
             let response = format!("Echo: {}", msg);
-            send.write_all(response.as_bytes()).await.expect("Write failed");
+            send.write_all(response.as_bytes())
+                .await
+                .expect("Write failed");
             send.finish().await.expect("Finish failed");
 
             println!("[Server] Stream #{}: Sent response", stream_num);
@@ -91,7 +93,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n=== Demo complete ===");
-    println!("Demonstrated {} bidirectional streams over a single QUIC connection!", 5);
+    println!(
+        "Demonstrated {} bidirectional streams over a single QUIC connection!",
+        5
+    );
 
     server_handle.await?;
 

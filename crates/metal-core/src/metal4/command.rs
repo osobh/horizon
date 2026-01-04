@@ -94,8 +94,12 @@ impl MetalCommandQueue for Metal4CommandQueue {
     }
 }
 
-// Safety: Command queues are thread-safe
+// SAFETY: Metal4CommandQueue is Send because MTLCommandQueue objects are
+// thread-safe per Apple's Metal documentation. Command queue operations
+// can be invoked from any thread.
 unsafe impl Send for Metal4CommandQueue {}
+// SAFETY: Metal4CommandQueue is Sync because MTLCommandQueue provides
+// internal synchronization for concurrent access from multiple threads.
 unsafe impl Sync for Metal4CommandQueue {}
 
 /// Metal 4 command buffer.
@@ -192,8 +196,12 @@ impl MetalCommandBuffer for Metal4CommandBuffer {
     }
 }
 
-// Safety: Command buffers are thread-safe
+// SAFETY: Metal4CommandBuffer is Send because MTLCommandBuffer objects can be
+// safely transferred between threads. Metal command buffers provide thread-safe
+// access for their status and timing properties after commit.
 unsafe impl Send for Metal4CommandBuffer {}
+// SAFETY: Metal4CommandBuffer is Sync because status(), GPUStartTime(), and
+// GPUEndTime() can be safely called concurrently from multiple threads.
 unsafe impl Sync for Metal4CommandBuffer {}
 
 /// Metal 4 compute encoder.
@@ -230,7 +238,9 @@ impl<'a> Metal4ComputeEncoder<'a> {
 
     /// Bind a Metal4Buffer at the given index.
     pub fn set_metal4_buffer(&mut self, index: u32, buffer: &Metal4Buffer) {
-        // Safety: buffer.raw() returns a valid MTLBuffer
+        // SAFETY: buffer.raw() returns a valid MTLBuffer reference. The encoder
+        // retains the buffer for the duration of the encoding. The index is passed
+        // directly to Metal which validates it during dispatch.
         unsafe {
             self.raw
                 .setBuffer_offset_atIndex(Some(buffer.raw()), 0, index as usize);
@@ -238,8 +248,15 @@ impl<'a> Metal4ComputeEncoder<'a> {
     }
 
     /// Bind a Metal4Buffer with offset at the given index.
-    pub fn set_metal4_buffer_with_offset(&mut self, index: u32, buffer: &Metal4Buffer, offset: usize) {
-        // Safety: buffer.raw() returns a valid MTLBuffer
+    pub fn set_metal4_buffer_with_offset(
+        &mut self,
+        index: u32,
+        buffer: &Metal4Buffer,
+        offset: usize,
+    ) {
+        // SAFETY: buffer.raw() returns a valid MTLBuffer reference. The encoder
+        // retains the buffer for the duration of the encoding. The index and offset
+        // are passed directly to Metal which validates them during dispatch.
         unsafe {
             self.raw
                 .setBuffer_offset_atIndex(Some(buffer.raw()), offset, index as usize);
@@ -257,7 +274,9 @@ impl<'a> MetalComputeEncoder<'a> for Metal4ComputeEncoder<'a> {
     }
 
     fn set_buffer(&mut self, index: u32, buffer: &Self::Buffer, offset: usize) -> Result<()> {
-        // Safety: buffer.raw() returns a valid MTLBuffer
+        // SAFETY: buffer.raw() returns a valid MTLBuffer reference. The encoder
+        // retains the buffer for the duration of the encoding. The index and offset
+        // are passed directly to Metal which validates them during dispatch.
         unsafe {
             self.raw
                 .setBuffer_offset_atIndex(Some(buffer.raw()), offset, index as usize);
@@ -267,9 +286,12 @@ impl<'a> MetalComputeEncoder<'a> for Metal4ComputeEncoder<'a> {
 
     fn set_bytes(&mut self, index: u32, data: &[u8]) -> Result<()> {
         if let Some(ptr) = std::ptr::NonNull::new(data.as_ptr() as *mut std::ffi::c_void) {
-            // Safety: ptr is a valid NonNull pointer to the data slice
+            // SAFETY: ptr is a NonNull created from a valid &[u8] slice. The Metal API
+            // copies the bytes during this call, so the pointer only needs to be valid
+            // for the duration of setBytes_length_atIndex. data.len() is the correct size.
             unsafe {
-                self.raw.setBytes_length_atIndex(ptr, data.len(), index as usize);
+                self.raw
+                    .setBytes_length_atIndex(ptr, data.len(), index as usize);
             }
         }
         Ok(())
@@ -348,8 +370,9 @@ impl<'a> MetalComputeEncoder<'a> for Metal4ComputeEncoder<'a> {
     }
 }
 
-// Safety: Compute encoders should only be used from one thread at a time
-// but can be sent between threads
+// SAFETY: Metal4ComputeEncoder is Send because the encoder can be transferred
+// between threads. While encoding must happen from one thread at a time (enforced
+// by &mut self in all encoding methods), the transfer itself is safe.
 unsafe impl Send for Metal4ComputeEncoder<'_> {}
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 //! Streaming compression for real-time knowledge graph updates
 
-use super::{CompressionConfig, CompressedKnowledgeGraph, CompressionPerformanceMetrics};
-use crate::{KnowledgeGraph, KnowledgeGraphResult};
+use super::{CompressedKnowledgeGraph, CompressionConfig, CompressionPerformanceMetrics};
+use crate::KnowledgeGraphResult;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -67,11 +67,11 @@ impl StreamingCompressionEngine {
     pub async fn process_update(&self, update: GraphUpdate) -> KnowledgeGraphResult<()> {
         let mut buffer = self.buffer.write().await;
         buffer.push(update);
-        
+
         if buffer.len() >= self.config.buffer_size {
             self.flush_buffer().await?;
         }
-        
+
         Ok(())
     }
 
@@ -79,7 +79,7 @@ impl StreamingCompressionEngine {
     pub async fn flush_buffer(&self) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
         let mut buffer = self.buffer.write().await;
         let updates = std::mem::take(&mut *buffer);
-        
+
         // Process updates and create compressed representation
         self.compress_updates(updates).await
     }
@@ -89,7 +89,10 @@ impl StreamingCompressionEngine {
         self.metrics.read().await.clone()
     }
 
-    async fn compress_updates(&self, _updates: Vec<GraphUpdate>) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
+    async fn compress_updates(
+        &self,
+        _updates: Vec<GraphUpdate>,
+    ) -> KnowledgeGraphResult<CompressedKnowledgeGraph> {
         // Placeholder implementation
         Ok(CompressedKnowledgeGraph {
             compressed_nodes: vec![],

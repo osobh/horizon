@@ -3,21 +3,21 @@
 //! Provides GPU-native memory management with real CUDA integration,
 //! automatic CPU overflow, unified memory, and multi-GPU support.
 
+use anyhow::Result;
 use std::collections::HashMap;
 use std::ptr::NonNull;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use anyhow::Result;
 use thiserror::Error;
 
 #[cfg(feature = "cuda")]
-use cudarc::driver::{CudaDevice, DevicePtr};
-#[cfg(feature = "cuda")]
 use cudarc::driver::sys::cuMemHostAlloc;
+#[cfg(feature = "cuda")]
+use cudarc::driver::{CudaDevice, DevicePtr};
 
 use crate::memory_pool::MemoryPool;
-use crate::unified_memory::{UnifiedMemoryManager, UnifiedAllocation};
 use crate::multi_gpu::MultiGpuManager;
+use crate::unified_memory::{UnifiedAllocation, UnifiedMemoryManager};
 
 /// Configuration for GPU memory tier
 #[derive(Debug, Clone)]
@@ -208,7 +208,7 @@ impl MemoryAllocation {
         if self.location == MemoryLocation::Gpu {
             // In a real implementation, this would:
             // 1. Allocate CPU memory
-            // 2. Copy data from GPU to CPU  
+            // 2. Copy data from GPU to CPU
             // 3. Free GPU memory
             // 4. Update location and pointer
             self.location = MemoryLocation::Cpu;
@@ -223,29 +223,28 @@ impl MemoryAllocation {
 impl ZeroCopyBuffer {
     pub fn write_cpu(&self, data: &[u8]) -> Result<()> {
         if data.len() > self.size {
-            return Err(GpuMemoryError::AllocationFailed { 
-                size: data.len() as u64 
-            }.into());
+            return Err(GpuMemoryError::AllocationFailed {
+                size: data.len() as u64,
+            }
+            .into());
         }
 
+        // SAFETY: The source pointer (data.as_ptr()) is valid for data.len() bytes.
+        // The destination (self.ptr) is a valid NonNull from allocation with size >= data.len()
+        // (checked above). The regions do not overlap as data is a separate slice.
         unsafe {
-            std::ptr::copy_nonoverlapping(
-                data.as_ptr(),
-                self.ptr.as_ptr(),
-                data.len(),
-            );
+            std::ptr::copy_nonoverlapping(data.as_ptr(), self.ptr.as_ptr(), data.len());
         }
         Ok(())
     }
 
     pub fn read_cpu(&self) -> Vec<u8> {
         let mut data = vec![0u8; self.size];
+        // SAFETY: The source (self.ptr) is a valid NonNull from allocation with self.size bytes.
+        // The destination (data.as_mut_ptr()) is valid for self.size bytes from vec allocation.
+        // The regions do not overlap as data is a newly allocated Vec.
         unsafe {
-            std::ptr::copy_nonoverlapping(
-                self.ptr.as_ptr(),
-                data.as_mut_ptr(),
-                self.size,
-            );
+            std::ptr::copy_nonoverlapping(self.ptr.as_ptr(), data.as_mut_ptr(), self.size);
         }
         data
     }
@@ -296,13 +295,13 @@ impl PinnedAllocation {
 
     pub fn dma_copy_to(&self, _dest: &MemoryAllocation) -> Result<Duration> {
         let start = Instant::now();
-        
+
         // In a real implementation, this would use CUDA async memory copy
         #[cfg(feature = "cuda")]
         {
             // cuMemcpyHtoDAsync or similar CUDA API call
         }
-        
+
         let duration = start.elapsed();
         Ok(duration)
     }
@@ -312,10 +311,8 @@ impl PinnedAllocation {
 impl GpuMemoryTier {
     pub fn new(config: MemoryConfig) -> Result<Self> {
         #[cfg(feature = "cuda")]
-        let cuda_device = {
-            CudaDevice::new(0)
-                .with_context(|| "Failed to initialize CUDA device")?
-        };
+        let cuda_device =
+            { CudaDevice::new(0).with_context(|| "Failed to initialize CUDA device")? };
 
         let unified_manager = if config.enable_unified_memory {
             #[cfg(feature = "cuda")]
@@ -414,8 +411,11 @@ impl GpuMemoryTier {
                 created_at: Instant::now(),
                 from_pool: false,
             };
-            
-            self.gpu_allocations.lock().unwrap().push(allocation.clone());
+
+            self.gpu_allocations
+                .lock()
+                .unwrap()
+                .push(allocation.clone());
             Ok(allocation)
         }
         #[cfg(not(feature = "cuda"))]
@@ -423,11 +423,13 @@ impl GpuMemoryTier {
             // For testing without CUDA
             let layout = std::alloc::Layout::from_size_align(size as usize, 8)
                 .map_err(|_| GpuMemoryError::AllocationFailed { size })?;
+            // SAFETY: Layout is valid (checked above). Caller is responsible for freeing
+            // the memory. Null check immediately follows to handle allocation failure.
             let ptr = unsafe { std::alloc::alloc(layout) };
             if ptr.is_null() {
                 return Err(GpuMemoryError::AllocationFailed { size }.into());
             }
-            
+
             Ok(MemoryAllocation {
                 ptr: NonNull::new(ptr).unwrap(),
                 size,
@@ -443,6 +445,8 @@ impl GpuMemoryTier {
     fn allocate_cpu(&self, size: u64) -> Result<MemoryAllocation> {
         let layout = std::alloc::Layout::from_size_align(size as usize, 8)
             .map_err(|_| GpuMemoryError::AllocationFailed { size })?;
+        // SAFETY: Layout is valid (checked above). The allocation is tracked in
+        // cpu_allocations for later deallocation. Null check handles failure.
         let ptr = unsafe { std::alloc::alloc(layout) };
         if ptr.is_null() {
             return Err(GpuMemoryError::AllocationFailed { size }.into());
@@ -458,12 +462,19 @@ impl GpuMemoryTier {
             from_pool: false,
         };
 
-        self.cpu_allocations.lock().unwrap().push(allocation.clone());
+        self.cpu_allocations
+            .lock()
+            .unwrap()
+            .push(allocation.clone());
         Ok(allocation)
     }
 
     #[must_use = "UnifiedAllocation must be stored to free the memory later"]
-    pub fn allocate_unified(&self, size: u64, _strategy: AllocationStrategy) -> Result<UnifiedAllocation> {
+    pub fn allocate_unified(
+        &self,
+        size: u64,
+        _strategy: AllocationStrategy,
+    ) -> Result<UnifiedAllocation> {
         if let Some(ref manager) = self.unified_manager {
             manager.allocate(size)
         } else {
@@ -479,6 +490,8 @@ impl GpuMemoryTier {
             // For now, use regular allocation as placeholder
             let layout = std::alloc::Layout::from_size_align(size, 8)
                 .map_err(|_| GpuMemoryError::AllocationFailed { size: size as u64 })?;
+            // SAFETY: Layout is valid (checked above). In production this would use
+            // cudaMallocHost for page-locked memory. Null check handles failure.
             let ptr = unsafe { std::alloc::alloc(layout) };
             if ptr.is_null() {
                 return Err(GpuMemoryError::AllocationFailed { size: size as u64 }.into());
@@ -495,6 +508,8 @@ impl GpuMemoryTier {
             // For testing without CUDA
             let layout = std::alloc::Layout::from_size_align(size, 8)
                 .map_err(|_| GpuMemoryError::AllocationFailed { size: size as u64 })?;
+            // SAFETY: Layout is valid (checked above). Null check handles allocation failure.
+            // Memory is managed by ZeroCopyBuffer lifetime.
             let ptr = unsafe { std::alloc::alloc(layout) };
             if ptr.is_null() {
                 return Err(GpuMemoryError::AllocationFailed { size: size as u64 }.into());
@@ -515,6 +530,8 @@ impl GpuMemoryTier {
             // For now, use regular allocation as placeholder
             let layout = std::alloc::Layout::from_size_align(size as usize, 8)
                 .map_err(|_| GpuMemoryError::AllocationFailed { size })?;
+            // SAFETY: Layout is valid (checked above). In production this would use
+            // cudaMallocHost for pinned memory suitable for DMA. Null check handles failure.
             let ptr = unsafe { std::alloc::alloc(layout) };
             if ptr.is_null() {
                 return Err(GpuMemoryError::AllocationFailed { size }.into());
@@ -531,6 +548,8 @@ impl GpuMemoryTier {
             // For testing without CUDA
             let layout = std::alloc::Layout::from_size_align(size as usize, 8)
                 .map_err(|_| GpuMemoryError::AllocationFailed { size })?;
+            // SAFETY: Layout is valid (checked above). Null check handles allocation failure.
+            // Memory is managed by PinnedAllocation lifetime.
             let ptr = unsafe { std::alloc::alloc(layout) };
             if ptr.is_null() {
                 return Err(GpuMemoryError::AllocationFailed { size }.into());
@@ -545,7 +564,10 @@ impl GpuMemoryTier {
 
     pub fn create_pool(&self, name: &str, size: u64) -> Result<Arc<MemoryPool>> {
         let pool = Arc::new(MemoryPool::new(name.to_string(), size));
-        self.memory_pools.lock().unwrap().insert(name.to_string(), pool.clone());
+        self.memory_pools
+            .lock()
+            .unwrap()
+            .insert(name.to_string(), pool.clone());
         Ok(pool)
     }
 
@@ -577,13 +599,15 @@ impl GpuMemoryTier {
         if let Some(ref manager) = self.multi_gpu_manager {
             // Convert to multi_gpu MemoryAllocation type
             let src_multi = crate::multi_gpu::MemoryAllocation::new(src.ptr, src.size, src.gpu_id);
-            let dest_multi = crate::multi_gpu::MemoryAllocation::new(dest.ptr, dest.size, dest.gpu_id);
+            let dest_multi =
+                crate::multi_gpu::MemoryAllocation::new(dest.ptr, dest.size, dest.gpu_id);
             manager.p2p_copy(&src_multi, &dest_multi)
         } else {
-            Err(GpuMemoryError::P2PTransferFailed { 
-                src: src.gpu_id(), 
-                dst: dest.gpu_id() 
-            }.into())
+            Err(GpuMemoryError::P2PTransferFailed {
+                src: src.gpu_id(),
+                dst: dest.gpu_id(),
+            }
+            .into())
         }
     }
 

@@ -152,14 +152,9 @@ pub async fn get_strategic_kpis(
     let limit = query.limit.unwrap_or(50);
     sql.push_str(&format!(" ORDER BY last_updated DESC LIMIT {}", limit));
 
-    let kpis_db: Vec<StrategicKPIDb> = sqlx::query_as(&sql)
-        .fetch_all(&state.db)
-        .await?;
+    let kpis_db: Vec<StrategicKPIDb> = sqlx::query_as(&sql).fetch_all(&state.db).await?;
 
-    let kpis: Vec<StrategicKPI> = kpis_db
-        .into_iter()
-        .map(|db| db.into())
-        .collect();
+    let kpis: Vec<StrategicKPI> = kpis_db.into_iter().map(|db| db.into()).collect();
 
     Ok(Json(kpis))
 }
@@ -180,16 +175,14 @@ pub async fn get_kpi(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<StrategicKPI>> {
-    let kpi_db: StrategicKPIDb = sqlx::query_as(
-        "SELECT * FROM strategic_kpis WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => HpcError::report_not_found(format!("KPI {}", id)),
-        _ => e.into(),
-    })?;
+    let kpi_db: StrategicKPIDb = sqlx::query_as("SELECT * FROM strategic_kpis WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => HpcError::report_not_found(format!("KPI {}", id)),
+            _ => e.into(),
+        })?;
 
     let kpi: StrategicKPI = kpi_db.into();
     Ok(Json(kpi))
@@ -400,14 +393,9 @@ pub async fn get_initiatives(
     let limit = query.limit.unwrap_or(50);
     sql.push_str(&format!(" ORDER BY last_updated DESC LIMIT {}", limit));
 
-    let initiatives_db: Vec<InitiativeDb> = sqlx::query_as(&sql)
-        .fetch_all(&state.db)
-        .await?;
+    let initiatives_db: Vec<InitiativeDb> = sqlx::query_as(&sql).fetch_all(&state.db).await?;
 
-    let initiatives: Vec<Initiative> = initiatives_db
-        .into_iter()
-        .map(|db| db.into())
-        .collect();
+    let initiatives: Vec<Initiative> = initiatives_db.into_iter().map(|db| db.into()).collect();
 
     Ok(Json(initiatives))
 }
@@ -428,16 +416,16 @@ pub async fn get_initiative(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Initiative>> {
-    let initiative_db: InitiativeDb = sqlx::query_as(
-        "SELECT * FROM initiatives WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => HpcError::not_found("resource", format!("Initiative {} not found", id)),
-        _ => e.into(),
-    })?;
+    let initiative_db: InitiativeDb = sqlx::query_as("SELECT * FROM initiatives WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => {
+                HpcError::not_found("resource", format!("Initiative {} not found", id))
+            }
+            _ => e.into(),
+        })?;
 
     let initiative: Initiative = initiative_db.into();
     Ok(Json(initiative))
@@ -476,7 +464,7 @@ pub async fn create_initiative(
             $1, $2, 'planning', $3, $4, 0.0, NOW(), NOW() + INTERVAL '90 days', $5, 0.0, $6
         )
         RETURNING *
-        "#
+        "#,
     )
     .bind(&request.title)
     .bind(&request.description)
@@ -535,7 +523,11 @@ pub async fn update_initiative(
     }
 
     updates.push("last_updated = NOW()".to_string());
-    let sql = format!("UPDATE initiatives SET {} WHERE id = ${} RETURNING *", updates.join(", "), param_idx);
+    let sql = format!(
+        "UPDATE initiatives SET {} WHERE id = ${} RETURNING *",
+        updates.join(", "),
+        param_idx
+    );
 
     let initiative_db: InitiativeDb = if let Some(progress) = request.progress {
         let mut q = sqlx::query_as(&sql).bind(progress);
@@ -544,7 +536,11 @@ pub async fn update_initiative(
         }
         q.bind(id).fetch_one(&state.db).await?
     } else if let Some(ref status) = request.status {
-        sqlx::query_as(&sql).bind(status).bind(id).fetch_one(&state.db).await?
+        sqlx::query_as(&sql)
+            .bind(status)
+            .bind(id)
+            .fetch_one(&state.db)
+            .await?
     } else {
         return Err(HpcError::invalid_request("No fields to update".to_string()));
     };
@@ -569,15 +565,16 @@ pub async fn delete_initiative(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<()> {
-    let result = sqlx::query(
-        "DELETE FROM initiatives WHERE id = $1"
-    )
-    .bind(id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("DELETE FROM initiatives WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(HpcError::not_found("resource", format!("Initiative {} not found", id)));
+        return Err(HpcError::not_found(
+            "resource",
+            format!("Initiative {} not found", id),
+        ));
     }
 
     Ok(())
@@ -628,15 +625,13 @@ pub async fn get_capacity_insights(
                 confidence: 0.78,
             },
         ],
-        capacity_gaps: vec![
-            CapacityGap {
-                resource_type: "H100 GPUs".to_string(),
-                timeframe: "Next 30 days".to_string(),
-                gap_percent: 12.5,
-                severity: "medium".to_string(),
-                recommendation: "Add 10 H100 GPUs".to_string(),
-            },
-        ],
+        capacity_gaps: vec![CapacityGap {
+            resource_type: "H100 GPUs".to_string(),
+            timeframe: "Next 30 days".to_string(),
+            gap_percent: 12.5,
+            severity: "medium".to_string(),
+            recommendation: "Add 10 H100 GPUs".to_string(),
+        }],
         recommendations: vec![
             "Expand H100 capacity by 15% to meet projected demand".to_string(),
             "Consider hybrid cloud for burst workloads".to_string(),
@@ -676,15 +671,13 @@ pub async fn get_capacity_gaps(
 
     let _db = &state.db;
 
-    Ok(Json(vec![
-        CapacityGap {
-            resource_type: "H100 GPUs".to_string(),
-            timeframe: "Next 30 days".to_string(),
-            gap_percent: 12.5,
-            severity: "medium".to_string(),
-            recommendation: "Add 10 H100 GPUs".to_string(),
-        },
-    ]))
+    Ok(Json(vec![CapacityGap {
+        resource_type: "H100 GPUs".to_string(),
+        timeframe: "Next 30 days".to_string(),
+        gap_percent: 12.5,
+        severity: "medium".to_string(),
+        recommendation: "Add 10 H100 GPUs".to_string(),
+    }]))
 }
 
 // ==================== Alerts ====================
@@ -739,9 +732,7 @@ pub async fn get_alerts(
     let limit = query.limit.unwrap_or(50);
     sql.push_str(&format!(" ORDER BY created_at DESC LIMIT {}", limit));
 
-    let alerts: Vec<StrategicAlert> = sqlx::query_as(&sql)
-        .fetch_all(&state.db)
-        .await?;
+    let alerts: Vec<StrategicAlert> = sqlx::query_as(&sql).fetch_all(&state.db).await?;
 
     Ok(Json(alerts))
 }
@@ -796,19 +787,17 @@ pub async fn resolve_alert(
     ),
     tag = "executive"
 )]
-pub async fn dismiss_alert(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<Uuid>,
-) -> Result<()> {
-    let result = sqlx::query(
-        "DELETE FROM strategic_alerts WHERE id = $1"
-    )
-    .bind(id)
-    .execute(&state.db)
-    .await?;
+pub async fn dismiss_alert(State(state): State<Arc<AppState>>, Path(id): Path<Uuid>) -> Result<()> {
+    let result = sqlx::query("DELETE FROM strategic_alerts WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(HpcError::not_found("resource", format!("Alert {} not found", id)));
+        return Err(HpcError::not_found(
+            "resource",
+            format!("Alert {} not found", id),
+        ));
     }
 
     Ok(())
@@ -959,14 +948,11 @@ pub async fn get_investment_recommendations(
     let limit = query.limit.unwrap_or(50);
     sql.push_str(&format!(" ORDER BY expected_roi DESC LIMIT {}", limit));
 
-    let recommendations_db: Vec<InvestmentRecommendationDb> = sqlx::query_as(&sql)
-        .fetch_all(&state.db)
-        .await?;
+    let recommendations_db: Vec<InvestmentRecommendationDb> =
+        sqlx::query_as(&sql).fetch_all(&state.db).await?;
 
-    let recommendations: Vec<InvestmentRecommendation> = recommendations_db
-        .into_iter()
-        .map(|db| db.into())
-        .collect();
+    let recommendations: Vec<InvestmentRecommendation> =
+        recommendations_db.into_iter().map(|db| db.into()).collect();
 
     Ok(Json(recommendations))
 }
@@ -996,16 +982,17 @@ pub async fn accept_recommendation(
     Json(_request): Json<AcceptRecommendationRequest>,
 ) -> Result<Json<Initiative>> {
     // First, fetch the recommendation
-    let recommendation_db: InvestmentRecommendationDb = sqlx::query_as(
-        "SELECT * FROM investment_recommendations WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => HpcError::not_found("resource", format!("Recommendation {} not found", id)),
-        _ => e.into(),
-    })?;
+    let recommendation_db: InvestmentRecommendationDb =
+        sqlx::query_as("SELECT * FROM investment_recommendations WHERE id = $1")
+            .bind(id)
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| match e {
+                sqlx::Error::RowNotFound => {
+                    HpcError::not_found("resource", format!("Recommendation {} not found", id))
+                }
+                _ => e.into(),
+            })?;
 
     let recommendation: InvestmentRecommendation = recommendation_db.into();
 
@@ -1020,7 +1007,7 @@ pub async fn accept_recommendation(
             NOW(), NOW() + INTERVAL '90 days', $4, 0.0, $5
         )
         RETURNING *
-        "#
+        "#,
     )
     .bind(&recommendation.title)
     .bind(&recommendation.description)
@@ -1063,15 +1050,16 @@ pub async fn reject_recommendation(
     Path(id): Path<Uuid>,
     Json(_request): Json<RejectRecommendationRequest>,
 ) -> Result<()> {
-    let result = sqlx::query(
-        "DELETE FROM investment_recommendations WHERE id = $1"
-    )
-    .bind(id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("DELETE FROM investment_recommendations WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(HpcError::not_found("resource", format!("Recommendation {} not found", id)));
+        return Err(HpcError::not_found(
+            "resource",
+            format!("Recommendation {} not found", id),
+        ));
     }
 
     Ok(())
@@ -1104,7 +1092,8 @@ pub async fn list_executive_reports(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ListReportsQuery>,
 ) -> Result<Json<Vec<ReportListItem>>> {
-    let mut sql = String::from("SELECT id, report_period, generated_at FROM executive_reports WHERE 1=1");
+    let mut sql =
+        String::from("SELECT id, report_period, generated_at FROM executive_reports WHERE 1=1");
 
     if let Some(ref period) = query.period {
         sql.push_str(&format!(" AND report_period::text LIKE '{}%'", period));
@@ -1113,9 +1102,8 @@ pub async fn list_executive_reports(
     let limit = query.limit.unwrap_or(50);
     sql.push_str(&format!(" ORDER BY generated_at DESC LIMIT {}", limit));
 
-    let reports_raw: Vec<(uuid::Uuid, chrono::NaiveDate, DateTime<Utc>)> = sqlx::query_as(&sql)
-        .fetch_all(&state.db)
-        .await?;
+    let reports_raw: Vec<(uuid::Uuid, chrono::NaiveDate, DateTime<Utc>)> =
+        sqlx::query_as(&sql).fetch_all(&state.db).await?;
 
     let reports: Vec<ReportListItem> = reports_raw
         .into_iter()
@@ -1148,16 +1136,16 @@ pub async fn get_executive_report(
     let uuid_id = uuid::Uuid::parse_str(&id)
         .map_err(|_| HpcError::invalid_request("Invalid UUID format".to_string()))?;
 
-    let report: ExecutiveReport = sqlx::query_as(
-        "SELECT * FROM executive_reports WHERE id = $1"
-    )
-    .bind(uuid_id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => HpcError::not_found("resource", format!("Report {} not found", id)),
-        _ => e.into(),
-    })?;
+    let report: ExecutiveReport = sqlx::query_as("SELECT * FROM executive_reports WHERE id = $1")
+        .bind(uuid_id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => {
+                HpcError::not_found("resource", format!("Report {} not found", id))
+            }
+            _ => e.into(),
+        })?;
 
     // Return the full report with metadata and content
     Ok(Json(serde_json::json!({
@@ -1191,8 +1179,10 @@ pub async fn generate_executive_report(
     Json(request): Json<GenerateReportRequest>,
 ) -> Result<Json<serde_json::Value>> {
     // Parse the period string (expected format: YYYY-MM or YYYY-MM-DD)
-    let report_period = chrono::NaiveDate::parse_from_str(&format!("{}-01", &request.period), "%Y-%m-%d")
-        .map_err(|_| HpcError::invalid_request("Invalid period format. Expected YYYY-MM".to_string()))?;
+    let report_period =
+        chrono::NaiveDate::parse_from_str(&format!("{}-01", &request.period), "%Y-%m-%d").map_err(
+            |_| HpcError::invalid_request("Invalid period format. Expected YYYY-MM".to_string()),
+        )?;
 
     // Create report content structure
     let content = serde_json::json!({
@@ -1214,7 +1204,7 @@ pub async fn generate_executive_report(
             'monthly_executive', $1, NOW(), $2
         )
         RETURNING *
-        "#
+        "#,
     )
     .bind(report_period)
     .bind(&content)
@@ -1280,19 +1270,17 @@ pub async fn get_dashboard_data(
             total_gpu_hours: 18_450.0,
             cost_per_gpu_hour: 3.45,
         },
-        kpis: vec![
-            StrategicKPI {
-                id: Uuid::new_v4(),
-                name: "GPU Utilization".to_string(),
-                category: "efficiency".to_string(),
-                current_value: 78.5,
-                target_value: 85.0,
-                unit: "%".to_string(),
-                status: "on_track".to_string(),
-                trend: "up".to_string(),
-                last_updated: Utc::now(),
-            },
-        ],
+        kpis: vec![StrategicKPI {
+            id: Uuid::new_v4(),
+            name: "GPU Utilization".to_string(),
+            category: "efficiency".to_string(),
+            current_value: 78.5,
+            target_value: 85.0,
+            unit: "%".to_string(),
+            status: "on_track".to_string(),
+            trend: "up".to_string(),
+            last_updated: Utc::now(),
+        }],
         financial_summary: FinancialSummary {
             period: "month".to_string(),
             total_revenue: 2_500_000.0,
@@ -1303,42 +1291,38 @@ pub async fn get_dashboard_data(
             revenue_by_customer: vec![],
             cost_by_category: vec![],
         },
-        top_alerts: vec![
-            StrategicAlert {
-                id: Uuid::new_v4(),
-                title: "Capacity Threshold Warning".to_string(),
-                description: "GPU utilization projected to exceed 90% in 14 days".to_string(),
-                severity: "high".to_string(),
-                category: "capacity".to_string(),
-                impact: "May delay customer jobs if not addressed".to_string(),
-                created_at: Utc::now(),
-                resolved: false,
-                resolved_at: None,
-            },
-        ],
-        top_initiatives: vec![
-            Initiative {
-                id: Uuid::new_v4(),
-                title: "GPU Fleet Expansion".to_string(),
-                description: "Add 50 H100 GPUs to meet Q4 demand".to_string(),
-                status: "in_progress".to_string(),
-                priority: "high".to_string(),
-                owner: "Infrastructure Team".to_string(),
-                progress: 65.0,
-                start_date: Utc::now(),
-                target_date: Utc::now(),
-                budget: 2_500_000.0,
-                spent: 1_625_000.0,
-                expected_roi: 3.5,
-                last_updated: Utc::now(),
-            },
-        ],
+        top_alerts: vec![StrategicAlert {
+            id: Uuid::new_v4(),
+            title: "Capacity Threshold Warning".to_string(),
+            description: "GPU utilization projected to exceed 90% in 14 days".to_string(),
+            severity: "high".to_string(),
+            category: "capacity".to_string(),
+            impact: "May delay customer jobs if not addressed".to_string(),
+            created_at: Utc::now(),
+            resolved: false,
+            resolved_at: None,
+        }],
+        top_initiatives: vec![Initiative {
+            id: Uuid::new_v4(),
+            title: "GPU Fleet Expansion".to_string(),
+            description: "Add 50 H100 GPUs to meet Q4 demand".to_string(),
+            status: "in_progress".to_string(),
+            priority: "high".to_string(),
+            owner: "Infrastructure Team".to_string(),
+            progress: 65.0,
+            start_date: Utc::now(),
+            target_date: Utc::now(),
+            budget: 2_500_000.0,
+            spent: 1_625_000.0,
+            expected_roi: 3.5,
+            last_updated: Utc::now(),
+        }],
         capacity_insight: CapacityInsight {
             current_utilization: 78.5,
             forecasted_demand: vec![],
             capacity_gaps: vec![],
             recommendations: vec![
-                "Expand H100 capacity by 15% to meet projected demand".to_string(),
+                "Expand H100 capacity by 15% to meet projected demand".to_string()
             ],
         },
     }))

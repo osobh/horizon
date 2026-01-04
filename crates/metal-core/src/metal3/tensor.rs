@@ -6,7 +6,7 @@
 use crate::buffer::MetalBuffer;
 use crate::error::{MetalError, Result};
 use crate::metal3::{Metal3Buffer, Metal3Device};
-use crate::tensor::{MetalTensor, TensorDescriptor, TensorDType};
+use crate::tensor::{MetalTensor, TensorDType, TensorDescriptor};
 
 /// Metal 3 tensor implementation.
 ///
@@ -77,11 +77,7 @@ impl Metal3Tensor {
     /// Calculate the linear index for a multi-dimensional index.
     pub fn linear_index(&self, indices: &[usize]) -> usize {
         assert_eq!(indices.len(), self.shape.len());
-        indices
-            .iter()
-            .zip(&self.strides)
-            .map(|(i, s)| i * s)
-            .sum()
+        indices.iter().zip(&self.strides).map(|(i, s)| i * s).sum()
     }
 
     /// Reshape the tensor (view only, no data copy).

@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::models::{Job, JobState, Priority};
 use crate::models::resource::{ComputeType, ResourceType};
+use crate::models::{Job, JobState, Priority};
 
 /// Request to submit a new job
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -94,15 +94,17 @@ impl From<Job> for JobResponse {
     fn from(job: Job) -> Self {
         // Extract GPU info
         let gpu_spec = job.resources.get_gpu_spec();
-        let gpu_count = gpu_spec
-            .map(|s| s.amount as usize)
-            .unwrap_or(0);
+        let gpu_count = gpu_spec.map(|s| s.amount as usize).unwrap_or(0);
         let gpu_type = gpu_spec
             .and_then(|s| s.constraints.as_ref())
             .and_then(|c| c.model.clone());
 
         // Extract CPU info
-        let cpu_spec = job.resources.inner.resources.get(&ResourceType::Compute(ComputeType::Cpu));
+        let cpu_spec = job
+            .resources
+            .inner
+            .resources
+            .get(&ResourceType::Compute(ComputeType::Cpu));
         let cpu_cores = cpu_spec.map(|s| s.amount as u32);
 
         // Extract memory info

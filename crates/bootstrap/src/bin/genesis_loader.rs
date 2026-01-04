@@ -5,8 +5,8 @@
 
 use anyhow::Result;
 use clap::Parser;
-use stratoswarm_bootstrap::{initialize_bootstrap, BootstrapConfig, BootstrapPhase, GenesisLoader};
 use std::path::PathBuf;
+use stratoswarm_bootstrap::{initialize_bootstrap, BootstrapConfig, BootstrapPhase, GenesisLoader};
 use tracing::{error, info};
 
 #[derive(clap::Parser)]

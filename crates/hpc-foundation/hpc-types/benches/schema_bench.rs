@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
-use prost::Message;
 use hpc_types::telemetry::v1::{GpuMetric, MetricBatch};
 use hpc_types::{create_timestamp, timestamp_from_system_time};
+use prost::Message;
 use std::time::SystemTime;
 
 fn create_gpu_metric(id: usize) -> GpuMetric {

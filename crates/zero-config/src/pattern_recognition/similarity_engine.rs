@@ -70,8 +70,8 @@ impl SimilarityEngine {
                 } else {
                     // Check for similar framework types
                     let web_frameworks =
-                        vec!["express", "fastapi", "django", "flask", "actix-web", "warp"];
-                    let ml_frameworks = vec!["tensorflow", "pytorch", "scikit-learn"];
+                        ["express", "fastapi", "django", "flask", "actix-web", "warp"];
+                    let ml_frameworks = ["tensorflow", "pytorch", "scikit-learn"];
 
                     if web_frameworks.contains(&f1.as_str())
                         && web_frameworks.contains(&f2.as_str())

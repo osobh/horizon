@@ -24,7 +24,7 @@ pub struct DeploymentPattern {
 }
 
 /// Feature vector for pattern matching
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FeatureVector {
     pub language_features: LanguageFeatures,
     pub dependency_features: DependencyFeatures,
@@ -49,7 +49,7 @@ pub struct LanguageFeatures {
 }
 
 /// Dependency-related features
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DependencyFeatures {
     pub database_count: usize,
     pub cache_count: usize,
@@ -186,18 +186,6 @@ impl Default for DeploymentPattern {
     }
 }
 
-impl Default for FeatureVector {
-    fn default() -> Self {
-        Self {
-            language_features: LanguageFeatures::default(),
-            dependency_features: DependencyFeatures::default(),
-            resource_features: ResourceFeatures::default(),
-            scaling_features: ScalingFeatures::default(),
-            personality_features: PersonalityFeatures::default(),
-        }
-    }
-}
-
 impl Default for LanguageFeatures {
     fn default() -> Self {
         Self {
@@ -211,24 +199,6 @@ impl Default for LanguageFeatures {
             dependency_count: 0,
             total_lines: 1000,
             complexity_score: 0.5,
-        }
-    }
-}
-
-impl Default for DependencyFeatures {
-    fn default() -> Self {
-        Self {
-            database_count: 0,
-            cache_count: 0,
-            web_framework_count: 0,
-            ml_framework_count: 0,
-            message_queue_count: 0,
-            total_dependencies: 0,
-            web_frameworks: 0,
-            databases: 0,
-            caches: 0,
-            ml_frameworks: 0,
-            message_queues: 0,
         }
     }
 }

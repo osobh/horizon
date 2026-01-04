@@ -489,6 +489,9 @@ mod ffi_tests {
 
     #[test]
     fn test_gpu_dma_init_cleanup() {
+        // SAFETY: gpu_dma_lock_init() and gpu_dma_lock_cleanup() are FFI functions
+        // that initialize/cleanup the kernel module state. This test runs in isolation
+        // and verifies the init/cleanup cycle works correctly.
         unsafe {
             assert_eq!(gpu_dma_lock_init(), 0);
             gpu_dma_lock_cleanup();
@@ -497,6 +500,9 @@ mod ffi_tests {
 
     #[test]
     fn test_device_registration() {
+        // SAFETY: FFI test for device registration. The CString is kept alive for
+        // the duration of the call via name variable. All functions are called in
+        // correct init/cleanup sequence.
         unsafe {
             gpu_dma_lock_init();
 
@@ -512,6 +518,8 @@ mod ffi_tests {
 
     #[test]
     fn test_agent_management() {
+        // SAFETY: FFI test for agent creation/removal. All functions are called
+        // in correct init/cleanup sequence with valid parameters.
         unsafe {
             gpu_dma_lock_init();
 
@@ -529,6 +537,9 @@ mod ffi_tests {
 
     #[test]
     fn test_allocation_deallocation() {
+        // SAFETY: FFI test for memory allocation/deallocation. The CString for device
+        // name is kept alive during registration. All operations are performed in
+        // correct sequence with valid IDs.
         unsafe {
             gpu_dma_lock_init();
 
@@ -551,6 +562,8 @@ mod ffi_tests {
 
     #[test]
     fn test_dma_access_control() {
+        // SAFETY: FFI test for DMA access control. All addresses and modes are
+        // valid test values within the granted range.
         unsafe {
             gpu_dma_lock_init();
 
@@ -567,6 +580,8 @@ mod ffi_tests {
 
     #[test]
     fn test_context_management() {
+        // SAFETY: FFI test for GPU context creation and switching. Context IDs
+        // returned by create_context are valid for use with switch_context.
         unsafe {
             gpu_dma_lock_init();
 
@@ -585,6 +600,8 @@ mod ffi_tests {
 
     #[test]
     fn test_stats_retrieval() {
+        // SAFETY: FFI test for statistics retrieval. The stats struct is properly
+        // initialized and its address is valid for the duration of the call.
         unsafe {
             gpu_dma_lock_init();
 
@@ -606,6 +623,8 @@ mod ffi_tests {
 
     #[test]
     fn test_debug_enable() {
+        // SAFETY: FFI test for debug mode toggle. The enable/disable values (1/0)
+        // are valid boolean representations.
         unsafe {
             gpu_dma_lock_init();
 

@@ -11,7 +11,9 @@ use uuid::Uuid;
 use crate::{
     api::state::AppState,
     attribution::{CostAllocator, JobData, PricingRates, ResourceUsage},
-    models::{CostAttribution, CostAttributionQuery, CostRollup, CreateCostAttribution, PricingModel},
+    models::{
+        CostAttribution, CostAttributionQuery, CostRollup, CreateCostAttribution, PricingModel,
+    },
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -129,10 +131,16 @@ pub async fn calculate_attribution(
         .repository
         .get_current_pricing(&req.gpu_type, PricingModel::OnDemand, req.start_time)
         .await
-        .map_err(|e| (StatusCode::NOT_FOUND, format!("GPU pricing not found: {}", e)))?;
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                format!("GPU pricing not found: {}", e),
+            )
+        })?;
 
     // Parse rates from config
-    let network_rate = req.network_ingress_gb
+    let network_rate = req
+        .network_ingress_gb
         .checked_add(req.network_egress_gb)
         .map(|_| {
             state

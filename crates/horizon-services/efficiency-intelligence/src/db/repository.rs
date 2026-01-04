@@ -15,7 +15,7 @@ impl EfficiencyRepository {
 
     pub async fn list_detections(&self) -> Result<Vec<WasteDetection>> {
         let detections = sqlx::query_as::<_, WasteDetection>(
-            "SELECT * FROM waste_detections ORDER BY detected_at DESC LIMIT 100"
+            "SELECT * FROM waste_detections ORDER BY detected_at DESC LIMIT 100",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -31,7 +31,9 @@ impl EfficiencyRepository {
 
         Ok(SavingsSummary {
             total_detections: row.try_get::<Option<i64>, _>("count")?.unwrap_or(0),
-            total_savings: row.try_get::<Option<Decimal>, _>("total")?.unwrap_or(Decimal::ZERO),
+            total_savings: row
+                .try_get::<Option<Decimal>, _>("total")?
+                .unwrap_or(Decimal::ZERO),
         })
     }
 }

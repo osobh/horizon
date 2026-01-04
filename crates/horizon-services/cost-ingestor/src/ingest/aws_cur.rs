@@ -1,6 +1,8 @@
 use crate::error::{HpcError, IngestorErrorExt, Result};
 use crate::models::{CreateBillingRecord, Provider};
-use crate::normalize::{BillingNormalizer, GenericBillingRecord, RawBillingData, parse_decimal, parse_iso_datetime};
+use crate::normalize::{
+    parse_decimal, parse_iso_datetime, BillingNormalizer, GenericBillingRecord, RawBillingData,
+};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -98,7 +100,8 @@ impl BillingNormalizer for AwsCurNormalizer {
             return Err(HpcError::invalid_provider("Expected AWS provider"));
         }
 
-        let csv_data = raw.data
+        let csv_data = raw
+            .data
             .as_str()
             .ok_or_else(|| HpcError::parse_error("Expected CSV string data"))?;
 
@@ -133,9 +136,15 @@ mod tests {
         let records = AwsCurNormalizer::parse_csv(SAMPLE_AWS_CUR).unwrap();
         assert_eq!(records.len(), 2);
 
-        assert_eq!(records[0].usage_account_id, Some("123456789012".to_string()));
+        assert_eq!(
+            records[0].usage_account_id,
+            Some("123456789012".to_string())
+        );
         assert_eq!(records[0].product_code, Some("AmazonEC2".to_string()));
-        assert_eq!(records[0].resource_id, Some("i-1234567890abcdef0".to_string()));
+        assert_eq!(
+            records[0].resource_id,
+            Some("i-1234567890abcdef0".to_string())
+        );
         assert_eq!(records[0].unblended_cost, "1.50");
 
         assert_eq!(records[1].product_code, Some("AmazonS3".to_string()));
@@ -195,7 +204,10 @@ mod tests {
 
         let result = normalizer.normalize(&raw);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Expected AWS provider"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Expected AWS provider"));
     }
 
     #[test]

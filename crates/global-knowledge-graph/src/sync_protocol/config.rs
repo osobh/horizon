@@ -78,7 +78,11 @@ impl Default for GlobalSyncConfig {
         Self {
             max_sync_latency: Duration::from_millis(100),
             cluster_count: 3,
-            regions: vec!["us-east".to_string(), "us-west".to_string(), "eu-central".to_string()],
+            regions: vec![
+                "us-east".to_string(),
+                "us-west".to_string(),
+                "eu-central".to_string(),
+            ],
             gpu_specs: vec![],
             byzantine_threshold: 0.33,
             network_config: NetworkConfig::default(),

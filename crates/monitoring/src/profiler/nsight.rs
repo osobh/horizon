@@ -121,12 +121,12 @@ impl Profiler for NsightComputeProfiler {
     ) -> Result<KernelProfile, MonitoringError> {
         let key = (container_id, kernel_id.to_string());
 
-        let (_, session) = self
-            .active_sessions
-            .remove(&key)
-            .ok_or_else(|| MonitoringError::ProfilerFailed {
-                reason: "No active profile session found".to_string(),
-            })?;
+        let (_, session) =
+            self.active_sessions
+                .remove(&key)
+                .ok_or_else(|| MonitoringError::ProfilerFailed {
+                    reason: "No active profile session found".to_string(),
+                })?;
 
         // In a real implementation, we would:
         // 1. Stop the ncu process

@@ -249,7 +249,8 @@ pub async fn list_user_jobs(
     let jobs = state.scheduler.list_jobs(state_filter).await?;
 
     // Filter by user_id from path
-    let mut filtered_jobs: Vec<_> = jobs.into_iter()
+    let mut filtered_jobs: Vec<_> = jobs
+        .into_iter()
         .filter(|job| job.user_id == user_id)
         .collect();
 
@@ -287,22 +288,27 @@ pub async fn get_user_activity(
 ) -> Result<Json<serde_json::Value>, crate::HpcError> {
     // Get all jobs for the user
     let all_jobs = state.scheduler.list_jobs(None).await?;
-    let user_jobs: Vec<_> = all_jobs.into_iter()
+    let user_jobs: Vec<_> = all_jobs
+        .into_iter()
         .filter(|job| job.user_id == user_id)
         .collect();
 
     // Calculate activity statistics
     let total_jobs = user_jobs.len();
-    let running_jobs = user_jobs.iter()
+    let running_jobs = user_jobs
+        .iter()
         .filter(|j| matches!(j.state, ModelJobState::Running))
         .count();
-    let queued_jobs = user_jobs.iter()
+    let queued_jobs = user_jobs
+        .iter()
         .filter(|j| matches!(j.state, ModelJobState::Queued))
         .count();
-    let completed_jobs = user_jobs.iter()
+    let completed_jobs = user_jobs
+        .iter()
         .filter(|j| matches!(j.state, ModelJobState::Completed))
         .count();
-    let failed_jobs = user_jobs.iter()
+    let failed_jobs = user_jobs
+        .iter()
         .filter(|j| matches!(j.state, ModelJobState::Failed))
         .count();
 

@@ -176,9 +176,7 @@ impl LinuxNativeBackend {
     /// Check if user namespaces are available
     fn check_user_ns() -> bool {
         // Check if unprivileged user namespaces are allowed
-        if let Ok(content) =
-            std::fs::read_to_string("/proc/sys/kernel/unprivileged_userns_clone")
-        {
+        if let Ok(content) = std::fs::read_to_string("/proc/sys/kernel/unprivileged_userns_clone") {
             return content.trim() == "1";
         }
         // On newer kernels, it might always be enabled
@@ -247,9 +245,7 @@ impl LinuxNativeBackend {
             MsFlags::empty(),
             Some(options.as_str()),
         )
-        .map_err(|e| {
-            SwarmletError::WorkloadExecution(format!("Failed to mount overlayfs: {e}"))
-        })?;
+        .map_err(|e| SwarmletError::WorkloadExecution(format!("Failed to mount overlayfs: {e}")))?;
 
         debug!("Mounted overlayfs at {}", config.rootfs.display());
         Ok(())
@@ -310,11 +306,7 @@ impl LinuxNativeBackend {
 
     /// Setup cgroup limits for the build
     #[cfg(target_os = "linux")]
-    async fn setup_cgroup(
-        &self,
-        job_id: &str,
-        limits: &BuildResourceLimits,
-    ) -> Result<PathBuf> {
+    async fn setup_cgroup(&self, job_id: &str, limits: &BuildResourceLimits) -> Result<PathBuf> {
         let cgroup_path = self.cgroup_base.join(job_id);
 
         // Create cgroup directory
@@ -350,11 +342,7 @@ impl LinuxNativeBackend {
     }
 
     #[cfg(not(target_os = "linux"))]
-    async fn setup_cgroup(
-        &self,
-        _job_id: &str,
-        _limits: &BuildResourceLimits,
-    ) -> Result<PathBuf> {
+    async fn setup_cgroup(&self, _job_id: &str, _limits: &BuildResourceLimits) -> Result<PathBuf> {
         Err(SwarmletError::NotImplemented(
             "cgroups only available on Linux".to_string(),
         ))
@@ -415,7 +403,10 @@ impl LinuxNativeBackend {
                     Some(agent_id)
                 }
                 Err(e) => {
-                    warn!("Failed to setup kernel mount isolation, falling back: {}", e);
+                    warn!(
+                        "Failed to setup kernel mount isolation, falling back: {}",
+                        e
+                    );
                     None
                 }
             }
@@ -444,6 +435,10 @@ impl LinuxNativeBackend {
 
             info!("Using direct syscall namespace isolation (fallback mode)");
 
+            // SAFETY: pre_exec runs in the child process after fork() but before exec().
+            // This is the correct place to call unshare() for namespace isolation.
+            // The closure captures hostname by move, which is safe as it's a String clone.
+            // All operations inside (unshare, sethostname) are safe to call in this context.
             unsafe {
                 cmd.pre_exec(move || {
                     // Create new namespaces
@@ -475,9 +470,9 @@ impl LinuxNativeBackend {
 
         let start_time = std::time::Instant::now();
 
-        let mut child = cmd.spawn().map_err(|e| {
-            SwarmletError::WorkloadExecution(format!("Failed to spawn cargo: {e}"))
-        })?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| SwarmletError::WorkloadExecution(format!("Failed to spawn cargo: {e}")))?;
 
         // Add to cgroup if available
         if let Some(cgroup) = &cgroup_path {
@@ -576,8 +571,7 @@ impl LinuxNativeBackend {
         let mut usage = BuildResourceUsage::default();
 
         // Read memory usage
-        if let Ok(content) = tokio::fs::read_to_string(cgroup_path.join("memory.current")).await
-        {
+        if let Ok(content) = tokio::fs::read_to_string(cgroup_path.join("memory.current")).await {
             if let Ok(bytes) = content.trim().parse::<u64>() {
                 usage.peak_memory_mb = (bytes / (1024 * 1024)) as u32;
             }
@@ -625,7 +619,7 @@ impl LinuxNativeBackend {
     /// Returns the agent_id used for kernel module operations.
     #[cfg(target_os = "linux")]
     fn setup_kernel_mount_isolation(config: &ContainerConfig) -> Result<u64> {
-        use crate::kernel_interface::{KernelInterface, MountIsolationConfig, mount_flags};
+        use crate::kernel_interface::{mount_flags, KernelInterface, MountIsolationConfig};
 
         // Generate unique agent ID
         let agent_id = Self::next_agent_id();
@@ -667,7 +661,10 @@ impl LinuxNativeBackend {
             let target = bind.target.to_string_lossy();
 
             if !iso_config.add_bind_mount(&source, &target, flags) {
-                warn!("Max bind mounts reached, skipping: {} -> {}", source, target);
+                warn!(
+                    "Max bind mounts reached, skipping: {} -> {}",
+                    source, target
+                );
             }
         }
 
@@ -732,7 +729,12 @@ impl LinuxNativeBackend {
             .iter()
             .map(|cache| BindMount {
                 source: cache.host_path.clone(),
-                target: container_root.join(cache.container_path.strip_prefix("/").unwrap_or(&cache.container_path)),
+                target: container_root.join(
+                    cache
+                        .container_path
+                        .strip_prefix("/")
+                        .unwrap_or(&cache.container_path),
+                ),
                 readonly: cache.readonly,
             })
             .collect()
@@ -782,9 +784,7 @@ impl BuildBackend for LinuxNativeBackend {
 
         // Create subdirectories for overlayfs
         for subdir in ["lower", "upper", "work", "merged", "source"] {
-            tokio::fs::create_dir_all(workspace.join(subdir))
-                .await
-                .ok();
+            tokio::fs::create_dir_all(workspace.join(subdir)).await.ok();
         }
 
         Ok(workspace.join("source"))

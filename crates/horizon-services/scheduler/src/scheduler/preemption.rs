@@ -57,7 +57,8 @@ impl PreemptionManager {
     pub async fn resume_job(&self, job: &mut Job) -> Result<()> {
         if let Some(_checkpoint_path) = &job.checkpoint_path {
             // Load checkpoint
-            let _checkpoint = self.checkpoint_manager
+            let _checkpoint = self
+                .checkpoint_manager
                 .load_checkpoint(&job.id.to_string())
                 .await?;
 

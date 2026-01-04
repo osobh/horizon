@@ -17,8 +17,9 @@ mod tests {
     #[tokio::test]
     #[ignore] // Requires PostgreSQL instance
     async fn test_create_pool() {
-        let database_url = std::env::var("TEST_DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/inventory_test".to_string());
+        let database_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:postgres@localhost/inventory_test".to_string()
+        });
 
         let result = create_pool(&database_url).await;
         assert!(result.is_ok());

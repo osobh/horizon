@@ -441,7 +441,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_evolution_adapter_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_evolution_adapter_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let adapter = EvolutionEngineAdapter::new(device).await;
         assert!(adapter.is_ok());
@@ -456,7 +456,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_adas_evolution() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_adas_evolution() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let mut adapter = EvolutionEngineAdapter::new(device).await?;
 
@@ -465,7 +465,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dgm_evolution() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_dgm_evolution() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let mut adapter = EvolutionEngineAdapter::new(device).await?;
 
@@ -474,7 +474,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_swarm_evolution() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_swarm_evolution() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let mut adapter = EvolutionEngineAdapter::new(device).await?;
 
@@ -483,7 +483,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_elite_agents_selection() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_elite_agents_selection() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let adapter = EvolutionEngineAdapter::new(device).await?;
 
@@ -493,7 +493,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_population_stats() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_population_stats() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
         let adapter = EvolutionEngineAdapter::new(device).await?;
 

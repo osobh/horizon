@@ -1,7 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hpc_policy::{
-    evaluate, parse_policy, EvaluationContext, PrincipalContext, ResourceContext,
-};
+use hpc_policy::{evaluate, parse_policy, EvaluationContext, PrincipalContext, ResourceContext};
 use serde_json::json;
 
 fn bench_parse_simple_policy(c: &mut Criterion) {
@@ -195,8 +193,10 @@ spec:
 
     let policy = parse_policy(yaml).unwrap();
     let principal = PrincipalContext::new(None, vec!["system-admin".to_string()], vec![]);
-    let resource =
-        ResourceContext::new("job".to_string(), "jobs/team-ml/project-gpu/123".to_string());
+    let resource = ResourceContext::new(
+        "job".to_string(),
+        "jobs/team-ml/project-gpu/123".to_string(),
+    );
     let context = EvaluationContext::new(principal, resource, "submit".to_string());
 
     c.bench_function("pattern_matching", |b| {

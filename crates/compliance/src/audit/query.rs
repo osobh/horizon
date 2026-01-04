@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::audit::types::{AuditEventType, AuditSeverity, AuditOutcome};
+use crate::audit::types::{AuditEventType, AuditOutcome, AuditSeverity};
 
 /// Query parameters for audit log searches
 #[derive(Debug, Clone, Serialize, Deserialize)]

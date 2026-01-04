@@ -59,11 +59,7 @@ pub enum RepairStatus {
 
 impl RepairRecord {
     /// Create new repair record
-    pub fn new(
-        detection_id: Uuid,
-        object_id: Uuid,
-        strategy: RepairStrategy,
-    ) -> Self {
+    pub fn new(detection_id: Uuid, object_id: Uuid, strategy: RepairStrategy) -> Self {
         Self {
             id: Uuid::new_v4(),
             detection_id,

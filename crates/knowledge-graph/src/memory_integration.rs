@@ -23,8 +23,8 @@ pub use stratoswarm_agent_core::memory::MemoryType;
 mod tests {
     use super::*;
     use crate::graph::{KnowledgeGraph, KnowledgeGraphConfig, NodeType};
-    use stratoswarm_agent_core::{memory::*, Agent, AgentConfig, AgentId};
     use std::collections::HashMap;
+    use stratoswarm_agent_core::{memory::*, Agent, AgentConfig, AgentId};
 
     #[tokio::test]
     async fn test_memory_integration_creation() {

@@ -337,7 +337,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_metrics_collection() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_metrics_collection() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let collector = GpuMetricsCollector::new(device);
 
@@ -353,7 +353,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_metrics_history() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_metrics_history() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let collector = GpuMetricsCollector::new(device);
 
@@ -368,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn test_performance_counters() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_performance_counters() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let mut counters = GpuPerformanceCounters::new(device);
 

@@ -107,9 +107,9 @@ impl VerificationTask {
     /// Calculate next run time
     pub fn calculate_next_run(&mut self) {
         use chrono::{Datelike, Duration, Timelike};
-        
+
         let now = Utc::now();
-        
+
         self.next_run = Some(match &self.schedule {
             VerificationSchedule::Continuous => now + Duration::seconds(1),
             VerificationSchedule::Hourly => {
@@ -126,7 +126,8 @@ impl VerificationTask {
                     .unwrap_or(next)
             }
             VerificationSchedule::Weekly { day_of_week, hour } => {
-                let days_until = (*day_of_week as i64 - now.weekday().num_days_from_monday() as i64 + 7) % 7;
+                let days_until =
+                    (*day_of_week as i64 - now.weekday().num_days_from_monday() as i64 + 7) % 7;
                 let next = now + Duration::days(if days_until == 0 { 7 } else { days_until });
                 next.with_hour(*hour)
                     .and_then(|t| t.with_minute(0))
@@ -136,7 +137,8 @@ impl VerificationTask {
             VerificationSchedule::Monthly { day_of_month, hour } => {
                 let next = if now.day() >= *day_of_month {
                     // Next month
-                    let next_month = now.with_day(1)
+                    let next_month = now
+                        .with_day(1)
                         .and_then(|d| d.checked_add_signed(Duration::days(32)))
                         .and_then(|d| d.with_day(1))
                         .unwrap_or(now);

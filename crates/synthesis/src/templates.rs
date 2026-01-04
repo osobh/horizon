@@ -7,7 +7,6 @@ use parking_lot::RwLock;
 use std::collections::HashMap;
 use tera::{Context, Tera};
 
-use std::error::Error;
 /// Global template engine instance
 static TEMPLATE_ENGINE: Lazy<RwLock<Option<TemplateEngine>>> = Lazy::new(|| RwLock::new(None));
 

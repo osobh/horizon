@@ -344,12 +344,9 @@ impl WorkDistributor {
         }
 
         // Bonus for locality
-        match job.requirements.locality_preference {
-            LocalityPreference::DataLocal => {
-                // Would check data locality
-                score += 10.0;
-            }
-            _ => {}
+        if job.requirements.locality_preference == LocalityPreference::DataLocal {
+            // Would check data locality
+            score += 10.0;
         }
 
         Ok(score)

@@ -41,17 +41,13 @@ mod tests {
             expected: 32,
             actual: 16,
         };
-        assert_eq!(
-            err.to_string(),
-            "Invalid key length: expected 32, got 16"
-        );
+        assert_eq!(err.to_string(), "Invalid key length: expected 32, got 16");
     }
 
     #[test]
     fn test_error_from_base64() {
         use base64::{engine::general_purpose::STANDARD, Engine as _};
-        let result: Result<Vec<u8>> = STANDARD.decode("invalid!!!")
-            .map_err(VaultError::from);
+        let result: Result<Vec<u8>> = STANDARD.decode("invalid!!!").map_err(VaultError::from);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), VaultError::Base64Error(_)));
     }

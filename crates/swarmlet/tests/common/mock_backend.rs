@@ -133,7 +133,10 @@ impl MockBuildBackend {
 
     /// Set configuration for a specific job ID
     pub async fn set_config(&self, job_id: &str, config: MockBuildConfig) {
-        self.configs.write().await.insert(job_id.to_string(), config);
+        self.configs
+            .write()
+            .await
+            .insert(job_id.to_string(), config);
     }
 
     /// Get the number of builds executed
@@ -211,7 +214,9 @@ impl BuildBackend for MockBuildBackend {
         self.build_count.fetch_add(1, Ordering::SeqCst);
 
         if config.simulate_timeout {
-            return Err(SwarmletError::WorkloadExecution("Build timed out".to_string()));
+            return Err(SwarmletError::WorkloadExecution(
+                "Build timed out".to_string(),
+            ));
         }
 
         Ok(result)
@@ -248,10 +253,7 @@ impl BuildBackend for MockBuildBackend {
         }
 
         // Remove from tracking
-        let job_id = workspace
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let job_id = workspace.file_name().and_then(|n| n.to_str()).unwrap_or("");
         self.workspaces.write().await.remove(job_id);
 
         Ok(())

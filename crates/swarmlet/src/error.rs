@@ -122,7 +122,11 @@ impl SwarmletError {
     }
 
     /// Create a build error with phase context and source error
-    pub fn build_error_with_source(phase: BuildPhase, message: impl Into<String>, source: SwarmletError) -> Self {
+    pub fn build_error_with_source(
+        phase: BuildPhase,
+        message: impl Into<String>,
+        source: SwarmletError,
+    ) -> Self {
         SwarmletError::Build {
             phase,
             message: message.into(),
@@ -134,7 +138,14 @@ impl SwarmletError {
 impl SwarmletError {
     /// Check if the error is recoverable (e.g., temporary network issues)
     pub fn is_recoverable(&self) -> bool {
-        matches!(self, SwarmletError::Network(_) | SwarmletError::Timeout | SwarmletError::Discovery(_) | SwarmletError::CommandExecution(_) | SwarmletError::Io(_))
+        matches!(
+            self,
+            SwarmletError::Network(_)
+                | SwarmletError::Timeout
+                | SwarmletError::Discovery(_)
+                | SwarmletError::CommandExecution(_)
+                | SwarmletError::Io(_)
+        )
     }
 
     /// Get error severity level

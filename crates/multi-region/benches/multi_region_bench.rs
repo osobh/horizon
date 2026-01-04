@@ -1,8 +1,8 @@
 //! Performance benchmarks for multi-region modules
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use stratoswarm_multi_region::*;
 use std::collections::HashMap;
+use stratoswarm_multi_region::*;
 use tokio::runtime::Runtime;
 
 /// Benchmark load balancer endpoint selection performance

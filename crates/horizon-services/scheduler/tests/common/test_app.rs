@@ -11,8 +11,9 @@ pub struct TestApp {
 impl TestApp {
     pub async fn new() -> Self {
         // Get database URL from environment or use default
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string());
+        let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:postgres@localhost:5433/scheduler_test".to_string()
+        });
 
         // Create connection pool
         let pool = PgPool::connect(&database_url)

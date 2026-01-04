@@ -111,8 +111,11 @@ impl GpuIoBuffer {
         let aligned_size = (size + 4095) & !4095; // Align to 4KB
         
         // Allocate GPU memory
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+        // because the buffer will be populated via GPUDirect Storage I/O operations
+        // before any kernel reads from it. The aligned size ensures proper alignment.
         let buffer = unsafe { device.alloc::<u8>(aligned_size)? };
-        
+
         Ok(Self {
             device: Arc::new(device),
             buffer,
@@ -134,6 +137,8 @@ impl GpuIoBuffer {
         Self::allocate(size).or_else(|_| {
             // Fallback to regular allocation
             let device = CudaDevice::new(0)?;
+            // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+            // because the buffer will be populated via I/O operations before kernel use.
             let buffer = unsafe { device.alloc::<u8>(size)? };
             Ok(Self {
                 device: Arc::new(device),
@@ -309,8 +314,12 @@ impl GpuDirectManager {
             // In real implementation, this would use cuFile async APIs
             let temp_buffer = GpuIoBuffer {
                 device: Arc::clone(&manager.device),
+                // SAFETY: from_raw_parts reconstructs a CudaSlice from a raw device pointer.
+                // The pointer was obtained from buffer.device_ptr() which is valid for the
+                // lifetime of the original GpuIoBuffer. This is a simplified approach for
+                // async operations - production code would use proper lifetime management
+                // with cuFile async APIs to ensure the buffer remains valid.
                 buffer: unsafe {
-                    // This is a simplified approach - real implementation would handle lifetime properly
                     CudaSlice::from_raw_parts(
                         DevicePtr::from_raw(buffer_ptr as u64),
                         buffer_size,

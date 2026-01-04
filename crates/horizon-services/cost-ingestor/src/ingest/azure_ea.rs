@@ -61,10 +61,7 @@ impl AzureEaNormalizer {
         let amount = Decimal::try_from(record.cost)
             .map_err(|e| HpcError::parse_error(format!("Invalid cost: {}", e)))?;
 
-        let currency = record
-            .currency
-            .clone()
-            .unwrap_or_else(|| "USD".to_string());
+        let currency = record.currency.clone().unwrap_or_else(|| "USD".to_string());
 
         let mut metadata = HashMap::new();
         if let Some(ref resource_group) = record.resource_group {
@@ -107,7 +104,8 @@ impl BillingNormalizer for AzureEaNormalizer {
             return Err(HpcError::invalid_provider("Expected Azure provider"));
         }
 
-        let json_data = raw.data
+        let json_data = raw
+            .data
             .as_str()
             .ok_or_else(|| HpcError::parse_error("Expected JSON string data"))?;
 
@@ -157,7 +155,10 @@ mod tests {
             Some("12345678-1234-1234-1234-123456789abc".to_string())
         );
         assert_eq!(records[0].cost, 10.50);
-        assert_eq!(records[0].service_name, Some("Virtual Machines".to_string()));
+        assert_eq!(
+            records[0].service_name,
+            Some("Virtual Machines".to_string())
+        );
     }
 
     #[test]
@@ -212,7 +213,10 @@ mod tests {
 
         let result = normalizer.normalize(&raw);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Expected Azure provider"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Expected Azure provider"));
     }
 
     #[test]

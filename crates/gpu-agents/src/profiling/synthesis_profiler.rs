@@ -77,9 +77,7 @@ pub struct SynthesisPipelineProfiler {
 impl SynthesisPipelineProfiler {
     pub fn new() -> Self {
         let device = CudaDevice::new(0).expect("Failed to create CUDA device");
-        Self {
-            device,
-        }
+        Self { device }
     }
 
     pub async fn profile_synthesis_operation(&self) -> Result<PerformanceMetrics> {

@@ -226,30 +226,30 @@ impl TmpfsMount {
 /// Capabilities to drop for security
 #[cfg(feature = "docker")]
 const DROPPED_CAPABILITIES: &[&str] = &[
-    "NET_RAW",      // Prevent raw socket access
-    "SYS_ADMIN",    // Prevent mount/namespace manipulation
-    "SYS_PTRACE",   // Prevent process tracing
-    "SYS_MODULE",   // Prevent kernel module loading
-    "SYS_RAWIO",    // Prevent raw I/O
-    "MKNOD",        // Prevent device creation
-    "SETUID",       // Prevent setuid
-    "SETGID",       // Prevent setgid
+    "NET_RAW",          // Prevent raw socket access
+    "SYS_ADMIN",        // Prevent mount/namespace manipulation
+    "SYS_PTRACE",       // Prevent process tracing
+    "SYS_MODULE",       // Prevent kernel module loading
+    "SYS_RAWIO",        // Prevent raw I/O
+    "MKNOD",            // Prevent device creation
+    "SETUID",           // Prevent setuid
+    "SETGID",           // Prevent setgid
     "NET_BIND_SERVICE", // Prevent binding to low ports
-    "DAC_OVERRIDE", // Prevent bypassing file permissions
-    "FOWNER",       // Prevent bypassing file ownership checks
-    "KILL",         // Prevent killing other processes
-    "SETPCAP",      // Prevent capability manipulation
-    "LINUX_IMMUTABLE", // Prevent immutable file manipulation
-    "IPC_LOCK",     // Prevent memory locking
-    "SYS_CHROOT",   // Prevent chroot
-    "LEASE",        // Prevent file lease manipulation
-    "AUDIT_WRITE",  // Prevent audit log writing
-    "AUDIT_CONTROL", // Prevent audit control
-    "SYS_BOOT",     // Prevent rebooting
-    "WAKE_ALARM",   // Prevent wake alarms
-    "BLOCK_SUSPEND", // Prevent blocking suspend
-    "MAC_ADMIN",    // Prevent MAC administration
-    "MAC_OVERRIDE", // Prevent MAC override
+    "DAC_OVERRIDE",     // Prevent bypassing file permissions
+    "FOWNER",           // Prevent bypassing file ownership checks
+    "KILL",             // Prevent killing other processes
+    "SETPCAP",          // Prevent capability manipulation
+    "LINUX_IMMUTABLE",  // Prevent immutable file manipulation
+    "IPC_LOCK",         // Prevent memory locking
+    "SYS_CHROOT",       // Prevent chroot
+    "LEASE",            // Prevent file lease manipulation
+    "AUDIT_WRITE",      // Prevent audit log writing
+    "AUDIT_CONTROL",    // Prevent audit control
+    "SYS_BOOT",         // Prevent rebooting
+    "WAKE_ALARM",       // Prevent wake alarms
+    "BLOCK_SUSPEND",    // Prevent blocking suspend
+    "MAC_ADMIN",        // Prevent MAC administration
+    "MAC_OVERRIDE",     // Prevent MAC override
 ];
 
 /// Docker-based build backend
@@ -280,22 +280,21 @@ impl DockerBackend {
         #[cfg(feature = "docker")]
         {
             use bollard::Docker;
-            let docker = Docker::connect_with_local_defaults().map_err(|e| {
-                SwarmletError::Docker(format!("Failed to connect to Docker: {e}"))
-            })?;
+            let docker = Docker::connect_with_local_defaults()
+                .map_err(|e| SwarmletError::Docker(format!("Failed to connect to Docker: {e}")))?;
 
             // Check if Docker is running
-            docker.ping().await.map_err(|e| {
-                SwarmletError::Docker(format!("Docker ping failed: {e}"))
-            })?;
+            docker
+                .ping()
+                .await
+                .map_err(|e| SwarmletError::Docker(format!("Docker ping failed: {e}")))?;
 
             // Check for GPU support
             let gpu_available = Self::check_gpu_support(&docker).await;
 
             info!(
                 "Docker backend initialized with {:?} network mode, capabilities dropped: {}",
-                isolation_profile.network_mode,
-                isolation_profile.drop_capabilities
+                isolation_profile.network_mode, isolation_profile.drop_capabilities
             );
 
             Ok(Self {
@@ -342,10 +341,7 @@ impl DockerBackend {
     }
 
     #[cfg(feature = "docker")]
-    fn build_host_config(
-        &self,
-        context: &BuildContext,
-    ) -> bollard::models::HostConfig {
+    fn build_host_config(&self, context: &BuildContext) -> bollard::models::HostConfig {
         use bollard::models::{HostConfig, ResourcesUlimits};
 
         let limits = &context.resource_limits;
@@ -413,7 +409,9 @@ impl DockerBackend {
             binds: Some(binds),
             memory: limits.memory_bytes.map(|b| b as i64),
             memory_swap: iso.memory_swap_bytes,
-            nano_cpus: limits.cpu_cores.map(|c| (c as f64 * 1_000_000_000.0) as i64),
+            nano_cpus: limits
+                .cpu_cores
+                .map(|c| (c as f64 * 1_000_000_000.0) as i64),
             pids_limit: Some(1000),
             network_mode: Some(iso.network_mode.to_docker_string()),
             cap_drop,
@@ -421,7 +419,11 @@ impl DockerBackend {
             ulimits: Some(ulimits),
             tmpfs: if tmpfs.is_empty() { None } else { Some(tmpfs) },
             readonly_rootfs: Some(iso.read_only_rootfs),
-            security_opt: if security_opt.is_empty() { None } else { Some(security_opt) },
+            security_opt: if security_opt.is_empty() {
+                None
+            } else {
+                Some(security_opt)
+            },
             userns_mode: iso.userns_mode.clone(),
             oom_kill_disable: Some(iso.oom_kill_disable),
             ..Default::default()
@@ -488,7 +490,9 @@ impl DockerBackend {
                         while let Ok(Some(entry)) = entries.next_entry().await {
                             let path = entry.path();
                             if self.is_executable(&path).await {
-                                if let Some(artifact) = self.create_artifact(&path, ArtifactType::Binary).await {
+                                if let Some(artifact) =
+                                    self.create_artifact(&path, ArtifactType::Binary).await
+                                {
                                     artifacts.push(artifact);
                                 }
                             }
@@ -500,7 +504,10 @@ impl DockerBackend {
                 // Look for test results in target/
                 let results_path = workspace.join("target").join("test-results.json");
                 if results_path.exists() {
-                    if let Some(artifact) = self.create_artifact(&results_path, ArtifactType::TestResults).await {
+                    if let Some(artifact) = self
+                        .create_artifact(&results_path, ArtifactType::TestResults)
+                        .await
+                    {
                         artifacts.push(artifact);
                     }
                 }
@@ -545,7 +552,7 @@ impl DockerBackend {
             if let Ok(metadata) = tokio::fs::metadata(path).await {
                 return metadata.permissions().mode() & 0o111 != 0;
             }
-            return false;
+            false
         }
 
         // On Windows, check for .exe extension
@@ -562,7 +569,11 @@ impl DockerBackend {
 
     /// Create a BuildArtifact from a file path
     #[cfg(feature = "docker")]
-    async fn create_artifact(&self, path: &PathBuf, artifact_type: ArtifactType) -> Option<BuildArtifact> {
+    async fn create_artifact(
+        &self,
+        path: &PathBuf,
+        artifact_type: ArtifactType,
+    ) -> Option<BuildArtifact> {
         let metadata = tokio::fs::metadata(path).await.ok()?;
         let name = path.file_name()?.to_str()?.to_string();
 
@@ -600,9 +611,12 @@ impl DockerBackend {
             let cpu_stats = &stats.cpu_stats;
             let precpu_stats = &stats.precpu_stats;
 
-            let cpu_delta = cpu_stats.cpu_usage.total_usage
+            let cpu_delta = cpu_stats
+                .cpu_usage
+                .total_usage
                 .saturating_sub(precpu_stats.cpu_usage.total_usage);
-            let system_delta = cpu_stats.system_cpu_usage
+            let system_delta = cpu_stats
+                .system_cpu_usage
                 .unwrap_or(0)
                 .saturating_sub(precpu_stats.system_cpu_usage.unwrap_or(0));
 
@@ -709,7 +723,9 @@ impl BuildBackend for DockerBackend {
                 .map_err(|e| SwarmletError::Docker(format!("Failed to start container: {e}")))?;
 
             // Collect logs with timeout
-            let timeout_duration = context.timeout.unwrap_or(std::time::Duration::from_secs(3600));
+            let timeout_duration = context
+                .timeout
+                .unwrap_or(std::time::Duration::from_secs(3600));
             let logs_options = LogsOptions::<String> {
                 follow: true,
                 stdout: true,
@@ -739,12 +755,18 @@ impl BuildBackend for DockerBackend {
             };
 
             // Apply timeout to log collection
-            let timed_out = tokio::time::timeout(timeout_duration, log_collection).await.is_err();
+            let timed_out = tokio::time::timeout(timeout_duration, log_collection)
+                .await
+                .is_err();
 
             if timed_out {
                 warn!("Build timed out after {:?}", timeout_duration);
                 // Kill the container
-                if let Err(e) = self.docker.kill_container::<String>(&container.id, None).await {
+                if let Err(e) = self
+                    .docker
+                    .kill_container::<String>(&container.id, None)
+                    .await
+                {
                     warn!("Failed to kill timed out container: {}", e);
                 }
             }
@@ -758,7 +780,9 @@ impl BuildBackend for DockerBackend {
                 condition: "not-running",
             };
 
-            let mut wait_stream = self.docker.wait_container(&container.id, Some(wait_options));
+            let mut wait_stream = self
+                .docker
+                .wait_container(&container.id, Some(wait_options));
             let exit_code = if timed_out {
                 -1 // Timeout exit code
             } else if let Some(Ok(result)) = wait_stream.next().await {
@@ -811,15 +835,12 @@ impl BuildBackend for DockerBackend {
     }
 
     async fn create_workspace(&self, job_id: &str) -> Result<PathBuf> {
-        let workspace = std::env::temp_dir()
-            .join("stratoswarm-builds")
-            .join(job_id);
+        let workspace = std::env::temp_dir().join("stratoswarm-builds").join(job_id);
 
         tokio::fs::create_dir_all(&workspace).await.map_err(|e| {
-            SwarmletError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to create workspace: {e}"),
-            ))
+            SwarmletError::Io(std::io::Error::other(format!(
+                "Failed to create workspace: {e}"
+            )))
         })?;
 
         Ok(workspace)
@@ -828,10 +849,9 @@ impl BuildBackend for DockerBackend {
     async fn cleanup_workspace(&self, workspace: &PathBuf) -> Result<()> {
         if workspace.exists() {
             tokio::fs::remove_dir_all(workspace).await.map_err(|e| {
-                SwarmletError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to cleanup workspace: {e}"),
-                ))
+                SwarmletError::Io(std::io::Error::other(format!(
+                    "Failed to cleanup workspace: {e}"
+                )))
             })?;
         }
         Ok(())
@@ -876,10 +896,7 @@ mod tests {
 
     #[test]
     fn test_cache_mount_bind_string() {
-        let mount = CacheMount::new(
-            PathBuf::from("/host/cargo"),
-            PathBuf::from("/root/.cargo"),
-        );
+        let mount = CacheMount::new(PathBuf::from("/host/cargo"), PathBuf::from("/root/.cargo"));
         assert_eq!(mount.to_docker_bind(), "/host/cargo:/root/.cargo:rw");
     }
 
@@ -928,13 +945,19 @@ mod tests {
         fn test_toolchain_image_selection_stable() {
             let backend = MockDockerBackend::new();
             assert_eq!(backend.get_image_for_toolchain(None), "rust:latest");
-            assert_eq!(backend.get_image_for_toolchain(Some("stable")), "rust:latest");
+            assert_eq!(
+                backend.get_image_for_toolchain(Some("stable")),
+                "rust:latest"
+            );
         }
 
         #[test]
         fn test_toolchain_image_selection_nightly() {
             let backend = MockDockerBackend::new();
-            assert_eq!(backend.get_image_for_toolchain(Some("nightly")), "rustlang/rust:nightly");
+            assert_eq!(
+                backend.get_image_for_toolchain(Some("nightly")),
+                "rustlang/rust:nightly"
+            );
         }
 
         #[test]
@@ -946,7 +969,10 @@ mod tests {
         #[test]
         fn test_toolchain_image_selection_version() {
             let backend = MockDockerBackend::new();
-            assert_eq!(backend.get_image_for_toolchain(Some("1.76.0")), "rust:1.76.0");
+            assert_eq!(
+                backend.get_image_for_toolchain(Some("1.76.0")),
+                "rust:1.76.0"
+            );
             assert_eq!(backend.get_image_for_toolchain(Some("1.75")), "rust:1.75");
         }
     }

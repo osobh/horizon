@@ -151,8 +151,8 @@ mod tests {
     fn test_allocator_creation() {
         if let Ok(device) = Metal4Device::system_default() {
             let device = Arc::new(device);
-            let allocator = Metal4CommandAllocator::new(&device, 3)
-                .expect("Failed to create allocator");
+            let allocator =
+                Metal4CommandAllocator::new(&device, 3).expect("Failed to create allocator");
 
             assert_eq!(allocator.max_frames_in_flight(), 3);
             assert_eq!(allocator.current_frame(), 0);
@@ -174,8 +174,8 @@ mod tests {
     fn test_allocator_reset() {
         if let Ok(device) = Metal4Device::system_default() {
             let device = Arc::new(device);
-            let allocator = Metal4CommandAllocator::new(&device, 3)
-                .expect("Failed to create allocator");
+            let allocator =
+                Metal4CommandAllocator::new(&device, 3).expect("Failed to create allocator");
 
             assert_eq!(allocator.current_frame(), 0);
 
@@ -195,8 +195,8 @@ mod tests {
     fn test_allocator_buffer_tracking() {
         if let Ok(device) = Metal4Device::system_default() {
             let device = Arc::new(device);
-            let allocator = Metal4CommandAllocator::new(&device, 3)
-                .expect("Failed to create allocator");
+            let allocator =
+                Metal4CommandAllocator::new(&device, 3).expect("Failed to create allocator");
 
             assert_eq!(allocator.buffers_this_frame(), 0);
 
@@ -216,8 +216,8 @@ mod tests {
     fn test_allocator_capacity() {
         if let Ok(device) = Metal4Device::system_default() {
             let device = Arc::new(device);
-            let allocator = Metal4CommandAllocator::new(&device, 3)
-                .expect("Failed to create allocator");
+            let allocator =
+                Metal4CommandAllocator::new(&device, 3).expect("Failed to create allocator");
 
             // On Metal 3, always has capacity
             assert!(allocator.has_capacity());
@@ -231,8 +231,7 @@ mod tests {
         if let Ok(device) = Metal4Device::system_default() {
             let device = Arc::new(device);
             let allocator = Arc::new(
-                Metal4CommandAllocator::new(&device, 3)
-                    .expect("Failed to create allocator")
+                Metal4CommandAllocator::new(&device, 3).expect("Failed to create allocator"),
             );
 
             let allocator1 = Arc::clone(&allocator);

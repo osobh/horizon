@@ -12,12 +12,12 @@ impl AdaptationController {
             adaptation_enabled: true,
         }
     }
-    
+
     /// Check if adaptation is needed
     pub async fn should_adapt(&self) -> bool {
         self.adaptation_enabled
     }
-    
+
     /// Trigger adaptation
     pub async fn adapt(&self) -> AdaptationResult {
         AdaptationResult::default()

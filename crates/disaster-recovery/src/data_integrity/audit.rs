@@ -126,7 +126,7 @@ impl AuditTrail {
     /// Add audit entry
     pub fn add_entry(&mut self, entry: AuditEntry) {
         self.entries.push(entry);
-        
+
         // Trim old entries if exceeding max
         if self.entries.len() > self.max_entries {
             let remove_count = self.entries.len() - self.max_entries;
@@ -158,10 +158,7 @@ impl AuditTrail {
 
     /// Get failure entries
     pub fn get_failures(&self) -> Vec<&AuditEntry> {
-        self.entries
-            .iter()
-            .filter(|e| e.is_failure())
-            .collect()
+        self.entries.iter().filter(|e| e.is_failure()).collect()
     }
 
     /// Clear audit trail

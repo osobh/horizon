@@ -61,6 +61,8 @@ impl ConsensusSynthesisEngine {
     /// Create new consensus-synthesis engine
     pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
         // Allocate decision buffer for consensus results
+        // SAFETY: alloc returns uninitialized memory. decision_buffer will be written
+        // by consensus voting before any reads during run_consensus_round().
         let decision_buffer = unsafe { device.alloc::<u32>(1024) }
             .map_err(|e| anyhow!("Failed to allocate decision buffer: {}", e))?;
 
@@ -294,7 +296,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_engine_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let engine = ConsensusSynthesisEngine::new(device);
         assert!(engine.is_ok());

@@ -31,8 +31,8 @@ pub use anomaly_detector::{
     AnomalyConfig, AnomalyDetector, AnomalyInsights, AnomalyResult, MLAlgorithm,
 };
 pub use baseline_manager::{
-    Baseline, BaselineConfig, BaselineManager, BaselineStrategy, RegressionResult,
-    RegressionSeverity,
+    Baseline, BaselineConfig, BaselineManager, BaselineMetrics, BaselineStorage, BaselineType,
+    MetricBaseline,
 };
 pub use bottleneck_detector::{
     BottleneckConfig, BottleneckDetector, BottleneckInsights, BottleneckSeverity, BottleneckType,
@@ -44,8 +44,9 @@ pub use metrics_collector::{
 };
 pub use report_generator::{
     ChartType, DashboardWidget, MetricPrediction, MetricTrend, PerformanceReport, RegressionDetail,
-    RegressionSummary, ReportGenerator, ReportGeneratorConfig, ReportOutputFormat, ReportSchedule,
-    ReportSection, SectionContentType, TrendAnomaly, TrendReport,
+    RegressionSeverity, RegressionSummary, ReportGenerator, ReportGeneratorConfig,
+    ReportOutputFormat, ReportSchedule, ReportSection, SectionContentType, TrendAnomaly,
+    TrendReport,
 };
 pub use test_orchestrator::{
     CiIntegrationConfig, CiMetadata, CiPlatform, EnduranceTestConfig, LoadTestConfig, ReportFormat,
@@ -53,10 +54,7 @@ pub use test_orchestrator::{
     TestInsights, TestOrchestrator, TestOrchestratorConfig, TestReport, TestStatus, TestStrategy,
     TestSummary, VolumeTestConfig,
 };
-pub use trend_analyzer::{
-    DegradationPattern, DetectedPattern, ForecastResult, SeasonalPattern, TrendAnalysis,
-    TrendAnalyzer, TrendConfig, TrendDirection, TrendInsights,
-};
+pub use trend_analyzer::{Trend, TrendAnalyzer, TrendConfig, TrendMetrics};
 
 #[cfg(test)]
 mod tests {

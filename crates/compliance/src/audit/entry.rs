@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::audit::types::{AuditEventType, AuditSeverity, AuditOutcome};
+use crate::audit::types::{AuditEventType, AuditOutcome, AuditSeverity};
 use crate::data_classification::DataCategory;
 
 /// Immutable audit log entry
@@ -147,9 +147,7 @@ impl AuditLogEntry {
             || self.data_categories.iter().any(|cat| {
                 matches!(
                     cat,
-                    DataCategory::PII
-                        | DataCategory::PHI
-                        | DataCategory::Financial
+                    DataCategory::PII | DataCategory::PHI | DataCategory::Financial
                 )
             })
     }

@@ -8,8 +8,8 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 // Import from the storage crate
@@ -288,7 +288,9 @@ impl GpuAgentStorage {
         // Update cache if enabled (lock-free)
         if self.config.enable_gpu_cache {
             self.agent_cache.insert(agent_id.to_string(), data.clone());
-            self.cache_stats.cached_agents.store(self.agent_cache.len(), Ordering::Relaxed);
+            self.cache_stats
+                .cached_agents
+                .store(self.agent_cache.len(), Ordering::Relaxed);
         }
 
         Ok(())
@@ -305,7 +307,9 @@ impl GpuAgentStorage {
         }
 
         // Cache miss - retrieve from storage
-        self.cache_stats.cache_misses.fetch_add(1, Ordering::Relaxed);
+        self.cache_stats
+            .cache_misses
+            .fetch_add(1, Ordering::Relaxed);
 
         let key = format!("agent/{}", agent_id);
         let data = self
@@ -325,7 +329,9 @@ impl GpuAgentStorage {
         let agent_data = self.retrieve_agent(agent_id).await?;
 
         self.agent_cache.insert(agent_id.to_string(), agent_data);
-        self.cache_stats.cached_agents.store(self.agent_cache.len(), Ordering::Relaxed);
+        self.cache_stats
+            .cached_agents
+            .store(self.agent_cache.len(), Ordering::Relaxed);
 
         Ok(())
     }

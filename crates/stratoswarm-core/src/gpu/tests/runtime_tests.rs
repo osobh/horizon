@@ -28,9 +28,7 @@ async fn test_gpu_runtime_processes_launch_kernel() {
     let (events_tx, mut events_rx) = broadcast::channel(100);
 
     // Spawn runtime
-    let runtime_handle = tokio::spawn(async move {
-        runtime.run(gpu_rx, events_tx).await
-    });
+    let runtime_handle = tokio::spawn(async move { runtime.run(gpu_rx, events_tx).await });
 
     // Send a launch kernel command
     let cmd = GpuCommand::LaunchKernel {
@@ -50,9 +48,7 @@ async fn test_gpu_runtime_processes_launch_kernel() {
 
     match event {
         SystemEvent::KernelCompleted {
-            kernel_id,
-            success,
-            ..
+            kernel_id, success, ..
         } => {
             assert_eq!(kernel_id, "test_kernel");
             assert!(success);
@@ -76,9 +72,7 @@ async fn test_gpu_runtime_processes_transfer_to_device() {
     let (events_tx, _events_rx) = broadcast::channel(100);
 
     // Spawn runtime
-    let runtime_handle = tokio::spawn(async move {
-        runtime.run(gpu_rx, events_tx).await
-    });
+    let runtime_handle = tokio::spawn(async move { runtime.run(gpu_rx, events_tx).await });
 
     // First allocate a buffer (the runtime should handle this internally)
     let data = Bytes::from(vec![5, 6, 7, 8]);
@@ -109,9 +103,7 @@ async fn test_gpu_runtime_processes_synchronize() {
     let (events_tx, _events_rx) = broadcast::channel(100);
 
     // Spawn runtime
-    let runtime_handle = tokio::spawn(async move {
-        runtime.run(gpu_rx, events_tx).await
-    });
+    let runtime_handle = tokio::spawn(async move { runtime.run(gpu_rx, events_tx).await });
 
     // Send synchronize command
     let cmd = GpuCommand::Synchronize { stream_id: None };
@@ -138,9 +130,7 @@ async fn test_gpu_runtime_broadcasts_utilization() {
     let (events_tx, mut events_rx) = broadcast::channel(100);
 
     // Spawn runtime
-    let _runtime_handle = tokio::spawn(async move {
-        runtime.run(gpu_rx, events_tx).await
-    });
+    let _runtime_handle = tokio::spawn(async move { runtime.run(gpu_rx, events_tx).await });
 
     // Wait for at least one utilization event
     let event = timeout(Duration::from_secs(1), events_rx.recv())
@@ -168,9 +158,7 @@ async fn test_gpu_runtime_tracks_metrics() {
 
     // Spawn runtime
     let runtime_clone = runtime.clone_metrics();
-    tokio::spawn(async move {
-        runtime.run(gpu_rx, events_tx).await
-    });
+    tokio::spawn(async move { runtime.run(gpu_rx, events_tx).await });
 
     // Send multiple kernel launches
     for i in 0..3 {
@@ -200,7 +188,11 @@ async fn test_gpu_runtime_tracks_metrics() {
 
     // Check metrics
     let metrics = runtime_clone.metrics();
-    assert_eq!(metrics.kernels_launched, 3, "Expected 3 kernels, got {} (received {} kernel events)", metrics.kernels_launched, kernel_count);
+    assert_eq!(
+        metrics.kernels_launched, 3,
+        "Expected 3 kernels, got {} (received {} kernel events)",
+        metrics.kernels_launched, kernel_count
+    );
 }
 
 #[tokio::test]
@@ -214,9 +206,7 @@ async fn test_gpu_runtime_graceful_shutdown() {
     let (events_tx, _events_rx) = broadcast::channel(100);
 
     // Spawn runtime
-    let runtime_handle = tokio::spawn(async move {
-        runtime.run(gpu_rx, events_tx).await
-    });
+    let runtime_handle = tokio::spawn(async move { runtime.run(gpu_rx, events_tx).await });
 
     // Send a command
     let cmd = GpuCommand::Synchronize { stream_id: None };
@@ -241,9 +231,7 @@ async fn test_gpu_runtime_handles_backpressure() {
     let (events_tx, _events_rx) = broadcast::channel(100);
 
     // Spawn runtime
-    let _runtime_handle = tokio::spawn(async move {
-        runtime.run(gpu_rx, events_tx).await
-    });
+    let _runtime_handle = tokio::spawn(async move { runtime.run(gpu_rx, events_tx).await });
 
     // Try to send more than buffer size
     let mut send_count = 0;
@@ -274,12 +262,12 @@ async fn test_gpu_runtime_multiple_commands_in_sequence() {
     let (events_tx, mut events_rx) = broadcast::channel(100);
 
     // Spawn runtime
-    let _runtime_handle = tokio::spawn(async move {
-        runtime.run(gpu_rx, events_tx).await
-    });
+    let _runtime_handle = tokio::spawn(async move { runtime.run(gpu_rx, events_tx).await });
 
     // Send sequence of commands
-    gpu_tx.send(GpuCommand::Synchronize { stream_id: None }).unwrap();
+    gpu_tx
+        .send(GpuCommand::Synchronize { stream_id: None })
+        .unwrap();
 
     gpu_tx
         .send(GpuCommand::LaunchKernel {
@@ -290,7 +278,9 @@ async fn test_gpu_runtime_multiple_commands_in_sequence() {
         })
         .unwrap();
 
-    gpu_tx.send(GpuCommand::Synchronize { stream_id: None }).unwrap();
+    gpu_tx
+        .send(GpuCommand::Synchronize { stream_id: None })
+        .unwrap();
 
     // Wait for kernel completed event
     let event = timeout(Duration::from_secs(1), events_rx.recv())
@@ -337,5 +327,8 @@ async fn test_gpu_config_custom() {
 
     assert_eq!(config.device_id, 1);
     assert_eq!(config.memory_pool_size, 2 * 1024 * 1024 * 1024);
-    assert_eq!(config.utilization_broadcast_interval, Duration::from_secs(10));
+    assert_eq!(
+        config.utilization_broadcast_interval,
+        Duration::from_secs(10)
+    );
 }

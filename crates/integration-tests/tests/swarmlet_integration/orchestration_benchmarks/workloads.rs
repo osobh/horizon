@@ -17,10 +17,7 @@ pub struct BenchmarkWorkload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorkloadType {
     /// Simple CPU-bound computation
-    CpuIntensive {
-        iterations: u64,
-        complexity: u32,
-    },
+    CpuIntensive { iterations: u64, complexity: u32 },
     /// Memory-intensive workload
     MemoryIntensive {
         allocation_mb: u64,

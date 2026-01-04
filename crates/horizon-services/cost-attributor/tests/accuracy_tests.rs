@@ -106,7 +106,9 @@ fn test_accuracy_real_world_scenario() {
         storage_gb: dec!(1000.0),
     };
 
-    let attribution = allocator.allocate_job_cost(&job, &usage, Some(&rates)).unwrap();
+    let attribution = allocator
+        .allocate_job_cost(&job, &usage, Some(&rates))
+        .unwrap();
 
     // Simulate actual billing (with slight variance)
     // Expected: GPU: 8*10*3.50 = 280, Network: 250*0.09 = 22.5, Storage: ~0.1368
@@ -154,7 +156,9 @@ fn test_accuracy_batch_jobs() {
             storage_gb: dec!(100.0),
         };
 
-        let attribution = allocator.allocate_job_cost(&job, &usage, Some(&rates)).unwrap();
+        let attribution = allocator
+            .allocate_job_cost(&job, &usage, Some(&rates))
+            .unwrap();
         total_attributed += attribution.total_cost;
     }
 
@@ -193,7 +197,9 @@ fn test_accuracy_spot_pricing() {
 
     let usage = ResourceUsage::default();
 
-    let attribution = allocator.allocate_job_cost(&job, &usage, Some(&spot_rates)).unwrap();
+    let attribution = allocator
+        .allocate_job_cost(&job, &usage, Some(&spot_rates))
+        .unwrap();
 
     // 4 GPUs * 1 hour * $1.75 = $7.00
     assert_eq!(attribution.gpu_cost, dec!(7.00));
@@ -236,7 +242,9 @@ fn test_accuracy_long_running_job() {
         storage_gb: dec!(10000.0),
     };
 
-    let attribution = allocator.allocate_job_cost(&job, &usage, Some(&rates)).unwrap();
+    let attribution = allocator
+        .allocate_job_cost(&job, &usage, Some(&rates))
+        .unwrap();
 
     // GPU: 8 * 168 * 3.50 = 4704
     assert_eq!(attribution.gpu_cost, dec!(4704.00));

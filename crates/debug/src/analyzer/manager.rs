@@ -126,12 +126,7 @@ impl AnalysisManager {
     pub async fn get_critical_reports(&self) -> Vec<AnalysisReport> {
         self.reports
             .iter()
-            .filter(|entry| {
-                matches!(
-                    entry.value().severity,
-                    Severity::Critical | Severity::High
-                )
-            })
+            .filter(|entry| matches!(entry.value().severity, Severity::Critical | Severity::High))
             .map(|entry| entry.value().clone())
             .collect()
     }

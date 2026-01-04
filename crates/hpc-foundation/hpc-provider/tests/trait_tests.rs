@@ -1,7 +1,6 @@
 use hpc_provider::{
     Availability, CapacityProvider, HealthStatus, Instance, InstanceState, ProviderError,
-    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas,
-    SpotPrices,
+    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas, SpotPrices,
 };
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -31,11 +30,7 @@ impl CapacityProvider for MockProvider {
             instance_type: request.instance_type.clone(),
             region: request.region.clone(),
             hourly_rate: dec!(1.50),
-            spot_rate: if request.spot {
-                Some(dec!(0.50))
-            } else {
-                None
-            },
+            spot_rate: if request.spot { Some(dec!(0.50)) } else { None },
             availability: Availability::Available,
             lead_time_hours: 0,
         })
@@ -189,7 +184,10 @@ async fn test_get_quote_zero_count_fails() {
 
     let result = provider.get_quote(&request).await;
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ProviderError::InvalidRequest(_)));
+    assert!(matches!(
+        result.unwrap_err(),
+        ProviderError::InvalidRequest(_)
+    ));
 }
 
 #[tokio::test]

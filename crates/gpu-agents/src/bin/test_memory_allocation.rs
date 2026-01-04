@@ -60,6 +60,8 @@ fn test_allocation(device: &Arc<CudaDevice>, size: usize, test_name: &str) -> Re
     );
 
     // Test f32 allocation
+    // SAFETY: alloc returns uninitialized memory. Buffer will be initialized
+    // via htod_copy_into with zeros before any reads or kernel operations.
     let buffer = unsafe {
         match device.alloc::<f32>(size) {
             Ok(buf) => {
@@ -119,6 +121,8 @@ fn test_multi_buffer_allocation(
     let total_genome_size = population_size * genome_size;
 
     // Allocate genomes buffer (f32)
+    // SAFETY: alloc returns uninitialized memory. This is a test allocation
+    // to verify memory allocation works; no reads are performed on the content.
     println!("    Allocating genomes: {} f32 elements", total_genome_size);
     let _genomes = unsafe {
         match device.alloc::<f32>(total_genome_size) {
@@ -134,6 +138,8 @@ fn test_multi_buffer_allocation(
     };
 
     // Allocate fitness buffer (f32)
+    // SAFETY: alloc returns uninitialized memory. This is a test allocation
+    // to verify memory allocation works; no reads are performed on the content.
     println!("    Allocating fitness: {} f32 elements", population_size);
     let _fitness = unsafe {
         match device.alloc::<f32>(population_size) {

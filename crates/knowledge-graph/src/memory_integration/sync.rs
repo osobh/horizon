@@ -1,12 +1,12 @@
 //! Memory synchronization functionality
 
-use super::{config::MemoryIntegrationConfig, nodes::*, stats::MemoryIntegrationStats};
-use crate::error::{KnowledgeGraphError, KnowledgeGraphResult};
+use super::{config::MemoryIntegrationConfig, stats::MemoryIntegrationStats};
+use crate::error::KnowledgeGraphResult;
 use crate::graph::{Edge, EdgeType, KnowledgeGraph, Node, NodeType};
-use crate::semantic::{EmbeddingVector, SemanticSearchEngine};
+use crate::semantic::SemanticSearchEngine;
 use chrono::{DateTime, Utc};
-use stratoswarm_agent_core::{memory::*, Agent, AgentId};
 use std::collections::HashMap;
+use stratoswarm_agent_core::{memory::*, Agent, AgentId};
 
 /// Pending memory update
 #[derive(Debug, Clone)]
@@ -148,7 +148,7 @@ impl MemorySync {
 
         for memory in memories.iter().take(self.config.max_sync_batch) {
             match self
-                .sync_single_memory(agent_id, memory, memory_type.clone(), graph)
+                .sync_single_memory(agent_id, memory, memory_type, graph)
                 .await
             {
                 Ok(_) => {
@@ -173,7 +173,7 @@ impl MemorySync {
         &mut self,
         agent_id: AgentId,
         memory: &MemoryEntry,
-        memory_type: MemoryType,
+        _memory_type: MemoryType,
         graph: &mut KnowledgeGraph,
     ) -> KnowledgeGraphResult<String> {
         // Create memory node

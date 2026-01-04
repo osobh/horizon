@@ -10,8 +10,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// TDD Phase tracking
 #[derive(Debug, Clone, PartialEq)]
 enum TddPhase {
-    Red,    // Writing failing tests
-    Green,  // Making tests pass
+    Red,      // Writing failing tests
+    Green,    // Making tests pass
     Refactor, // Improving implementation
 }
 
@@ -210,32 +210,35 @@ impl IntelligencePipelineCoordinator {
             },
         }
     }
-    
+
     /// Process evolution proposal through the intelligence pipeline
     fn process_proposal(&mut self, proposal: EvolutionProposal) -> Result<String, String> {
         // Stage 1: Store evolution proposal
         let proposal_id = proposal.id.clone();
-        self.evolution_proposals.insert(proposal_id.clone(), proposal.clone());
-        
+        self.evolution_proposals
+            .insert(proposal_id.clone(), proposal.clone());
+
         // Stage 2: Submit to consensus
         let consensus_result = self.run_consensus(&proposal)?;
-        self.consensus_results.insert(proposal_id.clone(), consensus_result.clone());
-        
+        self.consensus_results
+            .insert(proposal_id.clone(), consensus_result.clone());
+
         // Stage 3: If approved, run synthesis
         if consensus_result.decision == ConsensusDecision::Approved {
             let synthesis_task = self.create_synthesis_task(&proposal, &consensus_result)?;
             let synthesis_result = self.run_synthesis(synthesis_task)?;
-            self.synthesis_results.insert(proposal_id.clone(), synthesis_result);
-            
+            self.synthesis_results
+                .insert(proposal_id.clone(), synthesis_result);
+
             self.pipeline_metrics.approved_proposals += 1;
         }
-        
+
         self.pipeline_metrics.total_proposals += 1;
         self.update_pipeline_metrics();
-        
+
         Ok(proposal_id)
     }
-    
+
     /// Run consensus voting on proposal
     fn run_consensus(&self, proposal: &EvolutionProposal) -> Result<ConsensusResult, String> {
         // Simulate voting by multiple nodes
@@ -243,38 +246,54 @@ impl IntelligencePipelineCoordinator {
             ConsensusVote {
                 voter_id: "node_1".to_string(),
                 proposal_id: proposal.id.clone(),
-                vote: if proposal.confidence > 0.8 { VoteType::Approve } else { VoteType::Abstain },
+                vote: if proposal.confidence > 0.8 {
+                    VoteType::Approve
+                } else {
+                    VoteType::Abstain
+                },
                 confidence: 0.9,
                 reasoning: "High confidence proposal".to_string(),
             },
             ConsensusVote {
                 voter_id: "node_2".to_string(),
                 proposal_id: proposal.id.clone(),
-                vote: if proposal.fitness_score > 0.7 { VoteType::Approve } else { VoteType::Reject },
+                vote: if proposal.fitness_score > 0.7 {
+                    VoteType::Approve
+                } else {
+                    VoteType::Reject
+                },
                 confidence: 0.85,
                 reasoning: "Good fitness score".to_string(),
             },
             ConsensusVote {
                 voter_id: "node_3".to_string(),
                 proposal_id: proposal.id.clone(),
-                vote: if proposal.estimated_improvement > 0.1 { VoteType::Approve } else { VoteType::Reject },
+                vote: if proposal.estimated_improvement > 0.1 {
+                    VoteType::Approve
+                } else {
+                    VoteType::Reject
+                },
                 confidence: 0.75,
                 reasoning: "Significant improvement expected".to_string(),
             },
             ConsensusVote {
                 voter_id: "node_4".to_string(),
                 proposal_id: proposal.id.clone(),
-                vote: if proposal.resource_cost.time_estimate_minutes < 60.0 { VoteType::Approve } else { VoteType::Abstain },
+                vote: if proposal.resource_cost.time_estimate_minutes < 60.0 {
+                    VoteType::Approve
+                } else {
+                    VoteType::Abstain
+                },
                 confidence: 0.8,
                 reasoning: "Reasonable resource cost".to_string(),
             },
         ];
-        
+
         // Count votes
         let approve_count = votes.iter().filter(|v| v.vote == VoteType::Approve).count();
         let total_votes = votes.len();
         let agreement_percentage = (approve_count as f64 / total_votes as f64) * 100.0;
-        
+
         // Determine decision
         let decision = if agreement_percentage >= 75.0 {
             ConsensusDecision::Approved
@@ -283,7 +302,7 @@ impl IntelligencePipelineCoordinator {
         } else {
             ConsensusDecision::Rejected
         };
-        
+
         // Determine priority
         let priority = if proposal.confidence > 0.9 && proposal.fitness_score > 0.8 {
             Priority::Critical
@@ -294,7 +313,7 @@ impl IntelligencePipelineCoordinator {
         } else {
             Priority::Low
         };
-        
+
         Ok(ConsensusResult {
             proposal_id: proposal.id.clone(),
             decision,
@@ -303,22 +322,30 @@ impl IntelligencePipelineCoordinator {
             execution_priority: priority,
         })
     }
-    
+
     /// Create synthesis task from approved proposal
     fn create_synthesis_task(
-        &self, 
-        proposal: &EvolutionProposal, 
-        consensus: &ConsensusResult
+        &self,
+        proposal: &EvolutionProposal,
+        consensus: &ConsensusResult,
     ) -> Result<SynthesisTask, String> {
         // Determine task type based on proposal changes
-        let task_type = if proposal.proposed_changes.iter().any(|c| matches!(c.change_type, ChangeType::Algorithm)) {
+        let task_type = if proposal
+            .proposed_changes
+            .iter()
+            .any(|c| matches!(c.change_type, ChangeType::Algorithm))
+        {
             TaskType::CodeGeneration
-        } else if proposal.proposed_changes.iter().any(|c| matches!(c.change_type, ChangeType::Parameter)) {
+        } else if proposal
+            .proposed_changes
+            .iter()
+            .any(|c| matches!(c.change_type, ChangeType::Parameter))
+        {
             TaskType::Optimization
         } else {
             TaskType::Refactoring
         };
-        
+
         // Set performance targets based on proposal
         let target_performance = PerformanceTarget {
             throughput_improvement: proposal.estimated_improvement,
@@ -326,7 +353,7 @@ impl IntelligencePipelineCoordinator {
             memory_efficiency: proposal.estimated_improvement * 0.6,
             energy_efficiency: proposal.estimated_improvement * 0.4,
         };
-        
+
         // Set constraints based on consensus priority
         let max_time = match consensus.execution_priority {
             Priority::Critical => Duration::from_secs(300), // 5 minutes
@@ -334,9 +361,12 @@ impl IntelligencePipelineCoordinator {
             Priority::Medium => Duration::from_secs(1800),  // 30 minutes
             Priority::Low => Duration::from_secs(3600),     // 1 hour
         };
-        
+
         Ok(SynthesisTask {
-            id: format!("synthesis_{}", uuid::Uuid::new_v4().to_string()[..8].to_string()),
+            id: format!(
+                "synthesis_{}",
+                uuid::Uuid::new_v4().to_string()[..8].to_string()
+            ),
             proposal_id: proposal.id.clone(),
             task_type,
             input_specification: format!("Implement changes: {:?}", proposal.proposed_changes),
@@ -344,33 +374,42 @@ impl IntelligencePipelineCoordinator {
             constraints: SynthesisConstraints {
                 max_execution_time: max_time,
                 memory_limit_mb: (proposal.resource_cost.memory * 1024.0) as u32,
-                compatibility_requirements: vec!["rust-1.70+".to_string(), "cuda-11.8+".to_string()],
+                compatibility_requirements: vec![
+                    "rust-1.70+".to_string(),
+                    "cuda-11.8+".to_string(),
+                ],
                 safety_requirements: vec!["no-unsafe".to_string(), "memory-safe".to_string()],
             },
         })
     }
-    
+
     /// Run synthesis task
     fn run_synthesis(&self, task: SynthesisTask) -> Result<SynthesisResult, String> {
         // Simulate synthesis process
         let start_time = SystemTime::now();
-        
+
         // Generate code based on task type
         let generated_code = match task.task_type {
             TaskType::CodeGeneration => {
                 format!("// Generated code for {}\npub fn optimized_function() -> f64 {{\n    // Implementation\n    42.0\n}}", task.proposal_id)
             }
             TaskType::Optimization => {
-                format!("// Optimized parameters for {}\nconst OPTIMIZED_PARAM: f64 = 1.618;", task.proposal_id)
+                format!(
+                    "// Optimized parameters for {}\nconst OPTIMIZED_PARAM: f64 = 1.618;",
+                    task.proposal_id
+                )
             }
             TaskType::Refactoring => {
                 format!("// Refactored structure for {}\npub struct OptimizedStruct {{\n    data: Vec<f64>,\n}}", task.proposal_id)
             }
             TaskType::Testing => {
-                format!("// Tests for {}\n#[test]\nfn test_optimization() {{\n    assert!(true);\n}}", task.proposal_id)
+                format!(
+                    "// Tests for {}\n#[test]\nfn test_optimization() {{\n    assert!(true);\n}}",
+                    task.proposal_id
+                )
             }
         };
-        
+
         // Simulate performance metrics
         let performance_multiplier = 1.0 + (task.target_performance.throughput_improvement * 0.8);
         let actual_performance = ActualPerformance {
@@ -379,21 +418,21 @@ impl IntelligencePipelineCoordinator {
             memory_usage: 512.0 / (1.0 + task.target_performance.memory_efficiency),
             energy_consumption: 100.0 / (1.0 + task.target_performance.energy_efficiency),
         };
-        
+
         // Calculate quality score
         let quality_score = if generated_code.len() > 50 && generated_code.contains("fn") {
             0.95
         } else {
             0.75
         };
-        
+
         // Simulate test coverage
         let test_coverage = match task.task_type {
             TaskType::Testing => 0.95,
             TaskType::CodeGeneration => 0.80,
             _ => 0.85,
         };
-        
+
         // Simulate compilation
         let compilation_status = if quality_score > 0.8 {
             CompilationStatus::Success
@@ -402,7 +441,7 @@ impl IntelligencePipelineCoordinator {
         } else {
             CompilationStatus::Error
         };
-        
+
         Ok(SynthesisResult {
             task_id: task.id,
             generated_code,
@@ -412,53 +451,59 @@ impl IntelligencePipelineCoordinator {
             compilation_status,
         })
     }
-    
+
     /// Update pipeline metrics
     fn update_pipeline_metrics(&mut self) {
         if self.pipeline_metrics.total_proposals == 0 {
             return;
         }
-        
+
         // Calculate synthesis success rate
-        let successful_synthesis = self.synthesis_results
+        let successful_synthesis = self
+            .synthesis_results
             .values()
             .filter(|r| r.compilation_status == CompilationStatus::Success)
             .count();
-        
-        self.pipeline_metrics.synthesis_success_rate = 
+
+        self.pipeline_metrics.synthesis_success_rate =
             successful_synthesis as f64 / self.synthesis_results.len() as f64;
-        
+
         // Calculate average improvement
-        let total_improvement: f64 = self.evolution_proposals
+        let total_improvement: f64 = self
+            .evolution_proposals
             .values()
             .map(|p| p.estimated_improvement)
             .sum();
-        
-        self.pipeline_metrics.average_improvement = 
+
+        self.pipeline_metrics.average_improvement =
             total_improvement / self.pipeline_metrics.total_proposals as f64;
-        
+
         // Calculate overall pipeline efficiency
-        let approval_rate = self.pipeline_metrics.approved_proposals as f64 / 
-                           self.pipeline_metrics.total_proposals as f64;
-        
-        self.pipeline_metrics.pipeline_efficiency = 
+        let approval_rate = self.pipeline_metrics.approved_proposals as f64
+            / self.pipeline_metrics.total_proposals as f64;
+
+        self.pipeline_metrics.pipeline_efficiency =
             approval_rate * self.pipeline_metrics.synthesis_success_rate;
     }
-    
+
     /// Get pipeline summary
     fn get_pipeline_summary(&self) -> PipelineSummary {
         PipelineSummary {
             total_proposals: self.pipeline_metrics.total_proposals,
             approved_count: self.pipeline_metrics.approved_proposals,
-            rejected_count: self.pipeline_metrics.total_proposals - self.pipeline_metrics.approved_proposals,
-            synthesis_success_count: self.synthesis_results
+            rejected_count: self.pipeline_metrics.total_proposals
+                - self.pipeline_metrics.approved_proposals,
+            synthesis_success_count: self
+                .synthesis_results
                 .values()
                 .filter(|r| r.compilation_status == CompilationStatus::Success)
                 .count() as u32,
-            average_consensus_agreement: self.consensus_results
+            average_consensus_agreement: self
+                .consensus_results
                 .values()
                 .map(|r| r.agreement_percentage)
-                .sum::<f64>() / self.consensus_results.len() as f64,
+                .sum::<f64>()
+                / self.consensus_results.len() as f64,
             pipeline_efficiency: self.pipeline_metrics.pipeline_efficiency,
         }
     }
@@ -490,38 +535,38 @@ impl IntelligencePipelineTests {
             current_phase: TddPhase::Red,
         }
     }
-    
+
     async fn run_comprehensive_tests(&mut self) -> Vec<IntegrationTestResult> {
         println!("=== Consensus ↔ Synthesis ↔ Evolution Integration Tests ===");
-        
+
         // RED Phase
         self.current_phase = TddPhase::Red;
         println!("\n🔴 RED Phase - Writing failing tests");
         self.test_complete_pipeline().await;
         self.test_consensus_voting().await;
         self.test_synthesis_execution().await;
-        
+
         // GREEN Phase
         self.current_phase = TddPhase::Green;
         println!("\n🟢 GREEN Phase - Making tests pass");
         self.test_complete_pipeline().await;
         self.test_consensus_voting().await;
         self.test_synthesis_execution().await;
-        
+
         // REFACTOR Phase
         self.current_phase = TddPhase::Refactor;
         println!("\n🔵 REFACTOR Phase - Improving implementation");
         self.test_complete_pipeline().await;
         self.test_consensus_voting().await;
         self.test_synthesis_execution().await;
-        
+
         self.test_results.clone()
     }
-    
+
     async fn test_complete_pipeline(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Complete Intelligence Pipeline";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
@@ -530,14 +575,12 @@ impl IntelligencePipelineTests {
                     id: format!("prop_{}", uuid::Uuid::new_v4().to_string()[..8].to_string()),
                     generation: 42,
                     fitness_score: 0.85,
-                    proposed_changes: vec![
-                        CodeChange {
-                            component: "kernel_optimizer".to_string(),
-                            change_type: ChangeType::Algorithm,
-                            description: "Implement advanced memory coalescing".to_string(),
-                            impact_score: 0.8,
-                        },
-                    ],
+                    proposed_changes: vec![CodeChange {
+                        component: "kernel_optimizer".to_string(),
+                        change_type: ChangeType::Algorithm,
+                        description: "Implement advanced memory coalescing".to_string(),
+                        impact_score: 0.8,
+                    }],
                     estimated_improvement: 0.25,
                     resource_cost: ResourceCost {
                         computation: 10.0,
@@ -546,7 +589,7 @@ impl IntelligencePipelineTests {
                     },
                     confidence: 0.9,
                 };
-                
+
                 // Process through pipeline
                 match self.coordinator.process_proposal(proposal) {
                     Ok(_) => {
@@ -557,7 +600,7 @@ impl IntelligencePipelineTests {
                 }
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -569,11 +612,11 @@ impl IntelligencePipelineTests {
             evolution_improvement: if success { 0.25 } else { 0.0 },
         });
     }
-    
+
     async fn test_consensus_voting(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Consensus Voting Mechanism";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
@@ -590,17 +633,17 @@ impl IntelligencePipelineTests {
                     },
                     confidence: 0.95,
                 };
-                
+
                 match self.coordinator.run_consensus(&proposal) {
                     Ok(result) => {
-                        result.decision == ConsensusDecision::Approved && 
-                        result.agreement_percentage > 75.0
+                        result.decision == ConsensusDecision::Approved
+                            && result.agreement_percentage > 75.0
                     }
                     Err(_) => false,
                 }
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -612,11 +655,11 @@ impl IntelligencePipelineTests {
             evolution_improvement: 0.0,
         });
     }
-    
+
     async fn test_synthesis_execution(&mut self) {
         let start = std::time::Instant::now();
         let test_name = "Synthesis Code Generation";
-        
+
         let success = match self.current_phase {
             TddPhase::Red => false,
             _ => {
@@ -638,18 +681,18 @@ impl IntelligencePipelineTests {
                         safety_requirements: vec![],
                     },
                 };
-                
+
                 match self.coordinator.run_synthesis(task) {
                     Ok(result) => {
-                        result.compilation_status == CompilationStatus::Success &&
-                        result.quality_score > 0.8 &&
-                        !result.generated_code.is_empty()
+                        result.compilation_status == CompilationStatus::Success
+                            && result.quality_score > 0.8
+                            && !result.generated_code.is_empty()
                     }
                     Err(_) => false,
                 }
             }
         };
-        
+
         self.test_results.push(IntegrationTestResult {
             test_name: test_name.to_string(),
             phase: self.current_phase.clone(),
@@ -666,25 +709,26 @@ impl IntelligencePipelineTests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_intelligence_pipeline_integration() {
         let mut tests = IntelligencePipelineTests::new().await;
         let results = tests.run_comprehensive_tests().await;
-        
+
         // Verify all phases completed
         assert!(results.iter().any(|r| r.phase == TddPhase::Red));
         assert!(results.iter().any(|r| r.phase == TddPhase::Green));
         assert!(results.iter().any(|r| r.phase == TddPhase::Refactor));
-        
+
         // Verify success in final phase
         let refactor_results: Vec<_> = results
             .iter()
             .filter(|r| r.phase == TddPhase::Refactor)
             .collect();
-        
+
         for result in &refactor_results {
-            println!("{}: {} (stages: {}, consensus: {:.1}%, synthesis: {:.1}%)", 
+            println!(
+                "{}: {} (stages: {}, consensus: {:.1}%, synthesis: {:.1}%)",
                 result.test_name,
                 if result.success { "✓" } else { "✗" },
                 result.pipeline_stages_completed,
@@ -693,16 +737,25 @@ mod tests {
             );
             assert!(result.success, "Test should pass: {}", result.test_name);
         }
-        
+
         // Verify pipeline effectiveness
-        let total_stages: u32 = refactor_results.iter()
+        let total_stages: u32 = refactor_results
+            .iter()
             .map(|r| r.pipeline_stages_completed)
             .sum();
-        assert!(total_stages >= 3, "Pipeline should complete multiple stages");
-        
-        let avg_consensus = refactor_results.iter()
+        assert!(
+            total_stages >= 3,
+            "Pipeline should complete multiple stages"
+        );
+
+        let avg_consensus = refactor_results
+            .iter()
             .map(|r| r.consensus_agreement)
-            .sum::<f64>() / refactor_results.len() as f64;
-        assert!(avg_consensus > 0.5, "Consensus agreement should be above 50%");
+            .sum::<f64>()
+            / refactor_results.len() as f64;
+        assert!(
+            avg_consensus > 0.5,
+            "Consensus agreement should be above 50%"
+        );
     }
 }

@@ -114,8 +114,8 @@ fn test_empty_data() {
 fn test_forecast_reasonable_values() {
     let data = generate_seasonal_data(180);
     let mean = data.iter().sum::<f64>() / data.len() as f64;
-    let std_dev = (data.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / data.len() as f64)
-        .sqrt();
+    let std_dev =
+        (data.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / data.len() as f64).sqrt();
 
     let mut forecaster = EtsForecaster::new();
     forecaster.train(&data).unwrap();

@@ -311,13 +311,21 @@ impl Metal4ResidencySet {
     }
 
     /// Get resources filtered by usage type.
-    pub fn resources_with_usage(&self, usage: ResourceUsage) -> impl Iterator<Item = &TrackedResource> {
+    pub fn resources_with_usage(
+        &self,
+        usage: ResourceUsage,
+    ) -> impl Iterator<Item = &TrackedResource> {
         self.resources.iter().filter(move |r| r.usage == usage)
     }
 
     /// Get resources filtered by resource type.
-    pub fn resources_of_type(&self, resource_type: ResourceType) -> impl Iterator<Item = &TrackedResource> {
-        self.resources.iter().filter(move |r| r.resource_type == resource_type)
+    pub fn resources_of_type(
+        &self,
+        resource_type: ResourceType,
+    ) -> impl Iterator<Item = &TrackedResource> {
+        self.resources
+            .iter()
+            .filter(move |r| r.resource_type == resource_type)
     }
 }
 
@@ -447,7 +455,8 @@ mod tests {
             assert!(set.add_buffer(&buffer2, ResourceUsage::Read).is_err());
 
             // Can request residency after commit
-            set.request_residency().expect("Failed to request residency");
+            set.request_residency()
+                .expect("Failed to request residency");
             assert!(set.is_resident());
         }
     }
@@ -483,7 +492,8 @@ mod tests {
             set.add_buffer(&buffer, ResourceUsage::Read)
                 .expect("Failed to add buffer");
             set.commit();
-            set.request_residency().expect("Failed to request residency");
+            set.request_residency()
+                .expect("Failed to request residency");
 
             assert!(set.is_committed());
             assert!(set.is_resident());

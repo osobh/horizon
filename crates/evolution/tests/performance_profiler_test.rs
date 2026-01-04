@@ -3,13 +3,13 @@
 //! Tests real-time performance monitoring and feedback loops for autonomous optimization.
 //! These tests verify GPU performance metrics collection and automatic tuning capabilities.
 
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::collections::{HashMap, VecDeque};
 use tokio::sync::{mpsc, RwLock};
-use tokio::time::{sleep, interval, timeout};
-use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
+use tokio::time::{interval, sleep, timeout};
 use uuid::Uuid;
 
 /// GPU performance metrics
@@ -96,10 +96,22 @@ pub struct GpuPerformanceProfiler {
 
 #[derive(Debug, Clone)]
 pub enum OptimizationCommand {
-    TuneKernel { kernel_id: String, action: OptimizationAction },
-    RecompileWithOptimizations { kernel_id: String, optimizations: Vec<String> },
-    ScaleResources { kernel_id: String, scale_factor: f64 },
-    Emergency { kernel_id: String, issue: String },
+    TuneKernel {
+        kernel_id: String,
+        action: OptimizationAction,
+    },
+    RecompileWithOptimizations {
+        kernel_id: String,
+        optimizations: Vec<String>,
+    },
+    ScaleResources {
+        kernel_id: String,
+        scale_factor: f64,
+    },
+    Emergency {
+        kernel_id: String,
+        issue: String,
+    },
 }
 
 impl GpuPerformanceProfiler {
@@ -126,7 +138,7 @@ impl GpuPerformanceProfiler {
 
         // This will fail in RED phase - no actual GPU profiling implemented
         self.initialize_gpu_profiler().await?;
-        
+
         // Start metrics collection loop
         let profiler = self.clone();
         tokio::spawn(async move {
@@ -148,7 +160,7 @@ impl GpuPerformanceProfiler {
             let mut active = self.profiling_active.lock()?;
             *active = false;
         }
-        
+
         self.cleanup_gpu_profiler().await?;
         Ok(())
     }
@@ -161,7 +173,7 @@ impl GpuPerformanceProfiler {
     ) -> Result<GpuPerformanceMetrics> {
         // This will fail in RED phase - no actual GPU metrics collection
         let gpu_metrics = self.collect_gpu_metrics(&kernel_id).await?;
-        
+
         let metrics = GpuPerformanceMetrics {
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             kernel_id: kernel_id.clone(),
@@ -181,7 +193,7 @@ impl GpuPerformanceProfiler {
         {
             let mut buffer = self.metrics_buffer.write().await;
             buffer.push_back(metrics.clone());
-            
+
             // Maintain buffer size
             while buffer.len() > self.config.metrics_buffer_size {
                 buffer.pop_front();
@@ -194,7 +206,7 @@ impl GpuPerformanceProfiler {
     /// Analyze performance trends and trigger optimizations
     pub async fn analyze_performance_trends(&self, kernel_id: &str) -> Result<PerformanceTrend> {
         let recent_metrics = self.get_recent_metrics(kernel_id, 100).await?;
-        
+
         if recent_metrics.is_empty() {
             return Err(anyhow!("No metrics available for kernel {}", kernel_id));
         }
@@ -223,7 +235,7 @@ impl GpuPerformanceProfiler {
         count: usize,
     ) -> Result<Vec<GpuPerformanceMetrics>> {
         let buffer = self.metrics_buffer.read().await;
-        
+
         let recent: Vec<GpuPerformanceMetrics> = buffer
             .iter()
             .filter(|m| m.kernel_id == kernel_id)
@@ -231,14 +243,14 @@ impl GpuPerformanceProfiler {
             .take(count)
             .cloned()
             .collect();
-        
+
         Ok(recent)
     }
 
     /// Get performance statistics for a kernel
     pub async fn get_performance_stats(&self, kernel_id: &str) -> Result<PerformanceStats> {
         let metrics = self.get_recent_metrics(kernel_id, 1000).await?;
-        
+
         if metrics.is_empty() {
             return Err(anyhow!("No performance data for kernel {}", kernel_id));
         }
@@ -248,21 +260,29 @@ impl GpuPerformanceProfiler {
             .map(|m| m.execution_time_ns as f64 / 1_000_000.0) // Convert to ms
             .collect();
 
-        let throughputs: Vec<f64> = metrics
-            .iter()
-            .map(|m| m.throughput_ops_per_sec)
-            .collect();
+        let throughputs: Vec<f64> = metrics.iter().map(|m| m.throughput_ops_per_sec).collect();
 
         Ok(PerformanceStats {
             kernel_id: kernel_id.to_string(),
             sample_count: metrics.len(),
-            avg_execution_time_ms: execution_times.iter().sum::<f64>() / execution_times.len() as f64,
+            avg_execution_time_ms: execution_times.iter().sum::<f64>()
+                / execution_times.len() as f64,
             min_execution_time_ms: execution_times.iter().fold(f64::INFINITY, |a, &b| a.min(b)),
-            max_execution_time_ms: execution_times.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
+            max_execution_time_ms: execution_times
+                .iter()
+                .fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
             avg_throughput: throughputs.iter().sum::<f64>() / throughputs.len() as f64,
             peak_throughput: throughputs.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)),
-            avg_gpu_utilization: metrics.iter().map(|m| m.gpu_utilization_percent).sum::<f64>() / metrics.len() as f64,
-            avg_power_consumption: metrics.iter().map(|m| m.power_consumption_watts).sum::<f64>() / metrics.len() as f64,
+            avg_gpu_utilization: metrics
+                .iter()
+                .map(|m| m.gpu_utilization_percent)
+                .sum::<f64>()
+                / metrics.len() as f64,
+            avg_power_consumption: metrics
+                .iter()
+                .map(|m| m.power_consumption_watts)
+                .sum::<f64>()
+                / metrics.len() as f64,
         })
     }
 
@@ -275,45 +295,58 @@ impl GpuPerformanceProfiler {
 
     // Implementation methods that will fail in RED phase
     async fn initialize_gpu_profiler(&self) -> Result<()> {
-        Err(anyhow!("GPU profiler initialization not implemented - RED phase failure"))
+        Err(anyhow!(
+            "GPU profiler initialization not implemented - RED phase failure"
+        ))
     }
 
     async fn cleanup_gpu_profiler(&self) -> Result<()> {
-        Err(anyhow!("GPU profiler cleanup not implemented - RED phase failure"))
+        Err(anyhow!(
+            "GPU profiler cleanup not implemented - RED phase failure"
+        ))
     }
 
     async fn collect_gpu_metrics(&self, _kernel_id: &str) -> Result<RawGpuMetrics> {
-        Err(anyhow!("GPU metrics collection not implemented - RED phase failure"))
+        Err(anyhow!(
+            "GPU metrics collection not implemented - RED phase failure"
+        ))
     }
 
-    async fn compute_performance_trend(&self, _metrics: &[GpuPerformanceMetrics]) -> Result<PerformanceTrend> {
-        Err(anyhow!("Performance trend analysis not implemented - RED phase failure"))
+    async fn compute_performance_trend(
+        &self,
+        _metrics: &[GpuPerformanceMetrics],
+    ) -> Result<PerformanceTrend> {
+        Err(anyhow!(
+            "Performance trend analysis not implemented - RED phase failure"
+        ))
     }
 
     async fn trigger_optimization_if_needed(&self, trend: &PerformanceTrend) -> Result<()> {
-        if matches!(trend.trend_direction, TrendDirection::Degrading) 
-            && trend.confidence > 0.8 {
-            self.optimization_sender.send(OptimizationCommand::TuneKernel {
-                kernel_id: trend.kernel_id.clone(),
-                action: trend.recommended_action.clone(),
-            })?;
+        if matches!(trend.trend_direction, TrendDirection::Degrading) && trend.confidence > 0.8 {
+            self.optimization_sender
+                .send(OptimizationCommand::TuneKernel {
+                    kernel_id: trend.kernel_id.clone(),
+                    action: trend.recommended_action.clone(),
+                })?;
         }
         Ok(())
     }
 
     async fn setup_predictive_model(&self, _kernel_id: &str) -> Result<()> {
-        Err(anyhow!("Predictive scaling setup not implemented - RED phase failure"))
+        Err(anyhow!(
+            "Predictive scaling setup not implemented - RED phase failure"
+        ))
     }
 
     async fn metrics_collection_loop(&self) {
         let mut interval = interval(Duration::from_millis(self.config.sampling_interval_ms));
-        
+
         while {
             let active = self.profiling_active.lock()?;
             *active
         } {
             interval.tick().await;
-            
+
             // This loop will effectively do nothing in RED phase
             // Real implementation would collect GPU metrics here
         }
@@ -321,13 +354,13 @@ impl GpuPerformanceProfiler {
 
     async fn trend_analysis_loop(&self) {
         let mut interval = interval(Duration::from_secs(5)); // Analyze trends every 5 seconds
-        
+
         while {
             let active = self.profiling_active.lock()?;
             *active
         } {
             interval.tick().await;
-            
+
             // This loop will effectively do nothing in RED phase
             // Real implementation would analyze trends here
         }
@@ -401,17 +434,21 @@ impl AutonomousOptimizer {
     }
 
     /// Apply optimization based on performance feedback
-    pub async fn optimize_kernel(&self, kernel_id: &str, action: OptimizationAction) -> Result<bool> {
+    pub async fn optimize_kernel(
+        &self,
+        kernel_id: &str,
+        action: OptimizationAction,
+    ) -> Result<bool> {
         // Record pre-optimization performance
         let pre_stats = self.profiler.get_performance_stats(kernel_id).await?;
-        
+
         // This will fail in RED phase - no actual optimization implementation
         let success = self.apply_optimization(kernel_id, &action).await?;
-        
+
         // Record post-optimization performance
         sleep(Duration::from_secs(1)).await; // Wait for metrics
         let post_stats = self.profiler.get_performance_stats(kernel_id).await?;
-        
+
         // Record optimization attempt
         let attempt = OptimizationAttempt {
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
@@ -421,12 +458,15 @@ impl AutonomousOptimizer {
             post_optimization_perf: post_stats.avg_throughput,
             success,
         };
-        
+
         {
             let mut history = self.optimization_history.write().await;
-            history.entry(kernel_id.to_string()).or_insert_with(Vec::new).push(attempt);
+            history
+                .entry(kernel_id.to_string())
+                .or_insert_with(Vec::new)
+                .push(attempt);
         }
-        
+
         Ok(success)
     }
 
@@ -434,19 +474,30 @@ impl AutonomousOptimizer {
     pub async fn learn_from_history(&self, kernel_id: &str) -> Result<Vec<OptimizationAction>> {
         let history = self.optimization_history.read().await;
         let attempts = history.get(kernel_id).cloned().unwrap_or_default();
-        
+
         // This will fail in RED phase - no learning algorithm implemented
         let recommended_actions = self.analyze_optimization_history(&attempts).await?;
-        
+
         Ok(recommended_actions)
     }
 
-    async fn apply_optimization(&self, _kernel_id: &str, _action: &OptimizationAction) -> Result<bool> {
-        Err(anyhow!("Optimization application not implemented - RED phase failure"))
+    async fn apply_optimization(
+        &self,
+        _kernel_id: &str,
+        _action: &OptimizationAction,
+    ) -> Result<bool> {
+        Err(anyhow!(
+            "Optimization application not implemented - RED phase failure"
+        ))
     }
 
-    async fn analyze_optimization_history(&self, _attempts: &[OptimizationAttempt]) -> Result<Vec<OptimizationAction>> {
-        Err(anyhow!("Optimization history analysis not implemented - RED phase failure"))
+    async fn analyze_optimization_history(
+        &self,
+        _attempts: &[OptimizationAttempt],
+    ) -> Result<Vec<OptimizationAction>> {
+        Err(anyhow!(
+            "Optimization history analysis not implemented - RED phase failure"
+        ))
     }
 }
 
@@ -475,7 +526,7 @@ impl PerformanceFeedbackLoop {
 
         // This will fail in RED phase - no feedback loop implementation
         self.initialize_feedback_system().await?;
-        
+
         Ok(())
     }
 
@@ -489,7 +540,9 @@ impl PerformanceFeedbackLoop {
     }
 
     async fn initialize_feedback_system(&self) -> Result<()> {
-        Err(anyhow!("Feedback loop system not implemented - RED phase failure"))
+        Err(anyhow!(
+            "Feedback loop system not implemented - RED phase failure"
+        ))
     }
 }
 
@@ -504,20 +557,21 @@ mod tests {
         let (opt_sender, mut opt_receiver) = mpsc::unbounded_channel();
         let config = ProfilerConfig::default();
         let profiler = GpuPerformanceProfiler::new(config, opt_sender);
-        
+
         // Start profiling - should fail in RED phase
         let result = profiler.start_profiling().await;
         assert!(result.is_err(), "Profiling should fail in RED phase");
-        
+
         // Try to profile kernel execution
-        let kernel_execution_result = profiler.profile_kernel_execution(
-            "test_kernel".to_string(),
-            Duration::from_micros(500),
-        ).await;
-        
+        let kernel_execution_result = profiler
+            .profile_kernel_execution("test_kernel".to_string(), Duration::from_micros(500))
+            .await;
+
         // Should fail because GPU metrics collection isn't implemented
-        assert!(kernel_execution_result.is_err(), 
-            "Kernel profiling should fail in RED phase");
+        assert!(
+            kernel_execution_result.is_err(),
+            "Kernel profiling should fail in RED phase"
+        );
     }
 
     /// Test performance trend analysis and optimization triggers
@@ -530,7 +584,7 @@ mod tests {
             ..ProfilerConfig::default()
         };
         let profiler = Arc::new(GpuPerformanceProfiler::new(config, opt_sender));
-        
+
         // Simulate degrading performance metrics
         let degrading_metrics = vec![
             GpuPerformanceMetrics {
@@ -562,7 +616,7 @@ mod tests {
                 occupancy_percent: 85.0,
             },
         ];
-        
+
         // Add metrics to buffer manually for testing
         {
             let mut buffer = profiler.metrics_buffer.write().await;
@@ -570,10 +624,15 @@ mod tests {
                 buffer.push_back(metric);
             }
         }
-        
+
         // Try to analyze trends - should fail in RED phase
-        let trend_result = profiler.analyze_performance_trends("degrading_kernel").await;
-        assert!(trend_result.is_err(), "Trend analysis should fail in RED phase");
+        let trend_result = profiler
+            .analyze_performance_trends("degrading_kernel")
+            .await;
+        assert!(
+            trend_result.is_err(),
+            "Trend analysis should fail in RED phase"
+        );
     }
 
     /// Test autonomous kernel optimization
@@ -583,15 +642,16 @@ mod tests {
         let config = ProfilerConfig::default();
         let profiler = Arc::new(GpuPerformanceProfiler::new(config, opt_sender));
         let optimizer = AutonomousOptimizer::new(profiler.clone());
-        
+
         // Try to optimize a kernel - should fail in RED phase
-        let optimization_result = optimizer.optimize_kernel(
-            "target_kernel",
-            OptimizationAction::IncreaseThreads,
-        ).await;
-        
-        assert!(optimization_result.is_err(), 
-            "Kernel optimization should fail in RED phase");
+        let optimization_result = optimizer
+            .optimize_kernel("target_kernel", OptimizationAction::IncreaseThreads)
+            .await;
+
+        assert!(
+            optimization_result.is_err(),
+            "Kernel optimization should fail in RED phase"
+        );
     }
 
     /// Test performance statistics collection
@@ -600,7 +660,7 @@ mod tests {
         let (opt_sender, _opt_receiver) = mpsc::unbounded_channel();
         let config = ProfilerConfig::default();
         let profiler = GpuPerformanceProfiler::new(config, opt_sender);
-        
+
         // Add some test metrics
         let test_metrics = vec![
             GpuPerformanceMetrics {
@@ -632,20 +692,23 @@ mod tests {
                 occupancy_percent: 97.0,
             },
         ];
-        
+
         {
             let mut buffer = profiler.metrics_buffer.write().await;
             for metric in test_metrics {
                 buffer.push_back(metric);
             }
         }
-        
+
         // Try to get performance stats
         let stats_result = profiler.get_performance_stats("stats_kernel").await;
-        
+
         // This should succeed because it only processes existing data
-        assert!(stats_result.is_ok(), "Statistics calculation should work with existing data");
-        
+        assert!(
+            stats_result.is_ok(),
+            "Statistics calculation should work with existing data"
+        );
+
         let stats = stats_result.unwrap();
         assert_eq!(stats.kernel_id, "stats_kernel");
         assert_eq!(stats.sample_count, 2);
@@ -661,11 +724,15 @@ mod tests {
             ..ProfilerConfig::default()
         };
         let profiler = GpuPerformanceProfiler::new(config, opt_sender);
-        
+
         // Try to enable predictive scaling - should fail in RED phase
-        let scaling_result = profiler.enable_predictive_scaling("predictive_kernel").await;
-        assert!(scaling_result.is_err(), 
-            "Predictive scaling should fail in RED phase");
+        let scaling_result = profiler
+            .enable_predictive_scaling("predictive_kernel")
+            .await;
+        assert!(
+            scaling_result.is_err(),
+            "Predictive scaling should fail in RED phase"
+        );
     }
 
     /// Test performance feedback loop
@@ -676,11 +743,13 @@ mod tests {
         let profiler = Arc::new(GpuPerformanceProfiler::new(config, opt_sender));
         let optimizer = Arc::new(AutonomousOptimizer::new(profiler.clone()));
         let feedback_loop = PerformanceFeedbackLoop::new(profiler, optimizer);
-        
+
         // Try to start feedback loop - should fail in RED phase
         let feedback_result = feedback_loop.start_feedback_loop().await;
-        assert!(feedback_result.is_err(), 
-            "Feedback loop should fail in RED phase");
+        assert!(
+            feedback_result.is_err(),
+            "Feedback loop should fail in RED phase"
+        );
     }
 
     /// Test optimization learning from history
@@ -690,11 +759,13 @@ mod tests {
         let config = ProfilerConfig::default();
         let profiler = Arc::new(GpuPerformanceProfiler::new(config, opt_sender));
         let optimizer = AutonomousOptimizer::new(profiler.clone());
-        
+
         // Try to learn from optimization history - should fail in RED phase
         let learning_result = optimizer.learn_from_history("learning_kernel").await;
-        assert!(learning_result.is_err(), 
-            "Learning from history should fail in RED phase");
+        assert!(
+            learning_result.is_err(),
+            "Learning from history should fail in RED phase"
+        );
     }
 
     /// Test concurrent performance profiling of multiple kernels
@@ -707,26 +778,28 @@ mod tests {
             ..ProfilerConfig::default()
         };
         let profiler = Arc::new(GpuPerformanceProfiler::new(config, opt_sender));
-        
+
         // Launch concurrent profiling tasks for multiple kernels
         let mut handles = Vec::new();
         for i in 0..5 {
             let profiler_clone = profiler.clone();
             let kernel_id = format!("concurrent_kernel_{}", i);
-            
+
             let handle = tokio::spawn(async move {
-                profiler_clone.profile_kernel_execution(
-                    kernel_id,
-                    Duration::from_micros(100 + i * 50),
-                ).await
+                profiler_clone
+                    .profile_kernel_execution(kernel_id, Duration::from_micros(100 + i * 50))
+                    .await
             });
             handles.push(handle);
         }
-        
+
         // All tasks should fail in RED phase
         for handle in handles {
             let result = handle.await.expect("Task should complete");
-            assert!(result.is_err(), "Concurrent profiling should fail in RED phase");
+            assert!(
+                result.is_err(),
+                "Concurrent profiling should fail in RED phase"
+            );
         }
     }
 
@@ -739,41 +812,43 @@ mod tests {
             ..ProfilerConfig::default()
         };
         let profiler = GpuPerformanceProfiler::new(config, opt_sender);
-        
+
         // Add more metrics than buffer can hold
-        let test_metrics = (0..5).map(|i| GpuPerformanceMetrics {
-            timestamp: 1000 + i,
-            kernel_id: "buffer_test".to_string(),
-            execution_time_ns: 1_000_000 + i * 100_000,
-            throughput_ops_per_sec: 100.0 + i as f64 * 10.0,
-            memory_bandwidth_gb_per_sec: 500.0,
-            gpu_utilization_percent: 90.0,
-            memory_utilization_percent: 80.0,
-            power_consumption_watts: 250.0,
-            temperature_celsius: 70.0,
-            cache_hit_rate: 0.95,
-            warp_efficiency: 0.85,
-            occupancy_percent: 90.0,
-        }).collect::<Vec<_>>();
-        
+        let test_metrics = (0..5)
+            .map(|i| GpuPerformanceMetrics {
+                timestamp: 1000 + i,
+                kernel_id: "buffer_test".to_string(),
+                execution_time_ns: 1_000_000 + i * 100_000,
+                throughput_ops_per_sec: 100.0 + i as f64 * 10.0,
+                memory_bandwidth_gb_per_sec: 500.0,
+                gpu_utilization_percent: 90.0,
+                memory_utilization_percent: 80.0,
+                power_consumption_watts: 250.0,
+                temperature_celsius: 70.0,
+                cache_hit_rate: 0.95,
+                warp_efficiency: 0.85,
+                occupancy_percent: 90.0,
+            })
+            .collect::<Vec<_>>();
+
         // Add all metrics
         {
             let mut buffer = profiler.metrics_buffer.write().await;
             for metric in test_metrics {
                 buffer.push_back(metric);
-                
+
                 // Simulate buffer size management
                 while buffer.len() > 3 {
                     buffer.pop_front();
                 }
             }
         }
-        
+
         // Verify buffer size is maintained
         {
             let buffer = profiler.metrics_buffer.read().await;
             assert_eq!(buffer.len(), 3, "Buffer size should be maintained at 3");
-            
+
             // Verify we have the most recent metrics (timestamps 3, 4, 5)
             let timestamps: Vec<u64> = buffer.iter().map(|m| m.timestamp).collect();
             assert_eq!(timestamps, vec![1003, 1004, 1005]);
@@ -790,7 +865,7 @@ mod tests {
             ..ProfilerConfig::default()
         };
         let profiler = GpuPerformanceProfiler::new(config, opt_sender);
-        
+
         // Create a performance trend that should trigger optimization
         let degrading_trend = PerformanceTrend {
             kernel_id: "trigger_test".to_string(),
@@ -799,15 +874,20 @@ mod tests {
             predicted_performance_in_5min: 60.0, // Below threshold
             recommended_action: OptimizationAction::IncreaseThreads,
         };
-        
+
         // This should succeed since it's just sending a message
-        let trigger_result = profiler.trigger_optimization_if_needed(&degrading_trend).await;
-        assert!(trigger_result.is_ok(), "Optimization triggering should succeed");
-        
+        let trigger_result = profiler
+            .trigger_optimization_if_needed(&degrading_trend)
+            .await;
+        assert!(
+            trigger_result.is_ok(),
+            "Optimization triggering should succeed"
+        );
+
         // Verify optimization command was sent
         let command = timeout(Duration::from_millis(100), opt_receiver.recv()).await;
         assert!(command.is_ok(), "Should receive optimization command");
-        
+
         if let Ok(Some(OptimizationCommand::TuneKernel { kernel_id, action })) = command {
             assert_eq!(kernel_id, "trigger_test");
             assert!(matches!(action, OptimizationAction::IncreaseThreads));

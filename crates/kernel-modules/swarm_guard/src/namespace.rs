@@ -211,7 +211,12 @@ impl OverlayFsConfig {
 
     /// Validate the overlayfs configuration
     pub fn validate(&self) -> KernelResult<()> {
-        for path in [&self.lower_dir, &self.upper_dir, &self.work_dir, &self.merged_dir] {
+        for path in [
+            &self.lower_dir,
+            &self.upper_dir,
+            &self.work_dir,
+            &self.merged_dir,
+        ] {
             if path.is_empty() || path.len() > MAX_PATH_LEN {
                 return Err(KernelError::InvalidArgument);
             }
@@ -265,17 +270,15 @@ impl MountIsolationConfig {
         );
 
         // Add cargo registry bind mount (shared cache)
-        config.bind_mounts.push(BindMount::new(
-            cargo_registry,
-            "/root/.cargo/registry",
-        ));
+        config
+            .bind_mounts
+            .push(BindMount::new(cargo_registry, "/root/.cargo/registry"));
 
         // Add sccache bind mount if provided
         if let Some(sccache) = sccache_dir {
-            config.bind_mounts.push(BindMount::new(
-                sccache,
-                "/root/.cache/sccache",
-            ));
+            config
+                .bind_mounts
+                .push(BindMount::new(sccache, "/root/.cache/sccache"));
         }
 
         config
@@ -649,12 +652,7 @@ mod tests {
 
     #[test]
     fn test_overlayfs_config() {
-        let config = OverlayFsConfig::new(
-            "/lower",
-            "/upper",
-            "/work",
-            "/merged",
-        );
+        let config = OverlayFsConfig::new("/lower", "/upper", "/work", "/merged");
         assert!(config.validate().is_ok());
 
         let invalid_config = OverlayFsConfig::default();
@@ -701,11 +699,8 @@ mod tests {
 
     #[test]
     fn test_mount_flags() {
-        let combined = MountFlags::combine(&[
-            MountFlags::ReadOnly,
-            MountFlags::NoSuid,
-            MountFlags::NoExec,
-        ]);
+        let combined =
+            MountFlags::combine(&[MountFlags::ReadOnly, MountFlags::NoSuid, MountFlags::NoExec]);
         assert_eq!(combined, 0x01 | 0x02 | 0x04);
     }
 }

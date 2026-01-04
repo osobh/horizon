@@ -7,11 +7,9 @@
 
 use std::net::Ipv4Addr;
 use std::sync::Arc;
-use subnet_manager::wireguard::{
-    MigrationCoordinator, ProbeConfig, SubnetAwareWireGuard,
-};
 use subnet_manager::events::{InMemoryTransport, SubnetEventPublisher};
 use subnet_manager::migration::{Migration, MigrationReason};
+use subnet_manager::wireguard::{MigrationCoordinator, ProbeConfig, SubnetAwareWireGuard};
 use uuid::Uuid;
 
 fn create_test_coordinator() -> MigrationCoordinator {
@@ -48,7 +46,10 @@ async fn test_coordinator_with_quality_probing() {
 
     // Verify we can start a migration
     let migration = create_test_migration();
-    coordinator.start_migration(migration.clone()).await.unwrap();
+    coordinator
+        .start_migration(migration.clone())
+        .await
+        .unwrap();
 
     assert!(coordinator.has_active_migration(migration.node_id));
 }
@@ -65,7 +66,10 @@ async fn test_custom_probe_config() {
     let coordinator = create_test_coordinator_with_probe_config(config);
     let migration = create_test_migration();
 
-    coordinator.start_migration(migration.clone()).await.unwrap();
+    coordinator
+        .start_migration(migration.clone())
+        .await
+        .unwrap();
     assert!(coordinator.has_active_migration(migration.node_id));
 }
 
@@ -75,7 +79,7 @@ async fn test_verify_connectivity_uses_quality_tracking() {
     // Note: Actual network probing requires a responding endpoint
 
     let config = ProbeConfig {
-        probe_timeout_ms: 100,  // Short timeout for test
+        probe_timeout_ms: 100, // Short timeout for test
         probe_count: 2,
         required_success_rate: 0.5,
         probe_interval_ms: 50,
@@ -84,7 +88,10 @@ async fn test_verify_connectivity_uses_quality_tracking() {
     let coordinator = create_test_coordinator_with_probe_config(config);
     let migration = create_test_migration();
 
-    coordinator.start_migration(migration.clone()).await.unwrap();
+    coordinator
+        .start_migration(migration.clone())
+        .await
+        .unwrap();
 
     // Enable dual-stack would normally set up the peer
     // For this test, we just verify the flow doesn't panic
@@ -121,7 +128,10 @@ async fn test_migration_lifecycle_with_quality_probing() {
     let migration = create_test_migration();
 
     // Start migration
-    coordinator.start_migration(migration.clone()).await.unwrap();
+    coordinator
+        .start_migration(migration.clone())
+        .await
+        .unwrap();
 
     let status = coordinator.get_status(migration.id);
     assert!(status.is_some());
@@ -144,13 +154,25 @@ async fn test_active_migrations_list() {
     let migration1 = create_test_migration();
     let migration2 = create_test_migration();
 
-    coordinator.start_migration(migration1.clone()).await.unwrap();
-    coordinator.start_migration(migration2.clone()).await.unwrap();
+    coordinator
+        .start_migration(migration1.clone())
+        .await
+        .unwrap();
+    coordinator
+        .start_migration(migration2.clone())
+        .await
+        .unwrap();
 
     let active = coordinator.get_active_migrations();
     assert_eq!(active.len(), 2);
 
     // Cleanup
-    coordinator.rollback_migration(migration1.id, "cleanup").await.unwrap();
-    coordinator.rollback_migration(migration2.id, "cleanup").await.unwrap();
+    coordinator
+        .rollback_migration(migration1.id, "cleanup")
+        .await
+        .unwrap();
+    coordinator
+        .rollback_migration(migration2.id, "cleanup")
+        .await
+        .unwrap();
 }

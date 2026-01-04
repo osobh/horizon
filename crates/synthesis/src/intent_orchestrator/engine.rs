@@ -1,12 +1,12 @@
 //! Orchestration engine for execution management
 
 use candle_core::{DType, Device};
-use candle_nn::{linear, seq, Module, VarBuilder};
+use candle_nn::{linear, seq, VarBuilder};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::planning::{ActionPlanner, DependencyResolver, ExecutionMonitor, ResourceAllocator};
 use super::execution::{ActionStep, ExecutionRecord, ExecutionResult, ExecutionStatus};
+use super::planning::{ActionPlanner, DependencyResolver, ExecutionMonitor, ResourceAllocator};
 
 /// Main orchestration engine
 #[derive(Clone)]
@@ -99,15 +99,21 @@ impl OrchestrationEngine {
     pub async fn execute_plan(
         &self,
         steps: Vec<ActionStep>,
-        record: &mut ExecutionRecord,
+        _record: &mut ExecutionRecord,
     ) -> Result<ExecutionResult, Box<dyn std::error::Error>> {
         // Resolve dependencies
         let ordered_steps = self.dependency_resolver.resolve_dependencies(steps).await?;
-        
+
         // Estimate and allocate resources
-        let requirements = self.resource_allocator.estimate_requirements(&ordered_steps).await?;
-        let allocation_id = self.resource_allocator.allocate_resources(&requirements).await?;
-        
+        let requirements = self
+            .resource_allocator
+            .estimate_requirements(&ordered_steps)
+            .await?;
+        let allocation_id = self
+            .resource_allocator
+            .allocate_resources(&requirements)
+            .await?;
+
         // Execute steps
         let mut results = std::collections::HashMap::new();
         for step in ordered_steps {
@@ -115,10 +121,12 @@ impl OrchestrationEngine {
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             results.insert(step.id.clone(), serde_json::json!({"status": "completed"}));
         }
-        
+
         // Release resources
-        self.resource_allocator.release_resources(&allocation_id).await?;
-        
+        self.resource_allocator
+            .release_resources(&allocation_id)
+            .await?;
+
         // Create execution result
         Ok(ExecutionResult {
             success: true,
@@ -141,9 +149,9 @@ impl ExecutionPlanner {
     pub async fn new(device: Device) -> Result<Self, Box<dyn std::error::Error>> {
         let vs = candle_nn::VarMap::new();
         let vb = VarBuilder::from_varmap(&vs, DType::F32, &device);
-        
+
         let sequence_model = SequenceModel::new(vb.pp("sequence")).await?;
-        
+
         Ok(Self {
             device,
             sequence_model,

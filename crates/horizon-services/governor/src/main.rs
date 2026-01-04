@@ -16,9 +16,7 @@ async fn main() -> anyhow::Result<()> {
     let db_pool = DbPool::new(&config.database).await?;
 
     info!("Running database migrations...");
-    sqlx::migrate!("./migrations")
-        .run(db_pool.inner())
-        .await?;
+    sqlx::migrate!("./migrations").run(db_pool.inner()).await?;
 
     info!("Initializing policy repository...");
     let repository = PolicyRepository::new(db_pool.inner().clone());

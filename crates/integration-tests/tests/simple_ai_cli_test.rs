@@ -7,11 +7,14 @@ fn test_natural_language_to_cli_conversion() {
     // Simple pattern matching for natural language to CLI
     let test_cases = vec![
         ("deploy nginx", "stratoswarm deploy --image nginx:latest"),
-        ("scale web app to 5", "stratoswarm scale web-app --replicas 5"),
+        (
+            "scale web app to 5",
+            "stratoswarm scale web-app --replicas 5",
+        ),
         ("show status", "stratoswarm status"),
         ("check logs for api", "stratoswarm logs api --follow"),
     ];
-    
+
     for (input, expected) in test_cases {
         let command = convert_natural_language(input);
         assert_eq!(command, expected, "Failed to convert: {}", input);

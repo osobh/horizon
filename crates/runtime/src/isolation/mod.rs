@@ -108,9 +108,12 @@ impl IsolationManager {
         container_id: String,
         config: &ContainerConfig,
     ) -> Result<IsolationResult, RuntimeError> {
-        let mut contexts = self.contexts.lock().map_err(|e| RuntimeError::StartupFailed {
-            reason: format!("Failed to acquire contexts lock: {e}"),
-        })?;
+        let mut contexts = self
+            .contexts
+            .lock()
+            .map_err(|e| RuntimeError::StartupFailed {
+                reason: format!("Failed to acquire contexts lock: {e}"),
+            })?;
 
         if contexts.contains_key(&container_id) {
             return Ok(IsolationResult::ResourceUnavailable(format!(
@@ -143,13 +146,19 @@ impl IsolationManager {
         container_id: &str,
         kernel_signature: KernelSignature,
     ) -> Result<IsolationResult, RuntimeError> {
-        let mut contexts = self.contexts.lock().map_err(|e| RuntimeError::StartupFailed {
-            reason: format!("Failed to acquire contexts lock: {e}"),
-        })?;
+        let mut contexts = self
+            .contexts
+            .lock()
+            .map_err(|e| RuntimeError::StartupFailed {
+                reason: format!("Failed to acquire contexts lock: {e}"),
+            })?;
 
-        let context = contexts.get_mut(container_id).ok_or_else(|| RuntimeError::InvalidConfig {
-            reason: format!("Container {} not found", container_id),
-        })?;
+        let context =
+            contexts
+                .get_mut(container_id)
+                .ok_or_else(|| RuntimeError::InvalidConfig {
+                    reason: format!("Container {} not found", container_id),
+                })?;
 
         // Security check: empty prompt hash is invalid
         if kernel_signature.prompt_hash.is_empty() {
@@ -172,13 +181,19 @@ impl IsolationManager {
         container_id: &str,
         size_bytes: usize,
     ) -> Result<IsolationResult, RuntimeError> {
-        let mut contexts = self.contexts.lock().map_err(|e| RuntimeError::StartupFailed {
-            reason: format!("Failed to acquire contexts lock: {e}"),
-        })?;
+        let mut contexts = self
+            .contexts
+            .lock()
+            .map_err(|e| RuntimeError::StartupFailed {
+                reason: format!("Failed to acquire contexts lock: {e}"),
+            })?;
 
-        let context = contexts.get_mut(container_id).ok_or_else(|| RuntimeError::InvalidConfig {
-            reason: format!("Container {} not found", container_id),
-        })?;
+        let context =
+            contexts
+                .get_mut(container_id)
+                .ok_or_else(|| RuntimeError::InvalidConfig {
+                    reason: format!("Container {} not found", container_id),
+                })?;
 
         // Check quota
         if context.memory_allocated + size_bytes > context.memory_quota {
@@ -189,9 +204,12 @@ impl IsolationManager {
         }
 
         // Allocate address
-        let mut next_addr = self.next_address.lock().map_err(|e| RuntimeError::StartupFailed {
-            reason: format!("Failed to acquire address lock: {e}"),
-        })?;
+        let mut next_addr = self
+            .next_address
+            .lock()
+            .map_err(|e| RuntimeError::StartupFailed {
+                reason: format!("Failed to acquire address lock: {e}"),
+            })?;
 
         let address = *next_addr;
         *next_addr += size_bytes as u64;
@@ -205,13 +223,18 @@ impl IsolationManager {
     /// # Errors
     /// Returns `RuntimeError` if the container is not found or lock fails
     pub async fn terminate_container(&self, container_id: &str) -> Result<(), RuntimeError> {
-        let mut contexts = self.contexts.lock().map_err(|e| RuntimeError::StartupFailed {
-            reason: format!("Failed to acquire contexts lock: {e}"),
-        })?;
+        let mut contexts = self
+            .contexts
+            .lock()
+            .map_err(|e| RuntimeError::StartupFailed {
+                reason: format!("Failed to acquire contexts lock: {e}"),
+            })?;
 
-        contexts.remove(container_id).ok_or_else(|| RuntimeError::InvalidConfig {
-            reason: format!("Container {} not found", container_id),
-        })?;
+        contexts
+            .remove(container_id)
+            .ok_or_else(|| RuntimeError::InvalidConfig {
+                reason: format!("Container {} not found", container_id),
+            })?;
 
         Ok(())
     }
@@ -220,14 +243,23 @@ impl IsolationManager {
     ///
     /// # Errors
     /// Returns `RuntimeError` if the container is not found or lock fails
-    pub async fn get_isolation_stats(&self, container_id: &str) -> Result<IsolationStats, RuntimeError> {
-        let contexts = self.contexts.lock().map_err(|e| RuntimeError::StartupFailed {
-            reason: format!("Failed to acquire contexts lock: {e}"),
-        })?;
+    pub async fn get_isolation_stats(
+        &self,
+        container_id: &str,
+    ) -> Result<IsolationStats, RuntimeError> {
+        let contexts = self
+            .contexts
+            .lock()
+            .map_err(|e| RuntimeError::StartupFailed {
+                reason: format!("Failed to acquire contexts lock: {e}"),
+            })?;
 
-        let context = contexts.get(container_id).ok_or_else(|| RuntimeError::ContainerNotFound {
-            id: container_id.to_string(),
-        })?;
+        let context =
+            contexts
+                .get(container_id)
+                .ok_or_else(|| RuntimeError::ContainerNotFound {
+                    id: container_id.to_string(),
+                })?;
 
         Ok(IsolationStats {
             container_id: context.container_id.clone(),
@@ -245,9 +277,12 @@ impl IsolationManager {
     /// # Errors
     /// Returns `RuntimeError` if the lock cannot be acquired
     pub async fn list_contexts(&self) -> Result<Vec<String>, RuntimeError> {
-        let contexts = self.contexts.lock().map_err(|e| RuntimeError::StartupFailed {
-            reason: format!("Failed to acquire contexts lock: {e}"),
-        })?;
+        let contexts = self
+            .contexts
+            .lock()
+            .map_err(|e| RuntimeError::StartupFailed {
+                reason: format!("Failed to acquire contexts lock: {e}"),
+            })?;
 
         Ok(contexts.keys().cloned().collect())
     }
@@ -269,13 +304,19 @@ mod tests {
         assert_eq!(success, IsolationResult::Success(42));
 
         let violation = IsolationResult::SecurityViolation("test".to_string());
-        assert_eq!(violation, IsolationResult::SecurityViolation("test".to_string()));
+        assert_eq!(
+            violation,
+            IsolationResult::SecurityViolation("test".to_string())
+        );
 
         let quota = IsolationResult::QuotaExceeded("limit".to_string());
         assert_eq!(quota, IsolationResult::QuotaExceeded("limit".to_string()));
 
         let unavailable = IsolationResult::ResourceUnavailable("busy".to_string());
-        assert_eq!(unavailable, IsolationResult::ResourceUnavailable("busy".to_string()));
+        assert_eq!(
+            unavailable,
+            IsolationResult::ResourceUnavailable("busy".to_string())
+        );
     }
 
     #[test]
@@ -313,7 +354,9 @@ mod tests {
         let config = ContainerConfig::default();
 
         // Create isolation
-        let result = manager.create_isolation("test-1".to_string(), &config).await;
+        let result = manager
+            .create_isolation("test-1".to_string(), &config)
+            .await;
         assert!(result.is_ok());
         assert!(matches!(result.unwrap(), IsolationResult::Success(_)));
 
@@ -328,12 +371,19 @@ mod tests {
         let config = ContainerConfig::default();
 
         // Create first
-        let _ = manager.create_isolation("dup-test".to_string(), &config).await;
+        let _ = manager
+            .create_isolation("dup-test".to_string(), &config)
+            .await;
 
         // Try to create duplicate
-        let result = manager.create_isolation("dup-test".to_string(), &config).await;
+        let result = manager
+            .create_isolation("dup-test".to_string(), &config)
+            .await;
         assert!(result.is_ok());
-        assert!(matches!(result.unwrap(), IsolationResult::ResourceUnavailable(_)));
+        assert!(matches!(
+            result.unwrap(),
+            IsolationResult::ResourceUnavailable(_)
+        ));
     }
 
     #[tokio::test]
@@ -344,7 +394,9 @@ mod tests {
             ..Default::default()
         };
 
-        let _ = manager.create_isolation("mem-test".to_string(), &config).await;
+        let _ = manager
+            .create_isolation("mem-test".to_string(), &config)
+            .await;
 
         // Allocate within quota
         let result = manager.allocate_memory("mem-test", 512).await;
@@ -362,7 +414,9 @@ mod tests {
         let manager = IsolationManager::new();
         let config = ContainerConfig::default();
 
-        let _ = manager.create_isolation("kernel-test".to_string(), &config).await;
+        let _ = manager
+            .create_isolation("kernel-test".to_string(), &config)
+            .await;
 
         // Valid kernel signature
         let sig = KernelSignature {
@@ -380,7 +434,10 @@ mod tests {
         let invalid_sig = KernelSignature::default();
         let result = manager.launch_kernel("kernel-test", invalid_sig).await;
         assert!(result.is_ok());
-        assert!(matches!(result.unwrap(), IsolationResult::SecurityViolation(_)));
+        assert!(matches!(
+            result.unwrap(),
+            IsolationResult::SecurityViolation(_)
+        ));
     }
 
     #[tokio::test]
@@ -391,7 +448,9 @@ mod tests {
             ..Default::default()
         };
 
-        let _ = manager.create_isolation("stats-test".to_string(), &config).await;
+        let _ = manager
+            .create_isolation("stats-test".to_string(), &config)
+            .await;
         let _ = manager.allocate_memory("stats-test", 1024).await;
 
         let stats = manager.get_isolation_stats("stats-test").await;
@@ -408,8 +467,12 @@ mod tests {
         let manager = IsolationManager::new();
         let config = ContainerConfig::default();
 
-        let _ = manager.create_isolation("list-1".to_string(), &config).await;
-        let _ = manager.create_isolation("list-2".to_string(), &config).await;
+        let _ = manager
+            .create_isolation("list-1".to_string(), &config)
+            .await;
+        let _ = manager
+            .create_isolation("list-2".to_string(), &config)
+            .await;
 
         let contexts = manager.list_contexts().await;
         assert!(contexts.is_ok());

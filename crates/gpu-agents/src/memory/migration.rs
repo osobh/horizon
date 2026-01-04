@@ -136,7 +136,7 @@ impl MigrationEngine {
     }
 
     /// Record page access for pattern tracking
-    pub fn record_access(&self, page_id: PageId) -> Result<(), Box<dyn std::error::Error>>  {
+    pub fn record_access(&self, page_id: PageId) -> Result<(), Box<dyn std::error::Error>> {
         let mut history = self.access_history.lock()?;
         history.record_access(page_id);
     }
@@ -285,10 +285,7 @@ impl AccessHistory {
             }
 
             // Calculate access rate
-            let duration = times
-                .back()
-                .unwrap()
-                .duration_since(*times.front()?);
+            let duration = times.back().unwrap().duration_since(*times.front()?);
             if duration.as_secs() > 0 {
                 let rate = times.len() as f64 / duration.as_secs_f64();
                 if rate > threshold {
@@ -389,7 +386,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_migration_engine_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_migration_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let engine = MigrationEngine::new(device)?;

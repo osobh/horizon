@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::{
     db::QuotaRepository,
-    error::{HpcError, Result, QuotaErrorExt},
+    error::{HpcError, QuotaErrorExt, Result},
     models::*,
 };
 
@@ -138,14 +138,19 @@ impl QuotaService {
         Ok(QuotaUsageStats::from_quota(&quota, usage))
     }
 
-    pub async fn get_usage_history(&self, id: Uuid, limit: Option<i64>) -> Result<Vec<UsageHistory>> {
+    pub async fn get_usage_history(
+        &self,
+        id: Uuid,
+        limit: Option<i64>,
+    ) -> Result<Vec<UsageHistory>> {
         self.repository.get_usage_history(id, limit).await
     }
 
     pub fn build_hierarchy<'a>(
         &'a self,
         quota_id: Uuid,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<QuotaHierarchy>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<QuotaHierarchy>> + Send + 'a>>
+    {
         Box::pin(async move {
             let quota = self.repository.get_quota(quota_id).await?;
             let current_usage = self.repository.get_current_usage(quota_id).await?;

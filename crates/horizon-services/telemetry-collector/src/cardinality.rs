@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use hpc_types::{GpuMetric, CpuMetric, NicMetric, MetricBatch};
+use hpc_types::{CpuMetric, GpuMetric, MetricBatch, NicMetric};
 use std::collections::HashSet;
 
 /// Tracks unique metric series and enforces cardinality limits
@@ -166,8 +166,14 @@ mod tests {
             ..Default::default()
         };
 
-        assert_eq!(tracker.generate_gpu_series_id(&gpu_metric), "gpu:host1:gpu0");
+        assert_eq!(
+            tracker.generate_gpu_series_id(&gpu_metric),
+            "gpu:host1:gpu0"
+        );
         assert_eq!(tracker.generate_cpu_series_id(&cpu_metric), "cpu:host1:0");
-        assert_eq!(tracker.generate_nic_series_id(&nic_metric), "nic:host1:eth0");
+        assert_eq!(
+            tracker.generate_nic_series_id(&nic_metric),
+            "nic:host1:eth0"
+        );
     }
 }

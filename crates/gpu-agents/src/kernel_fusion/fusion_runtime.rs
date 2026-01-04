@@ -142,6 +142,9 @@ impl FusionRuntime {
         // Add input pointers
         for input in inputs {
             // Use the device_ptr method from GpuBuffer
+            // SAFETY: device_ptr() returns the raw GPU device pointer from the GpuBuffer.
+            // The pointer is valid as long as the GpuBuffer exists, which is guaranteed
+            // by the borrow of `inputs` for the lifetime of this function.
             let ptr = unsafe { input.device_ptr() as u64 };
             kernel_args.push(KernelArg::DevicePointer(ptr));
         }
@@ -149,6 +152,8 @@ impl FusionRuntime {
         // Add output pointers
         for output in outputs {
             // Use the device_ptr method from GpuBuffer
+            // SAFETY: Same as above - device_ptr() is valid for the lifetime of the
+            // output GpuBuffer borrow. The pointer is passed to the kernel for writing.
             let ptr = unsafe { output.device_ptr() as u64 };
             kernel_args.push(KernelArg::DevicePointer(ptr));
         }
@@ -480,7 +485,10 @@ impl MemoryPool {
     }
 
     /// Return buffers to pool
-    fn release_buffers(&self, buffers: Vec<GpuFloatBuffer>) -> Result<(), Box<dyn std::error::Error>>  {
+    fn release_buffers(
+        &self,
+        buffers: Vec<GpuFloatBuffer>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut free = self.free_buffers.lock()?;
         for buffer in buffers {
             if buffer.len() > 0 {
@@ -495,7 +503,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_stream_pool() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_stream_pool() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let pool = StreamPool::new(Arc::new(device), 4);
 

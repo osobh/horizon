@@ -130,9 +130,7 @@ mod tests {
     #[test]
     fn test_spot_price_stats() {
         let pricing = PricingData::new();
-        let stats = pricing
-            .get_spot_price_stats("p4d.24xlarge")
-            .unwrap();
+        let stats = pricing.get_spot_price_stats("p4d.24xlarge").unwrap();
 
         assert!(stats.current > dec!(0));
         assert!(stats.average >= stats.min);

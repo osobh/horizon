@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use stratoswarm_knowledge_graph::*;
 use std::collections::HashMap;
+use stratoswarm_knowledge_graph::*;
 use tokio::runtime::Runtime;
 
 fn benchmark_node_operations(c: &mut Criterion) {

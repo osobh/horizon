@@ -25,7 +25,6 @@ use super::backend::WireGuardBackend;
 use super::router::QualityAwareRouter;
 use super::subnet_aware::{SubnetAwareWireGuard, SubnetPeer, SubnetWireGuardError};
 use super::sync::ConfigSyncService;
-use super::{InterfaceConfig, PeerConfig};
 use crate::events::SubnetEventPublisher;
 use crate::migration::{Migration, MigrationStep};
 use async_trait::async_trait;
@@ -151,7 +150,10 @@ impl InMemoryNodeRegistry {
 #[async_trait]
 impl NodeRegistry for InMemoryNodeRegistry {
     async fn get_public_key(&self, node_id: Uuid) -> Option<String> {
-        self.nodes.read().get(&node_id).map(|n| n.public_key.clone())
+        self.nodes
+            .read()
+            .get(&node_id)
+            .map(|n| n.public_key.clone())
     }
 
     async fn get_endpoint(&self, node_id: Uuid) -> Option<std::net::SocketAddr> {
@@ -324,12 +326,13 @@ impl MigrationCoordinator {
         source = %migration.source_subnet_id,
         target = %migration.target_subnet_id
     ))]
-    pub async fn start_migration(
-        &self,
-        migration: Migration,
-    ) -> Result<(), MigrationCoordError> {
+    pub async fn start_migration(&self, migration: Migration) -> Result<(), MigrationCoordError> {
         // Check if migration already in progress for this node
-        if self.migrations_by_node.read().contains_key(&migration.node_id) {
+        if self
+            .migrations_by_node
+            .read()
+            .contains_key(&migration.node_id)
+        {
             return Err(MigrationCoordError::AlreadyInProgress(migration.node_id));
         }
 
@@ -367,10 +370,7 @@ impl MigrationCoordinator {
 
     /// Enable dual-stack for a migration (step 2)
     #[instrument(skip(self), fields(migration_id = %migration_id))]
-    pub async fn enable_dual_stack(
-        &self,
-        migration_id: Uuid,
-    ) -> Result<(), MigrationCoordError> {
+    pub async fn enable_dual_stack(&self, migration_id: Uuid) -> Result<(), MigrationCoordError> {
         let migration = {
             let migrations = self.active_migrations.read();
             migrations
@@ -412,10 +412,7 @@ impl MigrationCoordinator {
 
     /// Notify all peers of the new address (step 3)
     #[instrument(skip(self), fields(migration_id = %migration_id))]
-    pub async fn notify_peers(
-        &self,
-        migration_id: Uuid,
-    ) -> Result<usize, MigrationCoordError> {
+    pub async fn notify_peers(&self, migration_id: Uuid) -> Result<usize, MigrationCoordError> {
         let migration = {
             let migrations = self.active_migrations.read();
             migrations
@@ -497,10 +494,7 @@ impl MigrationCoordinator {
 
     /// Complete the migration (step 5 & 6)
     #[instrument(skip(self), fields(migration_id = %migration_id))]
-    pub async fn complete_migration(
-        &self,
-        migration_id: Uuid,
-    ) -> Result<(), MigrationCoordError> {
+    pub async fn complete_migration(&self, migration_id: Uuid) -> Result<(), MigrationCoordError> {
         let active = {
             let mut migrations = self.active_migrations.write();
             let mut by_node = self.migrations_by_node.write();
@@ -577,8 +571,10 @@ impl MigrationCoordinator {
 
     /// Get migration status
     pub fn get_status(&self, migration_id: Uuid) -> Option<MigrationCoordStatus> {
-        self.active_migrations.read().get(&migration_id).map(|m| {
-            MigrationCoordStatus {
+        self.active_migrations
+            .read()
+            .get(&migration_id)
+            .map(|m| MigrationCoordStatus {
                 migration_id: m.migration.id,
                 node_id: m.migration.node_id,
                 source_subnet_id: m.migration.source_subnet_id,
@@ -590,8 +586,7 @@ impl MigrationCoordinator {
                 peers_acknowledged: m.peers_acknowledged,
                 probe_count: m.probe_results.len(),
                 last_probe_success: m.probe_results.last().map(|p| p.success),
-            }
-        })
+            })
     }
 
     /// Get all active migrations
@@ -697,7 +692,10 @@ impl MigrationCoordinator {
         // Step 5: Verify connectivity with retries
         let mut last_error = None;
         for attempt in 1..=self.quality_check_retries {
-            debug!("Connectivity verification attempt {}/{}", attempt, self.quality_check_retries);
+            debug!(
+                "Connectivity verification attempt {}/{}",
+                attempt, self.quality_check_retries
+            );
 
             match self.verify_connectivity(migration_id).await {
                 Ok(result) if result.success => {
@@ -730,7 +728,9 @@ impl MigrationCoordinator {
         }
 
         // Check if we succeeded
-        let status = self.get_status(migration_id).ok_or(MigrationCoordError::NotFound(migration_id))?;
+        let status = self
+            .get_status(migration_id)
+            .ok_or(MigrationCoordError::NotFound(migration_id))?;
         if status.current_step != MigrationStep::CuttingOver {
             return Err(last_error.unwrap_or(MigrationCoordError::ProbeFailed(
                 "Connectivity verification failed".to_string(),
@@ -809,9 +809,9 @@ impl MigrationCoordinator {
                 .clone()
         };
 
-        let target_ip = migration.target_ip.ok_or_else(|| {
-            MigrationCoordError::QualityCheckFailed("No target IP".to_string())
-        })?;
+        let target_ip = migration
+            .target_ip
+            .ok_or_else(|| MigrationCoordError::QualityCheckFailed("No target IP".to_string()))?;
 
         // Get routes to target IP
         let routes = router.get_routes(target_ip).await;
@@ -866,10 +866,8 @@ impl MigrationCoordinator {
         // Perform probes with configured interval
         for i in 0..config.probe_count {
             if i > 0 {
-                tokio::time::sleep(tokio::time::Duration::from_millis(
-                    config.probe_interval_ms,
-                ))
-                .await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(config.probe_interval_ms))
+                    .await;
             }
 
             let start = std::time::Instant::now();
@@ -958,10 +956,7 @@ impl MigrationCoordinator {
                 successes += 1;
                 latencies.push(rand::random::<f64>() * 50.0 + 5.0); // 5-55ms
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(
-                config.probe_interval_ms,
-            ))
-            .await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(config.probe_interval_ms)).await;
         }
 
         let success_rate = successes as f64 / config.probe_count as f64;
@@ -1051,7 +1046,8 @@ mod tests {
             Uuid::new_v4(),
             Ipv4Addr::new(10, 100, 0, 5),
             MigrationReason::PolicyChange,
-        ).with_target_ip(Ipv4Addr::new(10, 101, 0, 5))
+        )
+        .with_target_ip(Ipv4Addr::new(10, 101, 0, 5))
     }
 
     #[tokio::test]
@@ -1059,7 +1055,10 @@ mod tests {
         let coordinator = create_test_coordinator();
         let migration = create_test_migration();
 
-        coordinator.start_migration(migration.clone()).await.unwrap();
+        coordinator
+            .start_migration(migration.clone())
+            .await
+            .unwrap();
 
         assert!(coordinator.has_active_migration(migration.node_id));
 
@@ -1072,11 +1071,17 @@ mod tests {
         let coordinator = create_test_coordinator();
         let migration = create_test_migration();
 
-        coordinator.start_migration(migration.clone()).await.unwrap();
+        coordinator
+            .start_migration(migration.clone())
+            .await
+            .unwrap();
 
         // Second migration for same node should fail
         let result = coordinator.start_migration(migration).await;
-        assert!(matches!(result, Err(MigrationCoordError::AlreadyInProgress(_))));
+        assert!(matches!(
+            result,
+            Err(MigrationCoordError::AlreadyInProgress(_))
+        ));
     }
 
     #[tokio::test]
@@ -1102,7 +1107,10 @@ mod tests {
         let coordinator = create_test_coordinator();
         let migration = create_test_migration();
 
-        coordinator.start_migration(migration.clone()).await.unwrap();
+        coordinator
+            .start_migration(migration.clone())
+            .await
+            .unwrap();
 
         coordinator
             .rollback_migration(migration.id, "test failure")
@@ -1197,8 +1205,8 @@ mod tests {
             subnet_id: None,
         });
 
-        let coordinator = MigrationCoordinator::new(wireguard, publisher)
-            .with_node_registry(registry);
+        let coordinator =
+            MigrationCoordinator::new(wireguard, publisher).with_node_registry(registry);
 
         // Should get real public key from registry
         let result = coordinator.get_node_public_key(node_id).await;

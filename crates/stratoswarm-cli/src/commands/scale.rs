@@ -70,7 +70,7 @@ pub async fn execute(args: ScaleArgs) -> Result<()> {
             continue;
         }
 
-        scale_agent(&spec, &args.namespace).await?;
+        scale_agent(spec, &args.namespace).await?;
 
         output::success(&format!(
             "✓ {} scaled to {} replicas",
@@ -157,7 +157,7 @@ async fn wait_for_scale(specs: &[ScaleSpec], _namespace: &str) -> Result<()> {
             .progress_chars("█▉▊▋▌▍▎▏  "),
     );
 
-    for spec in specs {
+    for _spec in specs {
         // Simulate waiting for scale
         for _ in 0..5 {
             pb.tick();

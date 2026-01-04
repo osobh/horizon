@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn test_progress_monitor_set_phase() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_progress_monitor_set_phase() -> Result<(), Box<dyn std::error::Error>> {
         let mut monitor = ProgressMonitor::new()?;
 
         monitor.set_phase(BenchmarkPhase::SystemCheck);
@@ -202,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    fn test_progress_monitor_set_progress() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_progress_monitor_set_progress() -> Result<(), Box<dyn std::error::Error>> {
         let mut monitor = ProgressMonitor::new()?;
 
         // Test phase progress
@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn test_progress_monitor_set_current_test() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_progress_monitor_set_current_test() -> Result<(), Box<dyn std::error::Error>> {
         let mut monitor = ProgressMonitor::new()?;
 
         monitor.set_current_test("Test GPU initialization", 1, 5);
@@ -235,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn test_progress_monitor_set_current_operation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_progress_monitor_set_current_operation() -> Result<(), Box<dyn std::error::Error>> {
         let mut monitor = ProgressMonitor::new()?;
 
         monitor.set_current_operation("Spawning 1M agents");
@@ -246,7 +246,7 @@ mod tests {
     }
 
     #[test]
-    fn test_progress_monitor_elapsed_time() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_progress_monitor_elapsed_time() -> Result<(), Box<dyn std::error::Error>> {
         let mut monitor = ProgressMonitor::new()?;
 
         // Sleep a tiny bit to ensure time passes

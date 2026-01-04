@@ -1,13 +1,13 @@
-use anyhow::{Context, Result};
-use hpc_channels::TelemetryMessage;
-use prost::Message;
-use hpc_types::MetricBatch;
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
 use crate::cardinality::CardinalityTracker;
 use crate::channels::TelemetryChannels;
 use crate::writers::{InfluxDbWriter, ParquetWriter};
+use anyhow::{Context, Result};
+use hpc_channels::TelemetryMessage;
+use hpc_types::MetricBatch;
+use prost::Message;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::Mutex;
 
 pub struct StreamHandler {
     cardinality_tracker: Arc<Mutex<CardinalityTracker>>,
@@ -56,16 +56,18 @@ impl StreamHandler {
             anyhow::bail!("Data shorter than indicated length");
         }
 
-        MetricBatch::decode(&data[4..4 + length])
-            .context("Failed to decode MetricBatch")
+        MetricBatch::decode(&data[4..4 + length]).context("Failed to decode MetricBatch")
     }
 
     /// Handle a received metric batch
     pub async fn handle_batch(&self, batch: MetricBatch) -> Result<()> {
-        let metric_count = (batch.gpu_metrics.len() + batch.cpu_metrics.len() + batch.nic_metrics.len()) as u32;
+        let metric_count =
+            (batch.gpu_metrics.len() + batch.cpu_metrics.len() + batch.nic_metrics.len()) as u32;
 
         // Extract node_id from first metric if available
-        let node_id = batch.gpu_metrics.first()
+        let node_id = batch
+            .gpu_metrics
+            .first()
             .map(|m| m.host_id.clone())
             .or_else(|| batch.cpu_metrics.first().map(|m| m.host_id.clone()))
             .unwrap_or_else(|| "unknown".to_string());
@@ -73,7 +75,8 @@ impl StreamHandler {
         // Check cardinality
         {
             let mut tracker = self.cardinality_tracker.lock().await;
-            tracker.track_batch(&batch)
+            tracker
+                .track_batch(&batch)
                 .context("Cardinality limit exceeded")?;
         }
 
@@ -106,11 +109,12 @@ impl StreamHandler {
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
 
-        self.channels.publish_metrics(TelemetryMessage::MetricsBatchReceived {
-            node_id,
-            metric_count,
-            timestamp_ms,
-        });
+        self.channels
+            .publish_metrics(TelemetryMessage::MetricsBatchReceived {
+                node_id,
+                metric_count,
+                timestamp_ms,
+            });
 
         Ok(())
     }
@@ -138,7 +142,10 @@ mod tests {
             gpu_metrics: vec![GpuMetric {
                 host_id: "test".to_string(),
                 gpu_id: "0".to_string(),
-                timestamp: Some(Timestamp { seconds: 123, nanos: 0 }),
+                timestamp: Some(Timestamp {
+                    seconds: 123,
+                    nanos: 0,
+                }),
                 ..Default::default()
             }],
             cpu_metrics: vec![],

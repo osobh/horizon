@@ -5,4 +5,4 @@ pub mod error;
 pub mod models;
 pub mod repository;
 
-pub use error::{HpcError, Result, InventoryErrorExt};
+pub use error::{HpcError, InventoryErrorExt, Result};

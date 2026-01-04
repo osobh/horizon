@@ -43,9 +43,7 @@
 use hpc_error::{HpcError, Result};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tracing_subscriber::{
-    layer::SubscriberExt, util::SubscriberInitExt, EnvFilter,
-};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// Global flag to track if tracing has been initialized
 static TRACING_INITIALIZED: AtomicBool = AtomicBool::new(false);
@@ -220,8 +218,8 @@ pub fn init(config: TracingConfig) -> Result<TracingGuard> {
     }
 
     // Create environment filter
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.log_level));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));
 
     // Build subscriber differently based on whether OTLP is configured
     if let Some(endpoint) = config.otlp_endpoint {
@@ -230,10 +228,12 @@ pub fn init(config: TracingConfig) -> Result<TracingGuard> {
                 // Create subscriber with OTLP layer
                 tracing_subscriber::registry()
                     .with(env_filter)
-                    .with(tracing_subscriber::fmt::layer()
-                        .with_target(true)
-                        .with_line_number(true)
-                        .with_thread_ids(true))
+                    .with(
+                        tracing_subscriber::fmt::layer()
+                            .with_target(true)
+                            .with_line_number(true)
+                            .with_thread_ids(true),
+                    )
                     .with(otel_layer)
                     .try_init()
                     .map_err(|e| {
@@ -248,10 +248,12 @@ pub fn init(config: TracingConfig) -> Result<TracingGuard> {
                 );
                 tracing_subscriber::registry()
                     .with(env_filter)
-                    .with(tracing_subscriber::fmt::layer()
-                        .with_target(true)
-                        .with_line_number(true)
-                        .with_thread_ids(true))
+                    .with(
+                        tracing_subscriber::fmt::layer()
+                            .with_target(true)
+                            .with_line_number(true)
+                            .with_thread_ids(true),
+                    )
                     .try_init()
                     .map_err(|e| {
                         HpcError::Telemetry(format!("failed to initialize tracing: {}", e))
@@ -262,14 +264,14 @@ pub fn init(config: TracingConfig) -> Result<TracingGuard> {
         // No OTLP endpoint, just use local logging
         tracing_subscriber::registry()
             .with(env_filter)
-            .with(tracing_subscriber::fmt::layer()
-                .with_target(true)
-                .with_line_number(true)
-                .with_thread_ids(true))
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_target(true)
+                    .with_line_number(true)
+                    .with_thread_ids(true),
+            )
             .try_init()
-            .map_err(|e| {
-                HpcError::Telemetry(format!("failed to initialize tracing: {}", e))
-            })?;
+            .map_err(|e| HpcError::Telemetry(format!("failed to initialize tracing: {}", e)))?;
     }
 
     Ok(TracingGuard)
@@ -288,14 +290,15 @@ where
 {
     use opentelemetry::KeyValue;
     use opentelemetry_otlp::WithExportConfig;
+    use opentelemetry_sdk::runtime;
     use opentelemetry_sdk::trace::Config;
     use opentelemetry_sdk::Resource;
-    use opentelemetry_sdk::runtime;
 
     // Create resource with service name
-    let resource = Resource::new(vec![
-        KeyValue::new("service.name", service_name.to_string()),
-    ]);
+    let resource = Resource::new(vec![KeyValue::new(
+        "service.name",
+        service_name.to_string(),
+    )]);
 
     // Configure trace config
     let trace_config = Config::default().with_resource(resource);
@@ -368,34 +371,28 @@ pub fn init_metrics(addr: SocketAddr) -> Result<()> {
     }
 
     // Try to bind to the address early to catch port-in-use errors
-    let listener = std::net::TcpListener::bind(addr)
-        .map_err(|e| {
-            METRICS_INITIALIZED.store(false, Ordering::SeqCst);
-            if e.kind() == std::io::ErrorKind::AddrInUse {
-                HpcError::Network(format!("address {} already in use", addr))
-            } else {
-                HpcError::Network(format!("failed to bind to {}: {}", addr, e))
-            }
-        })?;
+    let listener = std::net::TcpListener::bind(addr).map_err(|e| {
+        METRICS_INITIALIZED.store(false, Ordering::SeqCst);
+        if e.kind() == std::io::ErrorKind::AddrInUse {
+            HpcError::Network(format!("address {} already in use", addr))
+        } else {
+            HpcError::Network(format!("failed to bind to {}: {}", addr, e))
+        }
+    })?;
 
     // Install the Prometheus recorder
     let builder = metrics_exporter_prometheus::PrometheusBuilder::new();
-    let handle = builder
-        .install_recorder()
-        .map_err(|e| {
-            METRICS_INITIALIZED.store(false, Ordering::SeqCst);
-            HpcError::Telemetry(format!("failed to install metrics recorder: {}", e))
-        })?;
+    let handle = builder.install_recorder().map_err(|e| {
+        METRICS_INITIALIZED.store(false, Ordering::SeqCst);
+        HpcError::Telemetry(format!("failed to install metrics recorder: {}", e))
+    })?;
 
     // Spawn the HTTP server in a background task
     tokio::spawn(async move {
-        use axum::{Router, routing::get};
+        use axum::{routing::get, Router};
 
         // Create a simple axum app with a /metrics endpoint
-        let app = Router::new()
-            .route("/metrics", get(move || async move {
-                handle.render()
-            }));
+        let app = Router::new().route("/metrics", get(move || async move { handle.render() }));
 
         // Convert to tokio listener
         let listener = match tokio::net::TcpListener::from_std(listener) {

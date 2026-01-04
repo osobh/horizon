@@ -303,11 +303,7 @@ mod tests {
 
     #[test]
     fn test_multiple_leaves() {
-        let leaves = vec![
-            b"leaf1".to_vec(),
-            b"leaf2".to_vec(),
-            b"leaf3".to_vec(),
-        ];
+        let leaves = vec![b"leaf1".to_vec(), b"leaf2".to_vec(), b"leaf3".to_vec()];
         let tree = MerkleTree::new(&leaves);
         assert_eq!(tree.len(), 3);
     }
@@ -322,11 +318,7 @@ mod tests {
 
     #[test]
     fn test_proof_verification() {
-        let leaves = vec![
-            b"leaf1".to_vec(),
-            b"leaf2".to_vec(),
-            b"leaf3".to_vec(),
-        ];
+        let leaves = vec![b"leaf1".to_vec(), b"leaf2".to_vec(), b"leaf3".to_vec()];
         let tree = MerkleTree::new(&leaves);
         let root = tree.root();
 

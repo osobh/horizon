@@ -232,6 +232,10 @@ pub fn record_snapshot() {
         overall_pressure: stats.overall_pressure,
     };
 
+    // SAFETY: HISTORY is only written to from this function and init/cleanup.
+    // The atomic HISTORY_INDEX ensures thread-safe position management, and
+    // we only modify one slot at a time based on that index. The circular
+    // buffer write is safe because we check bounds before accessing.
     unsafe {
         if HISTORY.is_none() {
             HISTORY = Some(Vec::with_capacity(HISTORY_WINDOW_SIZE));
@@ -256,6 +260,9 @@ pub fn get_trends() -> StatsTrends {
     let mut migration_rate_per_sec = 0.0;
     let mut pressure_trend = 0i8; // -1 decreasing, 0 stable, 1 increasing
 
+    // SAFETY: HISTORY is read-only here. The circular buffer is filled by
+    // record_snapshot which uses atomic indexing. We only read historical
+    // data points that have already been written.
     unsafe {
         if let Some(history) = &HISTORY {
             if history.len() >= 2 {
@@ -308,7 +315,9 @@ fn get_current_time_sec() -> u64 {
 
 /// Initialize statistics subsystem
 pub fn init() -> KernelResult<()> {
-    // Initialize history
+    // SAFETY: This function is called exactly once during kernel module
+    // initialization, before any other threads can access HISTORY.
+    // The kernel module init sequence is single-threaded.
     unsafe {
         HISTORY = Some(Vec::with_capacity(HISTORY_WINDOW_SIZE));
     }
@@ -318,6 +327,8 @@ pub fn init() -> KernelResult<()> {
 
 /// Cleanup statistics subsystem
 pub fn cleanup() {
+    // SAFETY: This function is called exactly once during kernel module
+    // unload, after all other operations have completed.
     unsafe {
         HISTORY = None;
     }

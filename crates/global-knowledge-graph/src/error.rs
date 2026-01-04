@@ -89,6 +89,14 @@ pub enum GlobalKnowledgeGraphError {
     /// Bincode error
     #[error("Bincode error: {0}")]
     BincodeError(#[from] bincode::Error),
+
+    /// Internal error
+    #[error("Internal error: {0}")]
+    Internal(String),
+
+    /// Other error
+    #[error("Other error: {0}")]
+    Other(String),
 }
 
 /// Global knowledge graph result type

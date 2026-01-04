@@ -33,9 +33,10 @@ impl BudgetMetrics {
         } else {
             0.0
         };
-        
+
         // Simple health score calculation
-        let score = 100.0 * (1.0 - over_budget_rate) * (1.0 - (utilization - 0.8).abs().min(0.2) * 5.0);
+        let score =
+            100.0 * (1.0 - over_budget_rate) * (1.0 - (utilization - 0.8).abs().min(0.2) * 5.0);
         score.max(0.0).min(100.0)
     }
 }

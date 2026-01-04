@@ -233,7 +233,8 @@ impl LoadBalancer {
         // Update session affinity if enabled
         if self.config.sticky_sessions {
             if let Some(session_id) = &request.session_id {
-                self.session_affinity.insert(session_id.clone(), selected.region_id.clone());
+                self.session_affinity
+                    .insert(session_id.clone(), selected.region_id.clone());
             }
         }
 
@@ -732,9 +733,13 @@ mod tests {
         }
 
         // Set different connection counts (Relaxed: test setup)
-        endpoints[0].current_connections.store(10, Ordering::Relaxed);
+        endpoints[0]
+            .current_connections
+            .store(10, Ordering::Relaxed);
         endpoints[1].current_connections.store(5, Ordering::Relaxed);
-        endpoints[2].current_connections.store(15, Ordering::Relaxed);
+        endpoints[2]
+            .current_connections
+            .store(15, Ordering::Relaxed);
 
         let lb = LoadBalancer::new(config, endpoints).unwrap();
         let request = RoutingRequest {

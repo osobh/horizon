@@ -187,6 +187,10 @@ impl NvrtcKernelLauncher {
         // For now, we'll use the pre-compiled kernel if it matches our pattern
         if kernel_name.contains("pattern_match") {
             // Launch the pre-compiled fast pattern matcher
+            // SAFETY: The kernel function is called with raw device pointers passed from
+            // the caller. The caller is responsible for ensuring the pointers are valid
+            // GPU device pointers with proper sizes (patterns: num_patterns * 64 bytes,
+            // ast_nodes: num_nodes * 64 bytes, matches: num_nodes * 2 * sizeof(u32)).
             unsafe {
                 crate::synthesis::launch_match_patterns_fast(
                     patterns,
@@ -281,7 +285,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_kernel_compilation() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_kernel_compilation() -> Result<(), Box<dyn std::error::Error>> {
         let device = CudaDevice::new(0)?;
         let launcher = NvrtcKernelLauncher::new(Arc::new(device))?;
 

@@ -335,6 +335,11 @@ pub fn enable_debug(enabled: bool) {
     DEBUG_ENABLED.store(enabled, Ordering::Relaxed);
 
     if enabled {
+        // SAFETY: DEBUG_BUFFER is only written to when enabling debug mode.
+        // The check-then-set pattern is acceptable here because this function
+        // is called during configuration, not in hot paths, and the worst case
+        // of a race is simply overwriting the buffer with a new empty one.
+        // The spin::Mutex inside provides thread-safe access to the buffer contents.
         unsafe {
             if DEBUG_BUFFER.is_none() {
                 DEBUG_BUFFER = Some(spin::Mutex::new(Vec::new()));
@@ -349,6 +354,10 @@ pub fn log_debug(msg: &str) {
         return;
     }
 
+    // SAFETY: DEBUG_BUFFER is only read here after checking DEBUG_ENABLED.
+    // The buffer is initialized in enable_debug() before DEBUG_ENABLED is set.
+    // The spin::Mutex inside the Option provides thread-safe access to the
+    // Vec contents. We only take a reference to the Option, not mutating it.
     unsafe {
         if let Some(buffer) = &DEBUG_BUFFER {
             let mut buf = buffer.lock();
@@ -372,6 +381,9 @@ pub fn log_security_event(event: &SecurityEvent) {
 
 /// Get debug log buffer
 pub fn get_debug_logs() -> Vec<String> {
+    // SAFETY: DEBUG_BUFFER is only read here; we take a reference and clone
+    // the contents under the spin::Mutex lock. The buffer is initialized in
+    // enable_debug() and only mutated via the Mutex, providing thread safety.
     unsafe {
         if let Some(buffer) = &DEBUG_BUFFER {
             buffer.lock().clone()
@@ -386,6 +398,11 @@ static mut STATS_COLLECTOR: Option<StatsCollector> = None;
 
 /// Get global stats collector
 pub fn get_collector() -> &'static StatsCollector {
+    // SAFETY: This function is only called after init() has been called during
+    // kernel module initialization. The static STATS_COLLECTOR is initialized
+    // once at module load time and never modified until module cleanup, at which
+    // point no more calls to this function should occur. Single-threaded init
+    // ensures no data races during the initialization sequence.
     unsafe {
         STATS_COLLECTOR
             .as_ref()
@@ -395,11 +412,16 @@ pub fn get_collector() -> &'static StatsCollector {
 
 /// Get detailed statistics string
 pub fn get_detailed_stats() -> Option<String> {
+    // SAFETY: STATS_COLLECTOR is read-only here; initialized during module init
+    // and only cleared during module cleanup when no other threads access it.
     unsafe { STATS_COLLECTOR.as_ref().map(|c| c.generate_report()) }
 }
 
 /// Reset all statistics
 pub fn reset_stats() {
+    // SAFETY: STATS_COLLECTOR is read-only here to call reset(). The collector
+    // is initialized during module init and its internal state is protected by
+    // spin::RwLock, making the reset operation thread-safe.
     unsafe {
         if let Some(collector) = STATS_COLLECTOR.as_ref() {
             collector.reset();
@@ -425,6 +447,10 @@ pub fn reset_stats() {
 
 /// Initialize stats subsystem
 pub fn init() -> crate::KernelResult<()> {
+    // SAFETY: This function is called exactly once during kernel module
+    // initialization, before any other threads can access STATS_COLLECTOR
+    // or DEBUG_BUFFER. The kernel module init sequence is single-threaded,
+    // ensuring no data races during this write to the static mutables.
     unsafe {
         STATS_COLLECTOR = Some(StatsCollector::new());
         DEBUG_BUFFER = Some(spin::Mutex::new(Vec::new()));
@@ -434,6 +460,10 @@ pub fn init() -> crate::KernelResult<()> {
 
 /// Cleanup stats subsystem
 pub fn cleanup() {
+    // SAFETY: This function is called exactly once during kernel module
+    // unload, after all other operations have completed and no threads are
+    // accessing these statics. The kernel module exit sequence ensures
+    // exclusive access to module globals during cleanup.
     unsafe {
         STATS_COLLECTOR = None;
         DEBUG_BUFFER = None;

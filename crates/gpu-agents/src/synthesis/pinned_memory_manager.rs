@@ -116,6 +116,9 @@ impl PinnedMemoryManager {
         }
 
         // Allocate pinned host memory using device API
+        // SAFETY: Layout is valid (size > 0, align is power of 2 and >= 1).
+        // The returned pointer will be stored in PinnedBuffer and freed in Drop.
+        // 4096-byte alignment is required for page-aligned pinned memory.
         let host_ptr = {
             let layout = std::alloc::Layout::from_size_align(size, 4096)?;
             unsafe { std::alloc::alloc(layout) }
@@ -185,14 +188,17 @@ impl PinnedMemoryManager {
         let start = Instant::now();
 
         // Copy data to pinned memory
+        // SAFETY: serialized.as_ptr() is valid for data_size bytes.
+        // buffer.host_ptr was allocated with at least data_size bytes in get_buffer().
+        // The memory regions do not overlap (serialized is stack-allocated Vec, host_ptr is heap).
         unsafe {
             std::ptr::copy_nonoverlapping(serialized.as_ptr(), buffer.host_ptr, data_size);
         }
 
         // Transfer from pinned memory to GPU (much faster than pageable)
-        let host_data = unsafe {
-            std::slice::from_raw_parts(buffer.host_ptr, data_size).to_vec()
-        };
+        // SAFETY: host_ptr is valid for data_size bytes (was just written above).
+        // The slice lifetime is temporary and data is immediately copied to Vec.
+        let host_data = unsafe { std::slice::from_raw_parts(buffer.host_ptr, data_size).to_vec() };
         let gpu_buffer = self.device.htod_copy(host_data)?;
 
         // Synchronize to measure actual transfer time
@@ -228,14 +234,17 @@ impl PinnedMemoryManager {
 
         let start = Instant::now();
 
+        // SAFETY: serialized.as_ptr() is valid for data_size bytes.
+        // buffer.host_ptr was allocated with at least data_size bytes in get_buffer().
+        // The memory regions do not overlap.
         unsafe {
             std::ptr::copy_nonoverlapping(serialized.as_ptr(), buffer.host_ptr, data_size);
         }
 
         // Use device API for transfer
-        let host_data = unsafe {
-            std::slice::from_raw_parts(buffer.host_ptr, data_size).to_vec()
-        };
+        // SAFETY: host_ptr is valid for data_size bytes (was just written above).
+        // The slice lifetime is temporary and data is immediately copied to Vec.
+        let host_data = unsafe { std::slice::from_raw_parts(buffer.host_ptr, data_size).to_vec() };
         let gpu_buffer = self.device.htod_copy(host_data)?;
 
         self.device.synchronize()?;
@@ -314,6 +323,9 @@ impl PinnedMemoryManager {
         let start = Instant::now();
 
         // Zero-copy: GPU can directly access pinned host memory
+        // SAFETY: serialized.as_ptr() is valid for data_size bytes.
+        // buffer.host_ptr was allocated with at least data_size bytes in get_buffer().
+        // The memory regions do not overlap.
         unsafe {
             std::ptr::copy_nonoverlapping(serialized.as_ptr(), buffer.host_ptr, data_size);
         }
@@ -367,10 +379,15 @@ impl PinnedMemoryManager {
 impl Drop for PinnedMemoryManager {
     fn drop(&mut self) {
         // Free all pinned memory buffers
+        // SAFETY: Each buffer.host_ptr was allocated with std::alloc::alloc using the
+        // same layout (buffer.size, 4096 alignment). The pointer has not been freed
+        // elsewhere as buffers are only managed by this struct. After drop, no references
+        // to these buffers exist.
         for buffer in &mut self.buffer_pool {
             unsafe {
-                let layout = std::alloc::Layout::from_size_align(buffer.size, 4096)?;
-                std::alloc::dealloc(buffer.host_ptr, layout);
+                if let Ok(layout) = std::alloc::Layout::from_size_align(buffer.size, 4096) {
+                    std::alloc::dealloc(buffer.host_ptr, layout);
+                }
             }
         }
     }
@@ -411,7 +428,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_pinned_memory_manager_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_pinned_memory_manager_creation() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let config = PinnedMemoryConfig::default();
         let manager = PinnedMemoryManager::new(device, config);
@@ -419,7 +436,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_buffer_allocation_and_return() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_buffer_allocation_and_return() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let config = PinnedMemoryConfig::default();
         let mut manager = PinnedMemoryManager::new(device, config)?;
@@ -433,7 +450,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_pattern_transfer_with_pinned_memory() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_pattern_transfer_with_pinned_memory() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let config = PinnedMemoryConfig::default();
         let mut manager = PinnedMemoryManager::new(device, config)?;
@@ -451,7 +468,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ast_transfer_with_pinned_memory() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_ast_transfer_with_pinned_memory() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let config = PinnedMemoryConfig::default();
         let mut manager = PinnedMemoryManager::new(device, config)?;
@@ -468,7 +485,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_transfer_method_comparison() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_transfer_method_comparison() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let config = PinnedMemoryConfig {
             enable_zero_copy: true,
@@ -514,7 +531,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_memory_pool_stats() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_memory_pool_stats() -> Result<(), Box<dyn std::error::Error>> {
         let device = Arc::new(CudaDevice::new(0)?);
         let config = PinnedMemoryConfig::default();
         let mut manager = PinnedMemoryManager::new(device, config)?;

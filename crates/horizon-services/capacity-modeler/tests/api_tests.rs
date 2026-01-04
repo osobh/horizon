@@ -183,9 +183,7 @@ async fn test_backtest_with_insufficient_data() {
         .unwrap();
 
     // Should return error status
-    assert!(
-        response.status().is_client_error() || response.status().is_server_error()
-    );
+    assert!(response.status().is_client_error() || response.status().is_server_error());
 }
 
 #[tokio::test]

@@ -113,9 +113,7 @@ impl Metal4Features {
 
     /// Check if any Metal 4 features are available.
     pub fn has_any(&self) -> bool {
-        self.metal4_available
-            || self.has_native_tensors
-            || self.has_command_allocator
+        self.metal4_available || self.has_native_tensors || self.has_command_allocator
     }
 
     /// Get a human-readable summary of available features.
@@ -194,10 +192,7 @@ fn get_macos_version() -> (u32, u32, u32) {
         use std::process::Command;
 
         // Use sw_vers to get the OS version
-        if let Ok(output) = Command::new("sw_vers")
-            .arg("-productVersion")
-            .output()
-        {
+        if let Ok(output) = Command::new("sw_vers").arg("-productVersion").output() {
             if let Ok(version_str) = String::from_utf8(output.stdout) {
                 let parts: Vec<&str> = version_str.trim().split('.').collect();
                 let major = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
@@ -243,6 +238,9 @@ fn check_class_exists(class_name: &str) -> bool {
         }
 
         if let Ok(c_name) = CString::new(class_name) {
+            // SAFETY: objc_getClass is a standard Objective-C runtime function that
+            // looks up a class by name. c_name is a valid null-terminated CString.
+            // The function returns null if the class doesn't exist (which we handle).
             let class = unsafe { objc_getClass(c_name.as_ptr()) };
             return !class.is_null();
         }

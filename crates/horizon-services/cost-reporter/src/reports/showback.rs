@@ -59,24 +59,20 @@ impl ShowbackGenerator {
         // Get job count
         let job_count: i64 = summaries.iter().map(|s| s.job_count).sum();
 
-        Ok(ShowbackReport::new(
-            team_id.to_string(),
-            "team".to_string(),
-            period,
-            start,
-            end,
+        Ok(
+            ShowbackReport::new(team_id.to_string(), "team".to_string(), period, start, end)
+                .with_breakdown(breakdown)
+                .with_trends(trends.unwrap_or_else(|| {
+                    TrendAnalysis::new(
+                        TrendDirection::Stable,
+                        rust_decimal::Decimal::ZERO,
+                        rust_decimal::Decimal::ZERO,
+                        0.0,
+                    )
+                }))
+                .with_top_users(top_users)
+                .with_job_count(job_count),
         )
-        .with_breakdown(breakdown)
-        .with_trends(trends.unwrap_or_else(|| {
-            TrendAnalysis::new(
-                TrendDirection::Stable,
-                rust_decimal::Decimal::ZERO,
-                rust_decimal::Decimal::ZERO,
-                0.0,
-            )
-        }))
-        .with_top_users(top_users)
-        .with_job_count(job_count))
     }
 
     /// Generate user showback report
@@ -112,23 +108,19 @@ impl ShowbackGenerator {
         // Get job count
         let job_count: i64 = summaries.iter().map(|s| s.job_count).sum();
 
-        Ok(ShowbackReport::new(
-            user_id.to_string(),
-            "user".to_string(),
-            period,
-            start,
-            end,
+        Ok(
+            ShowbackReport::new(user_id.to_string(), "user".to_string(), period, start, end)
+                .with_breakdown(breakdown)
+                .with_trends(trends.unwrap_or_else(|| {
+                    TrendAnalysis::new(
+                        TrendDirection::Stable,
+                        rust_decimal::Decimal::ZERO,
+                        rust_decimal::Decimal::ZERO,
+                        0.0,
+                    )
+                }))
+                .with_job_count(job_count),
         )
-        .with_breakdown(breakdown)
-        .with_trends(trends.unwrap_or_else(|| {
-            TrendAnalysis::new(
-                TrendDirection::Stable,
-                rust_decimal::Decimal::ZERO,
-                rust_decimal::Decimal::ZERO,
-                0.0,
-            )
-        }))
-        .with_job_count(job_count))
     }
 }
 

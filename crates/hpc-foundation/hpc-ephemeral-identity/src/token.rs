@@ -430,9 +430,9 @@ impl TokenValidator {
         let sig_b64 = parts[2];
 
         // Decode claims
-        let claims_bytes = URL_SAFE_NO_PAD.decode(claims_b64).map_err(|e| {
-            EphemeralError::TokenValidationFailed(format!("Invalid claims: {e}"))
-        })?;
+        let claims_bytes = URL_SAFE_NO_PAD
+            .decode(claims_b64)
+            .map_err(|e| EphemeralError::TokenValidationFailed(format!("Invalid claims: {e}")))?;
         let claims: TokenClaims = serde_json::from_slice(&claims_bytes)?;
 
         // Verify signature
@@ -457,7 +457,11 @@ impl TokenValidator {
     }
 
     /// Validates an encrypted token.
-    fn validate_encrypted(&self, parts: &[&str], _header: &TokenHeader) -> Result<(TokenClaims, bool)> {
+    fn validate_encrypted(
+        &self,
+        parts: &[&str],
+        _header: &TokenHeader,
+    ) -> Result<(TokenClaims, bool)> {
         if parts.len() != 2 {
             return Err(EphemeralError::TokenValidationFailed(
                 "Invalid encrypted token format".to_string(),
@@ -473,8 +477,7 @@ impl TokenValidator {
             EphemeralError::TokenValidationFailed(format!("Invalid encrypted payload: {e}"))
         })?;
 
-        let encrypted: hpc_vault::EncryptedCredential =
-            serde_json::from_slice(&encrypted_bytes)?;
+        let encrypted: hpc_vault::EncryptedCredential = serde_json::from_slice(&encrypted_bytes)?;
 
         // Decrypt
         let vault = VaultEncryption::new(encryption_key);
@@ -665,8 +668,8 @@ mod tests {
 
         // Recreate key from base64 for validation
         let key_for_validation = MasterKey::from_base64(&key_b64).unwrap();
-        let validator = TokenValidator::new(keypair.public_key())
-            .with_encryption_key(key_for_validation);
+        let validator =
+            TokenValidator::new(keypair.public_key()).with_encryption_key(key_for_validation);
         let result = validator.validate(token.as_str()).unwrap();
 
         assert!(result.signature_valid);
@@ -679,11 +682,9 @@ mod tests {
         let encryption_key = MasterKey::generate();
         let wrong_key = MasterKey::generate();
         let claims = create_test_claims();
-        let token =
-            EphemeralToken::create_encrypted(claims, &keypair, encryption_key).unwrap();
+        let token = EphemeralToken::create_encrypted(claims, &keypair, encryption_key).unwrap();
 
-        let validator = TokenValidator::new(keypair.public_key())
-            .with_encryption_key(wrong_key);
+        let validator = TokenValidator::new(keypair.public_key()).with_encryption_key(wrong_key);
         let result = validator.validate(token.as_str());
 
         assert!(matches!(result, Err(EphemeralError::DecryptionFailed(_))));
@@ -695,8 +696,8 @@ mod tests {
         let claims = create_test_claims();
         let token = EphemeralToken::create(claims, &keypair).unwrap();
 
-        let validator = TokenValidator::new(keypair.public_key())
-            .with_expected_issuer("test-issuer");
+        let validator =
+            TokenValidator::new(keypair.public_key()).with_expected_issuer("test-issuer");
         let result = validator.validate(token.as_str());
 
         assert!(result.is_ok());
@@ -708,8 +709,8 @@ mod tests {
         let claims = create_test_claims();
         let token = EphemeralToken::create(claims, &keypair).unwrap();
 
-        let validator = TokenValidator::new(keypair.public_key())
-            .with_expected_issuer("wrong-issuer");
+        let validator =
+            TokenValidator::new(keypair.public_key()).with_expected_issuer("wrong-issuer");
         let result = validator.validate(token.as_str());
 
         assert!(matches!(
@@ -727,8 +728,7 @@ mod tests {
         let token = EphemeralToken::create(claims, &keypair).unwrap();
 
         // With 60 second skew, should still be valid
-        let validator = TokenValidator::new(keypair.public_key())
-            .with_clock_skew(60);
+        let validator = TokenValidator::new(keypair.public_key()).with_clock_skew(60);
         let result = validator.validate(token.as_str());
 
         assert!(result.is_ok());

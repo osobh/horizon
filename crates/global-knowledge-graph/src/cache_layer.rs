@@ -677,10 +677,7 @@ mod tests {
         let value = "value".to_string();
         let ttl = Duration::from_millis(50);
 
-        cache
-            .put(key.clone(), value.clone(), Some(ttl))
-            .await
-            ?;
+        cache.put(key.clone(), value.clone(), Some(ttl)).await?;
 
         // Should exist immediately
         let result: Option<String> = cache.get(&key).await.unwrap();
@@ -716,8 +713,7 @@ mod tests {
         for i in 0..10 {
             cache
                 .put(format!("key-{}", i), format!("value-{}", i), None)
-                .await
-                ?;
+                .await?;
         }
 
         cache.clear();
@@ -790,8 +786,7 @@ mod tests {
 
         cache
             .put("meta-key".to_string(), "meta-value", None)
-            .await
-            ?;
+            .await?;
 
         let metadata = cache.get_metadata(10);
         assert_eq!(metadata.len(), 1);

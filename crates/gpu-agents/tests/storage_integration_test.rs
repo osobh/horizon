@@ -145,10 +145,7 @@ async fn test_production_path_configuration() {
     // Test production configuration uses /magikdev/gpu
     let prod_config = GpuStorageConfig::production();
     assert_eq!(prod_config.base_path.to_str().unwrap(), "/magikdev/gpu");
-    assert_eq!(
-        prod_config.cache_path.to_str()?,
-        "/magikdev/gpu/cache"
-    );
+    assert_eq!(prod_config.cache_path.to_str()?, "/magikdev/gpu/cache");
     assert_eq!(prod_config.wal_path.to_str()?, "/magikdev/gpu/wal");
 }
 

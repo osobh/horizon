@@ -299,8 +299,16 @@ impl KernelInterface {
         use ioctl_constants::SWARM_AGENT_CREATE;
         use nix::libc::ioctl;
 
-        let cmd = make_ioctl_cmd(IoctlDir::ReadWrite, SWARM_AGENT_CREATE, std::mem::size_of::<AgentConfig>());
+        let cmd = make_ioctl_cmd(
+            IoctlDir::ReadWrite,
+            SWARM_AGENT_CREATE,
+            std::mem::size_of::<AgentConfig>(),
+        );
 
+        // SAFETY: ioctl is called with a valid file descriptor (self.device is an open File),
+        // a properly constructed ioctl command number, and a pointer to a valid AgentConfig
+        // struct. The kernel module expects this exact struct layout and will write the
+        // agent_id back into it. The pointer remains valid for the duration of the ioctl call.
         let ret = unsafe { ioctl(self.device.as_raw_fd(), cmd, config as *mut AgentConfig) };
 
         if ret < 0 {
@@ -328,8 +336,15 @@ impl KernelInterface {
         use ioctl_constants::SWARM_AGENT_DESTROY;
         use nix::libc::ioctl;
 
-        let cmd = make_ioctl_cmd(IoctlDir::Write, SWARM_AGENT_DESTROY, std::mem::size_of::<u64>());
+        let cmd = make_ioctl_cmd(
+            IoctlDir::Write,
+            SWARM_AGENT_DESTROY,
+            std::mem::size_of::<u64>(),
+        );
 
+        // SAFETY: ioctl is called with a valid file descriptor (self.device is an open File),
+        // a properly constructed ioctl command number, and a pointer to a valid u64 on the
+        // stack. The kernel module reads the agent_id value to identify which agent to destroy.
         let ret = unsafe { ioctl(self.device.as_raw_fd(), cmd, &agent_id as *const u64) };
 
         if ret < 0 {
@@ -357,8 +372,16 @@ impl KernelInterface {
         use ioctl_constants::SWARM_MOUNT_SETUP;
         use nix::libc::ioctl;
 
-        let cmd = make_ioctl_cmd(IoctlDir::Write, SWARM_MOUNT_SETUP, std::mem::size_of::<MountIsolationConfig>());
+        let cmd = make_ioctl_cmd(
+            IoctlDir::Write,
+            SWARM_MOUNT_SETUP,
+            std::mem::size_of::<MountIsolationConfig>(),
+        );
 
+        // SAFETY: ioctl is called with a valid file descriptor (self.device is an open File),
+        // a properly constructed ioctl command number, and a pointer to a valid MountIsolationConfig
+        // struct. The #[repr(C)] layout matches the kernel's expected struct. The kernel reads
+        // the config to set up mount namespaces, bind mounts, and overlayfs for the agent.
         let ret = unsafe {
             ioctl(
                 self.device.as_raw_fd(),
@@ -392,8 +415,15 @@ impl KernelInterface {
         use ioctl_constants::SWARM_MOUNT_TEARDOWN;
         use nix::libc::ioctl;
 
-        let cmd = make_ioctl_cmd(IoctlDir::Write, SWARM_MOUNT_TEARDOWN, std::mem::size_of::<u64>());
+        let cmd = make_ioctl_cmd(
+            IoctlDir::Write,
+            SWARM_MOUNT_TEARDOWN,
+            std::mem::size_of::<u64>(),
+        );
 
+        // SAFETY: ioctl is called with a valid file descriptor (self.device is an open File),
+        // a properly constructed ioctl command number, and a pointer to a valid u64 on the
+        // stack. The kernel reads the agent_id to identify which agent's mounts to tear down.
         let ret = unsafe { ioctl(self.device.as_raw_fd(), cmd, &agent_id as *const u64) };
 
         if ret < 0 {
@@ -421,8 +451,16 @@ impl KernelInterface {
         use ioctl_constants::SWARM_MOUNT_ADD_BIND;
         use nix::libc::ioctl;
 
-        let cmd = make_ioctl_cmd(IoctlDir::Write, SWARM_MOUNT_ADD_BIND, std::mem::size_of::<BindMountConfig>());
+        let cmd = make_ioctl_cmd(
+            IoctlDir::Write,
+            SWARM_MOUNT_ADD_BIND,
+            std::mem::size_of::<BindMountConfig>(),
+        );
 
+        // SAFETY: ioctl is called with a valid file descriptor (self.device is an open File),
+        // a properly constructed ioctl command number, and a pointer to a valid BindMountConfig
+        // struct. The #[repr(C)] layout matches the kernel's expected struct. The kernel reads
+        // source/target paths and flags to create a new bind mount for the agent.
         let ret = unsafe {
             ioctl(
                 self.device.as_raw_fd(),
@@ -456,8 +494,16 @@ impl KernelInterface {
         use ioctl_constants::SWARM_MOUNT_OVERLAYFS;
         use nix::libc::ioctl;
 
-        let cmd = make_ioctl_cmd(IoctlDir::Write, SWARM_MOUNT_OVERLAYFS, std::mem::size_of::<OverlayFsConfig>());
+        let cmd = make_ioctl_cmd(
+            IoctlDir::Write,
+            SWARM_MOUNT_OVERLAYFS,
+            std::mem::size_of::<OverlayFsConfig>(),
+        );
 
+        // SAFETY: ioctl is called with a valid file descriptor (self.device is an open File),
+        // a properly constructed ioctl command number, and a pointer to a valid OverlayFsConfig
+        // struct. The #[repr(C)] layout matches the kernel's expected struct. The kernel reads
+        // lower/upper/work/merged paths to configure the overlayfs mount for the agent.
         let ret = unsafe {
             ioctl(
                 self.device.as_raw_fd(),

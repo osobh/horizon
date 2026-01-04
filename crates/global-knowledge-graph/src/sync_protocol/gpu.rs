@@ -29,10 +29,7 @@ impl GpuConsensusMetrics {
         }
     }
 
-    pub fn update_metrics(&mut self, 
-        kernel_time: f32,
-        bandwidth: f32,
-        utilization: f32) {
+    pub fn update_metrics(&mut self, kernel_time: f32, bandwidth: f32, utilization: f32) {
         self.kernel_execution_time = kernel_time;
         self.memory_bandwidth_gb = bandwidth;
         self.compute_utilization = utilization;

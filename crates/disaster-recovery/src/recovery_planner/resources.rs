@@ -112,13 +112,17 @@ impl ResourceCapacity {
 
     /// Calculate utilization percentage (0.0 to 1.0)
     pub fn utilization_ratio(&self, total: &ResourceCapacity) -> f64 {
-        if total.cpu_cores == 0.0 { return 0.0; }
-        
+        if total.cpu_cores == 0.0 {
+            return 0.0;
+        }
+
         let cpu_util = (total.cpu_cores - self.cpu_cores) / total.cpu_cores;
         let mem_util = if total.memory_gb > 0.0 {
             (total.memory_gb - self.memory_gb) / total.memory_gb
-        } else { 0.0 };
-        
+        } else {
+            0.0
+        };
+
         // Return highest utilization as bottleneck indicator
         cpu_util.max(mem_util)
     }
@@ -149,21 +153,23 @@ impl ResourcePool {
 
     /// Add resources to pool
     pub fn add_resources(&mut self, resource_type: ResourceType, capacity: ResourceCapacity) {
-        self.pools.entry(resource_type)
+        self.pools
+            .entry(resource_type)
             .and_modify(|existing| existing.deallocate(&capacity))
             .or_insert(capacity);
     }
 
     /// Try to allocate resources
     pub fn allocate(
-        &mut self, 
+        &mut self,
         allocation_id: Uuid,
-        resource_type: ResourceType, 
-        required: ResourceCapacity
+        resource_type: ResourceType,
+        required: ResourceCapacity,
     ) -> Result<(), String> {
         if let Some(pool) = self.pools.get_mut(&resource_type) {
             pool.allocate(&required)?;
-            self.allocations.insert(allocation_id, (resource_type, required));
+            self.allocations
+                .insert(allocation_id, (resource_type, required));
             Ok(())
         } else {
             Err(format!("No resource pool for type {:?}", resource_type))
@@ -177,7 +183,10 @@ impl ResourcePool {
                 pool.deallocate(&capacity);
                 Ok(())
             } else {
-                Err(format!("Resource pool not found for type {:?}", resource_type))
+                Err(format!(
+                    "Resource pool not found for type {:?}",
+                    resource_type
+                ))
             }
         } else {
             Err("Allocation not found".to_string())

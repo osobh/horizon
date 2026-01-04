@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
+use std::sync::Arc;
 use stratoswarm_evolution_global::{
     ai_safety_compliance::{
         BiasDetectionResult, BiasDetector, EthicalAssessment, EthicalAssessor,
@@ -26,7 +27,6 @@ use stratoswarm_evolution_global::{
         CryptographicProvider, SecureAggregator, SecureMultiPartyConfig, SecureMultiPartyManager,
     },
 };
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Complete mock implementation for system integration
@@ -219,10 +219,13 @@ struct SystemMockSecureAggregator;
 impl SecureAggregator for SystemMockSecureAggregator {
     async fn aggregate_encrypted_data(
         &self,
-        encrypted_inputs: Vec<stratoswarm_evolution_global::secure_multiparty::EncryptedEvolutionData>,
+        encrypted_inputs: Vec<
+            stratoswarm_evolution_global::secure_multiparty::EncryptedEvolutionData,
+        >,
         _aggregation_function: String,
-    ) -> EvolutionGlobalResult<stratoswarm_evolution_global::secure_multiparty::SecureAggregationResult>
-    {
+    ) -> EvolutionGlobalResult<
+        stratoswarm_evolution_global::secure_multiparty::SecureAggregationResult,
+    > {
         Ok(
             stratoswarm_evolution_global::secure_multiparty::SecureAggregationResult {
                 aggregation_id: Uuid::new_v4(),

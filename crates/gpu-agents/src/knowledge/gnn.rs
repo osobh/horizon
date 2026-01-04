@@ -639,8 +639,7 @@ mod rand {
     {
         // Simple pseudo-random
         let val = (std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            ?
+            .duration_since(std::time::UNIX_EPOCH)?
             .as_nanos()
             % 1000) as f32
             / 1000.0;

@@ -17,23 +17,19 @@ use crate::build_job::BuildJob;
 /// Build job priority levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum BuildPriority {
     /// Critical builds - immediate execution
     Critical = 100,
     /// High priority builds
     High = 75,
     /// Normal priority (default)
+    #[default]
     Normal = 50,
     /// Low priority builds (background)
     Low = 25,
     /// Batch jobs - run when idle
     Batch = 10,
-}
-
-impl Default for BuildPriority {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 impl BuildPriority {
@@ -334,7 +330,11 @@ impl BuildQueue {
     }
 
     /// Update priority of a queued job
-    pub async fn update_priority(&self, job_id: Uuid, priority: BuildPriority) -> Result<(), QueueError> {
+    pub async fn update_priority(
+        &self,
+        job_id: Uuid,
+        priority: BuildPriority,
+    ) -> Result<(), QueueError> {
         let mut index = self.index.write().await;
 
         if let Some(build) = index.get_mut(&job_id) {
@@ -343,12 +343,15 @@ impl BuildQueue {
             // Rebuild queue to reflect new priority
             let mut queue = self.queue.write().await;
             let items: Vec<_> = queue.drain().collect();
-            *queue = items.into_iter().map(|mut b| {
-                if b.job.id == job_id {
-                    b.priority = priority;
-                }
-                b
-            }).collect();
+            *queue = items
+                .into_iter()
+                .map(|mut b| {
+                    if b.job.id == job_id {
+                        b.priority = priority;
+                    }
+                    b
+                })
+                .collect();
 
             Ok(())
         } else {
@@ -488,7 +491,9 @@ mod tests {
     fn make_test_job() -> BuildJob {
         BuildJob::new(
             CargoCommand::Build,
-            BuildSource::Local { path: PathBuf::from(".") },
+            BuildSource::Local {
+                path: PathBuf::from("."),
+            },
         )
     }
 
@@ -605,10 +610,7 @@ mod tests {
         queue.enqueue(queued.clone()).await.unwrap();
 
         // Same job ID should fail
-        let result = queue.enqueue(QueuedBuild {
-            job,
-            ..queued
-        }).await;
+        let result = queue.enqueue(QueuedBuild { job, ..queued }).await;
         assert_eq!(result, Err(QueueError::DuplicateJob));
     }
 
@@ -651,10 +653,19 @@ mod tests {
 
     #[test]
     fn test_priority_from_str() {
-        assert_eq!(BuildPriority::from_str("critical"), Some(BuildPriority::Critical));
+        assert_eq!(
+            BuildPriority::from_str("critical"),
+            Some(BuildPriority::Critical)
+        );
         assert_eq!(BuildPriority::from_str("HIGH"), Some(BuildPriority::High));
-        assert_eq!(BuildPriority::from_str("default"), Some(BuildPriority::Normal));
-        assert_eq!(BuildPriority::from_str("background"), Some(BuildPriority::Batch));
+        assert_eq!(
+            BuildPriority::from_str("default"),
+            Some(BuildPriority::Normal)
+        );
+        assert_eq!(
+            BuildPriority::from_str("background"),
+            Some(BuildPriority::Batch)
+        );
         assert_eq!(BuildPriority::from_str("invalid"), None);
     }
 }

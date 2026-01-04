@@ -12,7 +12,6 @@ use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
-
 /// Create the API router with all routes
 pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
@@ -23,7 +22,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/subnets/:id", put(handlers::update_subnet))
         .route("/api/v1/subnets/:id", delete(handlers::delete_subnet))
         .route("/api/v1/subnets/:id/stats", get(handlers::get_subnet_stats))
-        .route("/api/v1/subnets/:id/nodes", get(handlers::list_subnet_nodes))
+        .route(
+            "/api/v1/subnets/:id/nodes",
+            get(handlers::list_subnet_nodes),
+        )
         .route("/api/v1/subnets/:id/nodes", post(handlers::assign_node))
         .route(
             "/api/v1/subnets/:subnet_id/nodes/:node_id",
@@ -41,7 +43,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             "/api/v1/migrations/:id/cancel",
             post(handlers::cancel_migration),
         )
-        .route("/api/v1/migrations/stats", get(handlers::get_migration_stats))
+        .route(
+            "/api/v1/migrations/stats",
+            get(handlers::get_migration_stats),
+        )
         // Routes
         .route("/api/v1/routes", get(handlers::list_routes))
         .route("/api/v1/routes", post(handlers::create_route))
@@ -127,7 +132,12 @@ mod tests {
         let app = create_router(state);
 
         let response = app
-            .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 

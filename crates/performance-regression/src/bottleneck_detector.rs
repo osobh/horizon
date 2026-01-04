@@ -6,12 +6,12 @@
 use crate::error::PerformanceRegressionResult;
 use crate::metrics_collector::{MetricDataPoint, MetricType};
 use chrono::{DateTime, Duration, Utc};
+use dashmap::DashMap;
 use ordered_float::OrderedFloat;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use dashmap::DashMap;
 
 /// Bottleneck detection configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,7 +170,8 @@ impl BottleneckDetector {
 
     /// Add metric to history for analysis
     pub fn add_metric(&self, metric: MetricDataPoint) {
-        let mut deque = self.metric_history
+        let mut deque = self
+            .metric_history
             .entry(metric.metric_type.clone())
             .or_insert_with(VecDeque::new);
         deque.push_back(metric);
@@ -310,7 +311,9 @@ impl BottleneckDetector {
     /// Get bottleneck insights and recommendations
     pub fn get_bottleneck_insights(&self) -> BottleneckInsights {
         let bottlenecks = self.detected_bottlenecks.read().clone();
-        let correlations: HashMap<_, _> = self.resource_correlations.iter()
+        let correlations: HashMap<_, _> = self
+            .resource_correlations
+            .iter()
             .map(|entry| (entry.key().clone(), *entry.value()))
             .collect();
 
@@ -346,7 +349,9 @@ impl BottleneckDetector {
     /// Track correlations between resources
     pub fn track_resource_correlations(&self) {
         // Calculate correlations between different metric types
-        let metric_types: Vec<_> = self.metric_history.iter()
+        let metric_types: Vec<_> = self
+            .metric_history
+            .iter()
             .map(|entry| entry.key().clone())
             .collect();
 
@@ -357,11 +362,13 @@ impl BottleneckDetector {
 
                 if let (Some(data1), Some(data2)) = (
                     self.metric_history.get(metric1),
-                    self.metric_history.get(metric2)
+                    self.metric_history.get(metric2),
                 ) {
                     if let Some(correlation) = self.calculate_correlation(&data1, &data2) {
-                        self.resource_correlations.insert((metric1.clone(), metric2.clone()), correlation);
-                        self.resource_correlations.insert((metric2.clone(), metric1.clone()), correlation);
+                        self.resource_correlations
+                            .insert((metric1.clone(), metric2.clone()), correlation);
+                        self.resource_correlations
+                            .insert((metric2.clone(), metric1.clone()), correlation);
                     }
                 }
             }
@@ -714,7 +721,14 @@ mod tests {
         detector.add_metric(metric.clone());
 
         assert!(detector.metric_history.contains_key(&MetricType::CpuUsage));
-        assert_eq!(detector.metric_history.get(&MetricType::CpuUsage).unwrap().len(), 1);
+        assert_eq!(
+            detector
+                .metric_history
+                .get(&MetricType::CpuUsage)
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -969,7 +983,9 @@ mod tests {
 
         detector.track_resource_correlations();
 
-        let correlation = detector.resource_correlations.get(&(MetricType::CpuUsage, MetricType::MemoryUsage));
+        let correlation = detector
+            .resource_correlations
+            .get(&(MetricType::CpuUsage, MetricType::MemoryUsage));
         assert!(correlation.is_some());
         assert!(correlation.unwrap().0 > 0.7); // Should be highly correlated
     }

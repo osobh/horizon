@@ -23,11 +23,17 @@ pub struct GpuPatternMatcherV2 {
 impl GpuPatternMatcherV2 {
     pub fn new(device: Arc<CudaDevice>, max_nodes: usize) -> Result<Self> {
         let buffer_size = max_nodes * NODE_SIZE;
-        
+
+        // SAFETY: alloc returns uninitialized memory. pattern_buffer will be written
+        // via htod_copy_into in match_pattern() before any kernel reads.
         let pattern_buffer = unsafe { device.alloc::<u8>(buffer_size) }
             .context("Failed to allocate pattern buffer")?;
+        // SAFETY: alloc returns uninitialized memory. ast_buffer will be written
+        // via htod_copy_into in match_pattern() before any kernel reads.
         let ast_buffer = unsafe { device.alloc::<u8>(buffer_size) }
             .context("Failed to allocate AST buffer")?;
+        // SAFETY: alloc returns uninitialized memory. match_buffer is cleared
+        // via htod_copy_into with zeros in match_pattern() before kernel reads.
         let match_buffer = unsafe { device.alloc::<u32>(max_nodes * 2) }
             .context("Failed to allocate match buffer")?;
 
@@ -72,6 +78,9 @@ impl GpuPatternMatcherV2 {
         self.device.htod_copy_into(zeros, &mut match_slice)?;
         
         // Launch kernel
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations.
+        // Buffers have been initialized via htod_copy_into before this kernel launch.
+        // ast_node_count matches the actual number of encoded AST nodes.
         unsafe {
             crate::synthesis::launch_match_patterns(
                 *self.pattern_buffer.device_ptr() as *const u8,

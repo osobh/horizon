@@ -1,6 +1,7 @@
 //! Failure Scenario Integration Tests
 //! Tests system behavior under various failure conditions and recovery mechanisms
 
+use std::sync::Arc;
 use stratoswarm_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
 use stratoswarm_cuda::{CudaContext, CudaMemoryManager};
 use stratoswarm_evolution_engines::{EvolutionEngineConfig, HybridEvolutionSystem};
@@ -8,7 +9,6 @@ use stratoswarm_knowledge_graph::{
     KnowledgeGraph, KnowledgeGraphConfig, Query, QueryEngine, QueryType,
 };
 use stratoswarm_synthesis::{SynthesisConfig, SynthesisPipeline};
-use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 
 #[tokio::test]

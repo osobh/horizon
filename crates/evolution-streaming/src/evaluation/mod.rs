@@ -4,10 +4,10 @@ use crate::{
     AgentGenome, BenchmarkResult, EvaluationMetrics, EvaluationResult, EvolutionStreamingError,
 };
 use async_trait::async_trait;
-use stratoswarm_streaming::{StreamChunk, StreamProcessor, StreamStats};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use stratoswarm_streaming::{StreamChunk, StreamProcessor, StreamStats};
 use tokio::sync::Semaphore;
 
 pub mod benchmarks;

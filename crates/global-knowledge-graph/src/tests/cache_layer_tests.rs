@@ -79,11 +79,7 @@ async fn test_cache_warming_strategies() {
 async fn test_cache_hit_rate_optimization() {
     let cache_stats = vec![("queries", 1000), ("hits", 850), ("misses", 150)];
 
-    let total_queries = cache_stats
-        .iter()
-        .find(|(name, _)| *name == "queries")
-        ?
-        .1;
+    let total_queries = cache_stats.iter().find(|(name, _)| *name == "queries")?.1;
     let hits = cache_stats
         .iter()
         .find(|(name, _)| *name == "hits")
@@ -132,8 +128,7 @@ async fn test_cache_compression() {
 
     let ratio = compression_info
         .iter()
-        .find(|(name, _)| *name == "compression_ratio")
-        ?
+        .find(|(name, _)| *name == "compression_ratio")?
         .1 as f32;
     assert!(ratio > 1.0); // Should be compressed
 }

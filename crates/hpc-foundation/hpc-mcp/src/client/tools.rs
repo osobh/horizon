@@ -18,9 +18,7 @@ impl ToolClient {
     /// List available tools
     pub fn list_tools_request(&self) -> String {
         let request = self.connection.create_request("tools/list");
-        self.connection
-            .encode_request(&request)
-            .unwrap_or_default()
+        self.connection.encode_request(&request).unwrap_or_default()
     }
 
     /// Parse list tools response
@@ -124,7 +122,8 @@ mod tests {
     #[test]
     fn test_parse_tools_response_error() {
         let client = ToolClient::new();
-        let response = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
+        let response =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
 
         let result = client.parse_tools_response(response);
         assert!(result.is_err());
@@ -133,8 +132,7 @@ mod tests {
     #[test]
     fn test_call_tool_request() {
         let client = ToolClient::new();
-        let call = ToolCall::new("test_tool")
-            .with_arguments(serde_json::json!({"arg": "value"}));
+        let call = ToolCall::new("test_tool").with_arguments(serde_json::json!({"arg": "value"}));
 
         let request = client.call_tool_request(&call).unwrap();
         assert!(request.contains("tools/call"));
@@ -154,7 +152,8 @@ mod tests {
     #[test]
     fn test_parse_tool_response_error() {
         let client = ToolClient::new();
-        let response = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Tool failed"}}"#;
+        let response =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Tool failed"}}"#;
 
         let result = client.parse_tool_response(response);
         assert!(result.is_err());

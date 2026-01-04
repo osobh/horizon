@@ -199,10 +199,14 @@ impl MultiRegionConsensusEngine {
         // GPU buffer allocation for voting
         let max_nodes = config.regions.iter().map(|r| r.node_count).sum::<usize>();
         let voting_buffer_size = max_nodes * 64; // 64 bytes per vote
+                                                 // SAFETY: alloc returns uninitialized memory. gpu_voting_buffer will be written
+                                                 // by GPU consensus voting kernels before any reads.
         let gpu_voting_buffer = Some(unsafe { device.alloc::<u8>(voting_buffer_size)? });
 
         // GPU buffer for latency measurements
         let latency_buffer_size = config.regions.len() * std::mem::size_of::<f32>();
+        // SAFETY: alloc returns uninitialized memory. gpu_latency_buffer will be written
+        // when latency measurements are computed by GPU kernels.
         let gpu_latency_buffer = Some(unsafe { device.alloc::<f32>(latency_buffer_size)? });
 
         let zero_trust_validator = if config.zero_trust_validation {

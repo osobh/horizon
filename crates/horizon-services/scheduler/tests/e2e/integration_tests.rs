@@ -24,10 +24,7 @@ use crate::e2e::helpers::*;
 #[ignore = "Requires running services: api-gateway, governor"]
 async fn test_gateway_to_governor_policy_evaluation() -> Result<()> {
     // Setup: Check services are available
-    let services = vec![
-        ServiceEndpoint::api_gateway(),
-        ServiceEndpoint::governor(),
-    ];
+    let services = vec![ServiceEndpoint::api_gateway(), ServiceEndpoint::governor()];
     require_services(&services).await?;
 
     let gateway_client = ApiGatewayClient::from_env();
@@ -102,10 +99,7 @@ spec:
 #[ignore = "Requires running services: api-gateway, governor"]
 async fn test_gateway_to_governor_policy_denial() -> Result<()> {
     // Setup: Check services are available
-    let services = vec![
-        ServiceEndpoint::api_gateway(),
-        ServiceEndpoint::governor(),
-    ];
+    let services = vec![ServiceEndpoint::api_gateway(), ServiceEndpoint::governor()];
     require_services(&services).await?;
 
     let gateway_client = ApiGatewayClient::from_env();
@@ -365,10 +359,7 @@ async fn test_gateway_to_quota_manager_allocation_flow() -> Result<()> {
 #[ignore = "Requires running services: api-gateway, scheduler, postgres"]
 async fn test_gateway_to_scheduler_job_submission() -> Result<()> {
     // Setup
-    let services = vec![
-        ServiceEndpoint::api_gateway(),
-        ServiceEndpoint::scheduler(),
-    ];
+    let services = vec![ServiceEndpoint::api_gateway(), ServiceEndpoint::scheduler()];
     require_services(&services).await?;
 
     let gateway_client = ApiGatewayClient::from_env();
@@ -410,10 +401,7 @@ async fn test_gateway_to_scheduler_job_submission() -> Result<()> {
 #[ignore = "Requires running services: api-gateway, scheduler, postgres"]
 async fn test_gateway_to_scheduler_job_lifecycle() -> Result<()> {
     // Setup
-    let services = vec![
-        ServiceEndpoint::api_gateway(),
-        ServiceEndpoint::scheduler(),
-    ];
+    let services = vec![ServiceEndpoint::api_gateway(), ServiceEndpoint::scheduler()];
     require_services(&services).await?;
 
     let gateway_client = ApiGatewayClient::from_env();

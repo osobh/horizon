@@ -93,10 +93,7 @@ pub async fn create_asset(
     )
 )]
 #[tracing::instrument(skip(state))]
-pub async fn get_asset(
-    Path(id): Path<Uuid>,
-    State(state): State<AppState>,
-) -> Result<Json<Asset>> {
+pub async fn get_asset(Path(id): Path<Uuid>, State(state): State<AppState>) -> Result<Json<Asset>> {
     let repo = AssetRepository::new(state.pool.clone());
     let asset = repo.get_by_id(id).await?;
 
@@ -205,7 +202,12 @@ pub async fn discover_assets(
 
     for gpu in req.gpus {
         let (gpu_id, is_created) = repo
-            .upsert_gpu(node_id, gpu.gpu_uuid, gpu.metadata, "node-agent".to_string())
+            .upsert_gpu(
+                node_id,
+                gpu.gpu_uuid,
+                gpu.metadata,
+                "node-agent".to_string(),
+            )
             .await?;
 
         gpu_ids.push(gpu_id);

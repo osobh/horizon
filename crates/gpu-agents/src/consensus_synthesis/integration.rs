@@ -106,6 +106,10 @@ impl ConsensusSynthesisEngine {
         let synthesis_module = GpuSynthesisModule::new(Arc::clone(&device), 10000)?;
 
         // Allocate GPU buffers
+        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
+        // vote_buffer is populated with votes before consensus processing reads it, and
+        // result_buffer is write-only (stores consensus output). Both are Optional to
+        // handle allocation failures gracefully.
         let vote_buffer = unsafe { device.alloc::<u32>(1000) }.ok();
         let result_buffer = unsafe { device.alloc::<u8>(1024 * 1024) }.ok(); // 1MB
 
@@ -354,7 +358,10 @@ impl ConsensusSynthesisEngine {
     }
 
     /// Clean up completed tasks older than specified duration
-    pub fn cleanup_old_tasks(&self, older_than: Duration) -> Result<(), Box<dyn std::error::Error>>  {
+    pub fn cleanup_old_tasks(
+        &self,
+        older_than: Duration,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut tasks = self.tasks.lock()?;
         let now = Instant::now();
 

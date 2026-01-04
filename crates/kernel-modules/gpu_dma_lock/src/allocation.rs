@@ -509,6 +509,11 @@ static mut ALLOCATION_MANAGER: Option<GpuManager> = None;
 
 /// Get global allocation manager
 pub fn get_manager() -> &'static GpuManager {
+    // SAFETY: This function is only called after init() has been called during
+    // kernel module initialization. The static ALLOCATION_MANAGER is initialized
+    // once at module load time and never modified until module cleanup, at which
+    // point no more calls to this function should occur. Single-threaded init
+    // ensures no data races during the initialization sequence.
     unsafe {
         ALLOCATION_MANAGER
             .as_ref()
@@ -518,6 +523,10 @@ pub fn get_manager() -> &'static GpuManager {
 
 /// Initialize allocation subsystem
 pub fn init() -> KernelResult<()> {
+    // SAFETY: This function is called exactly once during kernel module
+    // initialization, before any other threads can access ALLOCATION_MANAGER.
+    // The kernel module init sequence is single-threaded, ensuring no data
+    // races during this write to the static mutable.
     unsafe {
         ALLOCATION_MANAGER = Some(GpuManager::new());
     }
@@ -526,6 +535,10 @@ pub fn init() -> KernelResult<()> {
 
 /// Cleanup allocation subsystem
 pub fn cleanup() {
+    // SAFETY: This function is called exactly once during kernel module
+    // unload, after all other operations have completed and no threads are
+    // accessing ALLOCATION_MANAGER. The kernel module exit sequence ensures
+    // exclusive access to module globals during cleanup.
     unsafe {
         ALLOCATION_MANAGER = None;
     }

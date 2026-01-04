@@ -57,14 +57,14 @@ pub struct ObservabilityConfig {
 impl CollectorConfig {
     /// Load configuration from a YAML file
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let content = std::fs::read_to_string(path.as_ref())
-            .context("Failed to read configuration file")?;
+        let content =
+            std::fs::read_to_string(path.as_ref()).context("Failed to read configuration file")?;
 
         // Substitute environment variables
         let content = Self::substitute_env_vars(&content)?;
 
-        let config: Self = serde_yaml::from_str(&content)
-            .context("Failed to parse configuration YAML")?;
+        let config: Self =
+            serde_yaml::from_str(&content).context("Failed to parse configuration YAML")?;
 
         config.validate()?;
         Ok(config)
@@ -105,20 +105,26 @@ impl CollectorConfig {
 
         // Validate security paths (just check they're not empty)
         // Skip TLS validation if paths are default placeholder values
-        if !self.security.tls_cert_path.starts_with("/etc/horizon/certs/") {
-            if self.security.tls_cert_path.is_empty() {
-                return Err(anyhow!("tls_cert_path cannot be empty"));
-            }
+        if !self
+            .security
+            .tls_cert_path
+            .starts_with("/etc/horizon/certs/")
+            && self.security.tls_cert_path.is_empty()
+        {
+            return Err(anyhow!("tls_cert_path cannot be empty"));
         }
-        if !self.security.tls_key_path.starts_with("/etc/horizon/certs/") {
-            if self.security.tls_key_path.is_empty() {
-                return Err(anyhow!("tls_key_path cannot be empty"));
-            }
+        if !self
+            .security
+            .tls_key_path
+            .starts_with("/etc/horizon/certs/")
+            && self.security.tls_key_path.is_empty()
+        {
+            return Err(anyhow!("tls_key_path cannot be empty"));
         }
-        if !self.security.tls_ca_path.starts_with("/etc/horizon/certs/") {
-            if self.security.tls_ca_path.is_empty() {
-                return Err(anyhow!("tls_ca_path cannot be empty"));
-            }
+        if !self.security.tls_ca_path.starts_with("/etc/horizon/certs/")
+            && self.security.tls_ca_path.is_empty()
+        {
+            return Err(anyhow!("tls_ca_path cannot be empty"));
         }
 
         // Validate InfluxDB configuration
@@ -141,13 +147,20 @@ impl CollectorConfig {
             return Err(anyhow!("parquet.output_dir cannot be empty"));
         }
         if self.parquet.rotation_interval_secs == 0 {
-            return Err(anyhow!("parquet.rotation_interval_secs must be greater than 0"));
+            return Err(anyhow!(
+                "parquet.rotation_interval_secs must be greater than 0"
+            ));
         }
 
         // Validate compression type
         match self.parquet.compression.as_str() {
             "snappy" | "gzip" | "lz4" | "zstd" | "none" => {}
-            _ => return Err(anyhow!("Invalid compression type: {}", self.parquet.compression)),
+            _ => {
+                return Err(anyhow!(
+                    "Invalid compression type: {}",
+                    self.parquet.compression
+                ))
+            }
         }
 
         // Validate limits

@@ -35,7 +35,8 @@ async fn test_submit_job_invalid_request() {
         .unwrap();
 
     assert!(
-        response.status() == StatusCode::BAD_REQUEST || response.status() == StatusCode::UNPROCESSABLE_ENTITY,
+        response.status() == StatusCode::BAD_REQUEST
+            || response.status() == StatusCode::UNPROCESSABLE_ENTITY,
         "Expected 400 or 422, got {}",
         response.status()
     );
@@ -67,7 +68,8 @@ async fn test_submit_job_zero_gpus() {
         .unwrap();
 
     assert!(
-        response.status() == StatusCode::BAD_REQUEST || response.status() == StatusCode::UNPROCESSABLE_ENTITY,
+        response.status() == StatusCode::BAD_REQUEST
+            || response.status() == StatusCode::UNPROCESSABLE_ENTITY,
         "Expected 400 or 422 for zero GPU count, got {}",
         response.status()
     );
@@ -194,7 +196,8 @@ async fn test_submit_job_malformed_json() {
         .unwrap();
 
     assert!(
-        response.status() == StatusCode::BAD_REQUEST || response.status() == StatusCode::UNPROCESSABLE_ENTITY,
+        response.status() == StatusCode::BAD_REQUEST
+            || response.status() == StatusCode::UNPROCESSABLE_ENTITY,
         "Expected 400 or 422 for malformed JSON, got {}",
         response.status()
     );

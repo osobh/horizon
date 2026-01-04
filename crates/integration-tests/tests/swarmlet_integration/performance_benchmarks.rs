@@ -15,8 +15,8 @@ use uuid::Uuid;
 /// TDD phase for performance benchmark development
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TddPhase {
-    Red,    // Benchmark fails (expected behavior)
-    Green,  // Minimal implementation meets targets
+    Red,      // Benchmark fails (expected behavior)
+    Green,    // Minimal implementation meets targets
     Refactor, // Optimize for production performance
 }
 
@@ -119,11 +119,11 @@ pub struct BenchmarkSwarmlet {
 /// Node type classification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NodeType {
-    HighPerformanceGpu,    // RTX 4090 class
-    MidRangeGpu,          // RTX 3070 class
-    CpuOnly,              // High core count CPU
-    EdgeDevice,           // Raspberry Pi class
-    CloudInstance,        // Virtual machine
+    HighPerformanceGpu, // RTX 4090 class
+    MidRangeGpu,        // RTX 3070 class
+    CpuOnly,            // High core count CPU
+    EdgeDevice,         // Raspberry Pi class
+    CloudInstance,      // Virtual machine
 }
 
 /// Hardware performance profile
@@ -195,12 +195,26 @@ pub struct BenchmarkWorkload {
 /// Workload type categories
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorkloadType {
-    CpuIntensive { cpu_bound_ratio: f32 },
-    GpuCompute { gpu_utilization_target: f32 },
-    MemoryIntensive { memory_access_pattern: MemoryPattern },
-    NetworkBound { bandwidth_requirement_mbps: f32 },
-    IoIntensive { iops_requirement: u32 },
-    Mixed { cpu_weight: f32, gpu_weight: f32, memory_weight: f32 },
+    CpuIntensive {
+        cpu_bound_ratio: f32,
+    },
+    GpuCompute {
+        gpu_utilization_target: f32,
+    },
+    MemoryIntensive {
+        memory_access_pattern: MemoryPattern,
+    },
+    NetworkBound {
+        bandwidth_requirement_mbps: f32,
+    },
+    IoIntensive {
+        iops_requirement: u32,
+    },
+    Mixed {
+        cpu_weight: f32,
+        gpu_weight: f32,
+        memory_weight: f32,
+    },
 }
 
 /// Memory access patterns
@@ -411,7 +425,7 @@ impl SwarmletPerformanceBenchmarks {
         let benchmark_results = Arc::new(Mutex::new(Vec::new()));
         let current_phase = Arc::new(RwLock::new(TddPhase::Red));
         let test_cluster = Arc::new(RwLock::new(Vec::new()));
-        
+
         let performance_monitor = Arc::new(RwLock::new(SystemPerformanceMonitor {
             monitoring_interval: Duration::from_secs(1),
             performance_history: VecDeque::with_capacity(1000),
@@ -438,10 +452,30 @@ impl SwarmletPerformanceBenchmarks {
                     burst_probability: 0.1,
                     burst_multiplier: 3.0,
                     workload_mix: HashMap::from([
-                        (WorkloadType::CpuIntensive { cpu_bound_ratio: 0.8 }, 0.4),
-                        (WorkloadType::GpuCompute { gpu_utilization_target: 0.9 }, 0.3),
-                        (WorkloadType::MemoryIntensive { memory_access_pattern: MemoryPattern::Random }, 0.2),
-                        (WorkloadType::NetworkBound { bandwidth_requirement_mbps: 100.0 }, 0.1),
+                        (
+                            WorkloadType::CpuIntensive {
+                                cpu_bound_ratio: 0.8,
+                            },
+                            0.4,
+                        ),
+                        (
+                            WorkloadType::GpuCompute {
+                                gpu_utilization_target: 0.9,
+                            },
+                            0.3,
+                        ),
+                        (
+                            WorkloadType::MemoryIntensive {
+                                memory_access_pattern: MemoryPattern::Random,
+                            },
+                            0.2,
+                        ),
+                        (
+                            WorkloadType::NetworkBound {
+                                bandwidth_requirement_mbps: 100.0,
+                            },
+                            0.1,
+                        ),
                     ]),
                 },
                 GenerationPattern {
@@ -450,8 +484,18 @@ impl SwarmletPerformanceBenchmarks {
                     burst_probability: 0.3,
                     burst_multiplier: 8.0,
                     workload_mix: HashMap::from([
-                        (WorkloadType::GpuCompute { gpu_utilization_target: 0.95 }, 0.6),
-                        (WorkloadType::CpuIntensive { cpu_bound_ratio: 0.9 }, 0.4),
+                        (
+                            WorkloadType::GpuCompute {
+                                gpu_utilization_target: 0.95,
+                            },
+                            0.6,
+                        ),
+                        (
+                            WorkloadType::CpuIntensive {
+                                cpu_bound_ratio: 0.9,
+                            },
+                            0.4,
+                        ),
                     ]),
                 },
             ],
@@ -461,27 +505,36 @@ impl SwarmletPerformanceBenchmarks {
 
         let network_simulator = Arc::new(NetworkSimulator {
             simulation_profiles: HashMap::from([
-                ("optimal".to_string(), NetworkCondition {
-                    latency_base_ms: 0.5,
-                    latency_variation_ms: 0.1,
-                    bandwidth_factor: 1.0,
-                    packet_loss_rate: 0.001,
-                    congestion_probability: 0.05,
-                }),
-                ("degraded".to_string(), NetworkCondition {
-                    latency_base_ms: 5.0,
-                    latency_variation_ms: 2.0,
-                    bandwidth_factor: 0.7,
-                    packet_loss_rate: 0.01,
-                    congestion_probability: 0.2,
-                }),
-                ("poor".to_string(), NetworkCondition {
-                    latency_base_ms: 20.0,
-                    latency_variation_ms: 10.0,
-                    bandwidth_factor: 0.3,
-                    packet_loss_rate: 0.05,
-                    congestion_probability: 0.5,
-                }),
+                (
+                    "optimal".to_string(),
+                    NetworkCondition {
+                        latency_base_ms: 0.5,
+                        latency_variation_ms: 0.1,
+                        bandwidth_factor: 1.0,
+                        packet_loss_rate: 0.001,
+                        congestion_probability: 0.05,
+                    },
+                ),
+                (
+                    "degraded".to_string(),
+                    NetworkCondition {
+                        latency_base_ms: 5.0,
+                        latency_variation_ms: 2.0,
+                        bandwidth_factor: 0.7,
+                        packet_loss_rate: 0.01,
+                        congestion_probability: 0.2,
+                    },
+                ),
+                (
+                    "poor".to_string(),
+                    NetworkCondition {
+                        latency_base_ms: 20.0,
+                        latency_variation_ms: 10.0,
+                        bandwidth_factor: 0.3,
+                        packet_loss_rate: 0.05,
+                        congestion_probability: 0.5,
+                    },
+                ),
             ]),
             current_condition: "optimal".to_string(),
             condition_change_probability: 0.1,
@@ -500,31 +553,34 @@ impl SwarmletPerformanceBenchmarks {
     /// Run comprehensive performance benchmarks
     pub async fn run_comprehensive_benchmarks(&self) -> Vec<PerformanceBenchmarkResult> {
         println!("🚀 Starting Swarmlet Performance Benchmarks");
-        
+
         // Initialize benchmark environment
         self.setup_benchmark_environment().await;
-        
+
         // RED Phase: Establish performance baselines
         *self.current_phase.write().await = TddPhase::Red;
         self.run_baseline_benchmarks().await;
-        
+
         // GREEN Phase: Meet minimum performance targets
         *self.current_phase.write().await = TddPhase::Green;
         self.run_target_benchmarks().await;
-        
+
         // REFACTOR Phase: Optimize for production performance
         *self.current_phase.write().await = TddPhase::Refactor;
         self.run_optimized_benchmarks().await;
-        
+
         let results = self.benchmark_results.lock().await.clone();
-        println!("✅ Performance Benchmarks Complete: {} results", results.len());
+        println!(
+            "✅ Performance Benchmarks Complete: {} results",
+            results.len()
+        );
         results
     }
 
     /// Setup benchmark test environment
     async fn setup_benchmark_environment(&self) {
         println!("⚙️  Setting up performance benchmark environment");
-        
+
         // Create diverse cluster for benchmarking
         let mut cluster = vec![
             // High-performance GPU nodes
@@ -673,7 +729,7 @@ impl SwarmletPerformanceBenchmarks {
                 status: NodeStatus::Available,
             },
         ];
-        
+
         *self.test_cluster.write().await = cluster;
         println!("✅ Benchmark environment setup complete");
     }
@@ -681,19 +737,19 @@ impl SwarmletPerformanceBenchmarks {
     /// Run baseline performance benchmarks (RED phase)
     async fn run_baseline_benchmarks(&self) {
         println!("🔴 RED Phase: Establishing performance baselines");
-        
+
         // Cluster Formation Benchmark
         self.benchmark_cluster_formation().await;
-        
-        // Heartbeat Overhead Benchmark  
+
+        // Heartbeat Overhead Benchmark
         self.benchmark_heartbeat_overhead().await;
-        
+
         // Work Distribution Efficiency Benchmark
         self.benchmark_work_distribution().await;
-        
+
         // Network Latency Under Load Benchmark
         self.benchmark_network_performance().await;
-        
+
         // Resource Utilization Efficiency Benchmark
         self.benchmark_resource_utilization().await;
     }
@@ -701,7 +757,7 @@ impl SwarmletPerformanceBenchmarks {
     /// Run target performance benchmarks (GREEN phase)
     async fn run_target_benchmarks(&self) {
         println!("🟢 GREEN Phase: Meeting minimum performance targets");
-        
+
         // Re-run benchmarks with basic optimizations
         self.benchmark_cluster_formation().await;
         self.benchmark_heartbeat_overhead().await;
@@ -713,14 +769,14 @@ impl SwarmletPerformanceBenchmarks {
     /// Run optimized performance benchmarks (REFACTOR phase)
     async fn run_optimized_benchmarks(&self) {
         println!("🔵 REFACTOR Phase: Production performance optimizations");
-        
+
         // Final benchmarks with all optimizations
         self.benchmark_cluster_formation().await;
         self.benchmark_heartbeat_overhead().await;
         self.benchmark_work_distribution().await;
         self.benchmark_network_performance().await;
         self.benchmark_resource_utilization().await;
-        
+
         // Advanced benchmarks
         self.benchmark_fault_recovery().await;
         self.benchmark_scale_performance().await;
@@ -731,13 +787,13 @@ impl SwarmletPerformanceBenchmarks {
     async fn benchmark_cluster_formation(&self) {
         let benchmark_start = Instant::now();
         let benchmark_name = "cluster_formation_time";
-        
+
         let cluster = self.test_cluster.read().await;
         let node_count = cluster.len() as u32;
-        
+
         // Simulate cluster formation process
         let formation_time = self.simulate_cluster_formation(node_count).await;
-        
+
         // Performance targets based on phase
         let (target, actual_performance) = match *self.current_phase.read().await {
             TddPhase::Red => {
@@ -759,7 +815,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: (formation_time.as_millis() * 150 / 100) as u64,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Green => {
                 // Basic optimizations - meet targets
                 let target = PerformanceTarget {
@@ -779,7 +835,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 3800,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Refactor => {
                 // Production optimizations - exceed targets
                 let target = PerformanceTarget {
@@ -799,21 +855,21 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 1800,
                 };
                 (target, actual)
-            },
+            }
         };
-        
-        let success = actual_performance.latency_ms <= target.max_latency_ms &&
-                     actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec &&
-                     actual_performance.memory_usage_mb <= target.max_memory_usage_mb &&
-                     actual_performance.cpu_usage_percent <= target.max_cpu_usage_percent &&
-                     actual_performance.success_rate_percent >= target.min_success_rate_percent;
-        
+
+        let success = actual_performance.latency_ms <= target.max_latency_ms
+            && actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec
+            && actual_performance.memory_usage_mb <= target.max_memory_usage_mb
+            && actual_performance.cpu_usage_percent <= target.max_cpu_usage_percent
+            && actual_performance.success_rate_percent >= target.min_success_rate_percent;
+
         let improvement_factor = if *self.current_phase.read().await == TddPhase::Red {
             1.0
         } else {
             target.max_latency_ms as f64 / actual_performance.latency_ms as f64
         };
-        
+
         let result = PerformanceBenchmarkResult {
             benchmark_id: Uuid::new_v4(),
             benchmark_name: benchmark_name.to_string(),
@@ -824,11 +880,14 @@ impl SwarmletPerformanceBenchmarks {
             improvement_factor,
             timestamp: Utc::now(),
         };
-        
+
         self.benchmark_results.lock().await.push(result);
-        
+
         if success {
-            println!("✅ {}: Cluster formation completed in {}ms", benchmark_name, actual_performance.latency_ms);
+            println!(
+                "✅ {}: Cluster formation completed in {}ms",
+                benchmark_name, actual_performance.latency_ms
+            );
         } else {
             println!("❌ {}: Failed to meet performance targets", benchmark_name);
         }
@@ -838,17 +897,19 @@ impl SwarmletPerformanceBenchmarks {
     async fn benchmark_heartbeat_overhead(&self) {
         let benchmark_start = Instant::now();
         let benchmark_name = "heartbeat_overhead";
-        
+
         let cluster = self.test_cluster.read().await;
         let node_count = cluster.len() as u32;
-        
+
         // Simulate 1 minute of heartbeats
-        let heartbeat_metrics = self.simulate_heartbeat_overhead(node_count, Duration::from_secs(60)).await;
-        
+        let heartbeat_metrics = self
+            .simulate_heartbeat_overhead(node_count, Duration::from_secs(60))
+            .await;
+
         let (target, actual_performance) = match *self.current_phase.read().await {
             TddPhase::Red => {
                 let target = PerformanceTarget {
-                    max_latency_ms: 50, // 50ms max heartbeat latency
+                    max_latency_ms: 50,               // 50ms max heartbeat latency
                     min_throughput_ops_per_sec: 20.0, // 20 heartbeats/sec per node
                     max_memory_usage_mb: 50.0,
                     max_cpu_usage_percent: 10.0,
@@ -864,7 +925,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 120,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Green => {
                 let target = PerformanceTarget {
                     max_latency_ms: 30, // Improved target
@@ -883,7 +944,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 50,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Refactor => {
                 let target = PerformanceTarget {
                     max_latency_ms: 10, // Production optimized
@@ -902,21 +963,21 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 18,
                 };
                 (target, actual)
-            },
+            }
         };
-        
-        let success = actual_performance.latency_ms <= target.max_latency_ms &&
-                     actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec &&
-                     actual_performance.memory_usage_mb <= target.max_memory_usage_mb &&
-                     actual_performance.cpu_usage_percent <= target.max_cpu_usage_percent &&
-                     actual_performance.success_rate_percent >= target.min_success_rate_percent;
-        
+
+        let success = actual_performance.latency_ms <= target.max_latency_ms
+            && actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec
+            && actual_performance.memory_usage_mb <= target.max_memory_usage_mb
+            && actual_performance.cpu_usage_percent <= target.max_cpu_usage_percent
+            && actual_performance.success_rate_percent >= target.min_success_rate_percent;
+
         let improvement_factor = if *self.current_phase.read().await == TddPhase::Red {
             1.0
         } else {
             target.max_latency_ms as f64 / actual_performance.latency_ms as f64
         };
-        
+
         let result = PerformanceBenchmarkResult {
             benchmark_id: Uuid::new_v4(),
             benchmark_name: benchmark_name.to_string(),
@@ -927,31 +988,36 @@ impl SwarmletPerformanceBenchmarks {
             improvement_factor,
             timestamp: Utc::now(),
         };
-        
+
         self.benchmark_results.lock().await.push(result);
-        
+
         if success {
-            println!("✅ {}: Heartbeat latency {}ms, CPU overhead {}%", 
-                    benchmark_name, actual_performance.latency_ms, actual_performance.cpu_usage_percent);
+            println!(
+                "✅ {}: Heartbeat latency {}ms, CPU overhead {}%",
+                benchmark_name, actual_performance.latency_ms, actual_performance.cpu_usage_percent
+            );
         } else {
-            println!("❌ {}: Failed to meet heartbeat performance targets", benchmark_name);
+            println!(
+                "❌ {}: Failed to meet heartbeat performance targets",
+                benchmark_name
+            );
         }
     }
 
     /// Benchmark work distribution efficiency
     async fn benchmark_work_distribution(&self) {
         let benchmark_name = "work_distribution_efficiency";
-        
+
         let cluster = self.test_cluster.read().await;
         let node_count = cluster.len() as u32;
-        
+
         // Simulate distributing 100 workloads
         let distribution_metrics = self.simulate_work_distribution(100, node_count).await;
-        
+
         let (target, actual_performance) = match *self.current_phase.read().await {
             TddPhase::Red => {
                 let target = PerformanceTarget {
-                    max_latency_ms: 500, // 500ms to assign 100 workloads
+                    max_latency_ms: 500,               // 500ms to assign 100 workloads
                     min_throughput_ops_per_sec: 200.0, // 200 assignments/sec
                     max_memory_usage_mb: 100.0,
                     max_cpu_usage_percent: 20.0,
@@ -967,7 +1033,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 900,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Green => {
                 let target = PerformanceTarget {
                     max_latency_ms: 300, // Improved
@@ -986,7 +1052,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 450,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Refactor => {
                 let target = PerformanceTarget {
                     max_latency_ms: 150, // Production optimized
@@ -1005,21 +1071,21 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 200,
                 };
                 (target, actual)
-            },
+            }
         };
-        
-        let success = actual_performance.latency_ms <= target.max_latency_ms &&
-                     actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec &&
-                     actual_performance.memory_usage_mb <= target.max_memory_usage_mb &&
-                     actual_performance.cpu_usage_percent <= target.max_cpu_usage_percent &&
-                     actual_performance.success_rate_percent >= target.min_success_rate_percent;
-        
+
+        let success = actual_performance.latency_ms <= target.max_latency_ms
+            && actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec
+            && actual_performance.memory_usage_mb <= target.max_memory_usage_mb
+            && actual_performance.cpu_usage_percent <= target.max_cpu_usage_percent
+            && actual_performance.success_rate_percent >= target.min_success_rate_percent;
+
         let improvement_factor = if *self.current_phase.read().await == TddPhase::Red {
             1.0
         } else {
             actual_performance.throughput_ops_per_sec / 167.0 // Compare to RED baseline
         };
-        
+
         let result = PerformanceBenchmarkResult {
             benchmark_id: Uuid::new_v4(),
             benchmark_name: benchmark_name.to_string(),
@@ -1030,24 +1096,31 @@ impl SwarmletPerformanceBenchmarks {
             improvement_factor,
             timestamp: Utc::now(),
         };
-        
+
         self.benchmark_results.lock().await.push(result);
-        
+
         if success {
-            println!("✅ {}: {} assignments/sec, {}ms latency", 
-                    benchmark_name, actual_performance.throughput_ops_per_sec as u32, actual_performance.latency_ms);
+            println!(
+                "✅ {}: {} assignments/sec, {}ms latency",
+                benchmark_name,
+                actual_performance.throughput_ops_per_sec as u32,
+                actual_performance.latency_ms
+            );
         } else {
-            println!("❌ {}: Failed to meet distribution efficiency targets", benchmark_name);
+            println!(
+                "❌ {}: Failed to meet distribution efficiency targets",
+                benchmark_name
+            );
         }
     }
 
     /// Benchmark network performance under load
     async fn benchmark_network_performance(&self) {
         let benchmark_name = "network_performance_under_load";
-        
+
         // Simulate high network load
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         let (target, actual_performance) = match *self.current_phase.read().await {
             TddPhase::Red => {
                 let target = PerformanceTarget {
@@ -1067,7 +1140,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 250,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Green => {
                 let target = PerformanceTarget {
                     max_latency_ms: 50,
@@ -1086,7 +1159,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 80,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Refactor => {
                 let target = PerformanceTarget {
                     max_latency_ms: 20,
@@ -1105,14 +1178,14 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 35,
                 };
                 (target, actual)
-            },
+            }
         };
-        
-        let success = actual_performance.latency_ms <= target.max_latency_ms &&
-                     actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec;
-        
+
+        let success = actual_performance.latency_ms <= target.max_latency_ms
+            && actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec;
+
         let improvement_factor = actual_performance.throughput_ops_per_sec / 800.0;
-        
+
         let result = PerformanceBenchmarkResult {
             benchmark_id: Uuid::new_v4(),
             benchmark_name: benchmark_name.to_string(),
@@ -1123,23 +1196,30 @@ impl SwarmletPerformanceBenchmarks {
             improvement_factor,
             timestamp: Utc::now(),
         };
-        
+
         self.benchmark_results.lock().await.push(result);
-        
+
         if success {
-            println!("✅ {}: {}ms latency, {} ops/sec", 
-                    benchmark_name, actual_performance.latency_ms, actual_performance.throughput_ops_per_sec as u32);
+            println!(
+                "✅ {}: {}ms latency, {} ops/sec",
+                benchmark_name,
+                actual_performance.latency_ms,
+                actual_performance.throughput_ops_per_sec as u32
+            );
         } else {
-            println!("❌ {}: Failed to meet network performance targets", benchmark_name);
+            println!(
+                "❌ {}: Failed to meet network performance targets",
+                benchmark_name
+            );
         }
     }
 
     /// Benchmark resource utilization efficiency
     async fn benchmark_resource_utilization(&self) {
         let benchmark_name = "resource_utilization_efficiency";
-        
+
         tokio::time::sleep(Duration::from_millis(80)).await;
-        
+
         let (target, actual_performance) = match *self.current_phase.read().await {
             TddPhase::Red => {
                 let target = PerformanceTarget {
@@ -1159,7 +1239,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 2000,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Green => {
                 let target = PerformanceTarget {
                     max_latency_ms: 500,
@@ -1178,7 +1258,7 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 800,
                 };
                 (target, actual)
-            },
+            }
             TddPhase::Refactor => {
                 let target = PerformanceTarget {
                     max_latency_ms: 200,
@@ -1197,14 +1277,14 @@ impl SwarmletPerformanceBenchmarks {
                     p99_latency_ms: 300,
                 };
                 (target, actual)
-            },
+            }
         };
-        
-        let success = actual_performance.latency_ms <= target.max_latency_ms &&
-                     actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec;
-        
+
+        let success = actual_performance.latency_ms <= target.max_latency_ms
+            && actual_performance.throughput_ops_per_sec >= target.min_throughput_ops_per_sec;
+
         let improvement_factor = actual_performance.throughput_ops_per_sec / 45.0;
-        
+
         let result = PerformanceBenchmarkResult {
             benchmark_id: Uuid::new_v4(),
             benchmark_name: benchmark_name.to_string(),
@@ -1215,14 +1295,21 @@ impl SwarmletPerformanceBenchmarks {
             improvement_factor,
             timestamp: Utc::now(),
         };
-        
+
         self.benchmark_results.lock().await.push(result);
-        
+
         if success {
-            println!("✅ {}: {} ops/sec, {}% CPU utilization", 
-                    benchmark_name, actual_performance.throughput_ops_per_sec as u32, actual_performance.cpu_usage_percent);
+            println!(
+                "✅ {}: {} ops/sec, {}% CPU utilization",
+                benchmark_name,
+                actual_performance.throughput_ops_per_sec as u32,
+                actual_performance.cpu_usage_percent
+            );
         } else {
-            println!("❌ {}: Failed to meet resource utilization targets", benchmark_name);
+            println!(
+                "❌ {}: Failed to meet resource utilization targets",
+                benchmark_name
+            );
         }
     }
 
@@ -1245,17 +1332,21 @@ impl SwarmletPerformanceBenchmarks {
     /// Simulation methods
     async fn simulate_cluster_formation(&self, node_count: u32) -> Duration {
         let base_time = Duration::from_millis(200 * node_count as u64);
-        
+
         match *self.current_phase.read().await {
             TddPhase::Red => base_time + Duration::from_millis(1000), // Slower initial
             TddPhase::Green => base_time + Duration::from_millis(200), // Basic optimizations
-            TddPhase::Refactor => base_time, // Optimized
+            TddPhase::Refactor => base_time,                          // Optimized
         }
     }
 
-    async fn simulate_heartbeat_overhead(&self, node_count: u32, duration: Duration) -> HeartbeatMetrics {
+    async fn simulate_heartbeat_overhead(
+        &self,
+        node_count: u32,
+        duration: Duration,
+    ) -> HeartbeatMetrics {
         tokio::time::sleep(Duration::from_millis(50)).await;
-        
+
         HeartbeatMetrics {
             heartbeat_interval: Duration::from_secs(1),
             heartbeat_count: (duration.as_secs() * node_count as u64),
@@ -1284,9 +1375,13 @@ impl SwarmletPerformanceBenchmarks {
         }
     }
 
-    async fn simulate_work_distribution(&self, workload_count: u32, node_count: u32) -> WorkDistributionMetrics {
+    async fn simulate_work_distribution(
+        &self,
+        workload_count: u32,
+        node_count: u32,
+    ) -> WorkDistributionMetrics {
         tokio::time::sleep(Duration::from_millis(30)).await;
-        
+
         WorkDistributionMetrics {
             workload_count,
             assignment_times: vec![Duration::from_millis(10); workload_count as usize],
@@ -1325,7 +1420,7 @@ mod tests {
     async fn test_cluster_formation_benchmark() {
         let benchmark_suite = SwarmletPerformanceBenchmarks::new().await;
         benchmark_suite.setup_benchmark_environment().await;
-        
+
         let formation_time = benchmark_suite.simulate_cluster_formation(5).await;
         assert!(formation_time.as_millis() > 0);
     }
@@ -1334,17 +1429,23 @@ mod tests {
     async fn test_comprehensive_performance_benchmarks() {
         let benchmark_suite = SwarmletPerformanceBenchmarks::new().await;
         let results = benchmark_suite.run_comprehensive_benchmarks().await;
-        
+
         // Should have results from all phases
         assert!(results.len() >= 15); // 5 benchmarks × 3 phases minimum
-        
+
         // Check performance improvements across phases
-        let red_results: Vec<_> = results.iter().filter(|r| r.phase == TddPhase::Red).collect();
-        let refactor_results: Vec<_> = results.iter().filter(|r| r.phase == TddPhase::Refactor).collect();
-        
+        let red_results: Vec<_> = results
+            .iter()
+            .filter(|r| r.phase == TddPhase::Red)
+            .collect();
+        let refactor_results: Vec<_> = results
+            .iter()
+            .filter(|r| r.phase == TddPhase::Refactor)
+            .collect();
+
         assert!(!red_results.is_empty());
         assert!(!refactor_results.is_empty());
-        
+
         // Verify improvement factors
         for result in &refactor_results {
             if result.benchmark_name == "cluster_formation_time" {

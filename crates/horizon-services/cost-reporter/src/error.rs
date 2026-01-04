@@ -8,7 +8,11 @@ pub trait ReporterErrorExt {
     fn invalid_time_range(start: impl Into<String>, end: impl Into<String>) -> HpcError {
         HpcError::invalid_input(
             "time_range",
-            format!("Invalid time range: start={}, end={}", start.into(), end.into()),
+            format!(
+                "Invalid time range: start={}, end={}",
+                start.into(),
+                end.into()
+            ),
         )
     }
 
@@ -41,7 +45,10 @@ pub trait ReporterErrorExt {
     fn insufficient_data(required: usize) -> HpcError {
         HpcError::invalid_input(
             "data",
-            format!("Insufficient data for forecast: need at least {} data points", required),
+            format!(
+                "Insufficient data for forecast: need at least {} data points",
+                required
+            ),
         )
     }
 }

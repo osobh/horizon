@@ -40,12 +40,9 @@ async fn test_submit_job() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
 
     if status != StatusCode::CREATED {
-        let error: Value = serde_json::from_slice(&body).unwrap_or(json!({"error": "Unknown error"}));
-        panic!(
-            "Expected 201 CREATED but got {}. Error: {}",
-            status,
-            error
-        );
+        let error: Value =
+            serde_json::from_slice(&body).unwrap_or(json!({"error": "Unknown error"}));
+        panic!("Expected 201 CREATED but got {}. Error: {}", status, error);
     }
 
     let job: Value = serde_json::from_slice(&body).unwrap();
@@ -192,7 +189,8 @@ async fn test_list_jobs_filtered_by_state() {
         .build()
         .unwrap();
     job2 = repository.create(&job2).await.unwrap();
-    job2.transition_to(scheduler::models::JobState::Scheduled).unwrap();
+    job2.transition_to(scheduler::models::JobState::Scheduled)
+        .unwrap();
     repository.update(&job2).await.unwrap();
 
     let app = scheduler::api::routes::create_router(test_app.scheduler.clone());

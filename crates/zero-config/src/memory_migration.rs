@@ -79,7 +79,7 @@ impl MemoryMigrationEngine {
         let mut total_time = base_latency;
 
         // Batch processing reduces per-page overhead
-        let batch_count = (num_pages + self.optimal_batch_size - 1) / self.optimal_batch_size;
+        let batch_count = num_pages.div_ceil(self.optimal_batch_size);
         total_time = total_time * batch_count as u32 / self.pipeline_depth as u32;
 
         // Update metrics
@@ -91,20 +91,20 @@ impl MemoryMigrationEngine {
         if self.enable_zero_copy
             && matches!((source_tier, target_tier), ("gpu", "cpu") | ("cpu", "gpu"))
         {
-            total_time = total_time / 10; // 10x speedup with zero-copy
+            total_time /= 10; // 10x speedup with zero-copy
             metrics.zero_copy_migrations += 1;
         }
 
         // DMA transfers are asynchronous
         if self.enable_dma && (source_tier == "nvme" || target_tier == "nvme") {
-            total_time = total_time / 2; // 2x speedup with DMA
+            total_time /= 2; // 2x speedup with DMA
             metrics.dma_migrations += 1;
         }
 
         // Cache hit optimization
         let cache_hit_rate = self.check_cache_hit(num_pages);
         if cache_hit_rate > 0.5 {
-            total_time = total_time / 3; // 3x speedup with high cache hit rate
+            total_time /= 3; // 3x speedup with high cache hit rate
             metrics.cache_hits += (num_pages as f64 * cache_hit_rate) as u64;
             metrics.cache_misses += (num_pages as f64 * (1.0 - cache_hit_rate)) as u64;
         } else {

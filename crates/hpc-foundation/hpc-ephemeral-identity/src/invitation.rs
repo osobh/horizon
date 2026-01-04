@@ -334,8 +334,7 @@ impl InvitationRedeemer {
             .decode(token)
             .map_err(|e| EphemeralError::TokenValidationFailed(format!("Invalid encoding: {e}")))?;
 
-        let encrypted: hpc_vault::EncryptedCredential =
-            serde_json::from_slice(&encrypted_bytes)?;
+        let encrypted: hpc_vault::EncryptedCredential = serde_json::from_slice(&encrypted_bytes)?;
 
         // Decrypt
         let vault = VaultEncryption::new(self.encryption_key());
@@ -514,7 +513,9 @@ mod tests {
             .build(&key)
             .unwrap();
 
-        assert!(invitation.link.starts_with("https://custom.example.com/invite/"));
+        assert!(invitation
+            .link
+            .starts_with("https://custom.example.com/invite/"));
     }
 
     // === InvitationLink Tests ===
@@ -617,7 +618,10 @@ mod tests {
         // Code should be 6 characters
         assert_eq!(invitation.redemption_code.len(), 6);
         // Code should be uppercase alphanumeric
-        assert!(invitation.redemption_code.chars().all(|c| c.is_ascii_alphanumeric()));
+        assert!(invitation
+            .redemption_code
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric()));
     }
 
     // === InvitationRedeemer Tests ===

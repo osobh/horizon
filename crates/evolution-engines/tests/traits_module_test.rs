@@ -29,8 +29,10 @@ fn test_traits_module_imports() {
 
 #[test]
 fn test_agent_genome() {
-    let goal =
-        stratoswarm_agent_core::Goal::new("test".to_string(), stratoswarm_agent_core::GoalPriority::Normal);
+    let goal = stratoswarm_agent_core::Goal::new(
+        "test".to_string(),
+        stratoswarm_agent_core::GoalPriority::Normal,
+    );
     let genome = AgentGenome {
         goal,
         architecture: ArchitectureGenes {

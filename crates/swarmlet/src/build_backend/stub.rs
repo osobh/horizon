@@ -86,10 +86,7 @@ mod tests {
     #[tokio::test]
     async fn test_stub_backend_execute_fails() {
         let backend = StubBackend::unavailable();
-        let context = BuildContext::new(
-            PathBuf::from("/workspace"),
-            PathBuf::from("/toolchain"),
-        );
+        let context = BuildContext::new(PathBuf::from("/workspace"), PathBuf::from("/toolchain"));
         let result = backend.execute_cargo(&CargoCommand::Build, &context).await;
         assert!(result.is_err());
     }

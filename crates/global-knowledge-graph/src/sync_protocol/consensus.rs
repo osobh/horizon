@@ -84,10 +84,10 @@ impl ConsensusEngine for PBFTConsensusEngine {
             timestamp: Utc::now(),
             round: view,
         };
-        
+
         let mut history = self.proposal_history.write().await;
         history.push(proposal.clone());
-        
+
         proposal
     }
 
@@ -98,7 +98,7 @@ impl ConsensusEngine for PBFTConsensusEngine {
         } else {
             Vote::Reject
         };
-        
+
         ConsensusVote {
             vote_id: Uuid::new_v4(),
             proposal_id: proposal.proposal_id,
@@ -110,17 +110,20 @@ impl ConsensusEngine for PBFTConsensusEngine {
 
     async fn tally_votes(&self, votes: Vec<ConsensusVote>) -> ConsensusResult {
         let mut vote_count = HashMap::new();
-        
+
         for vote in &votes {
             *vote_count.entry(vote.vote.clone()).or_insert(0) += 1;
         }
-        
+
         let accept_count = vote_count.get(&Vote::Accept).copied().unwrap_or(0);
         let total_votes = votes.len();
         let accepted = accept_count as f32 / total_votes as f32 >= self.vote_threshold;
-        
+
         ConsensusResult {
-            proposal_id: votes.first().map(|v| v.proposal_id).unwrap_or_else(Uuid::new_v4),
+            proposal_id: votes
+                .first()
+                .map(|v| v.proposal_id)
+                .unwrap_or_else(Uuid::new_v4),
             accepted,
             vote_count,
             duration: Duration::from_millis(100), // Mock duration

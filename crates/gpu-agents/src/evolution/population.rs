@@ -51,11 +51,17 @@ impl GpuPopulation {
         }
 
         // Allocate GPU memory
+        // SAFETY: alloc returns uninitialized memory. genomes will be initialized
+        // via initialize_random() or htod_copy before any kernel reads.
         let genomes = unsafe { device.alloc::<f32>(total_genome_size)? };
+        // SAFETY: alloc returns uninitialized memory. fitness_scores will be written
+        // by fitness evaluation kernels before any reads.
         let fitness_scores = unsafe { device.alloc::<f32>(population_size)? };
         let fitness_valid = device.alloc_zeros::<u8>(population_size)?;
 
         // Initialize RNG states for CUDA kernels
+        // SAFETY: setup_rng_states allocates and initializes curandState for each thread.
+        // Returns null on failure which we check below. population_size is a valid count.
         let rng_states =
             unsafe { crate::evolution::kernels::setup_rng_states(population_size as u32, 12345) };
         let rng_states = if rng_states.is_null() {
@@ -80,6 +86,9 @@ impl GpuPopulation {
     pub fn initialize_random(&mut self) -> Result<()> {
         if let Some(rng_states) = self.rng_states {
             // Launch kernel to generate random genomes
+            // SAFETY: genomes pointer is valid from CudaSlice allocation.
+            // rng_states was initialized in new() and is non-null (checked above).
+            // population_size and genome_size match allocation sizes.
             unsafe {
                 crate::evolution::kernels::launch_random_init(
                     *self.genomes.device_ptr() as *mut f32,
@@ -132,6 +141,9 @@ impl GpuPopulation {
         let mut best_value_device = self.device.alloc_zeros::<f32>(1)?;
 
         // Find index of best fitness on GPU
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations.
+        // fitness_scores has population_size elements, best_idx/best_value have 1 element each.
+        // population_size matches the actual fitness array size.
         unsafe {
             crate::evolution::kernels::find_best_fitness(
                 *self.fitness_scores.device_ptr() as *const f32,
@@ -190,12 +202,16 @@ impl GpuPopulation {
         }
 
         // Allocate device memory for result
+        // SAFETY (in unwrap_or_else): alloc returns uninitialized memory for single f32.
+        // The kernel writes the result before we read.
         let mut average_device = self
             .device
             .alloc_zeros::<f32>(1)
-            .unwrap_or_else(|_| unsafe { self.device.alloc::<f32>(1)? });
+            .unwrap_or_else(|_| unsafe { self.device.alloc::<f32>(1).unwrap() });
 
         // Launch kernel to compute average
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations.
+        // fitness_scores has population_size elements, average_device has 1 element.
         unsafe {
             crate::evolution::kernels::compute_average_fitness(
                 *self.fitness_scores.device_ptr() as *const f32,
@@ -216,12 +232,16 @@ impl GpuPopulation {
     /// Calculate diversity index
     pub fn diversity_index(&self) -> f64 {
         // Allocate device memory for result
+        // SAFETY (in unwrap_or_else): alloc returns uninitialized memory for single f32.
+        // The kernel writes the result before we read.
         let mut diversity_device = self
             .device
             .alloc_zeros::<f32>(1)
-            .unwrap_or_else(|_| unsafe { self.device.alloc::<f32>(1)? });
+            .unwrap_or_else(|_| unsafe { self.device.alloc::<f32>(1).unwrap() });
 
         // Launch kernel to compute diversity
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations.
+        // genomes has population_size * genome_size elements. diversity_device has 1 element.
         unsafe {
             crate::evolution::kernels::compute_diversity(
                 *self.genomes.device_ptr() as *const f32,
@@ -293,6 +313,8 @@ impl Drop for GpuPopulation {
     fn drop(&mut self) {
         // Cleanup RNG states
         if let Some(rng_states) = self.rng_states {
+            // SAFETY: rng_states was allocated by setup_rng_states in new() and is non-null.
+            // This frees the CUDA memory for the curandState array.
             unsafe {
                 crate::evolution::kernels::cleanup_rng_states(rng_states);
             }

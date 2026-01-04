@@ -36,14 +36,20 @@ impl TensorDType {
     pub fn size_bytes(&self) -> usize {
         match self {
             TensorDType::Float32 | TensorDType::Int32 | TensorDType::UInt32 => 4,
-            TensorDType::Float16 | TensorDType::BFloat16 | TensorDType::Int16 | TensorDType::UInt16 => 2,
+            TensorDType::Float16
+            | TensorDType::BFloat16
+            | TensorDType::Int16
+            | TensorDType::UInt16 => 2,
             TensorDType::Int8 | TensorDType::UInt8 | TensorDType::Bool => 1,
         }
     }
 
     /// Check if this is a floating point type.
     pub fn is_float(&self) -> bool {
-        matches!(self, TensorDType::Float32 | TensorDType::Float16 | TensorDType::BFloat16)
+        matches!(
+            self,
+            TensorDType::Float32 | TensorDType::Float16 | TensorDType::BFloat16
+        )
     }
 
     /// Check if this is an integer type.
@@ -201,7 +207,9 @@ impl TensorDescriptor {
 
     /// Get the effective strides.
     pub fn effective_strides(&self) -> Vec<usize> {
-        self.strides.clone().unwrap_or_else(|| self.default_strides())
+        self.strides
+            .clone()
+            .unwrap_or_else(|| self.default_strides())
     }
 }
 
@@ -252,7 +260,12 @@ pub struct LayerWeights {
 
 impl LayerWeights {
     /// Create weights for a linear layer.
-    pub fn linear(dtype: TensorDType, in_features: usize, out_features: usize, with_bias: bool) -> Self {
+    pub fn linear(
+        dtype: TensorDType,
+        in_features: usize,
+        out_features: usize,
+        with_bias: bool,
+    ) -> Self {
         Self {
             weights: TensorDescriptor::matrix(dtype, out_features, in_features),
             bias: if with_bias {

@@ -1,10 +1,10 @@
 use chrono::Utc;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use cost_reporter::{
     export::{CsvExporter, JsonExporter, MarkdownExporter},
     models::{CostAttribution, DailyCostSummary, HasCostBreakdown},
     reports::{CostForecaster, TrendAnalyzer},
 };
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rust_decimal_macros::dec;
 use uuid::Uuid;
 

@@ -135,10 +135,7 @@ impl CheckpointManager {
         Ok(GpuCheckpoint {
             memory_snapshot: vec![0u8; 1024], // Mock 1KB memory
             kernel_states: HashMap::new(),
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                ?
-                .as_secs(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             size_bytes: 1024,
         })
     }

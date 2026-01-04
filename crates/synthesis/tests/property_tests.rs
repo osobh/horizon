@@ -1,10 +1,10 @@
 //! Property-based tests for synthesis crate
 
+use proptest::prelude::*;
 use stratoswarm_synthesis::interpreter::{
     DataLayout, KernelSpecification, MemoryLayout, OperationType, OptimizationHint,
     PerformanceModel, Precision,
 };
-use proptest::prelude::*;
 
 // Generate arbitrary operation types
 prop_compose! {
@@ -119,7 +119,7 @@ proptest! {
     fn test_kernel_spec_serialization_roundtrip(spec in arb_kernel_specification()) {
         let json = serde_json::to_string(&spec)?;
         let parsed: KernelSpecification = serde_json::from_str(&json)?;
-        
+
         prop_assert_eq!(spec.operation_type, parsed.operation_type);
         prop_assert_eq!(spec.precision, parsed.precision);
         prop_assert_eq!(spec.data_layout.input_shape, parsed.data_layout.input_shape);
@@ -133,7 +133,7 @@ proptest! {
         // Occupancy should be between 0 and 1
         prop_assert!(model.expected_occupancy >= 0.0);
         prop_assert!(model.expected_occupancy <= 1.0);
-        
+
         // Compute intensity and bandwidth should be positive
         prop_assert!(model.compute_intensity > 0.0);
         prop_assert!(model.memory_bandwidth > 0.0);
@@ -145,11 +145,11 @@ proptest! {
             Precision::FP32 | Precision::INT8 => 4,
             Precision::FP16 | Precision::BF16 => 2,
         };
-        
+
         let input_elements: usize = spec.data_layout.input_shape.iter().product();
         let output_elements: usize = spec.data_layout.output_shape.iter().product();
         let estimated_memory = (input_elements + output_elements) * element_size;
-        
+
         // Memory should be non-negative and reasonable
         prop_assert!(estimated_memory >= 0);
         prop_assert!(estimated_memory <= usize::MAX / 2); // Reasonable upper bound
@@ -160,7 +160,7 @@ proptest! {
         // Shapes should have at least one dimension
         prop_assert!(!shape.is_empty());
         prop_assert!(shape.len() <= 4); // Max 4D tensors
-        
+
         // All dimensions should be positive
         for dim in &shape {
             prop_assert!(*dim > 0);
@@ -176,7 +176,7 @@ proptest! {
         let mut unique_hints = hints.clone();
         unique_hints.sort_by_key(|h| format!("{:?}", h));
         unique_hints.dedup();
-        
+
         prop_assert!(unique_hints.len() <= hints.len());
         prop_assert!(unique_hints.len() <= 5); // Max 5 different hint types
     }
@@ -187,12 +187,12 @@ proptest! {
         precision in arb_precision()
     ) {
         let name = format!("{:?}_{:?}_kernel", operation_type, precision).to_lowercase();
-        
+
         // Name should contain expected parts
         prop_assert!(name.contains("kernel"));
         prop_assert!(name.len() > 0);
         prop_assert!(name.len() < 100); // Reasonable length
-        
+
         // Should be lowercase
         prop_assert_eq!(name, name.to_lowercase());
     }
@@ -205,7 +205,7 @@ proptest! {
                 // All valid
             }
         }
-        
+
         // Shapes should be non-empty for valid operations
         prop_assert!(!layout.input_shape.is_empty() || !layout.output_shape.is_empty());
     }
@@ -218,7 +218,7 @@ proptest! {
             Precision::BF16 => 2,
             Precision::INT8 => 4, // Actually 1, but our code uses 4
         };
-        
+
         prop_assert!(size > 0);
         prop_assert!(size <= 8);
     }
@@ -226,7 +226,7 @@ proptest! {
     #[test]
     fn test_kernel_spec_cloning(spec in arb_kernel_specification()) {
         let cloned = spec.clone();
-        
+
         prop_assert_eq!(spec.operation_type, cloned.operation_type);
         prop_assert_eq!(spec.precision, cloned.precision);
         prop_assert_eq!(spec.data_layout.input_shape, cloned.data_layout.input_shape);
@@ -244,9 +244,9 @@ proptest! {
             Precision::FP32 | Precision::INT8 => 4,
             Precision::FP16 | Precision::BF16 => 2,
         };
-        
+
         let total_size = elements * element_size;
-        
+
         // Check for overflow
         prop_assert!(total_size >= elements || elements == 0);
         prop_assert!(total_size >= element_size || elements == 0);
@@ -256,14 +256,14 @@ proptest! {
 // Additional fuzz-like tests
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
-    
+
     #[test]
     fn fuzz_kernel_spec_json_parsing(s in "\\PC*") {
         // Try to parse arbitrary strings as kernel specs
         let _ = serde_json::from_str::<KernelSpecification>(&s);
         // Should not panic
     }
-    
+
     #[test]
     fn fuzz_optimization_hint_combinations(
         hints in prop::collection::vec(arb_optimization_hint(), 0..20)
@@ -284,7 +284,7 @@ proptest! {
                 expected_occupancy: 0.5,
             },
         };
-        
+
         // Should serialize without issues
         let json = serde_json::to_string(&spec)?;
         prop_assert!(json.len() > 0);
@@ -300,14 +300,14 @@ proptest! {
             output_shape: vec![1],
             memory_layout: MemoryLayout::RowMajor,
         };
-        
+
         let input_elements: usize = layout.input_shape.iter().product();
         let output_elements: usize = layout.output_shape.iter().product();
-        
+
         prop_assert_eq!(input_elements, 1); // Empty product is 1
         prop_assert_eq!(output_elements, 1);
     }
-    
+
     #[test]
     fn test_large_tensor_dimensions(
         dim1 in 1000..2000usize,
@@ -315,11 +315,11 @@ proptest! {
     ) {
         let shape = vec![dim1, dim2];
         let elements: usize = shape.iter().product();
-        
+
         prop_assert_eq!(elements, dim1 * dim2);
         prop_assert!(elements > 0);
     }
-    
+
     #[test]
     fn test_occupancy_boundary_values(
         occupancy in prop::oneof![
@@ -334,7 +334,7 @@ proptest! {
             memory_bandwidth: 500.0,
             expected_occupancy: occupancy,
         };
-        
+
         prop_assert!(model.expected_occupancy >= 0.0);
         prop_assert!(model.expected_occupancy <= 1.0);
     }

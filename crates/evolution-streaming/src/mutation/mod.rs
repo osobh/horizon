@@ -4,11 +4,11 @@ use crate::{
     AgentGenome, CodeLocation, EvolutionStreamingError, MutatedAgent, MutationInfo, MutationType,
 };
 use async_trait::async_trait;
-use stratoswarm_streaming::{StreamChunk, StreamProcessor, StreamStats};
 use futures::future::join_all;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
+use stratoswarm_streaming::{StreamChunk, StreamProcessor, StreamStats};
 use tokio::sync::mpsc;
 
 pub mod engine;

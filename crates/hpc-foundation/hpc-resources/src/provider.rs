@@ -203,10 +203,7 @@ mod tests {
         assert_eq!(CloudProvider::Aws.to_string(), "AWS");
         assert_eq!(CloudProvider::Gcp.to_string(), "GCP");
         assert_eq!(CloudProvider::Azure.to_string(), "Azure");
-        assert_eq!(
-            CloudProvider::Custom("OCI".to_string()).to_string(),
-            "OCI"
-        );
+        assert_eq!(CloudProvider::Custom("OCI".to_string()).to_string(), "OCI");
     }
 
     #[test]

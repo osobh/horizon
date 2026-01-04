@@ -106,10 +106,7 @@ impl ServiceEndpoint {
 }
 
 /// Wait for multiple services to become healthy
-pub async fn wait_for_services(
-    services: &[ServiceEndpoint],
-    timeout: Duration,
-) -> Result<()> {
+pub async fn wait_for_services(services: &[ServiceEndpoint], timeout: Duration) -> Result<()> {
     let check_interval = Duration::from_millis(500);
 
     for service in services {

@@ -13,9 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
 
-use crate::{
-    CapabilitySet, DeviceBinding, EphemeralIdentity, EphemeralIdentityState,
-};
+use crate::{CapabilitySet, DeviceBinding, EphemeralIdentity, EphemeralIdentityState};
 
 /// Configuration for ephemeral sessions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -381,10 +379,7 @@ impl EphemeralSessionAdapter {
     }
 
     /// Build session metadata from an ephemeral identity.
-    pub fn build_session_metadata(
-        &self,
-        identity: &EphemeralIdentity,
-    ) -> EphemeralSessionMetadata {
+    pub fn build_session_metadata(&self, identity: &EphemeralIdentity) -> EphemeralSessionMetadata {
         let permissions: HashSet<String> = identity
             .capabilities
             .capabilities
@@ -458,7 +453,10 @@ impl EphemeralSessionAdapter {
                     check: "expiry".to_string(),
                     passed: true,
                     risk_contribution: expiry_risk,
-                    description: format!("Identity expires in {} minutes", time_remaining.num_minutes()),
+                    description: format!(
+                        "Identity expires in {} minutes",
+                        time_remaining.num_minutes()
+                    ),
                 });
             } else {
                 check_details.push(CheckDetail {
@@ -561,18 +559,24 @@ impl EphemeralSessionAdapter {
         }
 
         EphemeralVerificationResult {
-            verified: identity_valid && !is_expired && risk_score < self.config.risk_suspension_threshold,
+            verified: identity_valid
+                && !is_expired
+                && risk_score < self.config.risk_suspension_threshold,
             risk_score,
             risk_level,
             required_actions,
-            time_remaining: if is_expired { None } else { Some(time_remaining) },
+            time_remaining: if is_expired {
+                None
+            } else {
+                Some(time_remaining)
+            },
             timestamp: now,
             report: VerificationReport {
                 identity_valid,
                 binding_valid,
                 time_allowed,
                 within_rate_limits: true, // Would need actual rate limit checking
-                capabilities_valid: true,  // Would need last operation context
+                capabilities_valid: true, // Would need last operation context
                 behavior_normal: risk_score < 0.5,
                 check_details,
             },
@@ -823,12 +827,8 @@ mod tests {
         let mut caps = CapabilitySet::new();
         caps = caps.with_capability(Capability::new("read", "notebooks"));
 
-        let mut identity = EphemeralIdentity::new(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            caps,
-            Duration::hours(24),
-        );
+        let mut identity =
+            EphemeralIdentity::new(Uuid::new_v4(), Uuid::new_v4(), caps, Duration::hours(24));
         identity.state = EphemeralIdentityState::Active;
 
         let metadata = adapter.build_session_metadata(&identity);
@@ -887,12 +887,8 @@ mod tests {
         let mut caps = CapabilitySet::new();
         caps = caps.with_capability(Capability::new("read", "notebooks"));
 
-        let mut identity = EphemeralIdentity::new(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            caps,
-            Duration::hours(24),
-        );
+        let mut identity =
+            EphemeralIdentity::new(Uuid::new_v4(), Uuid::new_v4(), caps, Duration::hours(24));
         identity.state = EphemeralIdentityState::Active;
 
         let check = adapter.check_operation(&identity, "read", "notebooks");
@@ -906,12 +902,8 @@ mod tests {
         let mut caps = CapabilitySet::new();
         caps = caps.with_capability(Capability::new("read", "notebooks"));
 
-        let mut identity = EphemeralIdentity::new(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            caps,
-            Duration::hours(24),
-        );
+        let mut identity =
+            EphemeralIdentity::new(Uuid::new_v4(), Uuid::new_v4(), caps, Duration::hours(24));
         identity.state = EphemeralIdentityState::Active;
 
         let check = adapter.check_operation(&identity, "write", "notebooks");
@@ -946,7 +938,10 @@ mod tests {
             0.1,
         );
 
-        assert_eq!(activity.activity_type, EphemeralActivityType::ResourceAccess);
+        assert_eq!(
+            activity.activity_type,
+            EphemeralActivityType::ResourceAccess
+        );
         assert_eq!(activity.result, ActivityResult::Success);
         assert_eq!(activity.risk_score, 0.1);
     }

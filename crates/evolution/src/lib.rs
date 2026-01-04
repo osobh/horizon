@@ -6,16 +6,16 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+pub mod agent_xp_sharing;
 pub mod benchmarks;
 pub mod channels;
 pub mod engine;
 pub mod error;
 pub mod fitness;
 pub mod mutation;
+pub mod performance_xp_bridge;
 pub mod population;
 pub mod xp_rewards;
-pub mod performance_xp_bridge;
-pub mod agent_xp_sharing;
 
 #[cfg(test)]
 pub mod integration_tests;
@@ -24,9 +24,9 @@ pub mod integration_tests;
 #[cfg(feature = "cuda")]
 pub mod kernel_hot_swap;
 #[cfg(feature = "cuda")]
-pub mod performance_profiler;
-#[cfg(feature = "cuda")]
 pub mod marketplace;
+#[cfg(feature = "cuda")]
+pub mod performance_profiler;
 
 #[cfg(test)]
 mod test_helpers;
@@ -36,51 +36,48 @@ pub use benchmarks::{
     FullEvolutionBenchmarkResults,
 };
 pub use engine::{
-    GeneticEvolutionEngine, MaximizationFitnessFunction, SimpleFitnessFunction,
-    TargetMatchingFitnessFunction, XPEvolutionEngine, AgentEvolutionEngine,
-    XPEvolutionStats,
+    AgentEvolutionEngine, GeneticEvolutionEngine, MaximizationFitnessFunction,
+    SimpleFitnessFunction, TargetMatchingFitnessFunction, XPEvolutionEngine, XPEvolutionStats,
 };
 pub use error::EvolutionError;
 pub use fitness::{
-    FitnessFunction, FitnessScore, XPFitnessFunction, AgentFitnessScore,
-    AgentPerformanceFitnessFunction, LevelBasedFitnessFunction,
+    AgentFitnessScore, AgentPerformanceFitnessFunction, FitnessFunction, FitnessScore,
+    LevelBasedFitnessFunction, XPFitnessFunction,
 };
 pub use mutation::{Mutation, MutationType};
 pub use population::{Individual, Population};
 
 // Production self-evolution exports (require CUDA)
-#[cfg(feature = "cuda")]
-pub use kernel_hot_swap::{
-    KernelHotSwap, KernelMetadata, HotSwapEvent, ProductionWorkloadSimulator,
+pub use agent_xp_sharing::{
+    AgentXPSharingCoordinator, KnowledgePackage, KnowledgeType, LearningResult, LearningStats,
+    XPSharingConfig, XPSharingResult,
+};
+pub use channels::{
+    shared_channel_bridge, CapabilityUpdate, EvolutionChannelBridge, EvolutionEvent,
+    SharedEvolutionChannelBridge,
 };
 #[cfg(feature = "cuda")]
-pub use performance_profiler::{
-    GpuPerformanceProfiler, GpuPerformanceMetrics, ProfilerConfig, PerformanceTrend,
-    OptimizationAction, OptimizationCommand, AutonomousOptimizer, PerformanceFeedbackLoop,
-    PerformanceStats,
+pub use kernel_hot_swap::{
+    HotSwapEvent, KernelHotSwap, KernelMetadata, ProductionWorkloadSimulator,
 };
 #[cfg(feature = "cuda")]
 pub use marketplace::{
-    EvolutionMarketplace, EvolutionPackage, BenchmarkResults, CompatibilityMatrix,
-    UsageStatistics, DistributedConsensus, ValidationResult, EvolutionParameters,
-    MarketplaceStats, ClusterInfo, SyncCommand, KnowledgeTransferCoordinator,
-    TransferRequest, TransferPriority, SecurityManager,
+    BenchmarkResults, ClusterInfo, CompatibilityMatrix, DistributedConsensus, EvolutionMarketplace,
+    EvolutionPackage, EvolutionParameters, KnowledgeTransferCoordinator, MarketplaceStats,
+    SecurityManager, SyncCommand, TransferPriority, TransferRequest, UsageStatistics,
+    ValidationResult,
 };
-pub use xp_rewards::{
-    EvolutionXPRewardCalculator, XPRewardCategory, XPRewardBreakdown,
+#[cfg(feature = "cuda")]
+pub use performance_profiler::{
+    AutonomousOptimizer, GpuPerformanceMetrics, GpuPerformanceProfiler, OptimizationAction,
+    OptimizationCommand, PerformanceFeedbackLoop, PerformanceStats, PerformanceTrend,
+    ProfilerConfig,
 };
 pub use performance_xp_bridge::{
-    PerformanceXPConverter, PerformanceMetricType, PerformanceMeasurement,
-    PerformanceXPBreakdown, MetricXPConfig,
+    MetricXPConfig, PerformanceMeasurement, PerformanceMetricType, PerformanceXPBreakdown,
+    PerformanceXPConverter,
 };
-pub use agent_xp_sharing::{
-    AgentXPSharingCoordinator, KnowledgeType, KnowledgePackage, LearningResult,
-    XPSharingConfig, LearningStats, XPSharingResult,
-};
-pub use channels::{
-    EvolutionChannelBridge, EvolutionEvent, CapabilityUpdate,
-    SharedEvolutionChannelBridge, shared_channel_bridge,
-};
+pub use xp_rewards::{EvolutionXPRewardCalculator, XPRewardBreakdown, XPRewardCategory};
 
 /// Evolution engine interface
 #[async_trait::async_trait]

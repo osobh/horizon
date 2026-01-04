@@ -30,7 +30,7 @@ impl Completer for ShellHelper {
 
         if words.is_empty() || (words.len() == 1 && !line.ends_with(' ')) {
             // Complete commands
-            let prefix = words.get(0).copied().unwrap_or("");
+            let prefix = words.first().copied().unwrap_or("");
             let mut matches = Vec::new();
 
             for cmd in &self.commands {

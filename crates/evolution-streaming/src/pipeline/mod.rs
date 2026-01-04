@@ -22,4 +22,6 @@ pub use result::EvolutionCycleResult;
 pub use stats::PipelineStats;
 
 // Re-export actor types for new code
-pub use actor::{create_pipeline_actor, EvolutionPipelineActor, EvolutionPipelineHandle, PipelineRequest};
+pub use actor::{
+    create_pipeline_actor, EvolutionPipelineActor, EvolutionPipelineHandle, PipelineRequest,
+};

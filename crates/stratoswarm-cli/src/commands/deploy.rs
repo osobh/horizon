@@ -54,7 +54,7 @@ pub async fn execute(args: DeployArgs) -> Result<()> {
         )));
     }
 
-    let specs = if args.path.extension().map_or(false, |ext| ext == "swarm") {
+    let specs = if args.path.extension().is_some_and(|ext| ext == "swarm") {
         // Parse .swarm file
         deploy_swarm_file(&args.path).await?
     } else {
@@ -160,7 +160,10 @@ async fn deploy_with_zero_config(path: &PathBuf) -> Result<Vec<AgentSpec>> {
         Ok(response) if response.status().is_success() => {
             match response.json::<Vec<AgentSpec>>().await {
                 Ok(specs) => {
-                    output::success(&format!("Cluster analyzed codebase: found {} services", specs.len()));
+                    output::success(&format!(
+                        "Cluster analyzed codebase: found {} services",
+                        specs.len()
+                    ));
                     return Ok(specs);
                 }
                 Err(e) => {
@@ -276,10 +279,9 @@ fn print_deployment_plan(specs: &[AgentSpec]) {
             Cell::new(&spec.agent_type),
             Cell::new(format!("{}-{:?}", spec.replicas.0, spec.replicas.1)),
             Cell::new(format!("{}", spec.config.resources.cpu)),
-            Cell::new(format!(
-                "{}",
-                humansize::format_size(spec.config.resources.memory, humansize::BINARY)
-            )),
+            Cell::new(
+                humansize::format_size(spec.config.resources.memory, humansize::BINARY).to_string(),
+            ),
             Cell::new(
                 spec.config
                     .resources

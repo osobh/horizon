@@ -99,16 +99,15 @@ impl AgentChannelBridge {
     ///
     /// Registers channels with the hpc-channels global registry.
     pub fn new() -> Self {
-        let spawn_tx = hpc_channels::broadcast::<AgentEvent>(
-            hpc_channels::channels::AGENT_SPAWN,
-            256,
-        );
-        let terminate_tx = hpc_channels::broadcast::<AgentEvent>(
-            hpc_channels::channels::AGENT_TERMINATE,
-            256,
-        );
+        let spawn_tx =
+            hpc_channels::broadcast::<AgentEvent>(hpc_channels::channels::AGENT_SPAWN, 256);
+        let terminate_tx =
+            hpc_channels::broadcast::<AgentEvent>(hpc_channels::channels::AGENT_TERMINATE, 256);
 
-        Self { spawn_tx, terminate_tx }
+        Self {
+            spawn_tx,
+            terminate_tx,
+        }
     }
 
     fn now_ms() -> u64 {
@@ -145,7 +144,12 @@ impl AgentChannelBridge {
     }
 
     /// Publish a health status changed event.
-    pub fn publish_health_status_changed(&self, node_id: &str, previous_status: &str, new_status: &str) {
+    pub fn publish_health_status_changed(
+        &self,
+        node_id: &str,
+        previous_status: &str,
+        new_status: &str,
+    ) {
         let _ = self.spawn_tx.send(AgentEvent::HealthStatusChanged {
             node_id: node_id.to_string(),
             previous_status: previous_status.to_string(),
@@ -496,9 +500,14 @@ pub fn build_job_from_submit(submit: &BuildMessage) -> Option<BuildJob> {
                 HpcBuildCommand::Build => CargoCommand::Build,
                 HpcBuildCommand::Test => CargoCommand::Test { filter: None },
                 HpcBuildCommand::Check => CargoCommand::Check,
-                HpcBuildCommand::Clippy => CargoCommand::Clippy { deny_warnings: true },
+                HpcBuildCommand::Clippy => CargoCommand::Clippy {
+                    deny_warnings: true,
+                },
                 HpcBuildCommand::Doc => CargoCommand::Doc { open: false },
-                HpcBuildCommand::Run => CargoCommand::Run { bin: None, args: vec![] },
+                HpcBuildCommand::Run => CargoCommand::Run {
+                    bin: None,
+                    args: vec![],
+                },
                 HpcBuildCommand::Bench => CargoCommand::Bench { filter: None },
             };
 
@@ -585,10 +594,14 @@ pub struct ArtifactTransferBridge {
 impl ArtifactTransferBridge {
     /// Create a new artifact transfer bridge.
     pub fn new(node_id: String) -> Self {
-        let stored_tx =
-            hpc_channels::broadcast::<ArtifactMessage>(hpc_channels::channels::ARTIFACT_STORED, 256);
-        let progress_tx =
-            hpc_channels::broadcast::<ArtifactMessage>(hpc_channels::channels::ARTIFACT_PROGRESS, 512);
+        let stored_tx = hpc_channels::broadcast::<ArtifactMessage>(
+            hpc_channels::channels::ARTIFACT_STORED,
+            256,
+        );
+        let progress_tx = hpc_channels::broadcast::<ArtifactMessage>(
+            hpc_channels::channels::ARTIFACT_PROGRESS,
+            512,
+        );
 
         Self {
             stored_tx,
@@ -883,14 +896,7 @@ mod warp_integration {
             let output_path = staging_dir.as_ref().join(&archive_name);
 
             // Publish progress: starting
-            self.publish_progress(
-                &correlation_id,
-                TransferDirection::Upload,
-                0,
-                0,
-                0,
-                0,
-            );
+            self.publish_progress(&correlation_id, TransferDirection::Upload, 0, 0, 0, 0);
 
             // Package artifacts
             let manifest = self.package_artifacts(job_id, artifacts, &output_path)?;
@@ -928,7 +934,9 @@ mod tests {
     fn test_bridge_creation() {
         let bridge = AgentChannelBridge::new();
         assert!(hpc_channels::exists(hpc_channels::channels::AGENT_SPAWN));
-        assert!(hpc_channels::exists(hpc_channels::channels::AGENT_TERMINATE));
+        assert!(hpc_channels::exists(
+            hpc_channels::channels::AGENT_TERMINATE
+        ));
         let _ = bridge;
     }
 
@@ -957,7 +965,9 @@ mod tests {
 
         let event = rx.recv().await.expect("Should receive event");
         match event {
-            AgentEvent::AgentShutdown { node_id, reason, .. } => {
+            AgentEvent::AgentShutdown {
+                node_id, reason, ..
+            } => {
                 assert_eq!(node_id, "test-node-456");
                 assert_eq!(reason, "graceful shutdown");
             }

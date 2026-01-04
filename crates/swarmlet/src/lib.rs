@@ -16,6 +16,7 @@ pub mod command;
 pub mod config;
 pub mod discovery;
 pub mod error;
+pub mod health_check;
 pub mod join;
 pub mod kernel_interface;
 pub mod profile;
@@ -23,7 +24,6 @@ pub mod security;
 pub mod toolchain_manager;
 pub mod wireguard;
 pub mod workload;
-pub mod health_check;
 
 // HPC Channels integration
 #[cfg(feature = "hpc-channels")]
@@ -37,39 +37,37 @@ pub use agent_actor::{
     create_swarmlet_actor, SwarmletAgentActor, SwarmletAgentHandle, SwarmletRequest,
 };
 pub use command::{CommandExecutor, CommandRequest, CommandResult, CommandStatus};
-pub use config::{Config, BuildConfig};
+pub use config::{BuildConfig, Config};
 pub use discovery::{ClusterDiscovery, ClusterInfo};
 pub use error::{BuildPhase, Result, SwarmletError};
 pub use join::{JoinProtocol, JoinResult};
 pub use profile::{HardwareProfile, HardwareProfiler, NodeCapabilities};
 pub use wireguard::{
-    WireGuardManager, WireGuardConfigRequest, WireGuardConfigResponse, WireGuardStatus,
-    WireGuardPeerConfig, AddPeerRequest, RemovePeerRequest, PeerStatus,
+    AddPeerRequest, PeerStatus, RemovePeerRequest, WireGuardConfigRequest, WireGuardConfigResponse,
+    WireGuardManager, WireGuardPeerConfig, WireGuardStatus,
 };
 
 // Build job exports
 pub use build_job::{
-    BuildJob, CargoCommand, RustToolchain, BuildSource, BuildProfile,
-    BuildResourceLimits, CacheConfig, ActiveBuildJob, BuildJobStatus,
-    BuildLogEntry, BuildArtifact,
+    ActiveBuildJob, BuildArtifact, BuildJob, BuildJobStatus, BuildLogEntry, BuildProfile,
+    BuildResourceLimits, BuildSource, CacheConfig, CargoCommand, RustToolchain,
 };
 pub use build_job_manager::BuildJobManager;
-pub use toolchain_manager::{ToolchainManager, ToolchainInfo};
-pub use cache_manager::{CacheManager, ArtifactCacheMetadata, SourceCacheMetadata};
 pub use build_metrics::{
-    BuildMetricsCollector, BuildRecord, BuildSummary, MetricsSnapshot,
-    AggregatedStats, SharedBuildMetrics, create_metrics_collector,
+    create_metrics_collector, AggregatedStats, BuildMetricsCollector, BuildRecord, BuildSummary,
+    MetricsSnapshot, SharedBuildMetrics,
 };
 pub use build_queue::{
-    BuildQueue, BuildPriority, QueuedBuild, QueueConfig, QueueStatus,
-    QueueError, SharedBuildQueue, create_build_queue,
+    create_build_queue, BuildPriority, BuildQueue, QueueConfig, QueueError, QueueStatus,
+    QueuedBuild, SharedBuildQueue,
 };
+pub use cache_manager::{ArtifactCacheMetadata, CacheManager, SourceCacheMetadata};
+pub use toolchain_manager::{ToolchainInfo, ToolchainManager};
 
 // HPC Channels bridge exports
 #[cfg(feature = "hpc-channels")]
 pub use hpc_bridge::{
-    AgentChannelBridge, SharedAgentChannelBridge, shared_channel_bridge,
-    AgentEvent,
+    shared_channel_bridge, AgentChannelBridge, AgentEvent, SharedAgentChannelBridge,
 };
 
 /// Swarmlet version information

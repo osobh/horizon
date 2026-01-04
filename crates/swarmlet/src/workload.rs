@@ -60,12 +60,13 @@ impl WorkloadManager {
         let active_workloads = Arc::new(RwLock::new(HashMap::new()));
 
         #[cfg(feature = "docker")]
-        let docker = {
-            use bollard::Docker;
-            Arc::new(Docker::connect_with_local_defaults().map_err(|e| {
-                SwarmletError::Docker(format!("Failed to connect to Docker: {e}"))
-            })?)
-        };
+        let docker =
+            {
+                use bollard::Docker;
+                Arc::new(Docker::connect_with_local_defaults().map_err(|e| {
+                    SwarmletError::Docker(format!("Failed to connect to Docker: {e}"))
+                })?)
+            };
 
         Ok(Self {
             config,

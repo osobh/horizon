@@ -165,7 +165,11 @@ pub struct ValidationIssue {
 }
 
 impl ValidationIssue {
-    pub fn new(code: impl Into<String>, message: impl Into<String>, severity: IssueSeverity) -> Self {
+    pub fn new(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        severity: IssueSeverity,
+    ) -> Self {
         Self {
             code: code.into(),
             message: message.into(),
@@ -363,7 +367,10 @@ impl MigrationPlanner {
         if target_subnet.status != SubnetStatus::Active {
             issues.push(ValidationIssue::error(
                 "TARGET_NOT_ACTIVE",
-                format!("Target subnet is {:?}, must be Active", target_subnet.status),
+                format!(
+                    "Target subnet is {:?}, must be Active",
+                    target_subnet.status
+                ),
             ));
         }
 
@@ -376,9 +383,7 @@ impl MigrationPlanner {
         }
 
         // Check cross-purpose migration
-        if !self.constraints.allow_cross_purpose
-            && source_subnet.purpose != target_subnet.purpose
-        {
+        if !self.constraints.allow_cross_purpose && source_subnet.purpose != target_subnet.purpose {
             issues.push(ValidationIssue::error(
                 "CROSS_PURPOSE",
                 format!(
@@ -478,8 +483,7 @@ impl MigrationPlanner {
         reason: MigrationReason,
     ) -> Result<MigrationPlan> {
         // Validate first
-        let validation =
-            self.validate(node_id, source_subnet, target_subnet, current_assignment);
+        let validation = self.validate(node_id, source_subnet, target_subnet, current_assignment);
 
         if !validation.valid {
             let errors: Vec<String> = validation
@@ -684,8 +688,7 @@ mod tests {
         let target = create_test_subnet("target", "10.101.0.0/24");
         let assignment = create_test_assignment(source.id);
 
-        let validation =
-            planner.validate(assignment.node_id, &source, &target, &assignment);
+        let validation = planner.validate(assignment.node_id, &source, &target, &assignment);
 
         assert!(validation.valid);
         assert!(validation.issues.is_empty());
@@ -697,8 +700,7 @@ mod tests {
         let subnet = create_test_subnet("subnet", "10.100.0.0/24");
         let assignment = create_test_assignment(subnet.id);
 
-        let validation =
-            planner.validate(assignment.node_id, &subnet, &subnet, &assignment);
+        let validation = planner.validate(assignment.node_id, &subnet, &subnet, &assignment);
 
         assert!(!validation.valid);
         assert!(validation.issues.iter().any(|i| i.code == "SAME_SUBNET"));
@@ -712,8 +714,7 @@ mod tests {
         target.status = SubnetStatus::Draining;
         let assignment = create_test_assignment(source.id);
 
-        let validation =
-            planner.validate(assignment.node_id, &source, &target, &assignment);
+        let validation = planner.validate(assignment.node_id, &source, &target, &assignment);
 
         assert!(!validation.valid);
         assert!(validation
@@ -731,8 +732,7 @@ mod tests {
         target.current_nodes = 10;
         let assignment = create_test_assignment(source.id);
 
-        let validation =
-            planner.validate(assignment.node_id, &source, &target, &assignment);
+        let validation = planner.validate(assignment.node_id, &source, &target, &assignment);
 
         assert!(!validation.valid);
         assert!(validation.issues.iter().any(|i| i.code == "TARGET_FULL"));
@@ -746,8 +746,7 @@ mod tests {
         target.purpose = SubnetPurpose::NodeType;
         let assignment = create_test_assignment(source.id);
 
-        let validation =
-            planner.validate(assignment.node_id, &source, &target, &assignment);
+        let validation = planner.validate(assignment.node_id, &source, &target, &assignment);
 
         assert!(!validation.valid);
         assert!(validation.issues.iter().any(|i| i.code == "CROSS_PURPOSE"));
@@ -764,8 +763,7 @@ mod tests {
         target.purpose = SubnetPurpose::NodeType;
         let assignment = create_test_assignment(source.id);
 
-        let validation =
-            planner.validate(assignment.node_id, &source, &target, &assignment);
+        let validation = planner.validate(assignment.node_id, &source, &target, &assignment);
 
         assert!(validation.valid);
     }
@@ -830,7 +828,12 @@ mod tests {
             .collect();
 
         let bulk_plan = planner
-            .plan_bulk(&nodes, &source, &target, MigrationReason::SubnetDecommission)
+            .plan_bulk(
+                &nodes,
+                &source,
+                &target,
+                MigrationReason::SubnetDecommission,
+            )
             .unwrap();
 
         assert_eq!(bulk_plan.total_migrations(), 15);

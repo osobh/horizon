@@ -19,22 +19,20 @@
 mod capabilities;
 mod error;
 mod identity;
+pub mod integration;
 mod invitation;
 mod service;
 mod token;
-pub mod integration;
 pub mod workers;
 
 pub use capabilities::{Capability, CapabilitySet, RateLimits, TimeRestrictions};
 pub use error::{EphemeralError, Result};
-pub use identity::{
-    DeviceBinding, EphemeralIdentity, EphemeralIdentityState, IdentityMetadata,
+pub use identity::{DeviceBinding, EphemeralIdentity, EphemeralIdentityState, IdentityMetadata};
+pub use integration::{
+    EphemeralSessionActivity, EphemeralSessionAdapter, EphemeralSessionBinding,
+    EphemeralSessionConfig, EphemeralVerificationResult,
 };
 pub use invitation::{InvitationLink, InvitationPayload, InvitationStatus, RedemptionResult};
 pub use service::{EphemeralIdentityService, ServiceConfig};
 pub use token::{EphemeralToken, TokenClaims, TokenValidation};
-pub use integration::{
-    EphemeralSessionAdapter, EphemeralSessionConfig, EphemeralSessionBinding,
-    EphemeralVerificationResult, EphemeralSessionActivity,
-};
-pub use workers::{CleanupWorker, CleanupWorkerConfig, CleanupWorkerHandle, CleanupStats};
+pub use workers::{CleanupStats, CleanupWorker, CleanupWorkerConfig, CleanupWorkerHandle};

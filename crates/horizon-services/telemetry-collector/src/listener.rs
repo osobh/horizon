@@ -1,3 +1,5 @@
+use crate::config::ServerConfig as ServiceServerConfig;
+use crate::handler::StreamHandler;
 use anyhow::{Context, Result};
 use quinn::{Endpoint, ServerConfig};
 use rustls::ServerConfig as RustlsServerConfig;
@@ -5,8 +7,6 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use crate::config::ServerConfig as ServiceServerConfig;
-use crate::handler::StreamHandler;
 
 pub struct QuicListener {
     endpoint: Endpoint,
@@ -37,7 +37,9 @@ impl QuicListener {
         let quinn_server_config = ServerConfig::with_crypto(Arc::new(rustls_config));
 
         // Parse listen address
-        let addr: SocketAddr = server_config.listen_addr.parse()
+        let addr: SocketAddr = server_config
+            .listen_addr
+            .parse()
             .context("Failed to parse listen address")?;
 
         let max_connections = server_config.max_connections;
@@ -55,27 +57,26 @@ impl QuicListener {
         })
     }
 
-    fn load_tls_config(cert_path: &Path, key_path: &Path) -> Result<(Vec<rustls::Certificate>, rustls::PrivateKey)> {
+    fn load_tls_config(
+        cert_path: &Path,
+        key_path: &Path,
+    ) -> Result<(Vec<rustls::Certificate>, rustls::PrivateKey)> {
         use rustls_pemfile::{certs, pkcs8_private_keys};
         use std::fs::File;
         use std::io::BufReader;
 
         // Load certificates
-        let cert_file = File::open(cert_path)
-            .context("Failed to open cert file")?;
+        let cert_file = File::open(cert_path).context("Failed to open cert file")?;
         let mut cert_reader = BufReader::new(cert_file);
-        let cert_ders = certs(&mut cert_reader)
-            .context("Failed to parse certificates")?;
-        let certs: Vec<rustls::Certificate> = cert_ders.into_iter()
-            .map(rustls::Certificate)
-            .collect();
+        let cert_ders = certs(&mut cert_reader).context("Failed to parse certificates")?;
+        let certs: Vec<rustls::Certificate> =
+            cert_ders.into_iter().map(rustls::Certificate).collect();
 
         // Load private key
-        let key_file = File::open(key_path)
-            .context("Failed to open key file")?;
+        let key_file = File::open(key_path).context("Failed to open key file")?;
         let mut key_reader = BufReader::new(key_file);
-        let key_ders = pkcs8_private_keys(&mut key_reader)
-            .context("Failed to parse private key")?;
+        let key_ders =
+            pkcs8_private_keys(&mut key_reader).context("Failed to parse private key")?;
 
         if key_ders.is_empty() {
             anyhow::bail!("No private key found");

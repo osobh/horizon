@@ -85,8 +85,7 @@ impl DebugSession {
             session_id: format!(
                 "session_{}",
                 SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    ?
+                    .duration_since(SystemTime::UNIX_EPOCH)?
                     .as_millis()
             ),
             session_name: session_name.to_string(),
@@ -627,8 +626,7 @@ impl EvolutionTimelineDebugger {
         let original_trajectory = vec![0.5, 0.6, 0.65, 0.7, 0.72, 0.75];
         let modified_trajectory = vec![0.5, 0.6, 0.68, 0.74, 0.78, 0.82]; // Improved
 
-        let improvement = ((modified_trajectory.last()?
-            - original_trajectory.last()?)
+        let improvement = ((modified_trajectory.last()? - original_trajectory.last()?)
             / original_trajectory.last()?)
             * 100.0;
 

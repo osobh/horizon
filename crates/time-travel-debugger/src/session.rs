@@ -723,7 +723,8 @@ impl SessionManager {
 
     /// Remove a completed session
     pub async fn remove_session(&self, session_id: Uuid) -> Result<()> {
-        let session = self.sessions
+        let session = self
+            .sessions
             .get(&session_id)
             .ok_or(TimeDebuggerError::SessionNotFound { id: session_id })?;
 

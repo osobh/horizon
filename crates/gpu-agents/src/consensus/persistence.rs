@@ -28,6 +28,8 @@ impl GpuConsensusPersistence {
         let log_path = Path::new(base_path).join("consensus.log");
 
         // Allocate GPU buffer for state
+        // SAFETY: alloc returns uninitialized memory. The buffer holds a single ConsensusState
+        // which will be written via htod_copy_into before any reads.
         let state_buffer = unsafe { device.alloc::<ConsensusState>(1) }
             .context("Failed to allocate state buffer")?;
 
@@ -44,6 +46,9 @@ impl GpuConsensusPersistence {
             .context("Failed to set log file size")?;
 
         // Memory map the file
+        // SAFETY: Memory-mapping is unsafe because the file contents may change externally.
+        // We control exclusive access to this log file via file creation/open above.
+        // The mmap remains valid for the lifetime of GpuConsensusPersistence.
         let mmap = unsafe {
             MmapOptions::new()
                 .map_mut(&file)
@@ -81,6 +86,9 @@ impl GpuConsensusPersistence {
             // Read state from memory-mapped file
             let state_size = std::mem::size_of::<ConsensusState>();
             if mmap.len() >= state_size {
+                // SAFETY: mmap.len() >= state_size ensures we have enough bytes.
+                // ConsensusState is #[repr(C)] with Pod fields, so any bit pattern is valid.
+                // The mmap pointer is properly aligned (file offset 0) and the read is within bounds.
                 let state = unsafe { std::ptr::read(mmap.as_ptr() as *const ConsensusState) };
 
                 // Also update GPU buffer

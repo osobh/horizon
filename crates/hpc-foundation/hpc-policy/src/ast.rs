@@ -37,11 +37,7 @@ pub enum Decision {
 
 impl EvaluationContext {
     /// Create a new evaluation context
-    pub fn new(
-        principal: PrincipalContext,
-        resource: ResourceContext,
-        action: String,
-    ) -> Self {
+    pub fn new(principal: PrincipalContext, resource: ResourceContext, action: String) -> Self {
         Self {
             principal,
             resource,

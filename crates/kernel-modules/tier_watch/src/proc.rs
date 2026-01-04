@@ -176,6 +176,11 @@ fn format_global_stats() -> String {
 
 /// Read handler for tier stats
 extern "C" fn read_tier_stats(file: *mut ProcFile, buf: *mut u8, count: usize) -> isize {
+    // SAFETY: This is an FFI callback from the kernel's proc filesystem.
+    // - file pointer validity is checked before dereferencing
+    // - buf pointer is provided by the kernel and is valid for 'count' bytes
+    // - The kernel guarantees these pointers are valid during the callback
+    // - copy_nonoverlapping is safe because buf is kernel-provided user buffer
     unsafe {
         if file.is_null() || buf.is_null() {
             return -1;
@@ -221,6 +226,11 @@ extern "C" fn read_tier_stats(file: *mut ProcFile, buf: *mut u8, count: usize) -
 
 /// Read handler for global stats
 extern "C" fn read_global_stats(file: *mut ProcFile, buf: *mut u8, count: usize) -> isize {
+    // SAFETY: This is an FFI callback from the kernel's proc filesystem.
+    // - file pointer validity is checked before dereferencing
+    // - buf pointer is provided by the kernel and is valid for 'count' bytes
+    // - The kernel guarantees these pointers are valid during the callback
+    // - copy_nonoverlapping is safe because buf is kernel-provided user buffer
     unsafe {
         if file.is_null() || buf.is_null() {
             return -1;
@@ -251,6 +261,9 @@ extern "C" fn read_global_stats(file: *mut ProcFile, buf: *mut u8, count: usize)
 
 /// Open handler for proc files
 extern "C" fn proc_open(file: *mut ProcFile) -> i32 {
+    // SAFETY: This is an FFI callback from the kernel's proc filesystem.
+    // The file pointer is provided by the kernel and is guaranteed valid
+    // when non-null. We check for null before dereferencing.
     unsafe {
         if !file.is_null() {
             (*file).pos = 0;
@@ -261,6 +274,9 @@ extern "C" fn proc_open(file: *mut ProcFile) -> i32 {
 
 /// Create proc entries
 pub fn create_proc_entries() -> KernelResult<()> {
+    // SAFETY: This function is called exactly once during kernel module
+    // initialization, before any other threads can access PROC_ENTRIES.
+    // The kernel module init sequence is single-threaded.
     unsafe {
         let mut entries = Vec::new();
 
@@ -300,6 +316,8 @@ pub fn create_proc_entries() -> KernelResult<()> {
 
 /// Remove proc entries
 pub fn remove_proc_entries() {
+    // SAFETY: This function is called exactly once during kernel module
+    // unload, after all other operations have completed.
     unsafe {
         PROC_ENTRIES = None;
     }

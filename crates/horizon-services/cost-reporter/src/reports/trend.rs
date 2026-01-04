@@ -1,4 +1,4 @@
-use crate::error::{HpcError, Result, ReporterErrorExt};
+use crate::error::{HpcError, ReporterErrorExt, Result};
 use crate::models::summary::HasCostBreakdown;
 use crate::models::trend::{TrendAnalysis, TrendDirection};
 use rust_decimal::Decimal;
@@ -22,13 +22,10 @@ impl TrendAnalyzer {
         if summaries.len() < 2 {
             // Not enough data for trend, return stable
             let avg = summaries[0].total_cost();
-            return Ok(TrendAnalysis::new(
-                TrendDirection::Stable,
-                Decimal::ZERO,
-                avg,
-                0.0,
-            )
-            .with_confidence(0.5));
+            return Ok(
+                TrendAnalysis::new(TrendDirection::Stable, Decimal::ZERO, avg, 0.0)
+                    .with_confidence(0.5),
+            );
         }
 
         // Calculate linear regression
@@ -60,8 +57,10 @@ impl TrendAnalyzer {
         // Calculate confidence based on R-squared
         let confidence = self.calculate_r_squared(summaries, slope, _intercept);
 
-        Ok(TrendAnalysis::new(direction, growth_rate, daily_average, slope)
-            .with_confidence(confidence))
+        Ok(
+            TrendAnalysis::new(direction, growth_rate, daily_average, slope)
+                .with_confidence(confidence),
+        )
     }
 
     /// Simple linear regression (least squares)
@@ -77,7 +76,11 @@ impl TrendAnalyzer {
 
         for (i, summary) in summaries.iter().enumerate() {
             let x = i as f64;
-            let y = summary.total_cost().to_string().parse::<f64>().unwrap_or(0.0);
+            let y = summary
+                .total_cost()
+                .to_string()
+                .parse::<f64>()
+                .unwrap_or(0.0);
             sum_x += x;
             sum_y += y;
             sum_xy += x * y;
@@ -111,7 +114,11 @@ impl TrendAnalyzer {
         let mut ss_res = 0.0;
 
         for (i, summary) in summaries.iter().enumerate() {
-            let y = summary.total_cost().to_string().parse::<f64>().unwrap_or(0.0);
+            let y = summary
+                .total_cost()
+                .to_string()
+                .parse::<f64>()
+                .unwrap_or(0.0);
             let y_pred = slope * (i as f64) + intercept;
 
             ss_tot += (y - mean).powi(2);
@@ -305,7 +312,8 @@ mod tests {
         let trend = analyzer.calculate_trend(&summaries).unwrap();
         // May be classified as decreasing or stable depending on calculation
         assert!(
-            trend.direction == TrendDirection::Stable || trend.direction == TrendDirection::Decreasing
+            trend.direction == TrendDirection::Stable
+                || trend.direction == TrendDirection::Decreasing
         );
         assert!(trend.slope.abs() < 0.5);
     }

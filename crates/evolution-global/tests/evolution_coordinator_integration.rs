@@ -2,6 +2,8 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
+use std::collections::HashMap;
+use std::sync::Arc;
 use stratoswarm_evolution_global::{
     error::EvolutionGlobalResult,
     evolution_coordinator::{
@@ -9,8 +11,6 @@ use stratoswarm_evolution_global::{
         EvolutionStatus, RollbackSnapshot,
     },
 };
-use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 

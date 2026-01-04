@@ -184,7 +184,8 @@ impl RollbackManager {
     pub fn cleanup_old_points(&mut self, max_age_hours: i64) {
         let cutoff = chrono::Utc::now() - chrono::Duration::hours(max_age_hours);
 
-        self.rollback_points.retain(|point| point.timestamp > cutoff);
+        self.rollback_points
+            .retain(|point| point.timestamp > cutoff);
     }
 
     pub fn get_rollback_point_count(&self) -> usize {

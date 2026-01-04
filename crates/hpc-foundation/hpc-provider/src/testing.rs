@@ -1,8 +1,7 @@
 /// Test utilities for provider implementations
 use crate::{
     Availability, CapacityProvider, HealthStatus, Instance, InstanceState, ProviderError,
-    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas,
-    SpotPrices,
+    ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas, SpotPrices,
 };
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -67,11 +66,7 @@ impl CapacityProvider for MockProvider {
             instance_type: request.instance_type.clone(),
             region: request.region.clone(),
             hourly_rate: dec!(1.50),
-            spot_rate: if request.spot {
-                Some(dec!(0.50))
-            } else {
-                None
-            },
+            spot_rate: if request.spot { Some(dec!(0.50)) } else { None },
             availability: Availability::Available,
             lead_time_hours: 0,
         })

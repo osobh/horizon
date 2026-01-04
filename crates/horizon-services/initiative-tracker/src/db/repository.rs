@@ -14,7 +14,7 @@ impl InitiativeRepository {
 
     pub async fn list_initiatives(&self) -> Result<Vec<Initiative>> {
         let initiatives = sqlx::query_as::<_, Initiative>(
-            "SELECT * FROM initiatives ORDER BY created_at DESC LIMIT 100"
+            "SELECT * FROM initiatives ORDER BY created_at DESC LIMIT 100",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -29,7 +29,7 @@ impl InitiativeRepository {
                 COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress,
                 COUNT(*) FILTER (WHERE status = 'completed') as completed
             FROM initiatives
-            "#
+            "#,
         )
         .fetch_one(&self.pool)
         .await?;

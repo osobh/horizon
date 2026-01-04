@@ -128,7 +128,7 @@ impl UnifiedMemoryPool {
     pub fn allocate(&mut self, buffer_id: &str, size: usize) -> MemoryResult<()> {
         // Check if already allocated
         if self.allocations.contains_key(buffer_id) {
-            return Err(format!("Buffer '{}' is already allocated", buffer_id));
+            return Err(format!("Buffer '{buffer_id}' is already allocated"));
         }
 
         // Check if we have enough space
@@ -161,7 +161,7 @@ impl UnifiedMemoryPool {
         let allocation = self
             .allocations
             .remove(buffer_id)
-            .ok_or_else(|| format!("Buffer '{}' not found", buffer_id))?;
+            .ok_or_else(|| format!("Buffer '{buffer_id}' not found"))?;
 
         self.used = self.used.saturating_sub(allocation.size);
 
@@ -179,7 +179,7 @@ impl UnifiedMemoryPool {
         let allocation = self
             .allocations
             .get_mut(buffer_id)
-            .ok_or_else(|| format!("Buffer '{}' not found", buffer_id))?;
+            .ok_or_else(|| format!("Buffer '{buffer_id}' not found"))?;
 
         // Check bounds
         if offset + data.len() > allocation.size {
@@ -210,7 +210,7 @@ impl UnifiedMemoryPool {
         let allocation = self
             .allocations
             .get(buffer_id)
-            .ok_or_else(|| format!("Buffer '{}' not found", buffer_id))?;
+            .ok_or_else(|| format!("Buffer '{buffer_id}' not found"))?;
 
         // Check bounds
         if offset + size > allocation.size {
@@ -221,7 +221,9 @@ impl UnifiedMemoryPool {
         }
 
         // Return zero-copy Bytes
-        Ok(Bytes::copy_from_slice(&allocation.data[offset..offset + size]))
+        Ok(Bytes::copy_from_slice(
+            &allocation.data[offset..offset + size],
+        ))
     }
 
     /// Clear all allocations.

@@ -104,7 +104,8 @@ impl DistributedRegistry {
             let image: SwarmImage = bincode::deserialize(&image_data)?;
 
             // Cache in memory
-            self.local_images.insert(image_ref.to_string(), image.clone());
+            self.local_images
+                .insert(image_ref.to_string(), image.clone());
 
             return Ok(image);
         }
@@ -114,12 +115,17 @@ impl DistributedRegistry {
 
     /// List all available images
     pub async fn list(&self) -> Result<Vec<(String, String, String)>> {
-        let images: Vec<_> = self.local_images
+        let images: Vec<_> = self
+            .local_images
             .iter()
             .map(|entry| {
                 let hash = entry.key().clone();
                 let image = entry.value();
-                (hash, image.metadata.name.clone(), image.metadata.tag.clone())
+                (
+                    hash,
+                    image.metadata.name.clone(),
+                    image.metadata.tag.clone(),
+                )
             })
             .collect();
 
@@ -128,7 +134,8 @@ impl DistributedRegistry {
 
     /// Search for images by name
     pub async fn search(&self, query: &str) -> Result<Vec<SwarmImage>> {
-        let results: Vec<_> = self.local_images
+        let results: Vec<_> = self
+            .local_images
             .iter()
             .filter(|entry| {
                 let image = entry.value();

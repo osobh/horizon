@@ -1,6 +1,6 @@
 use crate::config::DatabaseConfig;
 use crate::error::{HpcError, Result};
-use sqlx::postgres::{PgPoolOptions, PgPool};
+use sqlx::postgres::{PgPool, PgPoolOptions};
 
 #[derive(Debug, Clone)]
 pub struct DbPool {

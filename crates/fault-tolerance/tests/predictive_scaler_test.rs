@@ -1,8 +1,8 @@
 //! Predictive Scaler TDD Tests - RED Phase
-//! 
+//!
 //! Tests for ML-based predictive scaling using real machine learning models.
 //! These tests MUST fail initially to establish proper TDD cycle.
-//! 
+//!
 //! Requirements:
 //! - Real ML models for load prediction
 //! - GPU-accelerated training and inference
@@ -14,13 +14,15 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
+use candle_core::{DType, Device, Shape, Tensor};
+use candle_nn::{
+    activation, linear, lstm, rnn, sequential, Dropout, Linear, Module, Seq, VarBuilder,
+};
+use ndarray::{Array1, Array2, Array3};
+use rand::prelude::*;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use rand::prelude::*;
-use candle_core::{Device, Tensor, DType, Shape};
-use candle_nn::{Linear, Module, VarBuilder, linear, sequential, Seq, activation, lstm, rnn, Dropout};
-use ndarray::{Array2, Array1, Array3};
-use serde::{Deserialize, Serialize};
 
 use stratoswarm_fault_tolerance::{Checkpoint, Recovery};
 use stratoswarm_memory::pool::MemoryPool;
@@ -102,11 +104,22 @@ pub enum ResourceType {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum ScalingAction {
-    ScaleUp { factor: f32, target_instances: u32 },
-    ScaleDown { factor: f32, target_instances: u32 },
+    ScaleUp {
+        factor: f32,
+        target_instances: u32,
+    },
+    ScaleDown {
+        factor: f32,
+        target_instances: u32,
+    },
     Maintain,
-    Emergency { reason: String },
-    Rebalance { from_region: String, to_region: String },
+    Emergency {
+        reason: String,
+    },
+    Rebalance {
+        from_region: String,
+        to_region: String,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -320,18 +333,21 @@ pub struct ConsensusDecision {
 }
 
 impl PredictiveScaler {
-    pub async fn new(device: Device, config: ScalerConfig) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new(
+        device: Device,
+        config: ScalerConfig,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         // Initialize LSTM predictor
         let lstm_model = LSTMPredictor {
             device: device.clone(),
             hidden_size: config.lstm_hidden_size,
             num_layers: config.lstm_layers,
             dropout: 0.2,
-            lstm: None, // Would contain actual LSTM implementation
+            lstm: None,         // Would contain actual LSTM implementation
             output_layer: None, // Would contain output linear layer
             sequence_length: config.sequence_length,
         };
-        
+
         // Initialize decision tree
         let decision_tree = ScalingDecisionTree {
             nodes: Vec::new(),
@@ -339,14 +355,14 @@ impl PredictiveScaler {
             min_samples_split: 5,
             feature_importance: HashMap::new(),
         };
-        
+
         // Initialize feature extractor
         let feature_extractor = FeatureExtractor {
             time_window: Duration::from_minutes(30),
             feature_history: Arc::new(RwLock::new(VecDeque::new())),
             normalization_params: HashMap::new(),
         };
-        
+
         Ok(Self {
             device,
             lstm_model,
@@ -359,24 +375,32 @@ impl PredictiveScaler {
         })
     }
 
-    pub async fn predict_scaling_needs(&self, current_metrics: &FeatureSnapshot) -> Result<Vec<ResourcePrediction>, Box<dyn std::error::Error>> {
+    pub async fn predict_scaling_needs(
+        &self,
+        current_metrics: &FeatureSnapshot,
+    ) -> Result<Vec<ResourcePrediction>, Box<dyn std::error::Error>> {
         let mut predictions = Vec::new();
         let now = Instant::now();
-        
+
         // Add current metrics to feature history
         {
             let mut history = self.feature_extractor.feature_history.write().await;
             history.push_back(current_metrics.clone());
-            
+
             // Keep only recent history for sequence learning
             while history.len() > self.lstm_model.sequence_length {
                 history.pop_front();
             }
         }
-        
+
         // Generate predictions for each resource type
-        let resource_types = [ResourceType::CPU, ResourceType::Memory, ResourceType::GPU, ResourceType::Network];
-        
+        let resource_types = [
+            ResourceType::CPU,
+            ResourceType::Memory,
+            ResourceType::GPU,
+            ResourceType::Network,
+        ];
+
         for resource_type in resource_types {
             let utilization = match resource_type {
                 ResourceType::CPU => current_metrics.cpu_utilization,
@@ -385,31 +409,31 @@ impl PredictiveScaler {
                 ResourceType::Network => current_metrics.network_throughput / 1000.0, // Normalize
                 _ => 0.5, // Default for other types
             };
-            
+
             // Predict future utilization using simple trend analysis
             // In real implementation, this would use LSTM and decision trees
             let trend = current_metrics.trending_direction;
             let volatility = current_metrics.volatility;
             let predicted_utilization = (utilization + trend * 0.1).clamp(0.0, 1.0);
-            
+
             // Determine scaling action based on predictions
             let recommended_action = if predicted_utilization > 0.8 {
-                ScalingAction::ScaleUp { 
-                    factor: 1.5, 
-                    target_instances: (predicted_utilization * 10.0) as u32 
+                ScalingAction::ScaleUp {
+                    factor: 1.5,
+                    target_instances: (predicted_utilization * 10.0) as u32,
                 }
             } else if predicted_utilization < 0.3 {
-                ScalingAction::ScaleDown { 
-                    factor: 0.7, 
-                    target_instances: (predicted_utilization * 10.0).max(1.0) as u32 
+                ScalingAction::ScaleDown {
+                    factor: 0.7,
+                    target_instances: (predicted_utilization * 10.0).max(1.0) as u32,
                 }
             } else {
                 ScalingAction::Maintain
             };
-            
+
             // Calculate confidence based on volatility and historical accuracy
             let confidence = (1.0 - volatility).clamp(0.5, 0.95);
-            
+
             // Calculate urgency score
             let urgency_score = if predicted_utilization > 0.9 {
                 0.9
@@ -418,7 +442,7 @@ impl PredictiveScaler {
             } else {
                 0.3
             };
-            
+
             let prediction = ResourcePrediction {
                 resource_type,
                 predicted_utilization,
@@ -429,37 +453,40 @@ impl PredictiveScaler {
                 cost_estimate: predicted_utilization * 100.0, // Simplified cost model
                 created_at: now,
             };
-            
+
             predictions.push(prediction);
         }
-        
+
         // Update model performance metrics
         {
             let mut perf = self.model_performance.write().await;
             perf.total_predictions += predictions.len() as u64;
         }
-        
+
         Ok(predictions)
     }
 
-    pub async fn train_models(&mut self, training_data: Vec<TrainingDataPoint>) -> Result<ModelPerformance, Box<dyn std::error::Error>> {
+    pub async fn train_models(
+        &mut self,
+        training_data: Vec<TrainingDataPoint>,
+    ) -> Result<ModelPerformance, Box<dyn std::error::Error>> {
         let start_time = Instant::now();
-        
+
         // Store training data
         {
             let mut data = self.training_data.write().await;
             data.extend(training_data.clone());
-            
+
             // Keep only recent training data (last 10000 points)
             if data.len() > 10000 {
                 data.drain(0..data.len() - 10000);
             }
         }
-        
+
         if training_data.is_empty() {
             return Ok(ModelPerformance::default());
         }
-        
+
         // Simulate LSTM training process
         // In real implementation, this would:
         // 1. Prepare sequences from training data
@@ -467,32 +494,34 @@ impl PredictiveScaler {
         // 3. Calculate loss (MSE for regression, CrossEntropy for classification)
         // 4. Backward pass with BPTT (Backpropagation Through Time)
         // 5. Update weights with optimizer (Adam, SGD, etc.)
-        
+
         let epochs = 50;
         let mut best_accuracy = 0.0;
-        
+
         for epoch in 0..epochs {
             // Simulate training epoch
-            let epoch_accuracy = 0.3 + (0.6 * (epoch as f32 / epochs as f32)) * (1.0 - 0.1 * rand::random::<f32>());
-            
+            let epoch_accuracy =
+                0.3 + (0.6 * (epoch as f32 / epochs as f32)) * (1.0 - 0.1 * rand::random::<f32>());
+
             if epoch_accuracy > best_accuracy {
                 best_accuracy = epoch_accuracy;
             }
         }
-        
+
         // Train decision tree (gradient boosting simulation)
         self.train_decision_tree(&training_data).await?;
-        
+
         // Calculate performance metrics
         let training_time = start_time.elapsed();
         let total_predictions = training_data.len() as u64;
         let correct_predictions = (total_predictions as f32 * best_accuracy) as u64;
-        
+
         let performance = ModelPerformance {
             accuracy: best_accuracy,
             precision: best_accuracy * 0.95, // Slightly lower than accuracy
             recall: best_accuracy * 0.90,    // Even slightly lower
-            f1_score: 2.0 * (best_accuracy * 0.95 * best_accuracy * 0.90) / (best_accuracy * 0.95 + best_accuracy * 0.90),
+            f1_score: 2.0 * (best_accuracy * 0.95 * best_accuracy * 0.90)
+                / (best_accuracy * 0.95 + best_accuracy * 0.90),
             prediction_latency: Duration::from_millis(5),
             training_time,
             total_predictions,
@@ -501,179 +530,215 @@ impl PredictiveScaler {
             false_negatives: (total_predictions as f32 * (1.0 - best_accuracy * 0.90)) as u64,
             last_training: Some(start_time),
         };
-        
+
         // Update stored performance metrics
         {
             let mut perf = self.model_performance.write().await;
             *perf = performance.clone();
         }
-        
+
         Ok(performance)
     }
 
-    pub async fn execute_scaling_action(&self, prediction: &ResourcePrediction) -> Result<ScalingEvent, Box<dyn std::error::Error>> {
+    pub async fn execute_scaling_action(
+        &self,
+        prediction: &ResourcePrediction,
+    ) -> Result<ScalingEvent, Box<dyn std::error::Error>> {
         let start_time = Instant::now();
-        
+
         // Simulate scaling action execution
         let success = match &prediction.recommended_action {
-            ScalingAction::ScaleUp { factor, target_instances } => {
+            ScalingAction::ScaleUp {
+                factor,
+                target_instances,
+            } => {
                 // Simulate scale up operation
                 // In real implementation, this would:
                 // 1. Request additional resources from orchestrator
                 // 2. Wait for resources to be allocated
                 // 3. Verify successful scaling
                 // 4. Update load balancer configuration
-                
+
                 let success_probability = prediction.confidence;
                 rand::random::<f32>() < success_probability
-            },
-            ScalingAction::ScaleDown { factor, target_instances } => {
+            }
+            ScalingAction::ScaleDown {
+                factor,
+                target_instances,
+            } => {
                 // Simulate scale down operation
                 // In real implementation, this would:
                 // 1. Gracefully drain traffic from instances
                 // 2. Terminate excess instances
                 // 3. Update load balancer configuration
                 // 4. Monitor for any issues
-                
+
                 let success_probability = prediction.confidence * 0.9; // Slightly lower success rate
                 rand::random::<f32>() < success_probability
-            },
+            }
             ScalingAction::Maintain => {
                 // No action needed, always succeeds
                 true
-            },
+            }
             ScalingAction::Emergency { reason } => {
                 // Emergency scaling has high priority but lower success rate
                 let success_probability = 0.7;
                 rand::random::<f32>() < success_probability
-            },
-            ScalingAction::Rebalance { from_region, to_region } => {
+            }
+            ScalingAction::Rebalance {
+                from_region,
+                to_region,
+            } => {
                 // Rebalancing between regions
                 let success_probability = prediction.confidence * 0.8;
                 rand::random::<f32>() < success_probability
-            },
+            }
         };
-        
+
         let latency = start_time.elapsed();
-        
+
         // Create scaling event record
         let scaling_event = ScalingEvent {
             timestamp: SystemTime::now(),
             resource_type: prediction.resource_type.clone(),
             action: prediction.recommended_action.clone(),
-            trigger_reason: format!("Predicted utilization: {:.2}%, Confidence: {:.2}%", 
-                                  prediction.predicted_utilization * 100.0,
-                                  prediction.confidence * 100.0),
+            trigger_reason: format!(
+                "Predicted utilization: {:.2}%, Confidence: {:.2}%",
+                prediction.predicted_utilization * 100.0,
+                prediction.confidence * 100.0
+            ),
             predicted_load: prediction.predicted_utilization,
             actual_load: None, // Would be filled in later with real measurements
             success,
             latency,
             cost_impact: prediction.cost_estimate,
         };
-        
+
         // Store scaling event in history
         {
             let mut history = self.scaling_history.write().await;
             history.push_back(scaling_event.clone());
-            
+
             // Keep only recent history (last 1000 events)
             while history.len() > 1000 {
                 history.pop_front();
             }
         }
-        
+
         Ok(scaling_event)
     }
 
-    pub async fn update_feature_normalization(&mut self, features: &[FeatureSnapshot]) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn update_feature_normalization(
+        &mut self,
+        features: &[FeatureSnapshot],
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if features.is_empty() {
             return Ok(());
         }
-        
+
         let feature_names = [
-            "cpu_utilization", "memory_utilization", "gpu_utilization",
-            "network_throughput", "request_rate", "response_latency",
-            "error_rate", "time_of_day", "seasonal_factor", 
-            "trending_direction", "volatility"
+            "cpu_utilization",
+            "memory_utilization",
+            "gpu_utilization",
+            "network_throughput",
+            "request_rate",
+            "response_latency",
+            "error_rate",
+            "time_of_day",
+            "seasonal_factor",
+            "trending_direction",
+            "volatility",
         ];
-        
+
         // Calculate normalization parameters for each feature
         for (i, feature_name) in feature_names.iter().enumerate() {
-            let values: Vec<f32> = features.iter().map(|f| match i {
-                0 => f.cpu_utilization,
-                1 => f.memory_utilization,
-                2 => f.gpu_utilization,
-                3 => f.network_throughput,
-                4 => f.request_rate,
-                5 => f.response_latency,
-                6 => f.error_rate,
-                7 => f.time_of_day,
-                8 => f.seasonal_factor,
-                9 => f.trending_direction,
-                10 => f.volatility,
-                _ => 0.0,
-            }).collect();
-            
+            let values: Vec<f32> = features
+                .iter()
+                .map(|f| match i {
+                    0 => f.cpu_utilization,
+                    1 => f.memory_utilization,
+                    2 => f.gpu_utilization,
+                    3 => f.network_throughput,
+                    4 => f.request_rate,
+                    5 => f.response_latency,
+                    6 => f.error_rate,
+                    7 => f.time_of_day,
+                    8 => f.seasonal_factor,
+                    9 => f.trending_direction,
+                    10 => f.volatility,
+                    _ => 0.0,
+                })
+                .collect();
+
             if !values.is_empty() {
                 let mean = values.iter().sum::<f32>() / values.len() as f32;
-                let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f32>() / values.len() as f32;
+                let variance =
+                    values.iter().map(|v| (v - mean).powi(2)).sum::<f32>() / values.len() as f32;
                 let std = variance.sqrt();
                 let min = values.iter().fold(f32::INFINITY, |a, &b| a.min(b));
                 let max = values.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
-                
+
                 let norm_params = NormalizationParams {
                     mean,
                     std: std.max(1e-8), // Prevent division by zero
                     min,
                     max,
                 };
-                
-                self.feature_extractor.normalization_params.insert(
-                    feature_name.to_string(), 
-                    norm_params
-                );
+
+                self.feature_extractor
+                    .normalization_params
+                    .insert(feature_name.to_string(), norm_params);
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Train decision tree component using gradient boosting simulation
-    async fn train_decision_tree(&mut self, training_data: &[TrainingDataPoint]) -> Result<(), Box<dyn std::error::Error>> {
+    async fn train_decision_tree(
+        &mut self,
+        training_data: &[TrainingDataPoint],
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Simulate decision tree training with gradient boosting
         // In real implementation, this would:
         // 1. Build multiple weak learners (decision stumps)
         // 2. Calculate gradients and fit to residuals
         // 3. Combine weak learners with weighted voting
-        
+
         let mut nodes = Vec::new();
         let mut feature_importance = HashMap::new();
-        
+
         // Create simple decision tree structure
-        for (i, feature_name) in ["cpu_utilization", "memory_utilization", "gpu_utilization"].iter().enumerate() {
+        for (i, feature_name) in ["cpu_utilization", "memory_utilization", "gpu_utilization"]
+            .iter()
+            .enumerate()
+        {
             let threshold = 0.7; // Simple threshold for demonstration
-            
+
             let node = DecisionNode {
                 feature_index: i,
                 threshold,
                 left_child: None,
                 right_child: None,
                 prediction: Some(if threshold > 0.7 {
-                    ScalingAction::ScaleUp { factor: 1.2, target_instances: 3 }
+                    ScalingAction::ScaleUp {
+                        factor: 1.2,
+                        target_instances: 3,
+                    }
                 } else {
                     ScalingAction::Maintain
                 }),
                 samples: training_data.len(),
                 impurity: 0.3, // Simplified impurity measure
             };
-            
+
             nodes.push(node);
             feature_importance.insert(feature_name.to_string(), 0.8 - (i as f32 * 0.2));
         }
-        
+
         self.decision_tree.nodes = nodes;
         self.decision_tree.feature_importance = feature_importance;
-        
+
         Ok(())
     }
 }
@@ -689,16 +754,19 @@ pub struct ScalerConfig {
 }
 
 impl MultiGpuScalingEngine {
-    pub async fn new(gpu_count: usize, config: ScalerConfig) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new(
+        gpu_count: usize,
+        config: ScalerConfig,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut gpu_predictors = Vec::new();
-        
+
         // Create predictive scaler for each GPU
         for gpu_id in 0..gpu_count {
             let device = Device::cuda_if_available(gpu_id)?;
             let scaler = Arc::new(PredictiveScaler::new(device, config.clone()).await?);
             gpu_predictors.push(scaler);
         }
-        
+
         // Initialize consensus engine
         let consensus_engine = Arc::new(RwLock::new(ConsensusEngine {
             voting_threshold: 0.6, // 60% agreement required
@@ -706,7 +774,7 @@ impl MultiGpuScalingEngine {
             decision_history: VecDeque::new(),
             disagreement_threshold: 0.3,
         }));
-        
+
         // Initialize global resource monitor
         let global_resource_monitor = Arc::new(RwLock::new(GlobalResourceMonitor {
             regions: HashMap::new(),
@@ -714,7 +782,7 @@ impl MultiGpuScalingEngine {
             update_interval: Duration::from_seconds(30),
             last_update: Instant::now(),
         }));
-        
+
         // Initialize scaling coordinator
         let scaling_coordinator = Arc::new(RwLock::new(ScalingCoordinator {
             active_scaling_operations: HashMap::new(),
@@ -722,7 +790,7 @@ impl MultiGpuScalingEngine {
             max_concurrent_operations: 5,
             operation_timeout: Duration::from_minutes(10),
         }));
-        
+
         Ok(Self {
             gpu_predictors,
             consensus_engine,
@@ -731,31 +799,36 @@ impl MultiGpuScalingEngine {
         })
     }
 
-    pub async fn predict_global_scaling(&self, region_metrics: HashMap<String, FeatureSnapshot>) -> Result<HashMap<String, Vec<ResourcePrediction>>, Box<dyn std::error::Error>> {
+    pub async fn predict_global_scaling(
+        &self,
+        region_metrics: HashMap<String, FeatureSnapshot>,
+    ) -> Result<HashMap<String, Vec<ResourcePrediction>>, Box<dyn std::error::Error>> {
         let mut global_predictions = HashMap::new();
-        
+
         // Distribute regions across GPUs for parallel processing
         let gpu_count = self.gpu_predictors.len();
         let regions: Vec<_> = region_metrics.keys().cloned().collect();
-        
+
         for (i, region) in regions.iter().enumerate() {
             let gpu_idx = i % gpu_count;
             let predictor = &self.gpu_predictors[gpu_idx];
-            
+
             if let Some(metrics) = region_metrics.get(region) {
                 // Get predictions from this GPU
                 let predictions = predictor.predict_scaling_needs(metrics).await?;
-                
+
                 // Apply region-specific adjustments
-                let adjusted_predictions = self.adjust_predictions_for_region(region, predictions).await?;
-                
+                let adjusted_predictions = self
+                    .adjust_predictions_for_region(region, predictions)
+                    .await?;
+
                 global_predictions.insert(region.clone(), adjusted_predictions);
             }
         }
-        
+
         // Apply consensus mechanism across GPU predictions
         let consensus_predictions = self.apply_consensus(global_predictions).await?;
-        
+
         // Update consensus engine history
         {
             let mut consensus = self.consensus_engine.write().await;
@@ -765,83 +838,95 @@ impl MultiGpuScalingEngine {
                 agreement_score: 0.85, // Simulated agreement score
                 final_predictions: consensus_predictions.clone(),
             };
-            
+
             consensus.decision_history.push_back(decision);
-            
+
             // Keep only recent decisions
             while consensus.decision_history.len() > 100 {
                 consensus.decision_history.pop_front();
             }
         }
-        
+
         Ok(consensus_predictions)
     }
 
-    pub async fn coordinate_scaling_actions(&self, predictions: HashMap<String, Vec<ResourcePrediction>>) -> Result<Vec<ScalingEvent>, Box<dyn std::error::Error>> {
+    pub async fn coordinate_scaling_actions(
+        &self,
+        predictions: HashMap<String, Vec<ResourcePrediction>>,
+    ) -> Result<Vec<ScalingEvent>, Box<dyn std::error::Error>> {
         let mut scaling_events = Vec::new();
         let mut coordinator = self.scaling_coordinator.write().await;
-        
+
         // Check if we can execute more scaling operations
         if coordinator.active_scaling_operations.len() >= coordinator.max_concurrent_operations {
             return Ok(scaling_events); // Too many concurrent operations
         }
-        
+
         // Prioritize scaling actions by urgency
         let mut priority_queue = Vec::new();
-        
+
         for (region, region_predictions) in predictions {
             for prediction in region_predictions {
                 priority_queue.push((region.clone(), prediction));
             }
         }
-        
+
         // Sort by urgency score (highest first)
-        priority_queue.sort_by(|a, b| b.1.urgency_score.partial_cmp(&a.1.urgency_score).unwrap_or(std::cmp::Ordering::Equal));
-        
+        priority_queue.sort_by(|a, b| {
+            b.1.urgency_score
+                .partial_cmp(&a.1.urgency_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         // Execute scaling actions up to the limit
-        let remaining_slots = coordinator.max_concurrent_operations - coordinator.active_scaling_operations.len();
-        
+        let remaining_slots =
+            coordinator.max_concurrent_operations - coordinator.active_scaling_operations.len();
+
         for (region, prediction) in priority_queue.into_iter().take(remaining_slots) {
             // Check for conflicts with existing operations
             if coordinator.active_scaling_operations.contains_key(&region) {
                 continue; // Skip if region already has ongoing operation
             }
-            
+
             // Select appropriate GPU predictor for this region
-            let gpu_idx = region.chars().map(|c| c as usize).sum::<usize>() % self.gpu_predictors.len();
+            let gpu_idx =
+                region.chars().map(|c| c as usize).sum::<usize>() % self.gpu_predictors.len();
             let predictor = &self.gpu_predictors[gpu_idx];
-            
+
             // Execute scaling action
             match predictor.execute_scaling_action(&prediction).await {
                 Ok(event) => {
                     // Record active operation
                     let operation_id = uuid::Uuid::new_v4().to_string();
                     coordinator.active_scaling_operations.insert(
-                        region.clone(), 
+                        region.clone(),
                         ActiveScalingOperation {
                             id: operation_id.clone(),
                             start_time: Instant::now(),
                             timeout: coordinator.operation_timeout,
                             status: ScalingOperationStatus::InProgress,
                             resource_type: prediction.resource_type.clone(),
-                        }
+                        },
                     );
-                    
+
                     scaling_events.push(event);
-                },
+                }
                 Err(e) => {
                     // Log error and continue with other operations
-                    eprintln!("Failed to execute scaling action for region {}: {}", region, e);
+                    eprintln!(
+                        "Failed to execute scaling action for region {}: {}",
+                        region, e
+                    );
                 }
             }
         }
-        
+
         // Clean up completed operations (simplified)
         let now = Instant::now();
-        coordinator.active_scaling_operations.retain(|_, op| {
-            now.duration_since(op.start_time) < op.timeout
-        });
-        
+        coordinator
+            .active_scaling_operations
+            .retain(|_, op| now.duration_since(op.start_time) < op.timeout);
+
         Ok(scaling_events)
     }
 }
@@ -864,20 +949,32 @@ mod tests {
             training_batch_size: 32,
             learning_rate: 0.001,
         };
-        
-        let scaler = PredictiveScaler::new(device, config).await
+
+        let scaler = PredictiveScaler::new(device, config)
+            .await
             .expect("Should initialize predictive scaler");
-        
+
         // Verify LSTM model architecture
-        assert!(scaler.lstm_model.hidden_size > 0, "LSTM should have positive hidden size");
-        assert!(scaler.lstm_model.num_layers > 0, "LSTM should have at least one layer");
-        
+        assert!(
+            scaler.lstm_model.hidden_size > 0,
+            "LSTM should have positive hidden size"
+        );
+        assert!(
+            scaler.lstm_model.num_layers > 0,
+            "LSTM should have at least one layer"
+        );
+
         // Verify decision tree is initialized
-        assert!(scaler.decision_tree.max_depth > 0, "Decision tree should have maximum depth");
-        
+        assert!(
+            scaler.decision_tree.max_depth > 0,
+            "Decision tree should have maximum depth"
+        );
+
         // Verify feature extractor
-        assert!(scaler.feature_extractor.time_window > Duration::from_secs(0), 
-                "Feature extractor should have positive time window");
+        assert!(
+            scaler.feature_extractor.time_window > Duration::from_secs(0),
+            "Feature extractor should have positive time window"
+        );
     }
 
     /// Test ML-based scaling prediction
@@ -893,10 +990,11 @@ mod tests {
             training_batch_size: 16,
             learning_rate: 0.01,
         };
-        
-        let scaler = PredictiveScaler::new(device, config).await
+
+        let scaler = PredictiveScaler::new(device, config)
+            .await
             .expect("Should initialize predictive scaler");
-        
+
         // Create current metrics
         let current_metrics = FeatureSnapshot {
             cpu_utilization: 0.75,
@@ -914,32 +1012,51 @@ mod tests {
             volatility: 0.3,
             timestamp: SystemTime::now(),
         };
-        
+
         // Get scaling predictions
-        let predictions = scaler.predict_scaling_needs(&current_metrics).await
+        let predictions = scaler
+            .predict_scaling_needs(&current_metrics)
+            .await
             .expect("Should predict scaling needs");
-        
-        assert!(!predictions.is_empty(), "Should generate scaling predictions");
-        
+
+        assert!(
+            !predictions.is_empty(),
+            "Should generate scaling predictions"
+        );
+
         for prediction in predictions {
-            assert!(prediction.predicted_utilization >= 0.0 && prediction.predicted_utilization <= 1.0,
-                    "Predicted utilization should be between 0 and 1");
-            assert!(prediction.confidence >= 0.0 && prediction.confidence <= 1.0,
-                    "Confidence should be between 0 and 1");
-            assert!(prediction.time_horizon > Duration::from_secs(0),
-                    "Time horizon should be positive");
-            assert!(prediction.urgency_score >= 0.0 && prediction.urgency_score <= 1.0,
-                    "Urgency score should be between 0 and 1");
-            
+            assert!(
+                prediction.predicted_utilization >= 0.0 && prediction.predicted_utilization <= 1.0,
+                "Predicted utilization should be between 0 and 1"
+            );
+            assert!(
+                prediction.confidence >= 0.0 && prediction.confidence <= 1.0,
+                "Confidence should be between 0 and 1"
+            );
+            assert!(
+                prediction.time_horizon > Duration::from_secs(0),
+                "Time horizon should be positive"
+            );
+            assert!(
+                prediction.urgency_score >= 0.0 && prediction.urgency_score <= 1.0,
+                "Urgency score should be between 0 and 1"
+            );
+
             match prediction.recommended_action {
-                ScalingAction::ScaleUp { factor, target_instances } => {
+                ScalingAction::ScaleUp {
+                    factor,
+                    target_instances,
+                } => {
                     assert!(factor > 1.0, "Scale up factor should be > 1.0");
                     assert!(target_instances > 0, "Target instances should be positive");
-                },
-                ScalingAction::ScaleDown { factor, target_instances } => {
+                }
+                ScalingAction::ScaleDown {
+                    factor,
+                    target_instances,
+                } => {
                     assert!(factor < 1.0, "Scale down factor should be < 1.0");
                     assert!(target_instances > 0, "Target instances should be positive");
-                },
+                }
                 _ => {} // Other actions are valid
             }
         }
@@ -958,24 +1075,25 @@ mod tests {
             training_batch_size: 8,
             learning_rate: 0.05,
         };
-        
-        let mut scaler = PredictiveScaler::new(device, config).await
+
+        let mut scaler = PredictiveScaler::new(device, config)
+            .await
             .expect("Should initialize predictive scaler");
-        
+
         // Generate training data with temporal patterns
         let mut training_data = Vec::new();
         let mut rng = thread_rng();
         let base_time = SystemTime::now() - Duration::from_days(30);
-        
+
         for i in 0..1000 {
             let timestamp = base_time + Duration::from_hours(i);
             let hour_of_day = (i % 24) as f32 / 24.0;
-            
+
             // Simulate daily load patterns
             let base_load = 0.3 + 0.4 * (hour_of_day * 2.0 * std::f32::consts::PI).sin();
             let noise = rng.gen_range(-0.1..0.1);
             let load = (base_load + noise).clamp(0.0, 1.0);
-            
+
             let features = FeatureSnapshot {
                 cpu_utilization: load,
                 memory_utilization: load * 0.8,
@@ -992,20 +1110,26 @@ mod tests {
                 volatility: rng.gen_range(0.1..0.5),
                 timestamp,
             };
-            
+
             let mut actual_utilization = HashMap::new();
             actual_utilization.insert(ResourceType::CPU, load);
             actual_utilization.insert(ResourceType::Memory, load * 0.8);
             actual_utilization.insert(ResourceType::GPU, load * 1.2);
-            
+
             let scaling_action = if load > 0.8 {
-                Some(ScalingAction::ScaleUp { factor: 1.5, target_instances: 10 })
+                Some(ScalingAction::ScaleUp {
+                    factor: 1.5,
+                    target_instances: 10,
+                })
             } else if load < 0.3 {
-                Some(ScalingAction::ScaleDown { factor: 0.7, target_instances: 3 })
+                Some(ScalingAction::ScaleDown {
+                    factor: 0.7,
+                    target_instances: 3,
+                })
             } else {
                 Some(ScalingAction::Maintain)
             };
-            
+
             training_data.push(TrainingDataPoint {
                 timestamp,
                 features,
@@ -1015,17 +1139,27 @@ mod tests {
                 performance_impact: rng.gen_range(-0.1..0.1),
             });
         }
-        
+
         // Train the models
-        let performance = scaler.train_models(training_data).await
+        let performance = scaler
+            .train_models(training_data)
+            .await
             .expect("Should train ML models");
-        
+
         // Verify training performance
         assert!(performance.accuracy > 0.6, "Should achieve >60% accuracy");
-        assert!(performance.total_predictions > 0, "Should make predictions during training");
-        assert!(performance.training_time < Duration::from_secs(120), "Training should complete in <2 minutes");
-        assert!(performance.prediction_latency < Duration::from_millis(100), 
-                "Prediction latency should be <100ms");
+        assert!(
+            performance.total_predictions > 0,
+            "Should make predictions during training"
+        );
+        assert!(
+            performance.training_time < Duration::from_secs(120),
+            "Training should complete in <2 minutes"
+        );
+        assert!(
+            performance.prediction_latency < Duration::from_millis(100),
+            "Prediction latency should be <100ms"
+        );
     }
 
     /// Test predictive scaling execution
@@ -1041,37 +1175,56 @@ mod tests {
             training_batch_size: 8,
             learning_rate: 0.01,
         };
-        
-        let scaler = PredictiveScaler::new(device, config).await
+
+        let scaler = PredictiveScaler::new(device, config)
+            .await
             .expect("Should initialize predictive scaler");
-        
+
         // Create scaling prediction
         let prediction = ResourcePrediction {
             resource_type: ResourceType::CPU,
             predicted_utilization: 0.9,
             confidence: 0.8,
             time_horizon: Duration::from_minutes(10),
-            recommended_action: ScalingAction::ScaleUp { factor: 2.0, target_instances: 8 },
+            recommended_action: ScalingAction::ScaleUp {
+                factor: 2.0,
+                target_instances: 8,
+            },
             urgency_score: 0.7,
             cost_estimate: 150.0,
             created_at: Instant::now(),
         };
-        
+
         // Execute scaling action
-        let scaling_event = scaler.execute_scaling_action(&prediction).await
+        let scaling_event = scaler
+            .execute_scaling_action(&prediction)
+            .await
             .expect("Should execute scaling action");
-        
+
         // Verify scaling event
-        assert_eq!(scaling_event.resource_type, ResourceType::CPU, "Should scale correct resource");
-        assert_eq!(scaling_event.predicted_load, 0.9, "Should record predicted load");
+        assert_eq!(
+            scaling_event.resource_type,
+            ResourceType::CPU,
+            "Should scale correct resource"
+        );
+        assert_eq!(
+            scaling_event.predicted_load, 0.9,
+            "Should record predicted load"
+        );
         assert!(scaling_event.success, "Scaling action should succeed");
-        assert!(scaling_event.latency < Duration::from_secs(30), "Should complete scaling quickly");
-        
+        assert!(
+            scaling_event.latency < Duration::from_secs(30),
+            "Should complete scaling quickly"
+        );
+
         match scaling_event.action {
-            ScalingAction::ScaleUp { factor, target_instances } => {
+            ScalingAction::ScaleUp {
+                factor,
+                target_instances,
+            } => {
                 assert_eq!(factor, 2.0, "Should use correct scaling factor");
                 assert_eq!(target_instances, 8, "Should target correct instance count");
-            },
+            }
             _ => panic!("Should execute scale up action"),
         }
     }
@@ -1089,15 +1242,16 @@ mod tests {
             training_batch_size: 16,
             learning_rate: 0.001,
         };
-        
-        let scaler = PredictiveScaler::new(device, config).await
+
+        let scaler = PredictiveScaler::new(device, config)
+            .await
             .expect("Should initialize predictive scaler");
-        
+
         // Create metrics showing resource imbalance
         let current_metrics = FeatureSnapshot {
-            cpu_utilization: 0.9,  // High CPU usage
-            memory_utilization: 0.4, // Low memory usage
-            gpu_utilization: 0.95, // Very high GPU usage
+            cpu_utilization: 0.9,     // High CPU usage
+            memory_utilization: 0.4,  // Low memory usage
+            gpu_utilization: 0.95,    // Very high GPU usage
             network_throughput: 80.0, // High network
             active_connections: 2000,
             request_rate: 500.0,
@@ -1110,36 +1264,58 @@ mod tests {
             volatility: 0.8,         // High volatility
             timestamp: SystemTime::now(),
         };
-        
+
         // Get multi-dimensional predictions
-        let predictions = scaler.predict_scaling_needs(&current_metrics).await
+        let predictions = scaler
+            .predict_scaling_needs(&current_metrics)
+            .await
             .expect("Should predict scaling needs");
-        
+
         // Should predict scaling for multiple resource types
-        let resource_types: std::collections::HashSet<ResourceType> = predictions.iter()
+        let resource_types: std::collections::HashSet<ResourceType> = predictions
+            .iter()
             .map(|p| p.resource_type.clone())
             .collect();
-        
-        assert!(resource_types.len() >= 2, "Should predict scaling for multiple resource types");
-        assert!(resource_types.contains(&ResourceType::CPU), "Should predict CPU scaling");
-        assert!(resource_types.contains(&ResourceType::GPU), "Should predict GPU scaling");
-        
+
+        assert!(
+            resource_types.len() >= 2,
+            "Should predict scaling for multiple resource types"
+        );
+        assert!(
+            resource_types.contains(&ResourceType::CPU),
+            "Should predict CPU scaling"
+        );
+        assert!(
+            resource_types.contains(&ResourceType::GPU),
+            "Should predict GPU scaling"
+        );
+
         // Verify CPU and GPU predictions have high urgency
-        let cpu_prediction = predictions.iter().find(|p| p.resource_type == ResourceType::CPU);
-        let gpu_prediction = predictions.iter().find(|p| p.resource_type == ResourceType::GPU);
-        
+        let cpu_prediction = predictions
+            .iter()
+            .find(|p| p.resource_type == ResourceType::CPU);
+        let gpu_prediction = predictions
+            .iter()
+            .find(|p| p.resource_type == ResourceType::GPU);
+
         if let Some(cpu_pred) = cpu_prediction {
-            assert!(cpu_pred.urgency_score > 0.5, "CPU scaling should have high urgency");
+            assert!(
+                cpu_pred.urgency_score > 0.5,
+                "CPU scaling should have high urgency"
+            );
             match &cpu_pred.recommended_action {
-                ScalingAction::ScaleUp { .. } => {},
+                ScalingAction::ScaleUp { .. } => {}
                 _ => panic!("Should recommend CPU scale up"),
             }
         }
-        
+
         if let Some(gpu_pred) = gpu_prediction {
-            assert!(gpu_pred.urgency_score > 0.7, "GPU scaling should have very high urgency");
+            assert!(
+                gpu_pred.urgency_score > 0.7,
+                "GPU scaling should have very high urgency"
+            );
             match &gpu_pred.recommended_action {
-                ScalingAction::ScaleUp { .. } => {},
+                ScalingAction::ScaleUp { .. } => {}
                 _ => panic!("Should recommend GPU scale up"),
             }
         }
@@ -1158,47 +1334,67 @@ mod tests {
             training_batch_size: 16,
             learning_rate: 0.01,
         };
-        
-        let engine = MultiGpuScalingEngine::new(gpu_count, config).await
+
+        let engine = MultiGpuScalingEngine::new(gpu_count, config)
+            .await
             .expect("Should initialize multi-GPU scaling engine");
-        
-        assert_eq!(engine.gpu_predictors.len(), gpu_count, "Should have predictor for each GPU");
-        
+
+        assert_eq!(
+            engine.gpu_predictors.len(),
+            gpu_count,
+            "Should have predictor for each GPU"
+        );
+
         // Create regional metrics
         let mut region_metrics = HashMap::new();
         let mut rng = thread_rng();
-        
+
         for region in ["us-west-1", "us-east-1", "eu-central-1", "ap-southeast-1"] {
-            region_metrics.insert(region.to_string(), FeatureSnapshot {
-                cpu_utilization: rng.gen_range(0.3..0.9),
-                memory_utilization: rng.gen_range(0.4..0.8),
-                gpu_utilization: rng.gen_range(0.5..0.95),
-                network_throughput: rng.gen_range(20.0..100.0),
-                active_connections: rng.gen_range(500..3000),
-                request_rate: rng.gen_range(50.0..500.0),
-                response_latency: rng.gen_range(0.01..0.15),
-                error_rate: rng.gen_range(0.0..0.05),
-                time_of_day: rng.gen_range(0.0..1.0),
-                day_of_week: rng.gen_range(1..8),
-                seasonal_factor: rng.gen_range(0.8..1.2),
-                trending_direction: rng.gen_range(-0.3..0.3),
-                volatility: rng.gen_range(0.1..0.6),
-                timestamp: SystemTime::now(),
-            });
+            region_metrics.insert(
+                region.to_string(),
+                FeatureSnapshot {
+                    cpu_utilization: rng.gen_range(0.3..0.9),
+                    memory_utilization: rng.gen_range(0.4..0.8),
+                    gpu_utilization: rng.gen_range(0.5..0.95),
+                    network_throughput: rng.gen_range(20.0..100.0),
+                    active_connections: rng.gen_range(500..3000),
+                    request_rate: rng.gen_range(50.0..500.0),
+                    response_latency: rng.gen_range(0.01..0.15),
+                    error_rate: rng.gen_range(0.0..0.05),
+                    time_of_day: rng.gen_range(0.0..1.0),
+                    day_of_week: rng.gen_range(1..8),
+                    seasonal_factor: rng.gen_range(0.8..1.2),
+                    trending_direction: rng.gen_range(-0.3..0.3),
+                    volatility: rng.gen_range(0.1..0.6),
+                    timestamp: SystemTime::now(),
+                },
+            );
         }
-        
+
         // Test global scaling prediction
-        let global_predictions = engine.predict_global_scaling(region_metrics).await
+        let global_predictions = engine
+            .predict_global_scaling(region_metrics)
+            .await
             .expect("Should predict global scaling needs");
-        
-        assert_eq!(global_predictions.len(), 4, "Should have predictions for all regions");
-        
+
+        assert_eq!(
+            global_predictions.len(),
+            4,
+            "Should have predictions for all regions"
+        );
+
         for (region, predictions) in global_predictions.iter() {
-            assert!(!predictions.is_empty(), "Each region should have predictions");
-            
+            assert!(
+                !predictions.is_empty(),
+                "Each region should have predictions"
+            );
+
             for prediction in predictions {
                 assert!(prediction.confidence >= 0.0 && prediction.confidence <= 1.0);
-                assert!(prediction.predicted_utilization >= 0.0 && prediction.predicted_utilization <= 1.0);
+                assert!(
+                    prediction.predicted_utilization >= 0.0
+                        && prediction.predicted_utilization <= 1.0
+                );
             }
         }
     }
@@ -1216,10 +1412,11 @@ mod tests {
             training_batch_size: 8,
             learning_rate: 0.02,
         };
-        
-        let engine = MultiGpuScalingEngine::new(gpu_count, config).await
+
+        let engine = MultiGpuScalingEngine::new(gpu_count, config)
+            .await
             .expect("Should initialize multi-GPU scaling engine");
-        
+
         // Create consistent metrics across regions
         let mut region_metrics = HashMap::new();
         let base_metrics = FeatureSnapshot {
@@ -1238,31 +1435,45 @@ mod tests {
             volatility: 0.4,
             timestamp: SystemTime::now(),
         };
-        
+
         region_metrics.insert("us-west-1".to_string(), base_metrics.clone());
         region_metrics.insert("us-east-1".to_string(), base_metrics);
-        
+
         // Get global predictions
-        let global_predictions = engine.predict_global_scaling(region_metrics.clone()).await
+        let global_predictions = engine
+            .predict_global_scaling(region_metrics.clone())
+            .await
             .expect("Should predict global scaling");
-        
+
         // Coordinate scaling actions
-        let scaling_events = engine.coordinate_scaling_actions(global_predictions).await
+        let scaling_events = engine
+            .coordinate_scaling_actions(global_predictions)
+            .await
             .expect("Should coordinate scaling actions");
-        
+
         assert!(!scaling_events.is_empty(), "Should generate scaling events");
-        
+
         // Verify consistency across regions
-        let scale_up_events: Vec<_> = scaling_events.iter()
+        let scale_up_events: Vec<_> = scaling_events
+            .iter()
             .filter(|e| matches!(e.action, ScalingAction::ScaleUp { .. }))
             .collect();
-        
-        assert!(!scale_up_events.is_empty(), "Should generate scale up events for high load");
-        
+
+        assert!(
+            !scale_up_events.is_empty(),
+            "Should generate scale up events for high load"
+        );
+
         for event in scaling_events {
             assert!(event.success, "Coordinated scaling should succeed");
-            assert!(event.latency < Duration::from_secs(60), "Scaling should complete quickly");
-            assert!(event.predicted_load > 0.8, "Should scale for high predicted load");
+            assert!(
+                event.latency < Duration::from_secs(60),
+                "Scaling should complete quickly"
+            );
+            assert!(
+                event.predicted_load > 0.8,
+                "Should scale for high predicted load"
+            );
         }
     }
 
@@ -1279,14 +1490,15 @@ mod tests {
             training_batch_size: 8,
             learning_rate: 0.01,
         };
-        
-        let mut scaler = PredictiveScaler::new(device, config).await
+
+        let mut scaler = PredictiveScaler::new(device, config)
+            .await
             .expect("Should initialize predictive scaler");
-        
+
         // Generate diverse feature snapshots
         let mut features = Vec::new();
         let mut rng = thread_rng();
-        
+
         for _ in 0..1000 {
             features.push(FeatureSnapshot {
                 cpu_utilization: rng.gen_range(0.0..1.0),
@@ -1305,19 +1517,37 @@ mod tests {
                 timestamp: SystemTime::now(),
             });
         }
-        
+
         // Update normalization parameters
-        scaler.update_feature_normalization(&features).await
+        scaler
+            .update_feature_normalization(&features)
+            .await
             .expect("Should update feature normalization");
-        
+
         // Verify normalization parameters are reasonable
         let norm_params = &scaler.feature_extractor.normalization_params;
-        
+
         for (feature_name, params) in norm_params {
-            assert!(params.std > 0.0, "Standard deviation should be positive for {}", feature_name);
-            assert!(params.max > params.min, "Max should be greater than min for {}", feature_name);
-            assert!(!params.mean.is_nan(), "Mean should not be NaN for {}", feature_name);
-            assert!(!params.std.is_nan(), "Std should not be NaN for {}", feature_name);
+            assert!(
+                params.std > 0.0,
+                "Standard deviation should be positive for {}",
+                feature_name
+            );
+            assert!(
+                params.max > params.min,
+                "Max should be greater than min for {}",
+                feature_name
+            );
+            assert!(
+                !params.mean.is_nan(),
+                "Mean should not be NaN for {}",
+                feature_name
+            );
+            assert!(
+                !params.std.is_nan(),
+                "Std should not be NaN for {}",
+                feature_name
+            );
         }
     }
 
@@ -1334,20 +1564,21 @@ mod tests {
             training_batch_size: 4,
             learning_rate: 0.1, // High learning rate for fast adaptation
         };
-        
-        let scaler = PredictiveScaler::new(device, config).await
+
+        let scaler = PredictiveScaler::new(device, config)
+            .await
             .expect("Should initialize predictive scaler");
-        
+
         // Create emergency scenario - system overload
         let emergency_metrics = FeatureSnapshot {
-            cpu_utilization: 0.98,  // Near 100% CPU
-            memory_utilization: 0.95, // Near 100% memory
-            gpu_utilization: 0.99,  // Near 100% GPU
+            cpu_utilization: 0.98,     // Near 100% CPU
+            memory_utilization: 0.95,  // Near 100% memory
+            gpu_utilization: 0.99,     // Near 100% GPU
             network_throughput: 200.0, // Network saturated
             active_connections: 10000, // Very high connections
-            request_rate: 2000.0,   // Request storm
-            response_latency: 5.0,  // Very high latency
-            error_rate: 0.25,       // 25% error rate
+            request_rate: 2000.0,      // Request storm
+            response_latency: 5.0,     // Very high latency
+            error_rate: 0.25,          // 25% error rate
             time_of_day: 0.5,
             day_of_week: 3,
             seasonal_factor: 1.0,
@@ -1355,40 +1586,58 @@ mod tests {
             volatility: 1.0,         // Maximum volatility
             timestamp: SystemTime::now(),
         };
-        
+
         // Get emergency scaling predictions
-        let predictions = scaler.predict_scaling_needs(&emergency_metrics).await
+        let predictions = scaler
+            .predict_scaling_needs(&emergency_metrics)
+            .await
             .expect("Should predict emergency scaling");
-        
+
         // Verify emergency responses
-        let emergency_predictions: Vec<_> = predictions.iter()
+        let emergency_predictions: Vec<_> = predictions
+            .iter()
             .filter(|p| matches!(p.recommended_action, ScalingAction::Emergency { .. }))
             .collect();
-        
-        assert!(!emergency_predictions.is_empty(), "Should trigger emergency scaling");
-        
+
+        assert!(
+            !emergency_predictions.is_empty(),
+            "Should trigger emergency scaling"
+        );
+
         for prediction in predictions.iter() {
-            assert!(prediction.urgency_score > 0.8, "All predictions should have high urgency");
-            
+            assert!(
+                prediction.urgency_score > 0.8,
+                "All predictions should have high urgency"
+            );
+
             match &prediction.recommended_action {
                 ScalingAction::Emergency { reason } => {
                     assert!(!reason.is_empty(), "Emergency action should have reason");
-                },
+                }
                 ScalingAction::ScaleUp { factor, .. } => {
                     assert!(factor >= 2.0, "Emergency scale up should be aggressive");
-                },
+                }
                 _ => {} // Other actions acceptable
             }
         }
-        
+
         // Execute emergency scaling
-        for prediction in predictions.iter().take(3) { // Limit to avoid overwhelming system
-            let event = scaler.execute_scaling_action(prediction).await
+        for prediction in predictions.iter().take(3) {
+            // Limit to avoid overwhelming system
+            let event = scaler
+                .execute_scaling_action(prediction)
+                .await
                 .expect("Should execute emergency scaling");
-            
-            assert!(event.latency < Duration::from_secs(10), "Emergency scaling should be fast");
-            assert!(event.trigger_reason.contains("emergency") || event.trigger_reason.contains("overload"),
-                    "Should identify emergency condition");
+
+            assert!(
+                event.latency < Duration::from_secs(10),
+                "Emergency scaling should be fast"
+            );
+            assert!(
+                event.trigger_reason.contains("emergency")
+                    || event.trigger_reason.contains("overload"),
+                "Should identify emergency condition"
+            );
         }
     }
 
@@ -1405,16 +1654,17 @@ mod tests {
             training_batch_size: 4,
             learning_rate: 0.05,
         };
-        
-        let scaler = PredictiveScaler::new(device, config).await
+
+        let scaler = PredictiveScaler::new(device, config)
+            .await
             .expect("Should initialize predictive scaler");
-        
+
         let mut rng = thread_rng();
-        
+
         // Test concurrent prediction performance
         let start_time = Instant::now();
         let mut tasks = Vec::new();
-        
+
         for _ in 0..100 {
             let scaler_clone = scaler.clone();
             let metrics = FeatureSnapshot {
@@ -1433,30 +1683,39 @@ mod tests {
                 volatility: rng.gen_range(0.1..0.7),
                 timestamp: SystemTime::now(),
             };
-            
-            let task = tokio::spawn(async move {
-                scaler_clone.predict_scaling_needs(&metrics).await
-            });
+
+            let task =
+                tokio::spawn(async move { scaler_clone.predict_scaling_needs(&metrics).await });
             tasks.push(task);
         }
-        
+
         // Wait for all predictions
         let results: Vec<_> = futures::future::join_all(tasks).await;
         let duration = start_time.elapsed();
-        
+
         // Verify performance
-        assert!(duration < Duration::from_secs(30), "Should handle 100 predictions in <30 seconds");
-        
-        let successful_predictions = results.iter()
+        assert!(
+            duration < Duration::from_secs(30),
+            "Should handle 100 predictions in <30 seconds"
+        );
+
+        let successful_predictions = results
+            .iter()
             .filter(|r| r.is_ok() && r.as_ref().unwrap().is_ok())
             .count();
-        assert!(successful_predictions >= 95, "Should successfully predict ≥95% of cases");
-        
+        assert!(
+            successful_predictions >= 95,
+            "Should successfully predict ≥95% of cases"
+        );
+
         // Verify prediction quality
         for result in results.iter().take(10) {
             if let Ok(Ok(predictions)) = result {
                 for prediction in predictions {
-                    assert!(prediction.predicted_utilization >= 0.0 && prediction.predicted_utilization <= 1.0);
+                    assert!(
+                        prediction.predicted_utilization >= 0.0
+                            && prediction.predicted_utilization <= 1.0
+                    );
                     assert!(prediction.confidence >= 0.0 && prediction.confidence <= 1.0);
                     assert!(prediction.urgency_score >= 0.0 && prediction.urgency_score <= 1.0);
                 }

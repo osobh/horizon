@@ -230,8 +230,7 @@ impl BuildMetricsCollector {
 
         // Duration stats
         stats.total_build_time_seconds += record.duration_seconds;
-        stats.avg_duration_seconds =
-            stats.total_build_time_seconds / stats.total_builds as f64;
+        stats.avg_duration_seconds = stats.total_build_time_seconds / stats.total_builds as f64;
 
         if stats.min_duration_seconds == 0.0 || record.duration_seconds < stats.min_duration_seconds
         {
@@ -296,8 +295,14 @@ impl BuildMetricsCollector {
             .collect();
 
         let total = recent.len();
-        let successful = recent.iter().filter(|r| r.status == BuildOutcome::Success).count();
-        let failed = recent.iter().filter(|r| r.status == BuildOutcome::Failed).count();
+        let successful = recent
+            .iter()
+            .filter(|r| r.status == BuildOutcome::Success)
+            .count();
+        let failed = recent
+            .iter()
+            .filter(|r| r.status == BuildOutcome::Failed)
+            .count();
 
         let total_duration: f64 = recent.iter().map(|r| r.duration_seconds).sum();
         let avg_duration = if total > 0 {
@@ -306,8 +311,14 @@ impl BuildMetricsCollector {
             0.0
         };
 
-        let cache_hits: u64 = recent.iter().map(|r| r.resource_usage.cache_hits as u64).sum();
-        let cache_misses: u64 = recent.iter().map(|r| r.resource_usage.cache_misses as u64).sum();
+        let cache_hits: u64 = recent
+            .iter()
+            .map(|r| r.resource_usage.cache_hits as u64)
+            .sum();
+        let cache_misses: u64 = recent
+            .iter()
+            .map(|r| r.resource_usage.cache_misses as u64)
+            .sum();
         let cache_hit_rate = if cache_hits + cache_misses > 0 {
             cache_hits as f64 / (cache_hits + cache_misses) as f64
         } else {

@@ -28,11 +28,7 @@ pub struct ReadyResponse {
 
 pub async fn ready(State(state): State<Arc<AppState>>) -> Result<Json<ReadyResponse>, StatusCode> {
     // Check if materialized views exist
-    let views_exist = state
-        .view_manager
-        .views_exist()
-        .await
-        .unwrap_or(false);
+    let views_exist = state.view_manager.views_exist().await.unwrap_or(false);
 
     let ready = views_exist;
 

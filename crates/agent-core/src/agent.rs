@@ -33,9 +33,10 @@ impl std::fmt::Display for AgentId {
 }
 
 /// Agent state
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum AgentState {
     /// Agent is initializing
+    #[default]
     Initializing,
     /// Agent is idle, waiting for goals
     Idle,
@@ -51,12 +52,6 @@ pub enum AgentState {
     ShuttingDown,
     /// Agent has terminated
     Terminated,
-}
-
-impl Default for AgentState {
-    fn default() -> Self {
-        Self::Initializing
-    }
 }
 
 impl AgentState {
@@ -397,15 +392,22 @@ impl Agent {
         }
 
         // Award XP based on goal outcome
-        let reward_key = if succeeded { "goal_completed" } else { "goal_failed" };
+        let reward_key = if succeeded {
+            "goal_completed"
+        } else {
+            "goal_failed"
+        };
         let xp_amount = self.get_xp_reward_amount(reward_key);
 
         // Award XP and handle any errors gracefully
-        if let Err(e) = self.award_xp(
-            xp_amount,
-            format!("Goal {}", if succeeded { "completed" } else { "failed" }),
-            "goal_completion".to_string(),
-        ).await {
+        if let Err(e) = self
+            .award_xp(
+                xp_amount,
+                format!("Goal {}", if succeeded { "completed" } else { "failed" }),
+                "goal_completion".to_string(),
+            )
+            .await
+        {
             // Log error but don't fail the stats update
             eprintln!("Failed to award XP for goal completion: {}", e);
         }
@@ -451,7 +453,7 @@ impl Agent {
     /// Award XP to the agent
     pub async fn award_xp(&self, amount: u64, reason: String, category: String) -> AgentResult<()> {
         let mut stats = self.stats.write().await;
-        
+
         // Create XP gain record
         let xp_record = XPGainRecord {
             amount,
@@ -478,6 +480,11 @@ impl Agent {
         stats.xp_history.push(xp_record);
         if stats.xp_history.len() > 100 {
             stats.xp_history.remove(0);
+            debug_assert!(
+                stats.xp_history.len() <= 100,
+                "XP history length {} exceeds max 100",
+                stats.xp_history.len()
+            );
         }
 
         Ok(())
@@ -509,6 +516,12 @@ impl Agent {
     fn check_evolution_readiness_internal(&self, stats: &AgentStats) -> bool {
         // Agent is ready to evolve if current XP meets the next level threshold
         let current_level = stats.level as usize;
+        debug_assert!(
+            current_level <= LEVEL_THRESHOLDS.len(),
+            "Level {} exceeds max level {}",
+            current_level,
+            LEVEL_THRESHOLDS.len()
+        );
         if current_level < LEVEL_THRESHOLDS.len() {
             stats.current_xp >= LEVEL_THRESHOLDS[current_level]
         } else {
@@ -519,14 +532,16 @@ impl Agent {
     /// Trigger evolution if ready
     pub async fn trigger_evolution(&self) -> AgentResult<EvolutionResult> {
         let mut stats = self.stats.write().await;
-        
+
         if !self.check_evolution_readiness_internal(&stats) {
-            return Err(AgentError::Other("Agent not ready for evolution".to_string()));
+            return Err(AgentError::Other(
+                "Agent not ready for evolution".to_string(),
+            ));
         }
 
         let previous_level = stats.level;
         let previous_metrics = self.calculate_current_metrics(&stats);
-        
+
         // Evolve to next level
         let new_level = self.calculate_level_from_xp(stats.current_xp);
         stats.level = new_level;
@@ -569,14 +584,10 @@ impl Agent {
     pub async fn get_xp_for_next_level(&self) -> u64 {
         let stats = self.stats.read().await;
         let current_level = stats.level as usize;
-        
+
         if current_level < LEVEL_THRESHOLDS.len() {
             let next_threshold = LEVEL_THRESHOLDS[current_level];
-            if stats.current_xp >= next_threshold {
-                0 // Already at or above threshold
-            } else {
-                next_threshold - stats.current_xp
-            }
+            next_threshold.saturating_sub(stats.current_xp)
         } else {
             0 // Max level reached
         }
@@ -586,7 +597,7 @@ impl Agent {
     fn calculate_current_metrics(&self, stats: &AgentStats) -> EvolutionMetrics {
         let avg_completion_time = if stats.goals_processed > 0 {
             std::time::Duration::from_secs(
-                stats.total_execution_time.as_secs() / stats.goals_processed
+                stats.total_execution_time.as_secs() / stats.goals_processed,
             )
         } else {
             std::time::Duration::from_secs(60) // Default 1 minute
@@ -607,12 +618,16 @@ impl Agent {
     }
 
     /// Calculate evolved performance metrics
-    fn calculate_evolved_metrics(&self, previous: &EvolutionMetrics, new_level: u32) -> EvolutionMetrics {
+    fn calculate_evolved_metrics(
+        &self,
+        previous: &EvolutionMetrics,
+        new_level: u32,
+    ) -> EvolutionMetrics {
         let level_multiplier = 1.0 + (new_level as f64 - 1.0) * 0.1; // 10% improvement per level
 
         EvolutionMetrics {
             avg_completion_time: std::time::Duration::from_secs(
-                (previous.avg_completion_time.as_secs() as f64 / level_multiplier) as u64
+                (previous.avg_completion_time.as_secs() as f64 / level_multiplier) as u64,
             ),
             success_rate: (previous.success_rate * level_multiplier).min(1.0),
             memory_efficiency: (previous.memory_efficiency * level_multiplier).min(1.0),
@@ -646,13 +661,20 @@ impl Agent {
     }
 
     /// Award XP for a specific reward type (convenience method)
-    pub async fn award_xp_for_action(&self, action: &str, custom_reason: Option<String>) -> AgentResult<()> {
+    pub async fn award_xp_for_action(
+        &self,
+        action: &str,
+        custom_reason: Option<String>,
+    ) -> AgentResult<()> {
         let xp_amount = self.get_xp_reward_amount(action);
         if xp_amount > 0 {
             let reason = custom_reason.unwrap_or_else(|| action.replace("_", " "));
             self.award_xp(xp_amount, reason, action.to_string()).await
         } else {
-            Err(AgentError::Other(format!("Unknown XP reward action: {}", action)))
+            Err(AgentError::Other(format!(
+                "Unknown XP reward action: {}",
+                action
+            )))
         }
     }
 }
@@ -837,7 +859,7 @@ mod tests {
         let config = AgentConfig {
             name: "CustomAgent".to_string(),
             agent_type: "custom".to_string(),
-            max_memory: 2048 * 1024 * 1024, // 2GB in bytes
+            max_memory: 2048 * 1024 * 1024,     // 2GB in bytes
             max_gpu_memory: 1024 * 1024 * 1024, // 1GB in bytes
             priority: 5,
             metadata: serde_json::json!({"custom": true}),
@@ -1137,7 +1159,10 @@ mod tests {
         assert_eq!(initial_stats.level, 1);
 
         // Award some XP
-        agent.award_xp(50, "Test reward".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(50, "Test reward".to_string(), "test".to_string())
+            .await
+            .unwrap();
 
         let stats = agent.stats().await;
         assert_eq!(stats.current_xp, 50);
@@ -1171,7 +1196,10 @@ mod tests {
         agent.initialize().await.unwrap();
 
         // Award XP to reach level 2
-        agent.award_xp(100, "Level up test".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(100, "Level up test".to_string(), "test".to_string())
+            .await
+            .unwrap();
 
         let stats = agent.stats().await;
         assert_eq!(stats.current_xp, 100);
@@ -1179,7 +1207,10 @@ mod tests {
         assert!(!stats.ready_to_evolve); // Not ready yet as we just reached threshold
 
         // Award more XP to make ready for evolution to level 3
-        agent.award_xp(150, "More XP".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(150, "More XP".to_string(), "test".to_string())
+            .await
+            .unwrap();
 
         let stats = agent.stats().await;
         assert_eq!(stats.current_xp, 250);
@@ -1196,11 +1227,17 @@ mod tests {
         assert!(!agent.check_evolution_readiness().await);
 
         // Award XP to reach level 2 threshold
-        agent.award_xp(100, "Test".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(100, "Test".to_string(), "test".to_string())
+            .await
+            .unwrap();
         assert!(agent.check_evolution_readiness().await);
 
         // Award more to reach level 3 threshold
-        agent.award_xp(150, "Test".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(150, "Test".to_string(), "test".to_string())
+            .await
+            .unwrap();
         assert!(agent.check_evolution_readiness().await);
     }
 
@@ -1214,7 +1251,10 @@ mod tests {
         assert!(result.is_err());
 
         // Award XP to reach level 2 threshold
-        agent.award_xp(100, "Test".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(100, "Test".to_string(), "test".to_string())
+            .await
+            .unwrap();
 
         // Now we can evolve
         let evolution_result = agent.trigger_evolution().await.unwrap();
@@ -1229,11 +1269,12 @@ mod tests {
         assert!(!stats.ready_to_evolve); // No longer ready after evolving
         assert_eq!(stats.current_xp, 200); // Original + evolution bonus
         assert_eq!(stats.total_xp, 200);
-        
+
         // Check evolution was recorded in history
-        assert!(stats.xp_history.iter().any(|record| 
-            record.category == "evolution" && record.amount == 100
-        ));
+        assert!(stats
+            .xp_history
+            .iter()
+            .any(|record| record.category == "evolution" && record.amount == 100));
     }
 
     #[tokio::test]
@@ -1245,11 +1286,17 @@ mod tests {
         assert_eq!(agent.get_xp_for_next_level().await, 100);
 
         // Award 50 XP
-        agent.award_xp(50, "Test".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(50, "Test".to_string(), "test".to_string())
+            .await
+            .unwrap();
         assert_eq!(agent.get_xp_for_next_level().await, 50);
 
         // Award 50 more to reach threshold
-        agent.award_xp(50, "Test".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(50, "Test".to_string(), "test".to_string())
+            .await
+            .unwrap();
         assert_eq!(agent.get_xp_for_next_level().await, 150); // Next is level 3 (250 total)
     }
 
@@ -1260,7 +1307,10 @@ mod tests {
 
         // Award XP 150 times to exceed the 100-entry limit
         for i in 0..150 {
-            agent.award_xp(1, format!("Test {}", i), "test".to_string()).await.unwrap();
+            agent
+                .award_xp(1, format!("Test {}", i), "test".to_string())
+                .await
+                .unwrap();
         }
 
         let stats = agent.stats().await;
@@ -1284,7 +1334,9 @@ mod tests {
         for i in 0..10 {
             let agent_clone = agent.clone();
             let handle = tokio::spawn(async move {
-                agent_clone.award_xp(10, format!("Concurrent {}", i), "test".to_string()).await
+                agent_clone
+                    .award_xp(10, format!("Concurrent {}", i), "test".to_string())
+                    .await
             });
             handles.push(handle);
         }
@@ -1307,17 +1359,29 @@ mod tests {
         agent.initialize().await.unwrap();
 
         // Simulate some goal completions to have meaningful metrics
-        agent.update_goal_stats(true, std::time::Duration::from_secs(30)).await;
-        agent.update_goal_stats(true, std::time::Duration::from_secs(40)).await;
-        agent.update_goal_stats(false, std::time::Duration::from_secs(60)).await;
+        agent
+            .update_goal_stats(true, std::time::Duration::from_secs(30))
+            .await;
+        agent
+            .update_goal_stats(true, std::time::Duration::from_secs(40))
+            .await;
+        agent
+            .update_goal_stats(false, std::time::Duration::from_secs(60))
+            .await;
 
         // Award XP and trigger evolution
-        agent.award_xp(100, "Test".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(100, "Test".to_string(), "test".to_string())
+            .await
+            .unwrap();
         let evolution_result = agent.trigger_evolution().await.unwrap();
 
         // Check that metrics were calculated
         assert!(evolution_result.previous_metrics.success_rate > 0.0);
-        assert!(evolution_result.new_metrics.success_rate > evolution_result.previous_metrics.success_rate);
+        assert!(
+            evolution_result.new_metrics.success_rate
+                > evolution_result.previous_metrics.success_rate
+        );
         assert!(evolution_result.new_metrics.processing_speed > 1.0);
         assert!(evolution_result.new_metrics.memory_efficiency >= 0.7);
     }
@@ -1329,27 +1393,42 @@ mod tests {
 
         // Test capabilities at different levels
         assert!(agent.determine_new_capabilities(1).is_empty());
-        assert_eq!(agent.determine_new_capabilities(2), vec!["basic_optimization"]);
-        assert_eq!(agent.determine_new_capabilities(3), vec!["memory_management"]);
-        assert_eq!(agent.determine_new_capabilities(5), vec!["advanced_analytics"]);
-        assert_eq!(agent.determine_new_capabilities(10), vec!["neural_evolution"]);
+        assert_eq!(
+            agent.determine_new_capabilities(2),
+            vec!["basic_optimization"]
+        );
+        assert_eq!(
+            agent.determine_new_capabilities(3),
+            vec!["memory_management"]
+        );
+        assert_eq!(
+            agent.determine_new_capabilities(5),
+            vec!["advanced_analytics"]
+        );
+        assert_eq!(
+            agent.determine_new_capabilities(10),
+            vec!["neural_evolution"]
+        );
         assert!(agent.determine_new_capabilities(15).is_empty());
     }
 
     #[test]
     fn test_xp_reward_constants() {
         // Verify XP reward constants are properly defined
-        let goal_completed_reward = XP_REWARDS.iter()
+        let goal_completed_reward = XP_REWARDS
+            .iter()
             .find(|(key, _)| *key == "goal_completed")
             .map(|(_, value)| *value);
         assert_eq!(goal_completed_reward, Some(25));
 
-        let goal_failed_reward = XP_REWARDS.iter()
+        let goal_failed_reward = XP_REWARDS
+            .iter()
             .find(|(key, _)| *key == "goal_failed")
             .map(|(_, value)| *value);
         assert_eq!(goal_failed_reward, Some(5));
 
-        let evolution_reward = XP_REWARDS.iter()
+        let evolution_reward = XP_REWARDS
+            .iter()
             .find(|(key, _)| *key == "evolution_completed")
             .map(|(_, value)| *value);
         assert_eq!(evolution_reward, Some(100));
@@ -1359,14 +1438,18 @@ mod tests {
     fn test_level_thresholds() {
         // Verify level thresholds are properly defined and increasing
         assert!(LEVEL_THRESHOLDS.len() >= 15);
-        
+
         for i in 1..LEVEL_THRESHOLDS.len() {
-            assert!(LEVEL_THRESHOLDS[i] > LEVEL_THRESHOLDS[i-1], 
-                "Level threshold {} should be greater than threshold {}", i, i-1);
+            assert!(
+                LEVEL_THRESHOLDS[i] > LEVEL_THRESHOLDS[i - 1],
+                "Level threshold {} should be greater than threshold {}",
+                i,
+                i - 1
+            );
         }
-        
+
         // Check specific thresholds
-        assert_eq!(LEVEL_THRESHOLDS[0], 0);   // Level 1
+        assert_eq!(LEVEL_THRESHOLDS[0], 0); // Level 1
         assert_eq!(LEVEL_THRESHOLDS[1], 100); // Level 2
         assert_eq!(LEVEL_THRESHOLDS[4], 1000); // Level 5
     }
@@ -1378,11 +1461,14 @@ mod tests {
 
         // Award massive XP to exceed max level
         let max_xp = LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.len() - 1] + 10000;
-        agent.award_xp(max_xp, "Max level test".to_string(), "test".to_string()).await.unwrap();
+        agent
+            .award_xp(max_xp, "Max level test".to_string(), "test".to_string())
+            .await
+            .unwrap();
 
         let stats = agent.stats().await;
         assert_eq!(stats.level, LEVEL_THRESHOLDS.len() as u32);
-        
+
         // Should not be ready to evolve at max level
         assert!(!agent.check_evolution_readiness().await);
         assert_eq!(agent.get_xp_for_next_level().await, 0);
@@ -1420,7 +1506,10 @@ mod tests {
 
         assert_eq!(evolution_result.previous_level, deserialized.previous_level);
         assert_eq!(evolution_result.new_level, deserialized.new_level);
-        assert_eq!(evolution_result.capabilities_gained, deserialized.capabilities_gained);
+        assert_eq!(
+            evolution_result.capabilities_gained,
+            deserialized.capabilities_gained
+        );
     }
 
     #[tokio::test]
@@ -1433,7 +1522,9 @@ mod tests {
         assert_eq!(initial_stats.total_xp, 0);
 
         // Simulate successful goal completion
-        agent.update_goal_stats(true, std::time::Duration::from_secs(30)).await;
+        agent
+            .update_goal_stats(true, std::time::Duration::from_secs(30))
+            .await;
 
         let stats = agent.stats().await;
         assert_eq!(stats.current_xp, 25); // goal_completed reward
@@ -1444,7 +1535,9 @@ mod tests {
         assert_eq!(stats.xp_history[0].category, "goal_completion");
 
         // Simulate failed goal completion
-        agent.update_goal_stats(false, std::time::Duration::from_secs(60)).await;
+        agent
+            .update_goal_stats(false, std::time::Duration::from_secs(60))
+            .await;
 
         let stats = agent.stats().await;
         assert_eq!(stats.current_xp, 30); // 25 + 5 (goal_failed reward)
@@ -1474,7 +1567,10 @@ mod tests {
         agent.initialize().await.unwrap();
 
         // Award XP for known action
-        agent.award_xp_for_action("optimization_applied", None).await.unwrap();
+        agent
+            .award_xp_for_action("optimization_applied", None)
+            .await
+            .unwrap();
 
         let stats = agent.stats().await;
         assert_eq!(stats.current_xp, 30); // optimization_applied reward

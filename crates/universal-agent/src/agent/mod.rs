@@ -4,8 +4,8 @@ pub mod handlers;
 
 use async_trait::async_trait;
 use chrono::Utc;
-use std::pin::Pin;
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -90,9 +90,8 @@ impl UniversalAgent {
     /// Create a new UniversalAgent from DNA
     pub async fn from_dna(dna: AgentDNA, config: UniversalAgentConfig) -> Result<Self> {
         // Validate DNA first
-        dna.validate().map_err(|errors| {
-            UniversalAgentError::ValidationFailed(errors.join("; "))
-        })?;
+        dna.validate()
+            .map_err(|errors| UniversalAgentError::ValidationFailed(errors.join("; ")))?;
 
         let learning_rate = dna.behavior.learning_rate;
 
@@ -162,15 +161,24 @@ impl UniversalAgent {
             }
             SkillExecution::LearnedWorkflow { .. } => {
                 // TODO: Implement workflow execution
-                Ok(AgentResponse::new(request.id, "Workflow execution not yet implemented".to_string()))
+                Ok(AgentResponse::new(
+                    request.id,
+                    "Workflow execution not yet implemented".to_string(),
+                ))
             }
             SkillExecution::PatternBased { .. } => {
                 // TODO: Implement pattern execution
-                Ok(AgentResponse::new(request.id, "Pattern execution not yet implemented".to_string()))
+                Ok(AgentResponse::new(
+                    request.id,
+                    "Pattern execution not yet implemented".to_string(),
+                ))
             }
             SkillExecution::LLMPowered { .. } => {
                 // TODO: Implement LLM execution
-                Ok(AgentResponse::new(request.id, "LLM execution not yet implemented".to_string()))
+                Ok(AgentResponse::new(
+                    request.id,
+                    "LLM execution not yet implemented".to_string(),
+                ))
             }
             SkillExecution::Composite { sub_skills, .. } => {
                 self.execute_composite(sub_skills, request.clone()).await
@@ -225,7 +233,10 @@ impl UniversalAgent {
                 }
             }
 
-            Ok(AgentResponse::new(request.id, combined_content.join("\n\n")))
+            Ok(AgentResponse::new(
+                request.id,
+                combined_content.join("\n\n"),
+            ))
         })
     }
 
@@ -252,11 +263,7 @@ impl UniversalAgent {
     }
 
     /// Apply a learning improvement to the DNA
-    async fn apply_learning(
-        &self,
-        skill_id: &str,
-        improvement: LearningImprovement,
-    ) -> Result<()> {
+    async fn apply_learning(&self, skill_id: &str, improvement: LearningImprovement) -> Result<()> {
         let mut dna = self.dna.write().await;
 
         match improvement {
@@ -267,8 +274,7 @@ impl UniversalAgent {
                 // Extract skill info first to avoid borrow conflicts
                 let skill_info = if let Some(skill) = dna.skills.get_skill_mut(skill_id) {
                     let old_level = skill.proficiency_level;
-                    skill.proficiency_level =
-                        (skill.proficiency_level + new_proficiency).min(10);
+                    skill.proficiency_level = (skill.proficiency_level + new_proficiency).min(10);
                     Some((old_level, skill.proficiency_level))
                 } else {
                     None
@@ -366,7 +372,10 @@ impl Agent for UniversalAgent {
                 .await
                 .map_err(|e| AgentError::ExecutionFailed(e.to_string()))
         } else {
-            Ok(AgentResponse::new(request.id, "No suitable skill found for this task".to_string()))
+            Ok(AgentResponse::new(
+                request.id,
+                "No suitable skill found for this task".to_string(),
+            ))
         }
     }
 
@@ -397,16 +406,12 @@ impl Agent for UniversalAgent {
     fn autonomy_level(&self) -> AutonomyLevel {
         // This is a sync method, so we use block_in_place
         tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                self.dna.read().await.behavior.autonomy_level
-            })
+            tokio::runtime::Handle::current()
+                .block_on(async { self.dna.read().await.behavior.autonomy_level })
         })
     }
 
-    fn set_autonomy_level(
-        &mut self,
-        level: AutonomyLevel,
-    ) -> std::result::Result<(), AgentError> {
+    fn set_autonomy_level(&mut self, level: AutonomyLevel) -> std::result::Result<(), AgentError> {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 let mut dna = self.dna.write().await;

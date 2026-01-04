@@ -222,9 +222,9 @@ impl PolicyEvaluator for PolicyEngine {
         }
 
         EvaluationResult {
-            subnet_id: matched_policy.as_ref().map(|p| {
-                self.policies.get(&p.policy_id).unwrap().target_subnet_id
-            }),
+            subnet_id: matched_policy
+                .as_ref()
+                .map(|p| self.policies.get(&p.policy_id).unwrap().target_subnet_id),
             matched_policy,
             evaluated,
         }

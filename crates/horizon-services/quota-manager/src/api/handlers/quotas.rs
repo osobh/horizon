@@ -8,11 +8,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::{
-    api::routes::AppState,
-    models::*,
-    error::HpcError,
-};
+use crate::{api::routes::AppState, error::HpcError, models::*};
 
 #[derive(Deserialize)]
 pub struct ListQuotasQuery {
@@ -118,6 +114,9 @@ pub async fn get_usage_history(
     Path(id): Path<Uuid>,
     Query(query): Query<UsageHistoryQuery>,
 ) -> Result<Json<Vec<UsageHistory>>, HpcError> {
-    let history = state.quota_service.get_usage_history(id, query.limit).await?;
+    let history = state
+        .quota_service
+        .get_usage_history(id, query.limit)
+        .await?;
     Ok(Json(history))
 }

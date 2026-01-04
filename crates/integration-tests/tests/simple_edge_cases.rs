@@ -1,11 +1,11 @@
 //! Simple Edge Case Integration Tests
 //! Tests edge cases with components we know exist
 
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use stratoswarm_memory::{GpuMemoryAllocator, MemoryManager, MemoryPool};
 use stratoswarm_net::{MemoryNetwork, Message, MessageType, Network};
 use stratoswarm_storage::{MemoryStorage, Storage};
-use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tokio::time::timeout;
 

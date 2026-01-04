@@ -160,7 +160,11 @@ impl TimeWindow {
     }
 
     /// Create a business hours window (Mon-Fri, 9am-5pm).
-    pub fn business_hours(name: impl Into<String>, tenant_id: Uuid, timezone: impl Into<String>) -> Self {
+    pub fn business_hours(
+        name: impl Into<String>,
+        tenant_id: Uuid,
+        timezone: impl Into<String>,
+    ) -> Self {
         let mut window = Self::new(
             name,
             tenant_id,
@@ -213,7 +217,9 @@ impl TimeWindow {
     /// Validate this time window configuration.
     pub fn validate(&self) -> Result<()> {
         if self.name.is_empty() {
-            return Err(HpcError::invalid_configuration("Time window name cannot be empty"));
+            return Err(HpcError::invalid_configuration(
+                "Time window name cannot be empty",
+            ));
         }
 
         // Validate that end time is after start time (or handle overnight windows)
@@ -249,7 +255,7 @@ impl TimeWindow {
 
         // Validate date values (1-31)
         for &date in &self.allowed_dates {
-            if date < 1 || date > 31 {
+            if !(1..=31).contains(&date) {
                 return Err(HpcError::invalid_configuration(format!(
                     "Invalid date value: {}. Must be 1-31",
                     date
@@ -512,10 +518,22 @@ mod tests {
 
     #[test]
     fn test_recurrence_type_from_str() {
-        assert_eq!(RecurrenceType::from_str("once").unwrap(), RecurrenceType::Once);
-        assert_eq!(RecurrenceType::from_str("daily").unwrap(), RecurrenceType::Daily);
-        assert_eq!(RecurrenceType::from_str("weekly").unwrap(), RecurrenceType::Weekly);
-        assert_eq!(RecurrenceType::from_str("monthly").unwrap(), RecurrenceType::Monthly);
+        assert_eq!(
+            RecurrenceType::from_str("once").unwrap(),
+            RecurrenceType::Once
+        );
+        assert_eq!(
+            RecurrenceType::from_str("daily").unwrap(),
+            RecurrenceType::Daily
+        );
+        assert_eq!(
+            RecurrenceType::from_str("weekly").unwrap(),
+            RecurrenceType::Weekly
+        );
+        assert_eq!(
+            RecurrenceType::from_str("monthly").unwrap(),
+            RecurrenceType::Monthly
+        );
         assert!(RecurrenceType::from_str("invalid").is_err());
     }
 
@@ -852,7 +870,10 @@ mod tests {
             .build()
             .unwrap();
 
-        assert_eq!(window.description, Some("Standard business hours".to_string()));
+        assert_eq!(
+            window.description,
+            Some("Standard business hours".to_string())
+        );
         assert_eq!(window.timezone, "America/New_York");
         assert_eq!(window.recurrence_type, RecurrenceType::Weekly);
         assert_eq!(window.allowed_days, vec![1, 2, 3, 4, 5]);

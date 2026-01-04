@@ -79,11 +79,9 @@ impl<E: Evolvable> Population<E> {
         self.individuals
             .iter()
             .filter(|i| i.fitness.is_some())
-            .max_by(|a, b| {
-                match (a.fitness.as_ref(), b.fitness.as_ref()) {
-                    (Some(fa), Some(fb)) => fa.partial_cmp(fb).unwrap_or(std::cmp::Ordering::Equal),
-                    _ => std::cmp::Ordering::Equal,
-                }
+            .max_by(|a, b| match (a.fitness.as_ref(), b.fitness.as_ref()) {
+                (Some(fa), Some(fb)) => fa.partial_cmp(fb).unwrap_or(std::cmp::Ordering::Equal),
+                _ => std::cmp::Ordering::Equal,
             })
     }
 
@@ -102,13 +100,9 @@ impl<E: Evolvable> Population<E> {
 
         // Use parallel sort for large populations (threshold: 100 individuals)
         if indexed.len() > 100 {
-            indexed.par_sort_by(|a, b| {
-                b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal)
-            });
+            indexed.par_sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
         } else {
-            indexed.sort_by(|a, b| {
-                b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal)
-            });
+            indexed.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
         }
 
         // Return references to top n individuals
@@ -157,7 +151,7 @@ mod tests {
 
         fn genome(&self) -> &Self::Genome {
             // For test purposes, we need to store a genome reference
-            // This is a test limitation - in real implementations, 
+            // This is a test limitation - in real implementations,
             // the genome would be part of the entity structure
             static TEST_GENOME: TestGenome = TestGenome { value: 0.0 };
             &TEST_GENOME

@@ -1,6 +1,6 @@
+use std::io::Write;
 use telemetry_collector::config::CollectorConfig;
 use tempfile::NamedTempFile;
-use std::io::Write;
 
 #[test]
 fn test_config_parse_valid_yaml() {

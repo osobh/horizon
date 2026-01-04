@@ -162,7 +162,10 @@ mod tests {
         let config = AgentConfig::new("".to_string());
         let result = config.validate();
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AgentError::InvalidConfiguration(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            AgentError::InvalidConfiguration(_)
+        ));
     }
 
     #[test]

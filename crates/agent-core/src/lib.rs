@@ -14,8 +14,8 @@ pub mod communication;
 pub mod error;
 pub mod goal;
 pub mod memory;
-pub mod scheduler;
 pub mod neural_router;
+pub mod scheduler;
 
 // Scheduler has been successfully refactored into modular components
 
@@ -24,11 +24,11 @@ pub use communication::{AgentChannel, Message, MessageBus};
 pub use error::{AgentError, AgentResult};
 pub use goal::{Goal, GoalConstraints, GoalId, GoalPriority};
 pub use memory::{AgentMemory, MemoryType};
-pub use scheduler::{Scheduler, SchedulingPolicy};
 pub use neural_router::{
-    NeuralRouter, MultiGpuRoutingEngine, RoutingEntry, RoutingChoice, 
-    TrainingExample, PerformanceMetrics, NetworkTopology, ConnectionMetrics, ClusterRegion
+    ClusterRegion, ConnectionMetrics, MultiGpuRoutingEngine, NetworkTopology, NeuralRouter,
+    PerformanceMetrics, RoutingChoice, RoutingEntry, TrainingExample,
 };
+pub use scheduler::{Scheduler, SchedulingPolicy};
 
 /// Re-export common types
 pub mod prelude {

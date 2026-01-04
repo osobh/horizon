@@ -1,4 +1,4 @@
-use crate::error::{HpcError, Result, ReporterErrorExt};
+use crate::error::{HpcError, ReporterErrorExt, Result};
 use crate::models::summary::CostAttribution;
 use csv::Writer;
 
@@ -48,12 +48,11 @@ impl CsvExporter {
             ])?;
         }
 
-        let data = wtr.into_inner().map_err(|e| {
-            HpcError::export_error(format!("CSV writer error: {}", e))
-        })?;
-        String::from_utf8(data).map_err(|e| {
-            HpcError::export_error(format!("UTF-8 conversion error: {}", e))
-        })
+        let data = wtr
+            .into_inner()
+            .map_err(|e| HpcError::export_error(format!("CSV writer error: {}", e)))?;
+        String::from_utf8(data)
+            .map_err(|e| HpcError::export_error(format!("UTF-8 conversion error: {}", e)))
     }
 }
 

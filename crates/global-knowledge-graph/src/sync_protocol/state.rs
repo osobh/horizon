@@ -56,7 +56,7 @@ impl KnowledgeCluster {
     pub async fn add_operation(&self, operation: KnowledgeOperation) {
         let mut operations = self.operations.write().await;
         operations.push(operation);
-        
+
         // Update vector clock
         let mut clock = self.vector_clock.write().await;
         clock.increment(&self.cluster_id);
@@ -64,10 +64,7 @@ impl KnowledgeCluster {
 
     pub async fn get_operations_since(&self, version: u64) -> Vec<KnowledgeOperation> {
         let operations = self.operations.read().await;
-        operations.iter()
-            .skip(version as usize)
-            .cloned()
-            .collect()
+        operations.iter().skip(version as usize).cloned().collect()
     }
 
     pub async fn add_peer(&self, peer_id: String) {

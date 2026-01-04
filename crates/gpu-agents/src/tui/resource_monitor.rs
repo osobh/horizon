@@ -155,20 +155,20 @@ mod tests {
     }
 
     #[test]
-    fn test_resource_monitor_disabled() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_resource_monitor_disabled() -> Result<(), Box<dyn std::error::Error>> {
         let monitor = ResourceMonitor::new(false)?;
         assert!(!monitor.enabled);
     }
 
     #[tokio::test]
-    async fn test_get_latest_snapshot_disabled() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_get_latest_snapshot_disabled() -> Result<(), Box<dyn std::error::Error>> {
         let mut monitor = ResourceMonitor::new(false)?;
         let snapshot = monitor.get_latest_snapshot().await?;
         assert!(snapshot.is_none());
     }
 
     #[tokio::test]
-    async fn test_get_latest_snapshot_enabled() -> Result<(), Box<dyn std::error::Error>>  {
+    async fn test_get_latest_snapshot_enabled() -> Result<(), Box<dyn std::error::Error>> {
         let mut monitor = ResourceMonitor::new(true)?;
         let snapshot = monitor.get_latest_snapshot().await?;
         assert!(snapshot.is_some());
@@ -180,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_system_stats() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_get_system_stats() -> Result<(), Box<dyn std::error::Error>> {
         let monitor = ResourceMonitor::new(true)?;
         let stats = monitor.get_system_stats();
 
@@ -194,7 +194,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_gpu_stats() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_get_gpu_stats() -> Result<(), Box<dyn std::error::Error>> {
         let monitor = ResourceMonitor::new(true)?;
         let stats = monitor.get_gpu_stats();
 

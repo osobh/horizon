@@ -3,11 +3,11 @@
 //! This example analyzes the serialized sizes of different message types
 //! and configurations to help optimize network bandwidth usage.
 
-use prost::Message;
 use hpc_types::telemetry::v1::MetricBatch;
 use hpc_types::telemetry_helpers::{
     CpuMetricBuilder, GpuMetricBuilder, MetricBatchBuilder, NicMetricBuilder,
 };
+use prost::Message;
 
 fn analyze_gpu_metric_size() {
     println!("=== GPU Metric Size Analysis ===");

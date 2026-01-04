@@ -13,13 +13,13 @@ use crate::{
 };
 use async_trait::async_trait;
 use futures::future::join_all;
-use rayon::prelude::*;
-use stratoswarm_agent_core::{Agent, AgentConfig, Goal, GoalPriority};
-use stratoswarm_synthesis::interpreter::GoalInterpreter;
 use parking_lot::RwLock;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use rayon::prelude::*;
 use std::sync::Arc;
+use stratoswarm_agent_core::{Agent, AgentConfig, Goal, GoalPriority};
+use stratoswarm_synthesis::interpreter::GoalInterpreter;
 
 /// ADAS evolution engine
 pub struct AdasEngine {

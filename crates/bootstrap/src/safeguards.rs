@@ -223,8 +223,7 @@ impl BootstrapSafeguards {
         // For now, we'll create a mock snapshot
         let snapshot = PopulationSnapshot {
             timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                ?
+                .duration_since(std::time::UNIX_EPOCH)?
                 .as_secs(),
             total_agents: 15, // Mock data
             active_agents: 12,

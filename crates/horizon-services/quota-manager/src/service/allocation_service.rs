@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::{
     db::QuotaRepository,
-    error::{HpcError, Result, QuotaErrorExt},
+    error::{HpcError, QuotaErrorExt, Result},
     models::*,
 };
 
@@ -94,7 +94,10 @@ impl AllocationService {
         if requested_value > available {
             return Err(HpcError::quota_exceeded(format!(
                 "Insufficient quota: requested {}, available {}, current usage {}, limit {}",
-                requested_value, available, current_usage, quota.effective_limit()
+                requested_value,
+                available,
+                current_usage,
+                quota.effective_limit()
             )));
         }
 

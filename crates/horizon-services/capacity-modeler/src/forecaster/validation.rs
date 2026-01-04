@@ -1,4 +1,4 @@
-use crate::error::{HpcError, Result, CapacityErrorExt};
+use crate::error::{CapacityErrorExt, HpcError, Result};
 use crate::forecaster::ets::EtsForecaster;
 use crate::forecaster::metrics::{
     mean_absolute_error, mean_absolute_percentage_error, root_mean_squared_error,

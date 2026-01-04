@@ -302,9 +302,7 @@ async fn test_evolution_timeline_debugger_creation() {
     let device = Arc::new(CudaDevice::new(0).unwrap());
     let config = DebugSessionConfig::default();
 
-    let debugger = EvolutionTimelineDebugger::new(device, config)
-        .await
-        ?;
+    let debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
     // Expected behavior
     assert!(debugger.session.is_active());
@@ -316,9 +314,7 @@ async fn test_evolution_timeline_debugger_creation() {
 async fn test_evolution_state_capture_and_navigation() {
     let device = Arc::new(CudaDevice::new(0).unwrap());
     let config = DebugSessionConfig::default();
-    let mut debugger = EvolutionTimelineDebugger::new(device, config)
-        .await
-        ?;
+    let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
     // Start debugging session
     let session_id = debugger
@@ -361,9 +357,7 @@ async fn test_evolution_state_capture_and_navigation() {
 async fn test_evolution_rollback_functionality() {
     let device = Arc::new(CudaDevice::new(0).unwrap());
     let config = DebugSessionConfig::default();
-    let mut debugger = EvolutionTimelineDebugger::new(device, config)
-        .await
-        ?;
+    let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
     let session_id = debugger.start_debug_session("rollback_test").await?;
 
@@ -406,14 +400,9 @@ async fn test_evolution_rollback_functionality() {
 async fn test_genetic_diversity_analysis() {
     let device = Arc::new(CudaDevice::new(0).unwrap());
     let config = DebugSessionConfig::default();
-    let mut debugger = EvolutionTimelineDebugger::new(device, config)
-        .await
-        ?;
+    let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
-    debugger
-        .start_debug_session("diversity_analysis")
-        .await
-        ?;
+    debugger.start_debug_session("diversity_analysis").await?;
 
     // Evolve for multiple generations
     for _generation in 0..15 {
@@ -449,14 +438,9 @@ async fn test_genetic_diversity_analysis() {
 async fn test_evolution_pattern_analysis() {
     let device = Arc::new(CudaDevice::new(0).unwrap());
     let config = DebugSessionConfig::default();
-    let mut debugger = EvolutionTimelineDebugger::new(device, config)
-        .await
-        ?;
+    let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
-    debugger
-        .start_debug_session("pattern_analysis")
-        .await
-        ?;
+    debugger.start_debug_session("pattern_analysis").await?;
 
     // Create snapshots at different points
     let mut snapshot_ids = Vec::new();
@@ -496,9 +480,7 @@ async fn test_evolution_pattern_analysis() {
 async fn test_evolution_replay_with_modifications() {
     let device = Arc::new(CudaDevice::new(0).unwrap());
     let config = DebugSessionConfig::default();
-    let mut debugger = EvolutionTimelineDebugger::new(device, config)
-        .await
-        ?;
+    let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
     debugger.start_debug_session("replay_test").await?;
 
@@ -557,9 +539,7 @@ async fn test_time_travel_performance_requirements() {
         max_snapshots: 500,
         ..Default::default()
     };
-    let mut debugger = EvolutionTimelineDebugger::new(device, config)
-        .await
-        ?;
+    let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
     debugger
         .start_debug_session("performance_test")

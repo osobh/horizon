@@ -107,7 +107,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("\n[Collector] Summary:");
         println!("  - Total batches: {}", total_batches);
         println!("  - Total bytes: {}", total_bytes);
-        println!("  - Avg batch size: {} bytes", total_bytes / total_batches.max(1));
+        println!(
+            "  - Avg batch size: {} bytes",
+            total_bytes / total_batches.max(1)
+        );
     });
 
     tokio::time::sleep(Duration::from_millis(200)).await;

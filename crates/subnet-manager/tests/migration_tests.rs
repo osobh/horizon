@@ -73,7 +73,8 @@ fn test_plan_basic_migration() {
     target_subnet.cidr = "10.100.1.0/24".parse().unwrap();
 
     let node_id = Uuid::new_v4();
-    let assignment = create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
+    let assignment =
+        create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
 
     let target_ip = Ipv4Addr::new(10, 100, 1, 10);
 
@@ -154,11 +155,8 @@ fn test_bulk_migration_planning() {
     let mut nodes: Vec<(Uuid, SubnetAssignment, Ipv4Addr)> = Vec::new();
     for i in 0..10 {
         let node_id = Uuid::new_v4();
-        let assignment = create_test_assignment(
-            node_id,
-            source_subnet.id,
-            Ipv4Addr::new(10, 100, 0, 10 + i),
-        );
+        let assignment =
+            create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10 + i));
         let target_ip = Ipv4Addr::new(10, 100, 1, 10 + i);
         nodes.push((node_id, assignment, target_ip));
     }
@@ -199,7 +197,8 @@ async fn test_submit_migration() {
     target_subnet.cidr = "10.100.1.0/24".parse().unwrap();
 
     let node_id = Uuid::new_v4();
-    let assignment = create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
+    let assignment =
+        create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
 
     let target_ip = Ipv4Addr::new(10, 100, 1, 10);
 
@@ -232,7 +231,8 @@ async fn test_cannot_submit_duplicate_migration() {
     target_subnet.cidr = "10.100.1.0/24".parse().unwrap();
 
     let node_id = Uuid::new_v4();
-    let assignment = create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
+    let assignment =
+        create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
 
     let target_ip = Ipv4Addr::new(10, 100, 1, 10);
 
@@ -276,7 +276,8 @@ async fn test_cancel_migration() {
     target_subnet.cidr = "10.100.1.0/24".parse().unwrap();
 
     let node_id = Uuid::new_v4();
-    let assignment = create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
+    let assignment =
+        create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
 
     let target_ip = Ipv4Addr::new(10, 100, 1, 10);
 
@@ -310,7 +311,8 @@ async fn test_migration_progress_tracking() {
     target_subnet.cidr = "10.100.1.0/24".parse().unwrap();
 
     let node_id = Uuid::new_v4();
-    let assignment = create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
+    let assignment =
+        create_test_assignment(node_id, source_subnet.id, Ipv4Addr::new(10, 100, 0, 10));
 
     let target_ip = Ipv4Addr::new(10, 100, 1, 10);
 
@@ -328,7 +330,9 @@ async fn test_migration_progress_tracking() {
     let handle = executor.submit(plan).unwrap();
 
     // Get progress
-    let progress = executor.get_progress(handle.id).expect("Should have progress");
+    let progress = executor
+        .get_progress(handle.id)
+        .expect("Should have progress");
 
     assert_eq!(progress.migration_id, handle.id);
     assert_eq!(progress.current_step, MigrationStep::NotStarted);
@@ -424,7 +428,9 @@ fn test_migration_with_actual_subnets() {
         created_by: None,
     };
 
-    let source = manager.create_subnet(source_req).expect("Should create source");
+    let source = manager
+        .create_subnet(source_req)
+        .expect("Should create source");
 
     // Create target subnet
     let target_req = CreateSubnetRequest {
@@ -442,7 +448,9 @@ fn test_migration_with_actual_subnets() {
         created_by: None,
     };
 
-    let target = manager.create_subnet(target_req).expect("Should create target");
+    let target = manager
+        .create_subnet(target_req)
+        .expect("Should create target");
 
     // Assign a node to source
     let node_id = Uuid::new_v4();
@@ -512,12 +520,24 @@ fn test_migration_reason_display() {
     // Test Display trait for MigrationReason
     assert_eq!(MigrationReason::Manual.to_string(), "Manual");
     assert_eq!(MigrationReason::PolicyChange.to_string(), "Policy Change");
-    assert_eq!(MigrationReason::SubnetDecommission.to_string(), "Subnet Decommission");
+    assert_eq!(
+        MigrationReason::SubnetDecommission.to_string(),
+        "Subnet Decommission"
+    );
     assert_eq!(MigrationReason::LoadBalancing.to_string(), "Load Balancing");
-    assert_eq!(MigrationReason::NodeTypeChange.to_string(), "Node Type Change");
+    assert_eq!(
+        MigrationReason::NodeTypeChange.to_string(),
+        "Node Type Change"
+    );
     assert_eq!(MigrationReason::TenantChange.to_string(), "Tenant Change");
-    assert_eq!(MigrationReason::GeographicMove.to_string(), "Geographic Move");
-    assert_eq!(MigrationReason::ResourcePoolChange.to_string(), "Resource Pool Change");
+    assert_eq!(
+        MigrationReason::GeographicMove.to_string(),
+        "Geographic Move"
+    );
+    assert_eq!(
+        MigrationReason::ResourcePoolChange.to_string(),
+        "Resource Pool Change"
+    );
     assert_eq!(MigrationReason::Maintenance.to_string(), "Maintenance");
     assert_eq!(MigrationReason::Recovery.to_string(), "Recovery");
 }
@@ -525,5 +545,8 @@ fn test_migration_reason_display() {
 #[test]
 fn test_migration_reason_debug() {
     assert_eq!(format!("{:?}", MigrationReason::Manual), "Manual");
-    assert_eq!(format!("{:?}", MigrationReason::PolicyChange), "PolicyChange");
+    assert_eq!(
+        format!("{:?}", MigrationReason::PolicyChange),
+        "PolicyChange"
+    );
 }

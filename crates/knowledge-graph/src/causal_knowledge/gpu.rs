@@ -204,7 +204,7 @@ impl CausalGpuMemoryManager {
             return false;
         }
 
-        let pools = self.memory_pools.entry(data_type).or_insert_with(Vec::new);
+        let pools = self.memory_pools.entry(data_type).or_default();
         pools.push(vec![0u8; pool_size]);
         self.allocated_memory += pool_size;
         true

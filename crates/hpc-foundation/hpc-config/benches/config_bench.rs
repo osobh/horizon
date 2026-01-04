@@ -109,8 +109,7 @@ timeout_ms: 5000
 
     c.bench_function("load_with_env_override", |b| {
         b.iter(|| {
-            let config: SimpleConfig =
-                hpc_config::load_with_env(&config_path, "BENCH").unwrap();
+            let config: SimpleConfig = hpc_config::load_with_env(&config_path, "BENCH").unwrap();
             black_box(config);
         });
     });

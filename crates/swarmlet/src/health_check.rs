@@ -201,10 +201,7 @@ impl HealthChecker {
                         result.latency_ms,
                         attempts
                     );
-                    return HealthCheckResult {
-                        attempts,
-                        ..result
-                    };
+                    return HealthCheckResult { attempts, ..result };
                 }
                 Ok(result) => {
                     // HTTP response received but status code indicates unhealthy
@@ -219,10 +216,7 @@ impl HealthChecker {
                         );
                         tokio::time::sleep(self.config.retry_interval).await;
                     } else {
-                        return HealthCheckResult {
-                            attempts,
-                            ..result
-                        };
+                        return HealthCheckResult { attempts, ..result };
                     }
                 }
                 Err(e) => {
@@ -272,11 +266,7 @@ impl HealthChecker {
     pub async fn check_port(host: &str, port: u16, timeout: Duration) -> bool {
         use tokio::net::TcpStream;
 
-        match tokio::time::timeout(
-            timeout,
-            TcpStream::connect(format!("{}:{}", host, port)),
-        )
-        .await
+        match tokio::time::timeout(timeout, TcpStream::connect(format!("{}:{}", host, port))).await
         {
             Ok(Ok(_)) => {
                 debug!("Port {}:{} is open", host, port);
@@ -327,9 +317,8 @@ impl HealthChecker {
             }
 
             // Use quick config for polling
-            let quick_checker = HealthChecker::with_config(
-                HealthCheckConfig::quick().with_max_retries(0),
-            );
+            let quick_checker =
+                HealthChecker::with_config(HealthCheckConfig::quick().with_max_retries(0));
 
             let result = quick_checker.do_check(endpoint).await;
 
@@ -404,7 +393,8 @@ mod tests {
     #[tokio::test]
     async fn test_check_port_closed() {
         // Port 49152 is unlikely to be in use
-        let result = HealthChecker::check_port("127.0.0.1", 49152, Duration::from_millis(100)).await;
+        let result =
+            HealthChecker::check_port("127.0.0.1", 49152, Duration::from_millis(100)).await;
         assert!(!result);
     }
 }

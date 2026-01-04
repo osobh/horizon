@@ -178,7 +178,10 @@ fn bench_event_types(c: &mut Criterion) {
                     })
                     .collect();
 
-                publisher.topology_snapshot(subnets, routes, 1).await.unwrap();
+                publisher
+                    .topology_snapshot(subnets, routes, 1)
+                    .await
+                    .unwrap();
                 black_box(())
             })
         });
@@ -309,8 +312,7 @@ fn bench_channel_routing(c: &mut Criterion) {
                 for i in 0..100 {
                     match i % 5 {
                         0 => {
-                            let subnet =
-                                create_test_subnet(&format!("s-{}", i), "10.100.0.0/20");
+                            let subnet = create_test_subnet(&format!("s-{}", i), "10.100.0.0/20");
                             publisher.subnet_created(&subnet, None).await.unwrap();
                         }
                         1 => {

@@ -61,7 +61,11 @@ pub async fn create_checkpoint(
 
     // Set checkpoint path if provided, otherwise generate one
     let checkpoint_path = request.checkpoint_path.unwrap_or_else(|| {
-        format!("/checkpoints/{}/checkpoint-{}.tar.gz", job_id, chrono::Utc::now().timestamp())
+        format!(
+            "/checkpoints/{}/checkpoint-{}.tar.gz",
+            job_id,
+            chrono::Utc::now().timestamp()
+        )
     });
 
     // Update job with checkpoint path
@@ -71,12 +75,15 @@ pub async fn create_checkpoint(
     // In a full implementation, this would trigger actual checkpoint creation
     // by the job's execution environment (e.g., Kubernetes, Slurm)
 
-    Ok((StatusCode::CREATED, Json(CheckpointResponse {
-        job_id,
-        checkpoint_path,
-        created_at: chrono::Utc::now(),
-        status: "checkpoint_requested".to_string(),
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(CheckpointResponse {
+            job_id,
+            checkpoint_path,
+            created_at: chrono::Utc::now(),
+            status: "checkpoint_requested".to_string(),
+        }),
+    ))
 }
 
 /// Get checkpoint information for a job
@@ -100,9 +107,9 @@ pub async fn get_checkpoint(
     let job = state.scheduler.get_job(job_id).await?;
 
     // Check if job has a checkpoint
-    let checkpoint_path = job.checkpoint_path.ok_or_else(|| {
-        HpcError::checkpoint_not_found(job_id.to_string())
-    })?;
+    let checkpoint_path = job
+        .checkpoint_path
+        .ok_or_else(|| HpcError::checkpoint_not_found(job_id.to_string()))?;
 
     Ok(Json(CheckpointResponse {
         job_id,

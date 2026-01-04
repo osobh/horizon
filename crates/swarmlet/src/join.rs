@@ -122,9 +122,10 @@ impl JoinProtocol {
     /// This should be called before `join()` to include the public key
     /// in the join request.
     pub async fn generate_wireguard_keypair(&mut self) -> Result<String> {
-        let manager = self.wireguard_manager.as_ref().ok_or_else(|| {
-            SwarmletError::WireGuard("WireGuard manager not set".to_string())
-        })?;
+        let manager = self
+            .wireguard_manager
+            .as_ref()
+            .ok_or_else(|| SwarmletError::WireGuard("WireGuard manager not set".to_string()))?;
 
         let public_key = manager.generate_keypair().await?;
         self.wg_public_key = Some(public_key.clone());
@@ -210,7 +211,9 @@ impl JoinProtocol {
             Ok(())
         } else {
             Err(SwarmletError::WireGuard(
-                response.error.unwrap_or_else(|| "Unknown error".to_string()),
+                response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string()),
             ))
         }
     }

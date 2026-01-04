@@ -60,6 +60,9 @@ impl GpuFitnessEvaluator {
             }
             _ => {
                 // Single objective evaluation
+                // SAFETY: All pointers are valid device pointers from PopulationPointers
+                // (from GpuPopulation allocation). population_size and genome_size match
+                // actual array sizes. Stream is null for synchronous execution.
                 unsafe {
                     crate::evolution::kernels::launch_fitness_evaluation(
                         pointers.genomes,
@@ -85,12 +88,17 @@ impl GpuFitnessEvaluator {
         // Allocate fitness vectors if not already done
         if self.fitness_vectors.is_none() {
             let vector_size = pointers.population_size * self.fitness_objectives;
+            // SAFETY: alloc returns uninitialized memory. fitness_vectors will be
+            // written by multi-objective kernel before any reads.
             self.fitness_vectors = Some(unsafe { self.device.alloc::<f32>(vector_size)? });
         }
 
         let fitness_vectors = self.fitness_vectors.as_ref()?;
 
         // Launch multi-objective evaluation kernel
+        // SAFETY: fitness_vectors pointer is valid from CudaSlice allocation.
+        // GPUAgent pointer is null (not used in this implementation).
+        // population_size and fitness_objectives match allocation sizes.
         unsafe {
             crate::ffi::launch_multi_objective_fitness(
                 std::ptr::null_mut(), // We're not using GPUAgent struct here
@@ -118,6 +126,9 @@ impl GpuFitnessEvaluator {
 
         // For now, use simple weighted sum
         // In the future, could implement NSGA-II or other multi-objective algorithms
+        // SAFETY: fitness_vectors pointer is valid from CudaSlice allocation.
+        // fitness_scores pointer is valid from PopulationPointers.
+        // population_size and fitness_objectives match allocation sizes.
         unsafe {
             aggregate_fitness_kernel(
                 *fitness_vectors.device_ptr() as *const f32,
@@ -159,7 +170,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_fitness_evaluator_creation() -> Result<(), Box<dyn std::error::Error>>  {
+    fn test_fitness_evaluator_creation() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(device) = CudaDevice::new(0) {
             let device = Arc::new(device);
             let evaluator = GpuFitnessEvaluator::new(device, 1)?;

@@ -29,7 +29,7 @@ impl VendorRepository {
                 (SELECT COUNT(*) FROM vendors) as vendors,
                 (SELECT COUNT(*) FROM contracts WHERE status = 'active') as contracts,
                 COALESCE((SELECT SUM(total_value) FROM contracts), 0) as total
-            "#
+            "#,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -37,7 +37,9 @@ impl VendorRepository {
         Ok(VendorSummary {
             total_vendors: row.try_get::<Option<i64>, _>("vendors")?.unwrap_or(0),
             active_contracts: row.try_get::<Option<i64>, _>("contracts")?.unwrap_or(0),
-            total_value: row.try_get::<Option<Decimal>, _>("total")?.unwrap_or(Decimal::ZERO),
+            total_value: row
+                .try_get::<Option<Decimal>, _>("total")?
+                .unwrap_or(Decimal::ZERO),
         })
     }
 }

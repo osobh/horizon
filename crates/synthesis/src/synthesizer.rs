@@ -4,7 +4,6 @@ use crate::error::{SynthesisError, SynthesisResult};
 use crate::interpreter::KernelSpecification;
 use crate::templates::TemplateEngine;
 use chrono::{DateTime, Utc};
-use std::error::Error;
 // use stratoswarm_cuda::kernel::CompileOptions;
 use crate::compiler::CompileOptions;
 use dashmap::DashMap;
@@ -99,7 +98,7 @@ impl KernelSynthesizer {
         let template = self.template_engine.select_template(spec)?;
 
         // Generate initial code
-        let mut source_code = self.generate_initial_code(&template, spec).await?;
+        let mut source_code = self.generate_initial_code(template, spec).await?;
 
         // Apply optimizations iteratively
         let mut iterations = 0;
@@ -163,7 +162,8 @@ impl KernelSynthesizer {
         // Evict if cache is full
         if self.cache.len() >= self.config.cache_size {
             // Find least recently used
-            if let Some(lru_key) = self.cache
+            if let Some(lru_key) = self
+                .cache
                 .iter()
                 .min_by_key(|entry| entry.value().last_accessed)
                 .map(|entry| entry.key().clone())
@@ -480,9 +480,7 @@ mod tests {
         let original = "void kernel() {}";
         let optimized = "__shared__ float mem[1024];\nvoid kernel() {}";
 
-        assert!(synthesizer
-            .is_improvement(optimized, original, &spec)
-            ?);
+        assert!(synthesizer.is_improvement(optimized, original, &spec)?);
         assert!(!synthesizer
             .is_improvement(original, original, &spec)
             .unwrap());

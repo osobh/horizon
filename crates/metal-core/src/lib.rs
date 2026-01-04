@@ -62,7 +62,7 @@ pub use command::{MetalCommandBuffer, MetalCommandQueue, MetalComputeEncoder};
 pub use compute::MetalComputePipeline;
 pub use error::{MetalError, Result};
 pub use sync::MetalSync;
-pub use tensor::{MetalTensor, TensorDescriptor, TensorDType};
+pub use tensor::{MetalTensor, TensorDType, TensorDescriptor};
 
 // Re-export default backend
 #[cfg(feature = "metal3")]

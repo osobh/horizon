@@ -1,6 +1,7 @@
 //! Phase 3 Agent Systems Integration Tests
 //! Tests integration between CUDA, agent-core, synthesis, evolution-engines, and knowledge-graph
 
+use std::sync::Arc;
 use stratoswarm_agent_core::{Agent, AgentConfig, AgentState, Goal, GoalPriority, MemoryType};
 use stratoswarm_cuda::{CudaContext, CudaMemoryManager, CudaStream};
 use stratoswarm_evolution_engines::{
@@ -10,7 +11,6 @@ use stratoswarm_knowledge_graph::{
     KnowledgeGraph, KnowledgeGraphConfig, NodeType, Query, QueryEngine, QueryType,
 };
 use stratoswarm_synthesis::{GoalInterpreter, SynthesisConfig, SynthesisPipeline};
-use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 
 #[tokio::test]

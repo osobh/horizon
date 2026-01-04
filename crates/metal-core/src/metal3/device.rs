@@ -6,7 +6,7 @@ use crate::error::{MetalError, Result};
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2_metal::{MTLDevice, MTLCreateSystemDefaultDevice};
+use objc2_metal::{MTLCreateSystemDefaultDevice, MTLDevice};
 
 /// Metal 3 device wrapper.
 pub struct Metal3Device {
@@ -21,8 +21,7 @@ unsafe impl Sync for Metal3Device {}
 impl Metal3Device {
     /// Get the system default Metal device.
     pub fn system_default() -> Result<Self> {
-        let device = MTLCreateSystemDefaultDevice()
-            .ok_or(MetalError::NoDevice)?;
+        let device = MTLCreateSystemDefaultDevice().ok_or(MetalError::NoDevice)?;
 
         let info = Self::query_device_info(&device);
 

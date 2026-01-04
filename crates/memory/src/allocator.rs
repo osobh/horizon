@@ -199,6 +199,9 @@ mod tests {
     async fn test_deallocate_invalid_handle() {
         let allocator = GpuMemoryAllocator::new(1024 * 1024).expect("Failed to create allocator");
 
+        // SAFETY: Creating a null DevicePointer for testing purposes only.
+        // This handle is never dereferenced - it's used to test error handling
+        // when deallocating an invalid/unknown handle.
         let fake_handle = GpuMemoryHandle {
             #[cfg(feature = "cuda")]
             ptr: unsafe { cust::memory::DevicePointer::from_raw(0) },
@@ -252,6 +255,9 @@ mod tests {
             total_memory: 1024 * 1024,
         };
 
+        // SAFETY: Creating a null DevicePointer for testing purposes only.
+        // This handle is never dereferenced - it's used to test error handling
+        // when deallocating with a poisoned mutex.
         let handle = GpuMemoryHandle {
             #[cfg(feature = "cuda")]
             ptr: unsafe { cust::memory::DevicePointer::from_raw(0) },

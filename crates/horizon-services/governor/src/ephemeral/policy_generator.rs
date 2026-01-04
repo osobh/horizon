@@ -74,10 +74,7 @@ impl PolicyScope {
     /// Create a scope for collaboration access.
     pub fn collaboration() -> Self {
         Self {
-            resource_types: vec![
-                "notebook".to_string(),
-                "session".to_string(),
-            ],
+            resource_types: vec!["notebook".to_string(), "session".to_string()],
             resource_patterns: vec!["*".to_string()],
             allowed_actions: vec![
                 "view".to_string(),
@@ -181,10 +178,7 @@ impl Default for RiskBasedAccess {
                 "execute".to_string(),
                 "collaborate".to_string(),
             ],
-            medium_risk_actions: vec![
-                "read".to_string(),
-                "collaborate".to_string(),
-            ],
+            medium_risk_actions: vec!["read".to_string(), "collaborate".to_string()],
             high_risk_actions: vec!["read".to_string()],
             suspension_threshold: 0.6,
             revocation_threshold: 0.85,
@@ -216,7 +210,12 @@ impl EphemeralPolicyGenerator {
         let name = format!(
             "ephemeral-{}-{}",
             config.policy_type.as_str(),
-            config.ephemeral_id.to_string().split('-').next().unwrap_or("unknown")
+            config
+                .ephemeral_id
+                .to_string()
+                .split('-')
+                .next()
+                .unwrap_or("unknown")
         );
 
         let description = format!(
@@ -258,7 +257,12 @@ spec:
 {rules}
 "#,
             policy_type = config.policy_type.as_str(),
-            id = config.ephemeral_id.to_string().split('-').next().unwrap_or("unknown"),
+            id = config
+                .ephemeral_id
+                .to_string()
+                .split('-')
+                .next()
+                .unwrap_or("unknown"),
             principal = config.principal_id,
             resources = resources_yaml,
             rules = rules_yaml,
@@ -270,7 +274,11 @@ spec:
         let mut lines = Vec::new();
         lines.push("  resources:".to_string());
 
-        for (rt, pattern) in scope.resource_types.iter().zip(scope.resource_patterns.iter()) {
+        for (rt, pattern) in scope
+            .resource_types
+            .iter()
+            .zip(scope.resource_patterns.iter())
+        {
             lines.push(format!("    - type: {}", rt));
             lines.push(format!("      pattern: \"{}\"", pattern));
         }
@@ -318,7 +326,9 @@ spec:
                 lines.push("          value: \"active\"".to_string());
             }
             EphemeralPolicyType::Federated => {
-                lines.push("        - field: principal.attributes.federated_participant".to_string());
+                lines.push(
+                    "        - field: principal.attributes.federated_participant".to_string(),
+                );
                 lines.push("          operator: eq".to_string());
                 lines.push("          value: true".to_string());
                 lines.push("        - field: principal.attributes.session_active".to_string());

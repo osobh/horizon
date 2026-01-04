@@ -892,8 +892,7 @@ mod tests {
         // Register devices with different available memory
         optimizer
             .register_device(create_test_device("0", 40.0, 0.0))
-            .await
-            ?;
+            .await?;
         optimizer
             .register_device(create_test_device("1", 80.0, 0.0))
             .await
@@ -920,8 +919,7 @@ mod tests {
         // Register devices with different available memory
         optimizer
             .register_device(create_test_device("0", 40.0, 0.0))
-            .await
-            ?;
+            .await?;
         optimizer
             .register_device(create_test_device("1", 80.0, 0.0))
             .await
@@ -949,8 +947,7 @@ mod tests {
         for i in 0..3 {
             optimizer
                 .register_device(create_test_device(&i.to_string(), 80.0, 0.0))
-                .await
-                ?;
+                .await?;
         }
 
         // Make multiple allocations
@@ -981,8 +978,7 @@ mod tests {
         // Register a single device
         optimizer
             .register_device(create_test_device("0", 80.0, 0.0))
-            .await
-            ?;
+            .await?;
 
         // Make multiple small allocations
         let mut allocations = Vec::new();
@@ -1011,8 +1007,7 @@ mod tests {
         // Register device
         optimizer
             .register_device(create_test_device("0", 80.0, 0.0))
-            .await
-            ?;
+            .await?;
 
         // Make allocation
         let request = create_test_request(40.0, 50.0, false);
@@ -1091,8 +1086,7 @@ mod tests {
         // Register device
         optimizer
             .register_device(create_test_device("0", 80.0, 0.0))
-            .await
-            ?;
+            .await?;
 
         // Make allocations
         for i in 0..3 {

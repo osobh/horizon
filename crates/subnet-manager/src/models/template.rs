@@ -100,11 +100,7 @@ pub enum RouteTarget {
 
 impl SubnetTemplate {
     /// Create a new template
-    pub fn new(
-        name: impl Into<String>,
-        purpose: SubnetPurpose,
-        prefix_length: u8,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, purpose: SubnetPurpose, prefix_length: u8) -> Self {
         Self {
             id: Uuid::new_v4(),
             name: name.into(),
@@ -163,52 +159,48 @@ impl SubnetTemplate {
         template.is_system = true;
         template.description = Some("Subnet for datacenter nodes (high reliability)".to_string());
         template.defaults.node_type = Some(NodeType::DataCenter);
-        template.default_policies.push(PolicyRule::node_type_equals(NodeType::DataCenter));
+        template
+            .default_policies
+            .push(PolicyRule::node_type_equals(NodeType::DataCenter));
         template
     }
 
     /// Workstation nodes template
     pub fn nodetype_workstation() -> Self {
-        let mut template = Self::new(
-            "nodetype-workstation",
-            SubnetPurpose::NodeType,
-            16,
-        );
+        let mut template = Self::new("nodetype-workstation", SubnetPurpose::NodeType, 16);
         template.is_system = true;
         template.description = Some("Subnet for workstation nodes".to_string());
         template.defaults.node_type = Some(NodeType::Workstation);
-        template.default_policies.push(PolicyRule::node_type_equals(NodeType::Workstation));
+        template
+            .default_policies
+            .push(PolicyRule::node_type_equals(NodeType::Workstation));
         template
     }
 
     /// Laptop nodes template
     pub fn nodetype_laptop() -> Self {
-        let mut template = Self::new(
-            "nodetype-laptop",
-            SubnetPurpose::NodeType,
-            16,
-        );
+        let mut template = Self::new("nodetype-laptop", SubnetPurpose::NodeType, 16);
         template.is_system = true;
         template.description = Some("Subnet for laptop nodes (variable connectivity)".to_string());
         template.defaults.node_type = Some(NodeType::Laptop);
         template.defaults.persistent_keepalive = Some(15); // More aggressive keepalive
-        template.default_policies.push(PolicyRule::node_type_equals(NodeType::Laptop));
+        template
+            .default_policies
+            .push(PolicyRule::node_type_equals(NodeType::Laptop));
         template
     }
 
     /// Edge devices template
     pub fn nodetype_edge() -> Self {
-        let mut template = Self::new(
-            "nodetype-edge",
-            SubnetPurpose::NodeType,
-            16,
-        );
+        let mut template = Self::new("nodetype-edge", SubnetPurpose::NodeType, 16);
         template.is_system = true;
         template.description = Some("Subnet for edge devices (IoT, embedded)".to_string());
         template.defaults.node_type = Some(NodeType::Edge);
         template.defaults.persistent_keepalive = Some(10); // Very aggressive keepalive
         template.defaults.mtu = Some(1280); // Lower MTU for constrained networks
-        template.default_policies.push(PolicyRule::node_type_equals(NodeType::Edge));
+        template
+            .default_policies
+            .push(PolicyRule::node_type_equals(NodeType::Edge));
         template
     }
 
@@ -251,11 +243,7 @@ impl SubnetTemplate {
 
     /// Training resource pool template
     pub fn resource_pool_training() -> Self {
-        let mut template = Self::new(
-            "resource-pool-training",
-            SubnetPurpose::ResourcePool,
-            20,
-        );
+        let mut template = Self::new("resource-pool-training", SubnetPurpose::ResourcePool, 20);
         template.is_system = true;
         template.description = Some("Subnet for ML training resource pools".to_string());
         template

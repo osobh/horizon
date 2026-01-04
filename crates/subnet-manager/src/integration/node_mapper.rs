@@ -144,7 +144,8 @@ impl NodeClassMapper {
 
     /// Add region normalization
     pub fn with_region_mapping(mut self, from: &str, to: &str) -> Self {
-        self.region_mappings.insert(from.to_string(), to.to_string());
+        self.region_mappings
+            .insert(from.to_string(), to.to_string());
         self
     }
 
@@ -284,8 +285,8 @@ mod tests {
         labels.insert("env".to_string(), "production".to_string());
         labels.insert("team".to_string(), "platform".to_string());
 
-        let node =
-            ClusterNodeInfo::new(Uuid::new_v4(), "server", NodeClass::DataCenter).with_labels(labels);
+        let node = ClusterNodeInfo::new(Uuid::new_v4(), "server", NodeClass::DataCenter)
+            .with_labels(labels);
 
         let attrs = mapper.map_to_attributes(&node);
         assert!(attrs.labels.contains(&"environment=production".to_string()));

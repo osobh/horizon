@@ -8,11 +8,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::{
-    api::routes::AppState,
-    error::HpcError,
-    models::*,
-};
+use crate::{api::routes::AppState, error::HpcError, models::*};
 
 #[derive(Debug, Deserialize)]
 pub struct AllocateRequest {
@@ -33,7 +29,12 @@ pub async fn check_allocation(
 
     let response = state
         .allocation_service
-        .check_allocation(entity_type, &req.entity_id, resource_type, req.requested_value)
+        .check_allocation(
+            entity_type,
+            &req.entity_id,
+            resource_type,
+            req.requested_value,
+        )
         .await?;
 
     Ok(Json(response))
@@ -98,6 +99,9 @@ pub async fn list_allocations(
     State(state): State<Arc<AppState>>,
     Path(quota_id): Path<Uuid>,
 ) -> Result<Json<Vec<Allocation>>, HpcError> {
-    let allocations = state.allocation_service.list_active_allocations(quota_id).await?;
+    let allocations = state
+        .allocation_service
+        .list_active_allocations(quota_id)
+        .await?;
     Ok(Json(allocations))
 }

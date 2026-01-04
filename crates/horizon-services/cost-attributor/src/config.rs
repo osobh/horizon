@@ -102,15 +102,11 @@ impl Config {
 
     pub fn validate(&self) -> crate::error::Result<()> {
         if self.database.url.is_empty() {
-            return Err(hpc_error::HpcError::config(
-                "Database URL cannot be empty",
-            ));
+            return Err(hpc_error::HpcError::config("Database URL cannot be empty"));
         }
 
         if self.scheduler.url.is_empty() {
-            return Err(hpc_error::HpcError::config(
-                "Scheduler URL cannot be empty",
-            ));
+            return Err(hpc_error::HpcError::config("Scheduler URL cannot be empty"));
         }
 
         if self.attribution.accuracy_threshold_percent <= 0.0

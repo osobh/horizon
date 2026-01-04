@@ -1,7 +1,4 @@
-use horizon_quota_manager::{
-    models::*,
-    QuotaRepository, DbPool, Config,
-};
+use horizon_quota_manager::{models::*, Config, DbPool, QuotaRepository};
 use rust_decimal_macros::dec;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -43,7 +40,10 @@ async fn test_create_quota() {
         overcommit_ratio: Some(dec!(1.5)),
     };
 
-    let quota = repo.create_quota(req).await.expect("Failed to create quota");
+    let quota = repo
+        .create_quota(req)
+        .await
+        .expect("Failed to create quota");
 
     assert_eq!(quota.entity_type, EntityType::Organization);
     assert_eq!(quota.entity_id, "acme-corp");
@@ -70,11 +70,16 @@ async fn test_create_quota_duplicate_error() {
         overcommit_ratio: None,
     };
 
-    repo.create_quota(req.clone()).await.expect("Failed to create quota");
+    repo.create_quota(req.clone())
+        .await
+        .expect("Failed to create quota");
     let result = repo.create_quota(req).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), horizon_quota_manager::QuotaError::AlreadyExists(_)));
+    assert!(matches!(
+        result.unwrap_err(),
+        horizon_quota_manager::QuotaError::AlreadyExists(_)
+    ));
 }
 
 #[tokio::test]
@@ -93,8 +98,14 @@ async fn test_get_quota() {
         overcommit_ratio: None,
     };
 
-    let created = repo.create_quota(req).await.expect("Failed to create quota");
-    let fetched = repo.get_quota(created.id).await.expect("Failed to get quota");
+    let created = repo
+        .create_quota(req)
+        .await
+        .expect("Failed to create quota");
+    let fetched = repo
+        .get_quota(created.id)
+        .await
+        .expect("Failed to get quota");
 
     assert_eq!(created.id, fetched.id);
     assert_eq!(fetched.entity_id, "alice");
@@ -107,7 +118,10 @@ async fn test_get_quota_not_found() {
 
     let result = repo.get_quota(Uuid::new_v4()).await;
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), horizon_quota_manager::QuotaError::NotFound(_)));
+    assert!(matches!(
+        result.unwrap_err(),
+        horizon_quota_manager::QuotaError::NotFound(_)
+    ));
 }
 
 #[tokio::test]
@@ -126,7 +140,9 @@ async fn test_get_quota_by_entity() {
         overcommit_ratio: None,
     };
 
-    repo.create_quota(req).await.expect("Failed to create quota");
+    repo.create_quota(req)
+        .await
+        .expect("Failed to create quota");
 
     let fetched = repo
         .get_quota_by_entity(EntityType::Team, "engineering", ResourceType::CpuHours)
@@ -154,10 +170,15 @@ async fn test_list_quotas() {
             burst_limit: None,
             overcommit_ratio: None,
         };
-        repo.create_quota(req).await.expect("Failed to create quota");
+        repo.create_quota(req)
+            .await
+            .expect("Failed to create quota");
     }
 
-    let quotas = repo.list_quotas(Some(EntityType::User)).await.expect("Failed to list quotas");
+    let quotas = repo
+        .list_quotas(Some(EntityType::User))
+        .await
+        .expect("Failed to list quotas");
     assert_eq!(quotas.len(), 3);
 }
 
@@ -177,7 +198,10 @@ async fn test_update_quota() {
         overcommit_ratio: None,
     };
 
-    let created = repo.create_quota(req).await.expect("Failed to create quota");
+    let created = repo
+        .create_quota(req)
+        .await
+        .expect("Failed to create quota");
 
     let update_req = UpdateQuotaRequest {
         limit_value: Some(dec!(2000.0)),
@@ -186,7 +210,10 @@ async fn test_update_quota() {
         overcommit_ratio: None,
     };
 
-    let updated = repo.update_quota(created.id, update_req).await.expect("Failed to update quota");
+    let updated = repo
+        .update_quota(created.id, update_req)
+        .await
+        .expect("Failed to update quota");
 
     assert_eq!(updated.limit_value, dec!(2000.0));
     assert_eq!(updated.soft_limit, Some(dec!(1500.0)));
@@ -209,8 +236,13 @@ async fn test_delete_quota() {
         overcommit_ratio: None,
     };
 
-    let created = repo.create_quota(req).await.expect("Failed to create quota");
-    repo.delete_quota(created.id).await.expect("Failed to delete quota");
+    let created = repo
+        .create_quota(req)
+        .await
+        .expect("Failed to create quota");
+    repo.delete_quota(created.id)
+        .await
+        .expect("Failed to delete quota");
 
     let result = repo.get_quota(created.id).await;
     assert!(result.is_err());
@@ -232,7 +264,10 @@ async fn test_create_allocation() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let quota = repo.create_quota(quota_req).await.expect("Failed to create quota");
+    let quota = repo
+        .create_quota(quota_req)
+        .await
+        .expect("Failed to create quota");
 
     // Create allocation
     let alloc_req = CreateAllocationRequest {
@@ -243,7 +278,10 @@ async fn test_create_allocation() {
         metadata: None,
     };
 
-    let allocation = repo.create_allocation(alloc_req).await.expect("Failed to create allocation");
+    let allocation = repo
+        .create_allocation(alloc_req)
+        .await
+        .expect("Failed to create allocation");
 
     assert_eq!(allocation.quota_id, quota.id);
     assert_eq!(allocation.allocated_value, dec!(10.0));
@@ -267,7 +305,10 @@ async fn test_get_current_usage() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let quota = repo.create_quota(quota_req).await.expect("Failed to create quota");
+    let quota = repo
+        .create_quota(quota_req)
+        .await
+        .expect("Failed to create quota");
 
     // Create multiple allocations
     for _i in 0..3 {
@@ -278,10 +319,15 @@ async fn test_get_current_usage() {
             allocated_value: dec!(8.0),
             metadata: None,
         };
-        repo.create_allocation(alloc_req).await.expect("Failed to create allocation");
+        repo.create_allocation(alloc_req)
+            .await
+            .expect("Failed to create allocation");
     }
 
-    let usage = repo.get_current_usage(quota.id).await.expect("Failed to get usage");
+    let usage = repo
+        .get_current_usage(quota.id)
+        .await
+        .expect("Failed to get usage");
     assert_eq!(usage, dec!(24.0));
 }
 
@@ -301,7 +347,10 @@ async fn test_release_allocation() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let quota = repo.create_quota(quota_req).await.expect("Failed to create quota");
+    let quota = repo
+        .create_quota(quota_req)
+        .await
+        .expect("Failed to create quota");
 
     let alloc_req = CreateAllocationRequest {
         quota_id: quota.id,
@@ -310,17 +359,26 @@ async fn test_release_allocation() {
         allocated_value: dec!(15.0),
         metadata: None,
     };
-    let allocation = repo.create_allocation(alloc_req).await.expect("Failed to create allocation");
+    let allocation = repo
+        .create_allocation(alloc_req)
+        .await
+        .expect("Failed to create allocation");
 
     // Release allocation (optimistic lock should increment version)
-    let released = repo.release_allocation(allocation.id).await.expect("Failed to release allocation");
+    let released = repo
+        .release_allocation(allocation.id)
+        .await
+        .expect("Failed to release allocation");
 
     assert!(!released.is_active());
     assert!(released.released_at.is_some());
     assert_eq!(released.version, 1); // Version incremented
 
     // Usage should be 0 after release
-    let usage = repo.get_current_usage(quota.id).await.expect("Failed to get usage");
+    let usage = repo
+        .get_current_usage(quota.id)
+        .await
+        .expect("Failed to get usage");
     assert_eq!(usage, dec!(0.0));
 }
 
@@ -339,7 +397,10 @@ async fn test_release_allocation_already_released() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let quota = repo.create_quota(quota_req).await.expect("Failed to create quota");
+    let quota = repo
+        .create_quota(quota_req)
+        .await
+        .expect("Failed to create quota");
 
     let alloc_req = CreateAllocationRequest {
         quota_id: quota.id,
@@ -348,14 +409,22 @@ async fn test_release_allocation_already_released() {
         allocated_value: dec!(20.0),
         metadata: None,
     };
-    let allocation = repo.create_allocation(alloc_req).await.expect("Failed to create allocation");
+    let allocation = repo
+        .create_allocation(alloc_req)
+        .await
+        .expect("Failed to create allocation");
 
-    repo.release_allocation(allocation.id).await.expect("Failed to release allocation");
+    repo.release_allocation(allocation.id)
+        .await
+        .expect("Failed to release allocation");
 
     // Try to release again - should fail
     let result = repo.release_allocation(allocation.id).await;
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), horizon_quota_manager::QuotaError::AllocationNotFound(_)));
+    assert!(matches!(
+        result.unwrap_err(),
+        horizon_quota_manager::QuotaError::AllocationNotFound(_)
+    ));
 }
 
 #[tokio::test]
@@ -373,7 +442,10 @@ async fn test_list_active_allocations() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let quota = repo.create_quota(quota_req).await.expect("Failed to create quota");
+    let quota = repo
+        .create_quota(quota_req)
+        .await
+        .expect("Failed to create quota");
 
     // Create 5 allocations, release 2
     let mut allocation_ids = Vec::new();
@@ -385,14 +457,24 @@ async fn test_list_active_allocations() {
             allocated_value: dec!(10.0),
             metadata: None,
         };
-        let alloc = repo.create_allocation(alloc_req).await.expect("Failed to create allocation");
+        let alloc = repo
+            .create_allocation(alloc_req)
+            .await
+            .expect("Failed to create allocation");
         allocation_ids.push(alloc.id);
     }
 
-    repo.release_allocation(allocation_ids[0]).await.expect("Failed to release");
-    repo.release_allocation(allocation_ids[1]).await.expect("Failed to release");
+    repo.release_allocation(allocation_ids[0])
+        .await
+        .expect("Failed to release");
+    repo.release_allocation(allocation_ids[1])
+        .await
+        .expect("Failed to release");
 
-    let active = repo.list_active_allocations(quota.id).await.expect("Failed to list active allocations");
+    let active = repo
+        .list_active_allocations(quota.id)
+        .await
+        .expect("Failed to list active allocations");
     assert_eq!(active.len(), 3);
 }
 
@@ -411,7 +493,10 @@ async fn test_record_and_get_usage_history() {
         burst_limit: None,
         overcommit_ratio: None,
     };
-    let quota = repo.create_quota(quota_req).await.expect("Failed to create quota");
+    let quota = repo
+        .create_quota(quota_req)
+        .await
+        .expect("Failed to create quota");
 
     let job_id = Uuid::new_v4();
 
@@ -443,7 +528,10 @@ async fn test_record_and_get_usage_history() {
     .await
     .expect("Failed to record usage");
 
-    let history = repo.get_usage_history(quota.id, Some(10)).await.expect("Failed to get history");
+    let history = repo
+        .get_usage_history(quota.id, Some(10))
+        .await
+        .expect("Failed to get history");
     assert_eq!(history.len(), 2);
     assert_eq!(history[0].operation, OperationType::Release); // Most recent first
     assert_eq!(history[1].operation, OperationType::Allocate);

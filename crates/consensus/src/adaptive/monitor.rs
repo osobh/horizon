@@ -37,12 +37,12 @@ impl NetworkMonitor {
             current_conditions: Arc::new(RwLock::new(NetworkConditions::default())),
         }
     }
-    
+
     /// Get current network conditions
     pub async fn get_current_conditions(&self) -> NetworkConditions {
         self.current_conditions.read().await.clone()
     }
-    
+
     /// Update network conditions
     pub async fn update_conditions(&self, conditions: NetworkConditions) {
         *self.current_conditions.write().await = conditions;

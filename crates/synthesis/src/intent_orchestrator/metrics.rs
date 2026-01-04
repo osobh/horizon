@@ -4,8 +4,8 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::intents::IntentType;
 use super::execution::ExecutionStatus;
+use super::intents::IntentType;
 
 /// Orchestration metrics
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,40 +90,45 @@ impl Default for ResourceMetrics {
 
 impl OrchestrationMetrics {
     /// Record intent classification
-    pub fn record_classification(&mut self, intent_type: &IntentType, success: bool, duration_ms: f64) {
+    pub fn record_classification(
+        &mut self,
+        intent_type: &IntentType,
+        success: bool,
+        duration_ms: f64,
+    ) {
         self.total_intents += 1;
-        
+
         if success {
             self.successful_classifications += 1;
         } else {
             self.failed_classifications += 1;
         }
-        
+
         // Update intent distribution
         let intent_str = format!("{:?}", intent_type);
         *self.intent_distribution.entry(intent_str).or_insert(0) += 1;
-        
+
         // Update average classification time
         let total_time = self.avg_classification_time_ms * (self.total_intents - 1) as f64;
         self.avg_classification_time_ms = (total_time + duration_ms) / self.total_intents as f64;
-        
+
         self.last_updated = Utc::now();
     }
 
     /// Record execution
     pub fn record_execution(&mut self, status: ExecutionStatus, duration_ms: f64) {
         self.total_executions += 1;
-        
+
         match status {
             ExecutionStatus::Completed => self.successful_executions += 1,
             ExecutionStatus::Failed | ExecutionStatus::TimedOut => self.failed_executions += 1,
             _ => {}
         }
-        
+
         // Update average execution time
         let total_time = self.avg_execution_time_ms * (self.total_executions - 1) as f64;
         self.avg_execution_time_ms = (total_time + duration_ms) / self.total_executions as f64;
-        
+
         self.last_updated = Utc::now();
     }
 

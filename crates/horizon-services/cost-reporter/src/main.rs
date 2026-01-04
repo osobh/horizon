@@ -13,16 +13,18 @@ async fn main() -> anyhow::Result<()> {
 
     // Load configuration
     let config = ReporterConfig::default();
-    tracing::info!("Starting cost-reporter service on {}:{}", config.host, config.port);
+    tracing::info!(
+        "Starting cost-reporter service on {}:{}",
+        config.host,
+        config.port
+    );
 
     // Create database pool
     let pool = create_pool(&config.database_url).await?;
     tracing::info!("Database pool created");
 
     // Run migrations
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
     tracing::info!("Database migrations complete");
 
     // Create app state

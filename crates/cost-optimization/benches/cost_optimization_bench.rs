@@ -1,11 +1,11 @@
 use chrono::{Duration, Utc};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use ordered_float::OrderedFloat;
+use std::collections::HashMap;
 use stratoswarm_cost_optimization::{
     budget_manager::*, cloud_pricing::*, cost_predictor::*, gpu_optimizer::*, resource_tracker::*,
     spot_manager::*, usage_analyzer::*, workload_scheduler::*,
 };
-use ordered_float::OrderedFloat;
-use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
 fn bench_resource_tracking(c: &mut Criterion) {
