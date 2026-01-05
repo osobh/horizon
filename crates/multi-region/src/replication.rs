@@ -198,6 +198,106 @@ pub struct ReplicationStatus {
     pub vector_clock: VectorClock,
 }
 
+/// Merkle tree for efficient data comparison during anti-entropy
+///
+/// Uses a hash-based tree structure to efficiently detect differences
+/// between local and remote data sets without transferring all data.
+#[derive(Debug, Clone)]
+pub struct MerkleTree {
+    /// Map of data keys to their (hash, timestamp) pairs
+    entries: BTreeMap<String, (String, DateTime<Utc>)>,
+    /// Cached root hash (invalidated on insert)
+    cached_root: Option<String>,
+}
+
+impl MerkleTree {
+    /// Create a new empty Merkle tree
+    pub fn new() -> Self {
+        Self {
+            entries: BTreeMap::new(),
+            cached_root: None,
+        }
+    }
+
+    /// Insert an entry into the tree
+    pub fn insert(&mut self, key: &str, checksum: &str, timestamp: DateTime<Utc>) {
+        self.entries
+            .insert(key.to_string(), (checksum.to_string(), timestamp));
+        self.cached_root = None; // Invalidate cache
+    }
+
+    /// Compute and return the root hash of the tree
+    ///
+    /// Uses a simple hash chain over sorted keys for deterministic results.
+    /// A production implementation would use a proper binary Merkle tree.
+    pub fn root_hash(&self) -> String {
+        if let Some(ref cached) = self.cached_root {
+            return cached.clone();
+        }
+
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+
+        // Hash entries in sorted key order for determinism
+        for (key, (checksum, _)) in &self.entries {
+            key.hash(&mut hasher);
+            checksum.hash(&mut hasher);
+        }
+
+        format!("{:x}", hasher.finish())
+    }
+
+    /// Get the number of entries in the tree
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Check if the tree is empty
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
+impl Default for MerkleTree {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Types of inconsistencies detected during anti-entropy
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InconsistencyType {
+    /// Entry exists in remote but not locally
+    MissingLocal,
+    /// Entry exists locally but not in remote
+    MissingRemote,
+    /// Local entry is older than remote
+    StaleLocal,
+    /// Remote entry is older than local
+    StaleRemote,
+}
+
+/// Inconsistency detected during anti-entropy comparison
+#[derive(Debug, Clone)]
+pub struct AntiEntropyInconsistency {
+    /// Data key with inconsistency
+    pub data_key: String,
+    /// Type of inconsistency
+    pub inconsistency_type: InconsistencyType,
+    /// Local checksum (if exists)
+    pub local_checksum: Option<String>,
+    /// Remote checksum (if exists)
+    pub remote_checksum: Option<String>,
+    /// Local timestamp (if exists)
+    pub local_timestamp: Option<DateTime<Utc>>,
+    /// Remote timestamp (if exists)
+    pub remote_timestamp: Option<DateTime<Utc>>,
+    /// Region where inconsistency was found
+    pub source_region: String,
+}
+
 /// Cross-region replication manager
 pub struct ReplicationManager {
     config: ReplicationConfig,
@@ -679,22 +779,49 @@ impl ReplicationManager {
         Ok(resolved_ids)
     }
 
-    /// Perform anti-entropy to repair inconsistencies
+    /// Perform anti-entropy to repair inconsistencies between regions
+    ///
+    /// Uses Merkle tree comparison to efficiently identify divergent data,
+    /// then syncs missing or outdated entries to repair inconsistencies.
     pub async fn perform_anti_entropy(&self) -> MultiRegionResult<u64> {
         let mut repairs_made = 0;
         let regions: Vec<_> = self.region_status.iter().map(|e| e.key().clone()).collect();
 
-        // Compare data between regions and identify inconsistencies
-        for region_a in &regions {
-            for region_b in &regions {
-                if region_a != region_b {
-                    let inconsistencies = self.find_inconsistencies(region_a, region_b).await?;
-                    repairs_made += inconsistencies.len() as u64;
+        debug_assert!(
+            !regions.is_empty(),
+            "Anti-entropy requires at least one region"
+        );
 
-                    // Repair inconsistencies
+        // Build Merkle tree for local data
+        let local_merkle = self.build_merkle_tree().await?;
+
+        // Compare with each region
+        for region in &regions {
+            match self.compare_with_region(region, &local_merkle).await {
+                Ok(inconsistencies) => {
                     for inconsistency in inconsistencies {
-                        self.repair_inconsistency(inconsistency).await?;
+                        match self.repair_inconsistency(&inconsistency).await {
+                            Ok(()) => {
+                                repairs_made += 1;
+                                tracing::info!(
+                                    "Anti-entropy repaired inconsistency for key: {}",
+                                    inconsistency.data_key
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to repair inconsistency for key {}: {}",
+                                    inconsistency.data_key,
+                                    e
+                                );
+                            }
+                        }
                     }
+                }
+                Err(e) => {
+                    tracing::warn!("Anti-entropy comparison with {} failed: {}", region, e);
+                    // Update region status to reflect error
+                    self.update_region_status(region, 0, false).await;
                 }
             }
         }
@@ -702,21 +829,259 @@ impl ReplicationManager {
         Ok(repairs_made)
     }
 
-    /// Find inconsistencies between two regions
-    async fn find_inconsistencies(
+    /// Build Merkle tree from local replication log
+    async fn build_merkle_tree(&self) -> MultiRegionResult<MerkleTree> {
+        let log = self.replication_log.lock().await;
+        let mut tree = MerkleTree::new();
+
+        for entry in log.iter() {
+            tree.insert(&entry.data_key, &entry.checksum, entry.timestamp);
+        }
+
+        Ok(tree)
+    }
+
+    /// Compare local Merkle tree with a remote region
+    async fn compare_with_region(
         &self,
-        _region_a: &str,
-        _region_b: &str,
-    ) -> MultiRegionResult<Vec<String>> {
-        // In a real implementation, this would query both regions and compare data
-        // For now, return empty list
-        Ok(Vec::new())
+        region: &str,
+        local_tree: &MerkleTree,
+    ) -> MultiRegionResult<Vec<AntiEntropyInconsistency>> {
+        // Request Merkle tree root from remote region
+        let remote_root = self.fetch_remote_merkle_root(region).await?;
+
+        // If roots match, no inconsistencies
+        if local_tree.root_hash() == remote_root {
+            return Ok(Vec::new());
+        }
+
+        // Trees differ, need to find specific inconsistencies
+        let remote_entries = self.fetch_remote_entries(region).await?;
+        let local_log = self.replication_log.lock().await;
+
+        let mut inconsistencies = Vec::new();
+
+        // Build local key -> (checksum, timestamp) map
+        let local_entries: HashMap<String, (&str, chrono::DateTime<Utc>)> = local_log
+            .iter()
+            .map(|e| (e.data_key.clone(), (e.checksum.as_str(), e.timestamp)))
+            .collect();
+
+        // Find entries that are missing locally or have different checksums
+        for (key, remote_checksum, remote_timestamp) in &remote_entries {
+            match local_entries.get(key) {
+                None => {
+                    // Missing locally
+                    inconsistencies.push(AntiEntropyInconsistency {
+                        data_key: key.clone(),
+                        inconsistency_type: InconsistencyType::MissingLocal,
+                        local_checksum: None,
+                        remote_checksum: Some(remote_checksum.clone()),
+                        local_timestamp: None,
+                        remote_timestamp: Some(*remote_timestamp),
+                        source_region: region.to_string(),
+                    });
+                }
+                Some(&(local_checksum, local_ts)) => {
+                    if local_checksum != remote_checksum {
+                        // Checksum mismatch - use timestamp to determine winner
+                        let inconsistency_type = if *remote_timestamp > local_ts {
+                            InconsistencyType::StaleLocal
+                        } else {
+                            InconsistencyType::StaleRemote
+                        };
+
+                        inconsistencies.push(AntiEntropyInconsistency {
+                            data_key: key.clone(),
+                            inconsistency_type,
+                            local_checksum: Some(local_checksum.to_string()),
+                            remote_checksum: Some(remote_checksum.clone()),
+                            local_timestamp: Some(local_ts),
+                            remote_timestamp: Some(*remote_timestamp),
+                            source_region: region.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Find entries that are missing remotely
+        for (key, (checksum, timestamp)) in &local_entries {
+            if !remote_entries.iter().any(|(k, _, _)| k == key) {
+                inconsistencies.push(AntiEntropyInconsistency {
+                    data_key: key.clone(),
+                    inconsistency_type: InconsistencyType::MissingRemote,
+                    local_checksum: Some(checksum.to_string()),
+                    remote_checksum: None,
+                    local_timestamp: Some(*timestamp),
+                    remote_timestamp: None,
+                    source_region: region.to_string(),
+                });
+            }
+        }
+
+        Ok(inconsistencies)
+    }
+
+    /// Fetch Merkle tree root hash from remote region
+    async fn fetch_remote_merkle_root(&self, region: &str) -> MultiRegionResult<String> {
+        let url = format!("https://{}.example.com/anti-entropy/merkle-root", region);
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| MultiRegionError::AntiEntropyFailure {
+                reason: format!("Failed to fetch Merkle root from {}: {}", region, e),
+            })?;
+
+        if !response.status().is_success() {
+            return Err(MultiRegionError::AntiEntropyFailure {
+                reason: format!(
+                    "Merkle root request to {} failed with status: {}",
+                    region,
+                    response.status()
+                ),
+            });
+        }
+
+        let root: String = response.json().await.map_err(|e| {
+            MultiRegionError::AntiEntropyFailure {
+                reason: format!("Failed to parse Merkle root response: {}", e),
+            }
+        })?;
+
+        Ok(root)
+    }
+
+    /// Fetch entry metadata from remote region for comparison
+    async fn fetch_remote_entries(
+        &self,
+        region: &str,
+    ) -> MultiRegionResult<Vec<(String, String, chrono::DateTime<Utc>)>> {
+        let url = format!("https://{}.example.com/anti-entropy/entries", region);
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| MultiRegionError::AntiEntropyFailure {
+                reason: format!("Failed to fetch entries from {}: {}", region, e),
+            })?;
+
+        if !response.status().is_success() {
+            return Err(MultiRegionError::AntiEntropyFailure {
+                reason: format!(
+                    "Entry list request to {} failed with status: {}",
+                    region,
+                    response.status()
+                ),
+            });
+        }
+
+        let entries: Vec<(String, String, chrono::DateTime<Utc>)> =
+            response.json().await.map_err(|e| {
+                MultiRegionError::AntiEntropyFailure {
+                    reason: format!("Failed to parse entries response: {}", e),
+                }
+            })?;
+
+        Ok(entries)
     }
 
     /// Repair a specific inconsistency
-    async fn repair_inconsistency(&self, _inconsistency: String) -> MultiRegionResult<()> {
-        // In a real implementation, this would create repair operations
+    async fn repair_inconsistency(
+        &self,
+        inconsistency: &AntiEntropyInconsistency,
+    ) -> MultiRegionResult<()> {
+        match inconsistency.inconsistency_type {
+            InconsistencyType::MissingLocal | InconsistencyType::StaleLocal => {
+                // Fetch data from remote and apply locally
+                let data = self
+                    .fetch_entry_data(&inconsistency.source_region, &inconsistency.data_key)
+                    .await?;
+
+                // Create repair entry
+                let checksum = self.calculate_checksum(&data);
+                let repair_entry = ReplicationLogEntry {
+                    id: self.generate_entry_id(),
+                    data_key: inconsistency.data_key.clone(),
+                    operation: ReplicationOperation::Repair,
+                    data,
+                    source_region: inconsistency.source_region.clone(),
+                    target_regions: vec![],
+                    vector_clock: self
+                        .vector_clock_manager
+                        .increment_clock(&inconsistency.source_region)
+                        .await,
+                    timestamp: Utc::now(),
+                    checksum,
+                    retry_count: 0,
+                };
+
+                // Add to local log
+                let mut log = self.replication_log.lock().await;
+                log.push_back(repair_entry);
+
+                tracing::info!(
+                    "Repaired local inconsistency for key {} from region {}",
+                    inconsistency.data_key,
+                    inconsistency.source_region
+                );
+            }
+            InconsistencyType::MissingRemote | InconsistencyType::StaleRemote => {
+                // Push local data to remote
+                let log = self.replication_log.lock().await;
+                if let Some(entry) = log.iter().find(|e| e.data_key == inconsistency.data_key) {
+                    self.send_replication_request(entry, &inconsistency.source_region)
+                        .await?;
+                    tracing::info!(
+                        "Pushed local data for key {} to region {}",
+                        inconsistency.data_key,
+                        inconsistency.source_region
+                    );
+                }
+            }
+        }
+
         Ok(())
+    }
+
+    /// Fetch entry data from remote region
+    async fn fetch_entry_data(&self, region: &str, data_key: &str) -> MultiRegionResult<Vec<u8>> {
+        let url = format!(
+            "https://{}.example.com/anti-entropy/entry/{}",
+            region, data_key
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| MultiRegionError::AntiEntropyFailure {
+                reason: format!("Failed to fetch entry data from {}: {}", region, e),
+            })?;
+
+        if !response.status().is_success() {
+            return Err(MultiRegionError::AntiEntropyFailure {
+                reason: format!(
+                    "Entry data request to {} failed with status: {}",
+                    region,
+                    response.status()
+                ),
+            });
+        }
+
+        let data = response.bytes().await.map_err(|e| {
+            MultiRegionError::AntiEntropyFailure {
+                reason: format!("Failed to read entry data: {}", e),
+            }
+        })?;
+
+        Ok(data.to_vec())
     }
 
     /// Get replication status for all regions

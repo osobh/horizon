@@ -1,20 +1,80 @@
-//! Zero-copy transport implementation
+//! Zero-copy transport implementation with DoS protections
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::{Message, Network, NetworkError, NetworkStats};
 
-/// Zero-copy transport for GPU memory operations
+/// Configuration for transport limits and DoS protection
+#[derive(Debug, Clone)]
+pub struct TransportConfig {
+    /// Maximum number of messages in queue (bounded queue)
+    pub max_queue_size: usize,
+    /// Maximum message payload size in bytes
+    pub max_message_size: usize,
+    /// Maximum buffer allocation size in bytes
+    pub max_buffer_size: usize,
+    /// Rate limit: messages per second per endpoint
+    pub rate_limit_messages_per_sec: u32,
+    /// Rate limit window duration
+    pub rate_limit_window: Duration,
+    /// Maximum number of endpoints to track for rate limiting
+    pub max_tracked_endpoints: usize,
+    /// Maximum total buffer pool size in bytes
+    pub max_total_buffer_size: usize,
+}
+
+impl Default for TransportConfig {
+    fn default() -> Self {
+        Self {
+            max_queue_size: 10_000,
+            max_message_size: 16 * 1024 * 1024, // 16 MB
+            max_buffer_size: 100 * 1024 * 1024, // 100 MB
+            rate_limit_messages_per_sec: 10_000,
+            rate_limit_window: Duration::from_secs(1),
+            max_tracked_endpoints: 1_000,
+            max_total_buffer_size: 1024 * 1024 * 1024, // 1 GB
+        }
+    }
+}
+
+/// Per-endpoint rate limiting state
+#[derive(Debug)]
+struct RateLimitState {
+    /// Message count in current window
+    count: u32,
+    /// Window start time
+    window_start: Instant,
+}
+
+/// Zero-copy transport for GPU memory operations with DoS protections
 pub struct ZeroCopyTransport {
     buffer_pools: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     stats: Arc<Mutex<NetworkStats>>,
-    message_queue: Arc<Mutex<Vec<(String, Message)>>>,
+    /// Bounded message queue using VecDeque for FIFO ordering
+    message_queue: Arc<Mutex<VecDeque<(String, Message)>>>,
+    /// Transport configuration with limits
+    config: TransportConfig,
+    /// Rate limiting state per endpoint
+    rate_limits: Arc<Mutex<HashMap<String, RateLimitState>>>,
+    /// Total allocated buffer size for tracking
+    total_buffer_size: AtomicU64,
+    /// Dropped messages counter (for monitoring)
+    dropped_messages: AtomicU64,
+    /// Rate limited messages counter
+    rate_limited_messages: AtomicU64,
 }
 
 impl ZeroCopyTransport {
-    /// Create new zero-copy transport
+    /// Create new zero-copy transport with default configuration
     pub fn new() -> Self {
+        Self::with_config(TransportConfig::default())
+    }
+
+    /// Create new zero-copy transport with custom configuration
+    pub fn with_config(config: TransportConfig) -> Self {
         Self {
             buffer_pools: Arc::new(Mutex::new(HashMap::new())),
             stats: Arc::new(Mutex::new(NetworkStats {
@@ -22,23 +82,141 @@ impl ZeroCopyTransport {
                 bytes_received: 0,
                 messages_sent: 0,
                 messages_received: 0,
-                average_latency_us: 0.1,  // Very low latency for zero-copy
-                throughput_mbps: 40000.0, // High throughput simulation for GPU memory
+                average_latency_us: 0.1,
+                throughput_mbps: 40000.0,
             })),
-            message_queue: Arc::new(Mutex::new(Vec::new())),
+            message_queue: Arc::new(Mutex::new(VecDeque::with_capacity(
+                config.max_queue_size.min(10_000),
+            ))),
+            config,
+            rate_limits: Arc::new(Mutex::new(HashMap::new())),
+            total_buffer_size: AtomicU64::new(0),
+            dropped_messages: AtomicU64::new(0),
+            rate_limited_messages: AtomicU64::new(0),
         }
     }
 
-    /// Allocate shared buffer for zero-copy operations
+    /// Check if endpoint is rate limited
+    fn check_rate_limit(&self, endpoint: &str) -> Result<(), NetworkError> {
+        let mut rate_limits = self.rate_limits.lock().map_err(|e| {
+            NetworkError::Io(std::io::Error::other(format!(
+                "Failed to acquire rate limit lock: {e}"
+            )))
+        })?;
+
+        let now = Instant::now();
+
+        // Clean up old entries if we have too many endpoints
+        if rate_limits.len() >= self.config.max_tracked_endpoints {
+            // Remove entries with expired windows
+            rate_limits.retain(|_, state| {
+                now.duration_since(state.window_start) < self.config.rate_limit_window
+            });
+        }
+
+        let state = rate_limits
+            .entry(endpoint.to_string())
+            .or_insert_with(|| RateLimitState {
+                count: 0,
+                window_start: now,
+            });
+
+        // Check if window has expired
+        if now.duration_since(state.window_start) >= self.config.rate_limit_window {
+            state.count = 0;
+            state.window_start = now;
+        }
+
+        // Check rate limit
+        if state.count >= self.config.rate_limit_messages_per_sec {
+            self.rate_limited_messages.fetch_add(1, Ordering::Relaxed);
+            return Err(NetworkError::RateLimited {
+                endpoint: endpoint.to_string(),
+                retry_after_ms: self
+                    .config
+                    .rate_limit_window
+                    .saturating_sub(now.duration_since(state.window_start))
+                    .as_millis() as u64,
+            });
+        }
+
+        state.count += 1;
+        Ok(())
+    }
+
+    /// Validate message size
+    fn validate_message_size(&self, message: &Message) -> Result<(), NetworkError> {
+        if message.payload.len() > self.config.max_message_size {
+            return Err(NetworkError::MessageTooLarge {
+                size: message.payload.len(),
+                max_size: self.config.max_message_size,
+            });
+        }
+        Ok(())
+    }
+
+    /// Allocate shared buffer for zero-copy operations with size limits
     pub fn allocate_shared_buffer(&self, buffer_id: &str, size: usize) -> Result<(), NetworkError> {
+        // Validate buffer size
+        if size > self.config.max_buffer_size {
+            return Err(NetworkError::BufferTooLarge {
+                size,
+                max_size: self.config.max_buffer_size,
+            });
+        }
+
+        // Check total buffer allocation
+        let current_total = self.total_buffer_size.load(Ordering::Relaxed);
+        if current_total + size as u64 > self.config.max_total_buffer_size as u64 {
+            return Err(NetworkError::BufferPoolExhausted {
+                requested: size,
+                available: (self.config.max_total_buffer_size as u64 - current_total) as usize,
+            });
+        }
+
         let mut pools = self.buffer_pools.lock().map_err(|e| {
             NetworkError::Io(std::io::Error::other(format!(
                 "Failed to acquire buffer pool lock: {e}"
             )))
         })?;
 
+        // If replacing existing buffer, subtract old size
+        if let Some(old_buffer) = pools.get(buffer_id) {
+            self.total_buffer_size
+                .fetch_sub(old_buffer.len() as u64, Ordering::Relaxed);
+        }
+
         pools.insert(buffer_id.to_string(), vec![0u8; size]);
+        self.total_buffer_size
+            .fetch_add(size as u64, Ordering::Relaxed);
+
+        debug_assert!(
+            self.total_buffer_size.load(Ordering::Relaxed)
+                <= self.config.max_total_buffer_size as u64,
+            "Buffer pool exceeded max size"
+        );
+
         Ok(())
+    }
+
+    /// Get the number of dropped messages due to queue overflow
+    pub fn dropped_messages(&self) -> u64 {
+        self.dropped_messages.load(Ordering::Relaxed)
+    }
+
+    /// Get the number of rate-limited messages
+    pub fn rate_limited_messages(&self) -> u64 {
+        self.rate_limited_messages.load(Ordering::Relaxed)
+    }
+
+    /// Get current queue size
+    pub fn queue_size(&self) -> Result<usize, NetworkError> {
+        let queue = self.message_queue.lock().map_err(|e| {
+            NetworkError::Io(std::io::Error::other(format!(
+                "Failed to acquire message queue lock: {e}"
+            )))
+        })?;
+        Ok(queue.len())
     }
 }
 
@@ -51,7 +229,33 @@ impl Default for ZeroCopyTransport {
 #[async_trait::async_trait]
 impl Network for ZeroCopyTransport {
     async fn send(&self, endpoint: &str, message: Message) -> Result<(), NetworkError> {
-        // Update stats
+        // Validate message size (DoS protection)
+        self.validate_message_size(&message)?;
+
+        // Check rate limit (DoS protection)
+        self.check_rate_limit(endpoint)?;
+
+        // Store message in bounded queue
+        {
+            let mut queue = self.message_queue.lock().map_err(|e| {
+                NetworkError::Io(std::io::Error::other(format!(
+                    "Failed to acquire message queue lock: {e}"
+                )))
+            })?;
+
+            // Check queue capacity (bounded queue protection)
+            if queue.len() >= self.config.max_queue_size {
+                self.dropped_messages.fetch_add(1, Ordering::Relaxed);
+                return Err(NetworkError::QueueFull {
+                    queue_size: queue.len(),
+                    max_size: self.config.max_queue_size,
+                });
+            }
+
+            queue.push_back((endpoint.to_string(), message.clone()));
+        }
+
+        // Update stats after successful queue insertion
         {
             let mut stats = self.stats.lock().map_err(|e| {
                 NetworkError::Io(std::io::Error::other(format!(
@@ -64,18 +268,6 @@ impl Network for ZeroCopyTransport {
             stats.messages_sent += 1;
         }
 
-        // Store message in queue for testing purposes
-        {
-            let mut queue = self.message_queue.lock().map_err(|e| {
-                NetworkError::Io(std::io::Error::other(format!(
-                    "Failed to acquire message queue lock: {e}"
-                )))
-            })?;
-
-            queue.push((endpoint.to_string(), message));
-        }
-
-        // In a real implementation, this would use GPU memory directly
         Ok(())
     }
 
@@ -86,7 +278,8 @@ impl Network for ZeroCopyTransport {
             )))
         })?;
 
-        if let Some((endpoint, message)) = queue.pop() {
+        // Use pop_front for FIFO ordering (was pop which is LIFO)
+        if let Some((endpoint, message)) = queue.pop_front() {
             // Update receive stats
             let mut stats = self.stats.lock().map_err(|e| {
                 NetworkError::Io(std::io::Error::other(format!(

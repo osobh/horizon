@@ -53,6 +53,10 @@ pub enum MultiRegionError {
         #[from]
         source: std::io::Error,
     },
+
+    /// Anti-entropy repair failure
+    #[error("Anti-entropy failure: {reason}")]
+    AntiEntropyFailure { reason: String },
 }
 
 /// Multi-region result type

@@ -92,6 +92,17 @@ impl MemoryPool {
     /// Allocate memory from the pool
     #[must_use = "PoolAllocation must be stored to free the memory later"]
     pub fn allocate(&self, size: u64) -> Result<PoolAllocation> {
+        // Invariant: Cannot allocate zero bytes
+        debug_assert!(size > 0, "Cannot allocate zero bytes");
+
+        // Invariant: Requested size should not exceed pool size
+        debug_assert!(
+            size <= self.total_size,
+            "Requested size {} exceeds pool size {}",
+            size,
+            self.total_size
+        );
+
         let mut free_blocks = self.free_blocks.lock().unwrap();
         let mut allocated_blocks = self.allocated_blocks.lock().unwrap();
         let mut used_size = self.used_size.lock().unwrap();
@@ -109,11 +120,29 @@ impl MemoryPool {
 
         let mut block = free_blocks.remove(block_index).unwrap();
 
+        // Invariant: Found block must be large enough
+        debug_assert!(
+            block.size >= size,
+            "Selected block size {} is less than requested {}",
+            block.size,
+            size
+        );
+
         // If block is larger than needed, split it
         if block.size > size {
+            let original_size = block.size;
             let remaining_size = block.size - size;
             let remaining_ptr =
                 unsafe { NonNull::new(block.ptr.as_ptr().add(size as usize)).unwrap() };
+
+            // Invariant: Split must preserve total size
+            debug_assert!(
+                size + remaining_size == original_size,
+                "Block split size mismatch: {} + {} != {}",
+                size,
+                remaining_size,
+                original_size
+            );
 
             free_blocks.push_back(PoolBlock {
                 ptr: remaining_ptr,
@@ -144,9 +173,24 @@ impl MemoryPool {
 
     /// Return an allocation back to the pool
     pub fn deallocate(&self, allocation: PoolAllocation) {
+        // Invariant: Allocation must be from this pool
+        debug_assert!(
+            allocation.pool_name == self.name,
+            "Allocation from pool '{}' being returned to pool '{}'",
+            allocation.pool_name,
+            self.name
+        );
+
         let mut free_blocks = self.free_blocks.lock().unwrap();
         let mut allocated_blocks = self.allocated_blocks.lock().unwrap();
         let mut used_size = self.used_size.lock().unwrap();
+
+        // Invariant: Block must be tracked as allocated
+        debug_assert!(
+            allocated_blocks.contains_key(&allocation.ptr.as_ptr()),
+            "Attempting to deallocate untracked block {:p}",
+            allocation.ptr.as_ptr()
+        );
 
         // Remove from allocated blocks
         if let Some(block) = allocated_blocks.remove(&allocation.ptr.as_ptr()) {

@@ -3,6 +3,7 @@
 use crate::error::{ConsensusError, ConsensusResult};
 use crate::validator::{ValidatorId, ValidatorInfo};
 use rayon::prelude::*;
+use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -102,10 +103,104 @@ impl Vote {
         self.value_hash.is_none()
     }
 
-    /// Verify vote signature (mock implementation)
+    /// Compute the signing payload for this vote
+    ///
+    /// The payload includes all vote fields that should be signed:
+    /// - round_id, vote_type, validator_id, value_hash, timestamp
+    fn signing_payload(&self) -> Vec<u8> {
+        let mut payload = Vec::new();
+
+        // Include round ID
+        payload.extend_from_slice(self.round_id.0.as_bytes());
+
+        // Include vote type as a discriminant byte
+        let vote_type_byte = match self.vote_type {
+            VoteType::PreVote => 0u8,
+            VoteType::PreCommit => 1u8,
+            VoteType::Commit => 2u8,
+        };
+        payload.push(vote_type_byte);
+
+        // Include validator ID
+        payload.extend_from_slice(self.validator_id.0.as_bytes());
+
+        // Include value hash (or empty marker)
+        match &self.value_hash {
+            Some(hash) => {
+                payload.push(1u8); // Has value marker
+                payload.extend_from_slice(hash.as_bytes());
+            }
+            None => {
+                payload.push(0u8); // Nil vote marker
+            }
+        }
+
+        // Include timestamp
+        payload.extend_from_slice(&self.timestamp.to_le_bytes());
+
+        payload
+    }
+
+    /// Verify vote signature using Ed25519
+    ///
+    /// Uses ring's Ed25519 implementation for cryptographic verification.
+    /// The signature must be a valid Ed25519 signature over the vote's signing payload.
     pub fn verify_signature(&self, public_key: &[u8]) -> bool {
-        // Mock verification - in real implementation would use cryptographic verification
-        !self.signature.is_empty() && !public_key.is_empty()
+        // Validate public key length (Ed25519 public keys are 32 bytes)
+        if public_key.len() != 32 {
+            return false;
+        }
+
+        // Validate signature length (Ed25519 signatures are 64 bytes)
+        if self.signature.len() != 64 {
+            return false;
+        }
+
+        // Compute the signing payload
+        let payload = self.signing_payload();
+
+        // Verify the signature using ring's Ed25519 implementation
+        let peer_public_key = UnparsedPublicKey::new(&ED25519, public_key);
+
+        peer_public_key.verify(&payload, &self.signature).is_ok()
+    }
+
+    /// Sign this vote with an Ed25519 key pair
+    ///
+    /// Returns the signature bytes that should be stored in the vote.
+    pub fn sign(
+        round_id: RoundId,
+        vote_type: VoteType,
+        validator_id: ValidatorId,
+        value_hash: Option<String>,
+        key_pair: &Ed25519KeyPair,
+    ) -> Self {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Create vote without signature first to compute payload
+        let mut vote = Self {
+            round_id,
+            vote_type,
+            validator_id,
+            value_hash,
+            timestamp,
+            signature: Vec::new(),
+        };
+
+        // Compute payload and sign
+        let payload = vote.signing_payload();
+        let signature = key_pair.sign(&payload);
+        vote.signature = signature.as_ref().to_vec();
+
+        debug_assert!(
+            vote.signature.len() == 64,
+            "Ed25519 signature must be 64 bytes"
+        );
+
+        vote
     }
 }
 
@@ -441,9 +536,20 @@ pub struct VoteStats {
 mod tests {
     use super::*;
     use crate::validator::ValidatorInfo;
+    use ring::rand::SystemRandom;
+    use ring::signature::Ed25519KeyPair;
     use std::net::SocketAddr;
 
-    fn create_test_validator_info(id: ValidatorId, stake: u64) -> ValidatorInfo {
+    /// Test key pair generator
+    fn generate_test_keypair() -> (Ed25519KeyPair, Vec<u8>) {
+        let rng = SystemRandom::new();
+        let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
+        let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
+        let public_key = key_pair.public_key().as_ref().to_vec();
+        (key_pair, public_key)
+    }
+
+    fn create_test_validator_info(id: ValidatorId, stake: u64, public_key: Vec<u8>) -> ValidatorInfo {
         ValidatorInfo {
             id,
             address: "127.0.0.1:8080".parse().unwrap(),
@@ -451,7 +557,7 @@ mod tests {
             gpu_capacity: 1000,
             status: crate::validator::ValidatorStatus::Active,
             last_heartbeat: 0,
-            public_key: vec![1, 2, 3, 4],
+            public_key,
         }
     }
 
@@ -460,14 +566,9 @@ mod tests {
         vote_type: VoteType,
         validator_id: ValidatorId,
         value_hash: Option<String>,
+        key_pair: &Ed25519KeyPair,
     ) -> Vote {
-        Vote::new(
-            round_id,
-            vote_type,
-            validator_id,
-            value_hash,
-            vec![1, 2, 3, 4], // Mock signature
-        )
+        Vote::sign(round_id, vote_type, validator_id, value_hash, key_pair)
     }
 
     #[test]
@@ -486,6 +587,7 @@ mod tests {
 
     #[test]
     fn test_vote_creation() {
+        let (key_pair, _public_key) = generate_test_keypair();
         let round_id = RoundId::new();
         let validator_id = ValidatorId::new();
         let vote = create_test_vote(
@@ -493,6 +595,7 @@ mod tests {
             VoteType::PreVote,
             validator_id.clone(),
             Some("hash123".to_string()),
+            &key_pair,
         );
 
         assert_eq!(vote.round_id, round_id);
@@ -504,21 +607,55 @@ mod tests {
 
     #[test]
     fn test_nil_vote() {
-        let vote = create_test_vote(RoundId::new(), VoteType::PreVote, ValidatorId::new(), None);
+        let (key_pair, _) = generate_test_keypair();
+        let vote = create_test_vote(RoundId::new(), VoteType::PreVote, ValidatorId::new(), None, &key_pair);
         assert!(vote.is_nil());
     }
 
     #[test]
     fn test_vote_signature_verification() {
+        let (key_pair, public_key) = generate_test_keypair();
         let vote = create_test_vote(
             RoundId::new(),
             VoteType::PreVote,
             ValidatorId::new(),
             Some("hash123".to_string()),
+            &key_pair,
         );
 
-        assert!(vote.verify_signature(&[1, 2, 3, 4]));
-        assert!(!vote.verify_signature(&[])); // Empty key should fail
+        // Valid signature should verify
+        assert!(vote.verify_signature(&public_key));
+
+        // Wrong public key should fail
+        let (_, wrong_key) = generate_test_keypair();
+        assert!(!vote.verify_signature(&wrong_key));
+
+        // Empty key should fail
+        assert!(!vote.verify_signature(&[]));
+
+        // Wrong length key should fail
+        assert!(!vote.verify_signature(&[1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn test_vote_signature_tampering() {
+        let (key_pair, public_key) = generate_test_keypair();
+        let mut vote = create_test_vote(
+            RoundId::new(),
+            VoteType::PreVote,
+            ValidatorId::new(),
+            Some("hash123".to_string()),
+            &key_pair,
+        );
+
+        // Valid signature should verify
+        assert!(vote.verify_signature(&public_key));
+
+        // Tamper with the value hash
+        vote.value_hash = Some("tampered".to_string());
+
+        // Should fail verification after tampering
+        assert!(!vote.verify_signature(&public_key));
     }
 
     #[test]
@@ -542,8 +679,9 @@ mod tests {
 
     #[test]
     fn test_add_valid_vote() {
+        let (key_pair, public_key) = generate_test_keypair();
         let validator_id = ValidatorId::new();
-        let validator_info = create_test_validator_info(validator_id.clone(), 100);
+        let validator_info = create_test_validator_info(validator_id.clone(), 100, public_key);
 
         let mut validators = HashMap::new();
         validators.insert(validator_id.clone(), 100);
@@ -555,6 +693,7 @@ mod tests {
             VoteType::PreVote,
             validator_id.clone(),
             Some("hash123".to_string()),
+            &key_pair,
         );
 
         assert!(round.add_vote(vote, &validator_info).is_ok());
@@ -562,8 +701,9 @@ mod tests {
 
     #[test]
     fn test_add_vote_wrong_round() {
+        let (key_pair, public_key) = generate_test_keypair();
         let validator_id = ValidatorId::new();
-        let validator_info = create_test_validator_info(validator_id.clone(), 100);
+        let validator_info = create_test_validator_info(validator_id.clone(), 100, public_key);
 
         let mut validators = HashMap::new();
         validators.insert(validator_id.clone(), 100);
@@ -575,6 +715,7 @@ mod tests {
             VoteType::PreVote,
             validator_id,
             Some("hash123".to_string()),
+            &key_pair,
         );
 
         let result = round.add_vote(wrong_vote, &validator_info);
@@ -587,9 +728,10 @@ mod tests {
 
     #[test]
     fn test_add_vote_unauthorized_validator() {
+        let (key_pair, public_key) = generate_test_keypair();
         let validator_id = ValidatorId::new();
         let unauthorized_id = ValidatorId::new();
-        let validator_info = create_test_validator_info(unauthorized_id.clone(), 100);
+        let validator_info = create_test_validator_info(unauthorized_id.clone(), 100, public_key);
 
         let mut validators = HashMap::new();
         validators.insert(validator_id, 100); // Only this validator is authorized
@@ -601,6 +743,7 @@ mod tests {
             VoteType::PreVote,
             unauthorized_id,
             Some("hash123".to_string()),
+            &key_pair,
         );
 
         let result = round.add_vote(vote, &validator_info);
@@ -613,8 +756,9 @@ mod tests {
 
     #[test]
     fn test_double_voting_detection() {
+        let (key_pair, public_key) = generate_test_keypair();
         let validator_id = ValidatorId::new();
-        let validator_info = create_test_validator_info(validator_id.clone(), 100);
+        let validator_info = create_test_validator_info(validator_id.clone(), 100, public_key);
 
         let mut validators = HashMap::new();
         validators.insert(validator_id.clone(), 100);
@@ -627,6 +771,7 @@ mod tests {
             VoteType::PreVote,
             validator_id.clone(),
             Some("hash123".to_string()),
+            &key_pair,
         );
         assert!(round.add_vote(vote1, &validator_info).is_ok());
 
@@ -636,6 +781,7 @@ mod tests {
             VoteType::PreVote,
             validator_id,
             Some("hash456".to_string()),
+            &key_pair,
         );
 
         let result = round.add_vote(vote2, &validator_info);
@@ -651,12 +797,15 @@ mod tests {
         // Create 3 validators with equal stake
         let mut validators = HashMap::new();
         let mut validator_infos = Vec::new();
+        let mut key_pairs = Vec::new();
 
-        for i in 0..3 {
+        for _ in 0..3 {
             let id = ValidatorId::new();
-            let info = create_test_validator_info(id.clone(), 100);
+            let (key_pair, public_key) = generate_test_keypair();
+            let info = create_test_validator_info(id.clone(), 100, public_key);
             validators.insert(id.clone(), 100);
             validator_infos.push((id, info));
+            key_pairs.push(key_pair);
         }
 
         let mut round = VotingRound::new(
@@ -678,6 +827,7 @@ mod tests {
                 VoteType::PreVote,
                 id.clone(),
                 Some("hash123".to_string()),
+                &key_pairs[i],
             );
             round.add_vote(vote, info).unwrap();
         }
@@ -693,6 +843,7 @@ mod tests {
                 VoteType::PreCommit,
                 id.clone(),
                 Some("hash123".to_string()),
+                &key_pairs[i],
             );
             round.add_vote(vote, info).unwrap();
         }
@@ -708,6 +859,7 @@ mod tests {
                 VoteType::Commit,
                 id.clone(),
                 Some("hash123".to_string()),
+                &key_pairs[i],
             );
             round.add_vote(vote, info).unwrap();
         }
@@ -741,12 +893,15 @@ mod tests {
     fn test_vote_statistics() {
         let mut validators = HashMap::new();
         let mut validator_infos = Vec::new();
+        let mut key_pairs = Vec::new();
 
-        for i in 0..3 {
+        for _ in 0..3 {
             let id = ValidatorId::new();
-            let info = create_test_validator_info(id.clone(), 100);
+            let (key_pair, public_key) = generate_test_keypair();
+            let info = create_test_validator_info(id.clone(), 100, public_key);
             validators.insert(id.clone(), 100);
             validator_infos.push((id, info));
+            key_pairs.push(key_pair);
         }
 
         let mut round = VotingRound::new(1, 0, Duration::from_secs(30), validators, 200);
@@ -758,6 +913,7 @@ mod tests {
             VoteType::PreVote,
             id1.clone(),
             Some("hash123".to_string()),
+            &key_pairs[0],
         );
         round.add_vote(vote1, info1).unwrap();
 
@@ -767,6 +923,7 @@ mod tests {
             VoteType::PreCommit,
             id2.clone(),
             Some("hash123".to_string()),
+            &key_pairs[1],
         );
         round.add_vote(vote2, info2).unwrap();
 
@@ -803,8 +960,9 @@ mod tests {
 
     #[test]
     fn test_get_votes_by_type() {
+        let (key_pair, public_key) = generate_test_keypair();
         let validator_id = ValidatorId::new();
-        let validator_info = create_test_validator_info(validator_id.clone(), 100);
+        let validator_info = create_test_validator_info(validator_id.clone(), 100, public_key);
 
         let mut validators = HashMap::new();
         validators.insert(validator_id.clone(), 100);
@@ -817,6 +975,7 @@ mod tests {
             VoteType::PreVote,
             validator_id.clone(),
             Some("hash123".to_string()),
+            &key_pair,
         );
         round.add_vote(vote1, &validator_info).unwrap();
 
@@ -829,8 +988,9 @@ mod tests {
 
     #[test]
     fn test_get_specific_vote() {
+        let (key_pair, public_key) = generate_test_keypair();
         let validator_id = ValidatorId::new();
-        let validator_info = create_test_validator_info(validator_id.clone(), 100);
+        let validator_info = create_test_validator_info(validator_id.clone(), 100, public_key);
 
         let mut validators = HashMap::new();
         validators.insert(validator_id.clone(), 100);
@@ -842,6 +1002,7 @@ mod tests {
             VoteType::PreVote,
             validator_id.clone(),
             Some("hash123".to_string()),
+            &key_pair,
         );
         round.add_vote(vote, &validator_info).unwrap();
 

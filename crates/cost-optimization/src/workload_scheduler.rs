@@ -328,9 +328,9 @@ pub struct WorkloadScheduler {
     /// Completed workloads
     completed_workloads: Arc<DashMap<Uuid, ScheduledWorkload>>,
     /// Scheduling channel
-    scheduling_tx: mpsc::UnboundedSender<SchedulingEvent>,
+    scheduling_tx: mpsc::Sender<SchedulingEvent>,
     /// Scheduling receiver
-    scheduling_rx: Arc<Mutex<mpsc::UnboundedReceiver<SchedulingEvent>>>,
+    scheduling_rx: Arc<Mutex<mpsc::Receiver<SchedulingEvent>>>,
     /// Metrics
     metrics: Arc<RwLock<SchedulerMetrics>>,
 }
@@ -402,9 +402,13 @@ pub struct SchedulerMetrics {
 }
 
 impl WorkloadScheduler {
+    /// Maximum number of pending scheduling commands to prevent memory exhaustion
+    const MAX_SCHEDULING_QUEUE: usize = 10_000;
+
     /// Create a new workload scheduler
     pub fn new(config: SchedulerConfig) -> CostOptimizationResult<Self> {
-        let (tx, rx) = mpsc::unbounded_channel();
+        // Use bounded channel to prevent memory exhaustion under load
+        let (tx, rx) = mpsc::channel(Self::MAX_SCHEDULING_QUEUE);
 
         Ok(Self {
             config: Arc::new(config),
@@ -487,6 +491,7 @@ impl WorkloadScheduler {
 
         self.scheduling_tx
             .send(SchedulingEvent::WorkloadSubmitted(workload))
+            .await
             .map_err(|_| CostOptimizationError::SchedulingFailed {
                 workload_id: "unknown".to_string(),
                 reason: "Failed to send scheduling event".to_string(),
@@ -501,6 +506,7 @@ impl WorkloadScheduler {
 
         self.scheduling_tx
             .send(SchedulingEvent::NodeAdded(node))
+            .await
             .map_err(|_| CostOptimizationError::SchedulingFailed {
                 workload_id: "unknown".to_string(),
                 reason: "Failed to send node event".to_string(),
@@ -515,6 +521,7 @@ impl WorkloadScheduler {
 
         self.scheduling_tx
             .send(SchedulingEvent::NodeRemoved(node_id.to_string()))
+            .await
             .map_err(|_| CostOptimizationError::SchedulingFailed {
                 workload_id: "unknown".to_string(),
                 reason: "Failed to send node event".to_string(),

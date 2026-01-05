@@ -104,7 +104,7 @@ pub struct MetricsCollector {
     config: MetricsConfig,
     metrics: Arc<DashMap<MetricType, VecDeque<MetricDataPoint>>>,
     aggregated_stats: Arc<RwLock<HashMap<MetricType, MetricStatistics>>>,
-    collection_channel: mpsc::UnboundedSender<MetricDataPoint>,
+    collection_channel: mpsc::Sender<MetricDataPoint>,
 }
 
 impl MetricsCollector {
@@ -112,7 +112,9 @@ impl MetricsCollector {
     pub fn new(config: MetricsConfig) -> PerformanceRegressionResult<Self> {
         let metrics = Arc::new(DashMap::new());
         let aggregated_stats = Arc::new(RwLock::new(HashMap::new()));
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        // Use bounded channel (10,000 entries) to prevent memory exhaustion
+        // under high metric collection load
+        let (tx, mut rx) = mpsc::channel(10_000);
 
         let collector_metrics = metrics.clone();
         let collector_stats = aggregated_stats.clone();
@@ -141,7 +143,7 @@ impl MetricsCollector {
 
     /// Record a metric data point
     pub async fn record_metric(&self, metric: MetricDataPoint) -> PerformanceRegressionResult<()> {
-        self.collection_channel.send(metric).map_err(|e| {
+        self.collection_channel.send(metric).await.map_err(|e| {
             PerformanceRegressionError::MetricsCollectionFailed {
                 source_name: "channel".to_string(),
                 details: e.to_string(),

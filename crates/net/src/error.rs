@@ -21,6 +21,23 @@ pub enum NetworkError {
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+
+    // DoS protection errors
+
+    #[error("Rate limited on endpoint {endpoint}, retry after {retry_after_ms}ms")]
+    RateLimited { endpoint: String, retry_after_ms: u64 },
+
+    #[error("Message too large: {size} bytes exceeds max {max_size} bytes")]
+    MessageTooLarge { size: usize, max_size: usize },
+
+    #[error("Queue full: {queue_size}/{max_size} messages")]
+    QueueFull { queue_size: usize, max_size: usize },
+
+    #[error("Buffer too large: {size} bytes exceeds max {max_size} bytes")]
+    BufferTooLarge { size: usize, max_size: usize },
+
+    #[error("Buffer pool exhausted: requested {requested} bytes, {available} available")]
+    BufferPoolExhausted { requested: usize, available: usize },
 }
 
 #[cfg(test)]

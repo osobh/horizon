@@ -355,6 +355,22 @@ impl ConsensusProtocol {
 
         // Get or create voting round
         if !self.voting_rounds.contains_key(&round_id) {
+            // Invariant: Number of concurrent voting rounds should not exceed config limit
+            debug_assert!(
+                self.voting_rounds.len() < self.config.max_concurrent_rounds,
+                "Voting rounds count {} exceeds max {}",
+                self.voting_rounds.len(),
+                self.config.max_concurrent_rounds
+            );
+
+            // Invariant: Proposal height should be for current or next block
+            debug_assert!(
+                height >= self.current_height,
+                "Proposal height {} is less than current height {}",
+                height,
+                self.current_height
+            );
+
             let validators: HashMap<ValidatorId, u64> = self
                 .validator
                 .active_validators()
@@ -505,7 +521,22 @@ impl ConsensusProtocol {
             return Ok(());
         }
 
+        // Invariant: Only leaders should start new rounds
+        debug_assert!(
+            self.leader_election.is_leader(),
+            "Non-leader attempting to start voting round"
+        );
+
         let height = self.current_height + 1;
+
+        // Invariant: Height should monotonically increase
+        debug_assert!(
+            height > self.current_height,
+            "New round height {} is not greater than current {}",
+            height,
+            self.current_height
+        );
+
         let round_id = RoundId::new();
 
         // Create proposal
@@ -523,6 +554,22 @@ impl ConsensusProtocol {
 
     /// Commit value at height
     async fn commit_value(&mut self, height: u64, value: String) -> ConsensusResult<()> {
+        // Invariant: Cannot commit duplicate heights (unless replacing with same value)
+        debug_assert!(
+            !self.committed_values.contains_key(&height)
+                || self.committed_values.get(&height) == Some(&value),
+            "Attempting to overwrite committed value at height {}",
+            height
+        );
+
+        // Invariant: Height should not be too far ahead of current
+        debug_assert!(
+            height <= self.current_height + 100,
+            "Commit height {} is too far ahead of current height {}",
+            height,
+            self.current_height
+        );
+
         self.committed_values.insert(height, value.clone());
         self.current_height = self.current_height.max(height);
 

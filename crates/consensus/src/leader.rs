@@ -152,7 +152,17 @@ impl LeaderElection {
     /// Start election as candidate
     #[must_use = "ignoring the Result may hide election start failures"]
     pub fn start_election(&mut self) -> ConsensusResult<ElectionMessage> {
+        let old_term = self.current_term;
         self.current_term += 1;
+
+        // Invariant: Term must always increase when starting election
+        debug_assert!(
+            self.current_term > old_term,
+            "Term did not increase: old={}, new={}",
+            old_term,
+            self.current_term
+        );
+
         self.voted_for = Some(self.validator_id.clone());
         self.state = LeaderState::Candidate {
             term: self.current_term,
@@ -334,6 +344,23 @@ impl LeaderElection {
 
     /// Become leader
     fn become_leader(&mut self) -> ConsensusResult<()> {
+        // Invariant: Can only become leader from candidate state
+        debug_assert!(
+            matches!(self.state, LeaderState::Candidate { .. }),
+            "Cannot become leader from state {:?}",
+            self.state
+        );
+
+        // Get the candidate term to verify it matches current_term
+        if let LeaderState::Candidate { term, .. } = &self.state {
+            debug_assert!(
+                *term == self.current_term,
+                "Candidate term {} doesn't match current term {}",
+                term,
+                self.current_term
+            );
+        }
+
         self.state = LeaderState::Leader {
             term: self.current_term,
             last_heartbeat: SystemTime::now()
@@ -713,8 +740,12 @@ mod tests {
         let mut election =
             LeaderElection::new(validator_id, Duration::from_secs(5), Duration::from_secs(1));
 
-        // Become leader
-        election.current_term = 1;
+        // First become a candidate (proper state machine transition)
+        election.start_election().unwrap();
+        assert!(election.is_candidate());
+        assert_eq!(election.term(), 1);
+
+        // Now become leader from Candidate state
         election.become_leader().unwrap();
         assert!(election.is_leader());
 
@@ -732,8 +763,11 @@ mod tests {
             Duration::from_millis(50), // Shorter heartbeat interval
         );
 
-        // Become leader
-        election.current_term = 1;
+        // First become a candidate (proper state machine transition)
+        election.start_election().unwrap();
+        assert!(election.is_candidate());
+
+        // Now become leader from Candidate state
         election.become_leader().unwrap();
 
         // Initially should not need heartbeat
