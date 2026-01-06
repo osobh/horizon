@@ -42,7 +42,7 @@ pub struct GpuInfo {
 }
 
 /// Scheduler statistics for frontend.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct SchedulerStats {
     /// Total number of GPUs
     pub total_gpus: usize,
@@ -118,7 +118,7 @@ pub struct JobInfo {
 }
 
 /// Job list with queued and running jobs.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct JobList {
     /// Jobs waiting in queue
     pub queued: Vec<JobInfo>,
@@ -572,29 +572,6 @@ impl SlaiBridge {
 impl Default for SlaiBridge {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Default for SchedulerStats {
-    fn default() -> Self {
-        Self {
-            total_gpus: 0,
-            available_gpus: 0,
-            queued_jobs: 0,
-            running_jobs: 0,
-            completed_jobs: 0,
-            tenant_count: 0,
-        }
-    }
-}
-
-impl Default for JobList {
-    fn default() -> Self {
-        Self {
-            queued: Vec::new(),
-            running: Vec::new(),
-            completed: Vec::new(),
-        }
     }
 }
 

@@ -9,9 +9,8 @@
 //! - Managing session lifecycle
 
 use crate::ephemeral_bridge::{
-    ConnectionQuality, CreateSessionResponse, DeviceInfo, EphemeralParticipant,
-    EphemeralPermissions, EphemeralSession, EphemeralStats, InviteLink, JoinSessionResponse,
-    SessionType,
+    CreateSessionResponse, DeviceInfo, EphemeralParticipant, EphemeralPermissions,
+    EphemeralSession, EphemeralStats, InviteLink, JoinSessionResponse, SessionType,
 };
 use crate::state::AppState;
 use tauri::State;
@@ -149,8 +148,9 @@ pub async fn get_ephemeral_stats(state: State<'_, AppState>) -> Result<Ephemeral
 }
 
 /// Trigger cleanup of expired sessions (for maintenance).
+/// Returns the number of sessions and invites that were expired.
 #[tauri::command]
-pub async fn cleanup_expired_sessions(state: State<'_, AppState>) -> Result<(), String> {
-    state.ephemeral.cleanup_expired().await;
-    Ok(())
+pub async fn cleanup_expired_sessions(state: State<'_, AppState>) -> Result<(usize, usize), String> {
+    let (sessions, invites) = state.ephemeral.cleanup_expired().await;
+    Ok((sessions, invites))
 }

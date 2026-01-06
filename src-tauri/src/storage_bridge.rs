@@ -17,7 +17,16 @@
 //! Both implementations expose the same API to the Tauri commands.
 
 use dashmap::DashMap;
+#[cfg(feature = "hpc-channels")]
 use hpc_channels::{channels, StorageMessage};
+
+/// Get current Unix timestamp safely, returning 0 if system time is before UNIX_EPOCH.
+fn current_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 // Import real warp-core types when feature is enabled
 #[cfg(feature = "embedded-storage")]
@@ -25,11 +34,9 @@ use warp_core::{TransferEngine, TransferConfig as WarpConfig, TransferProgress a
 #[cfg(feature = "embedded-storage")]
 use warp_format::Compression as WarpCompression;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Bridge to the WARP storage/transfer system.
 pub struct StorageBridge {
@@ -37,7 +44,8 @@ pub struct StorageBridge {
     transfers: Arc<DashMap<String, Transfer>>,
     /// Transfer counter for generating IDs
     transfer_counter: AtomicU64,
-    /// Request ID counter for channel messages
+    /// Request ID counter for channel messages (reserved for hpc-channels)
+    #[allow(dead_code)]
     request_counter: AtomicU64,
     /// Storage root directory (reserved for local cache)
     #[allow(dead_code)]
@@ -261,6 +269,12 @@ impl StorageBridge {
         &self.storage_root
     }
 
+    /// Initialize the storage bridge.
+    pub async fn initialize(&self) -> Result<(), String> {
+        tracing::info!("StorageBridge initialized");
+        Ok(())
+    }
+
     /// Start an upload transfer.
     #[cfg(feature = "embedded-storage")]
     pub async fn upload(&self, source: String, destination: String, _config: Option<TransferConfig>) -> Result<Transfer, String> {
@@ -268,10 +282,7 @@ impl StorageBridge {
         let counter = self.transfer_counter.fetch_add(1, Ordering::Relaxed) + 1;
         let transfer_id = format!("transfer-{:03}", counter);
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = current_timestamp();
 
         // Extract filename from path
         let name = std::path::Path::new(&source)
@@ -310,12 +321,7 @@ impl StorageBridge {
                 Ok(session) => {
                     if let Some(mut t) = transfers.get_mut(&tid) {
                         t.status = TransferStatus::Completed;
-                        t.completed_at = Some(
-                            std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
-                                .as_secs()
-                        );
+                        t.completed_at = Some(current_timestamp());
                         t.merkle_root = session.merkle_root.map(|r| hex::encode(r));
                         t.progress.bytes_transferred = session.transferred_bytes;
                         t.progress.total_bytes = session.total_bytes;
@@ -345,10 +351,7 @@ impl StorageBridge {
         let counter = self.transfer_counter.fetch_add(1, Ordering::Relaxed) + 1;
         let transfer_id = format!("transfer-{:03}", counter);
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = current_timestamp();
 
         // Extract filename from path
         let name = std::path::Path::new(&source)
@@ -375,13 +378,18 @@ impl StorageBridge {
         self.transfers.insert(transfer_id.clone(), transfer.clone());
 
         // Broadcast upload start via channel
-        // Relaxed: independent request ID counter
-        let request_id = self.request_counter.fetch_add(1, Ordering::Relaxed);
-        if let Some(tx) = hpc_channels::sender::<StorageMessage>(channels::STORAGE_UPLOAD) {
-            let _ = tx.send(StorageMessage::Upload {
-                path: source,
-                request_id,
-            }).await;
+        #[cfg(feature = "hpc-channels")]
+        {
+            // Relaxed: independent request ID counter
+            let request_id = self.request_counter.fetch_add(1, Ordering::Relaxed);
+            if let Some(tx) = hpc_channels::sender::<StorageMessage>(channels::STORAGE_UPLOAD) {
+                if let Err(e) = tx.send(StorageMessage::Upload {
+                    path: source,
+                    request_id,
+                }).await {
+                    tracing::warn!("Failed to send storage upload message: {}", e);
+                }
+            }
         }
 
         tracing::info!("Started upload transfer: {} (mock)", transfer_id);
@@ -395,10 +403,7 @@ impl StorageBridge {
         let counter = self.transfer_counter.fetch_add(1, Ordering::Relaxed) + 1;
         let transfer_id = format!("transfer-{:03}", counter);
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = current_timestamp();
 
         // Extract filename from path
         let name = std::path::Path::new(&source)
@@ -437,12 +442,7 @@ impl StorageBridge {
                 Ok(session) => {
                     if let Some(mut t) = transfers.get_mut(&tid) {
                         t.status = TransferStatus::Completed;
-                        t.completed_at = Some(
-                            std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
-                                .as_secs()
-                        );
+                        t.completed_at = Some(current_timestamp());
                         t.merkle_root = session.merkle_root.map(|r| hex::encode(r));
                         t.progress.bytes_transferred = session.transferred_bytes;
                         t.progress.total_bytes = session.total_bytes;
@@ -472,10 +472,7 @@ impl StorageBridge {
         let counter = self.transfer_counter.fetch_add(1, Ordering::Relaxed) + 1;
         let transfer_id = format!("transfer-{:03}", counter);
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = current_timestamp();
 
         // Extract filename from path
         let name = std::path::Path::new(&source)
@@ -502,14 +499,19 @@ impl StorageBridge {
         self.transfers.insert(transfer_id.clone(), transfer.clone());
 
         // Broadcast download start via channel
-        // Relaxed: independent request ID counter
-        let request_id = self.request_counter.fetch_add(1, Ordering::Relaxed);
-        if let Some(tx) = hpc_channels::sender::<StorageMessage>(channels::STORAGE_DOWNLOAD) {
-            let _ = tx.send(StorageMessage::Download {
-                merkle_root: source, // Using source as merkle_root for now
-                dest_path: destination,
-                request_id,
-            }).await;
+        #[cfg(feature = "hpc-channels")]
+        {
+            // Relaxed: independent request ID counter
+            let request_id = self.request_counter.fetch_add(1, Ordering::Relaxed);
+            if let Some(tx) = hpc_channels::sender::<StorageMessage>(channels::STORAGE_DOWNLOAD) {
+                if let Err(e) = tx.send(StorageMessage::Download {
+                    merkle_root: source, // Using source as merkle_root for now
+                    dest_path: destination,
+                    request_id,
+                }).await {
+                    tracing::warn!("Failed to send storage download message: {}", e);
+                }
+            }
         }
 
         tracing::info!("Started download transfer: {} (mock)", transfer_id);
@@ -735,12 +737,7 @@ impl StorageBridge {
             } else if transfer.status == TransferStatus::Verifying {
                 // Complete verification after one tick
                 transfer.status = TransferStatus::Completed;
-                transfer.completed_at = Some(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
-                );
+                transfer.completed_at = Some(current_timestamp());
                 transfer.merkle_root = Some(format!("merkle_{}", transfer.id));
             } else if transfer.status == TransferStatus::Analyzing {
                 // Move to transferring after analysis
@@ -759,6 +756,7 @@ impl Default for StorageBridge {
 }
 
 /// Start the storage message handler task.
+#[cfg(feature = "hpc-channels")]
 #[allow(dead_code)]
 pub async fn start_storage_handler(_bridge: Arc<StorageBridge>) {
     let (_tx, mut rx) = hpc_channels::channel::<StorageMessage>(channels::STORAGE_UPLOAD);
@@ -774,20 +772,24 @@ pub async fn start_storage_handler(_bridge: Arc<StorageBridge>) {
                     // In production, would use warp-core::TransferEngine here
 
                     // Notify progress
-                    let _ = progress_tx.send(StorageMessage::UploadProgress {
+                    if let Err(e) = progress_tx.send(StorageMessage::UploadProgress {
                         request_id,
                         bytes_uploaded: 0,
                         total_bytes: 0,
-                    });
+                    }) {
+                        tracing::warn!("Failed to send upload progress message: {}", e);
+                    }
                 }
                 StorageMessage::Download { merkle_root, dest_path, request_id } => {
                     tracing::info!("Handling download: {} -> {} (request_id: {})", merkle_root, dest_path, request_id);
 
-                    let _ = progress_tx.send(StorageMessage::DownloadProgress {
+                    if let Err(e) = progress_tx.send(StorageMessage::DownloadProgress {
                         request_id,
                         bytes_downloaded: 0,
                         total_bytes: 0,
-                    });
+                    }) {
+                        tracing::warn!("Failed to send download progress message: {}", e);
+                    }
                 }
                 StorageMessage::Failed { request_id, error } => {
                     tracing::error!("Transfer {} failed: {}", request_id, error);
@@ -796,4 +798,203 @@ pub async fn start_storage_handler(_bridge: Arc<StorageBridge>) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_new_creates_bridge_with_mock_transfers() {
+        let bridge = StorageBridge::new();
+        // Give mock data time to populate
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let transfers = bridge.get_all_transfers().await;
+        assert!(!transfers.is_empty(), "Should have mock transfers");
+    }
+
+    #[tokio::test]
+    async fn test_initialize_succeeds() {
+        let bridge = StorageBridge::new();
+        let result = bridge.initialize().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_upload_creates_transfer() {
+        let bridge = StorageBridge::new();
+
+        let result = bridge
+            .upload(
+                "/test/file.txt".to_string(),
+                "cluster://dest/file.txt".to_string(),
+                None,
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let transfer = result.unwrap();
+        assert!(transfer.id.starts_with("transfer-"));
+        assert_eq!(transfer.operation, TransferOperation::Upload);
+        assert_eq!(transfer.source, "/test/file.txt");
+    }
+
+    #[tokio::test]
+    async fn test_download_creates_transfer() {
+        let bridge = StorageBridge::new();
+
+        let result = bridge
+            .download(
+                "cluster://source/model.pt".to_string(),
+                "/local/model.pt".to_string(),
+                None,
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let transfer = result.unwrap();
+        assert!(transfer.id.starts_with("transfer-"));
+        assert_eq!(transfer.operation, TransferOperation::Download);
+    }
+
+    #[tokio::test]
+    async fn test_get_transfer_by_id() {
+        let bridge = StorageBridge::new();
+
+        // Create a transfer first
+        let transfer = bridge
+            .upload("/test.txt".to_string(), "dest.txt".to_string(), None)
+            .await
+            .unwrap();
+
+        // Get it by ID
+        let result = bridge.get_transfer(&transfer.id).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().id, transfer.id);
+    }
+
+    #[tokio::test]
+    async fn test_get_transfer_returns_none_for_invalid_id() {
+        let bridge = StorageBridge::new();
+        let result = bridge.get_transfer("nonexistent-transfer").await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_pause_and_resume_transfer() {
+        let bridge = StorageBridge::new();
+
+        // Create a transfer
+        let transfer = bridge
+            .upload("/test.txt".to_string(), "dest.txt".to_string(), None)
+            .await
+            .unwrap();
+
+        // Pause it
+        let result = bridge.pause_transfer(&transfer.id).await;
+        assert!(result.is_ok());
+
+        let paused = bridge.get_transfer(&transfer.id).await.unwrap();
+        assert_eq!(paused.status, TransferStatus::Paused);
+
+        // Resume it
+        let result = bridge.resume_transfer(&transfer.id).await;
+        assert!(result.is_ok());
+
+        let resumed = bridge.get_transfer(&transfer.id).await.unwrap();
+        assert_eq!(resumed.status, TransferStatus::Transferring);
+    }
+
+    #[tokio::test]
+    async fn test_cancel_transfer() {
+        let bridge = StorageBridge::new();
+
+        // Create a transfer
+        let transfer = bridge
+            .upload("/test.txt".to_string(), "dest.txt".to_string(), None)
+            .await
+            .unwrap();
+
+        // Cancel it
+        let result = bridge.cancel_transfer(&transfer.id).await;
+        assert!(result.is_ok());
+
+        let cancelled = bridge.get_transfer(&transfer.id).await.unwrap();
+        assert_eq!(cancelled.status, TransferStatus::Cancelled);
+    }
+
+    #[tokio::test]
+    async fn test_get_stats() {
+        let bridge = StorageBridge::new();
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let stats = bridge.get_stats().await;
+        // Should have mock data
+        assert!(stats.total_uploads > 0 || stats.total_downloads > 0 || stats.active_transfers > 0);
+    }
+
+    #[tokio::test]
+    async fn test_list_files() {
+        let bridge = StorageBridge::new();
+
+        let result = bridge.list_files("/").await;
+        assert!(result.is_ok());
+
+        let files = result.unwrap();
+        // Mock returns some demo files
+        assert!(!files.is_empty());
+    }
+
+    #[test]
+    fn test_transfer_operation_serialization() {
+        assert_eq!(
+            serde_json::to_string(&TransferOperation::Upload).unwrap(),
+            "\"upload\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TransferOperation::Download).unwrap(),
+            "\"download\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TransferOperation::Sync).unwrap(),
+            "\"sync\""
+        );
+    }
+
+    #[test]
+    fn test_transfer_status_serialization() {
+        assert_eq!(
+            serde_json::to_string(&TransferStatus::Queued).unwrap(),
+            "\"queued\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TransferStatus::Transferring).unwrap(),
+            "\"transferring\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TransferStatus::Completed).unwrap(),
+            "\"completed\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TransferStatus::Paused).unwrap(),
+            "\"paused\""
+        );
+    }
+
+    #[test]
+    fn test_transfer_config_default() {
+        let config = TransferConfig::default();
+        assert_eq!(config.max_concurrent_chunks, 16);
+        assert!(config.enable_gpu);
+        assert_eq!(config.compression, "zstd");
+        assert!(config.verify_on_complete);
+    }
+
+    #[test]
+    fn test_current_timestamp_returns_valid_value() {
+        let ts = current_timestamp();
+        // Should be after year 2020 (timestamp > 1577836800)
+        assert!(ts > 1577836800);
+    }
 }

@@ -9,7 +9,6 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::RwLock;
 
 /// Evolution metrics from the three evolution engines.
@@ -314,6 +313,7 @@ impl EvolutionBridge {
     }
 
     /// Initialize the evolution bridge (mock).
+    #[allow(dead_code)]
     pub async fn initialize(&self) -> Result<(), String> {
         tracing::info!("Evolution bridge initialized (mock mode)");
         Ok(())

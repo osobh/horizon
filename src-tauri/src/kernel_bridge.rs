@@ -7,9 +7,10 @@ use notebook_kernel::{
     ExecuteRequest, ExecuteResult as KernelExecuteResult, ExecutorConfig, KernelExecutor,
 };
 
+#[cfg(feature = "hpc-channels")]
 use hpc_channels::{channels, KernelMessage};
+#[cfg(feature = "hpc-channels")]
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Bridge to the embedded notebook kernel.
 pub struct KernelBridge {
@@ -223,6 +224,7 @@ pub enum OutputType {
 ///
 /// This spawns a background task that listens for KernelMessage events
 /// on the hpc-channels and dispatches them to the kernel.
+#[cfg(feature = "hpc-channels")]
 #[allow(dead_code)]
 pub async fn start_kernel_handler(bridge: Arc<KernelBridge>) {
     // Create kernel channels
@@ -251,26 +253,32 @@ pub async fn start_kernel_handler(bridge: Arc<KernelBridge>) {
                                     _ => hpc_channels::OutputStream::Display,
                                 };
 
-                                let _ = output_tx.send(KernelMessage::Output {
+                                if let Err(e) = output_tx.send(KernelMessage::Output {
                                     cell_id: cell_id.clone(),
                                     content: o.content.clone(),
                                     stream,
-                                });
+                                }) {
+                                    tracing::warn!("Failed to send kernel output message: {}", e);
+                                }
                             }
 
                             // Send completion message
-                            let _ = output_tx.send(KernelMessage::ExecutionComplete {
+                            if let Err(e) = output_tx.send(KernelMessage::ExecutionComplete {
                                 cell_id: cell_id.clone(),
                                 success: output.success,
                                 duration_ms: output.duration_ms,
-                            });
+                            }) {
+                                tracing::warn!("Failed to send kernel completion message: {}", e);
+                            }
                         }
                         Err(e) => {
-                            let _ = output_tx.send(KernelMessage::Output {
+                            if let Err(send_err) = output_tx.send(KernelMessage::Output {
                                 cell_id: cell_id.clone(),
                                 content: e,
                                 stream: hpc_channels::OutputStream::Stderr,
-                            });
+                            }) {
+                                tracing::warn!("Failed to send kernel error message: {}", send_err);
+                            }
                         }
                     }
                 }
@@ -288,4 +296,100 @@ pub async fn start_kernel_handler(bridge: Arc<KernelBridge>) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_new_creates_bridge() {
+        let bridge = KernelBridge::new();
+        // Mock implementation is always "initialized"
+        assert!(bridge.is_initialized().await);
+    }
+
+    #[tokio::test]
+    async fn test_initialize_succeeds() {
+        let bridge = KernelBridge::new();
+        let result = bridge.initialize().await;
+        assert!(result.is_ok());
+        assert!(bridge.is_initialized().await);
+    }
+
+    #[tokio::test]
+    async fn test_execute_simple_code() {
+        let bridge = KernelBridge::new();
+        bridge.initialize().await.unwrap();
+
+        let result = bridge.execute("x = 1 + 1".to_string(), false).await;
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert!(output.success);
+    }
+
+    #[tokio::test]
+    async fn test_execute_empty_code() {
+        let bridge = KernelBridge::new();
+        bridge.initialize().await.unwrap();
+
+        let result = bridge.execute("".to_string(), false).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_println_returns_stdout() {
+        let bridge = KernelBridge::new();
+        bridge.initialize().await.unwrap();
+
+        // Mock implementation returns stdout for code containing "println!"
+        let result = bridge.execute("println!(\"hello\")".to_string(), false).await;
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert!(output.success);
+        assert!(!output.outputs.is_empty());
+        assert!(matches!(output.outputs[0].output_type, OutputType::Stdout));
+    }
+
+    #[tokio::test]
+    async fn test_restart() {
+        let bridge = KernelBridge::new();
+        bridge.initialize().await.unwrap();
+
+        let result = bridge.restart().await;
+        assert!(result.is_ok());
+        // After restart, should still be initialized
+        assert!(bridge.is_initialized().await);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_executions() {
+        let bridge = KernelBridge::new();
+        bridge.initialize().await.unwrap();
+
+        // Execute multiple times
+        for i in 0..3 {
+            let code = format!("x = {}", i);
+            let result = bridge.execute(code, false).await;
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_output_type_serialization() {
+        assert_eq!(
+            serde_json::to_string(&OutputType::Stdout).unwrap(),
+            "\"stdout\""
+        );
+        assert_eq!(
+            serde_json::to_string(&OutputType::Stderr).unwrap(),
+            "\"stderr\""
+        );
+        assert_eq!(
+            serde_json::to_string(&OutputType::Result).unwrap(),
+            "\"result\""
+        );
+    }
 }

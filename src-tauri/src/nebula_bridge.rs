@@ -363,9 +363,7 @@ impl MockNebulaState {
 
         // Update connection utilization
         for conn in &mut self.topology.connections {
-            conn.utilization = (conn.utilization + (rand_float() * 10.0 - 5.0))
-                .max(0.0)
-                .min(100.0);
+            conn.utilization = (conn.utilization + (rand_float() * 10.0 - 5.0)).clamp(0.0, 100.0);
         }
     }
 }

@@ -323,7 +323,7 @@ impl EphemeralBridge {
         invite_token: &str,
         redemption_code: &str,
         display_name: String,
-        device_info: DeviceInfo,
+        _device_info: DeviceInfo,
     ) -> Result<JoinSessionResponse, String> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -516,27 +516,34 @@ impl EphemeralBridge {
     }
 
     /// Process expired sessions (should be called periodically)
-    pub async fn cleanup_expired(&self) {
+    /// Returns (expired_sessions_count, expired_invites_count)
+    pub async fn cleanup_expired(&self) -> (usize, usize) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 
         // Mark expired sessions
+        let mut expired_sessions = 0;
         {
             let mut sessions = self.sessions.write().await;
             for session in sessions.values_mut() {
                 if session.status == SessionStatus::Active && now > session.expires_at {
                     session.status = SessionStatus::Expired;
+                    expired_sessions += 1;
                 }
             }
         }
 
         // Clean up expired invites
-        {
+        let expired_invites = {
             let mut invites = self.invites.write().await;
+            let before_len = invites.len();
             invites.retain(|_, invite| now <= invite.expires_at);
-        }
+            before_len - invites.len()
+        };
+
+        (expired_sessions, expired_invites)
     }
 
     /// Get session statistics

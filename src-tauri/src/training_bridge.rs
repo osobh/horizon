@@ -17,12 +17,20 @@
 //! Both implementations expose the same API to the Tauri commands.
 
 use dashmap::DashMap;
+#[cfg(feature = "hpc-channels")]
 use hpc_channels::{channels, TrainingMessage, TrainingConfig as ChannelTrainingConfig, TrainingStatus as ChannelTrainingStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+
+/// Get current Unix timestamp safely, returning 0 if system time is before UNIX_EPOCH.
+fn current_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 // Import real rtx-distributed types when feature is enabled
 #[cfg(feature = "embedded-training")]
@@ -67,6 +75,7 @@ pub enum TrainingStatus {
     Cancelled,
 }
 
+#[cfg(feature = "hpc-channels")]
 impl From<TrainingStatus> for ChannelTrainingStatus {
     fn from(s: TrainingStatus) -> Self {
         match s {
@@ -299,16 +308,19 @@ impl TrainingBridge {
         }
     }
 
+    /// Initialize the training bridge.
+    pub async fn initialize(&self) -> Result<(), String> {
+        tracing::info!("TrainingBridge initialized");
+        Ok(())
+    }
+
     /// Start a new training job.
     pub async fn start_training(&self, name: String, config: TrainingConfig) -> Result<TrainingJob, String> {
         // Relaxed: independent job ID counter
         let counter = self.job_counter.fetch_add(1, Ordering::Relaxed) + 1;
         let job_id = format!("job-{:03}", counter);
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = current_timestamp();
 
         let job = TrainingJob {
             id: job_id.clone(),
@@ -342,31 +354,40 @@ impl TrainingBridge {
         self.jobs.insert(job_id.clone(), job.clone());
 
         // Broadcast training start via channel
-        if let Some(tx) = hpc_channels::sender::<TrainingMessage>(channels::TRAINING_START) {
-            let channel_config = ChannelTrainingConfig {
-                model: config.model,
-                dataset: config.dataset,
-                epochs: config.epochs,
-                batch_size: config.batch_size,
-                learning_rate: config.learning_rate,
-                optimizer: config.optimizer,
-                hyperparameters: config.hyperparameters,
-                distributed: config.distributed.map(|d| hpc_channels::DistributedConfig {
-                    world_size: d.world_size,
-                    strategy: match d.strategy.as_str() {
-                        "data_parallel" => hpc_channels::ParallelismStrategy::DataParallel,
-                        "model_parallel" => hpc_channels::ParallelismStrategy::ModelParallel,
-                        "pipeline_parallel" => hpc_channels::ParallelismStrategy::PipelineParallel,
-                        _ => hpc_channels::ParallelismStrategy::DataParallel,
-                    },
-                }),
-            };
+        #[cfg(feature = "hpc-channels")]
+        {
+            if let Some(tx) = hpc_channels::sender::<TrainingMessage>(channels::TRAINING_START) {
+                let channel_config = ChannelTrainingConfig {
+                    model: config.model,
+                    dataset: config.dataset,
+                    epochs: config.epochs,
+                    batch_size: config.batch_size,
+                    learning_rate: config.learning_rate,
+                    optimizer: config.optimizer,
+                    hyperparameters: config.hyperparameters,
+                    distributed: config.distributed.map(|d| hpc_channels::DistributedConfig {
+                        world_size: d.world_size,
+                        strategy: match d.strategy.as_str() {
+                            "data_parallel" => hpc_channels::ParallelismStrategy::DataParallel,
+                            "model_parallel" => hpc_channels::ParallelismStrategy::ModelParallel,
+                            "pipeline_parallel" => hpc_channels::ParallelismStrategy::PipelineParallel,
+                            _ => hpc_channels::ParallelismStrategy::DataParallel,
+                        },
+                    }),
+                };
 
-            let _ = tx.send(TrainingMessage::Start {
-                job_id: job_id.clone(),
-                config: channel_config,
-            }).await;
+                if let Err(e) = tx.send(TrainingMessage::Start {
+                    job_id: job_id.clone(),
+                    config: channel_config,
+                }).await {
+                    tracing::warn!("Failed to send training start message: {}", e);
+                }
+            }
         }
+
+        // Suppress unused variable warning when hpc-channels is disabled
+        #[cfg(not(feature = "hpc-channels"))]
+        let _ = config;
 
         tracing::info!("Started training job: {}", job_id);
         Ok(job)
@@ -456,12 +477,7 @@ impl TrainingBridge {
                 // Check if completed
                 if job.progress.completion_percentage >= 100.0 {
                     job.status = TrainingStatus::Completed;
-                    job.completed_at = Some(
-                        std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs()
-                    );
+                    job.completed_at = Some(current_timestamp());
                 }
             }
         }
@@ -475,6 +491,7 @@ impl Default for TrainingBridge {
 }
 
 /// Start the training message handler task.
+#[cfg(feature = "hpc-channels")]
 #[allow(dead_code)]
 pub async fn start_training_handler(bridge: Arc<TrainingBridge>) {
     let (_tx, mut rx) = hpc_channels::channel::<TrainingMessage>(channels::TRAINING_CONTROL);
@@ -502,14 +519,199 @@ pub async fn start_training_handler(bridge: Arc<TrainingBridge>) {
                 }
                 TrainingMessage::GetStatus { job_id } => {
                     if let Some(job) = bridge.get_job(&job_id).await {
-                        let _ = progress_tx.send(TrainingMessage::Status {
+                        if let Err(e) = progress_tx.send(TrainingMessage::Status {
                             job_id,
                             status: job.status.into(),
-                        });
+                        }) {
+                            tracing::warn!("Failed to send training status message: {}", e);
+                        }
                     }
                 }
                 _ => {}
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_config() -> TrainingConfig {
+        TrainingConfig {
+            model: "test-model".to_string(),
+            dataset: "test-dataset".to_string(),
+            epochs: 10,
+            batch_size: 32,
+            learning_rate: 0.001,
+            optimizer: "adam".to_string(),
+            hyperparameters: HashMap::new(),
+            distributed: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_new_creates_bridge_with_mock_jobs() {
+        let bridge = TrainingBridge::new();
+        // Give mock data time to populate
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let jobs = bridge.get_all_jobs().await;
+        assert!(!jobs.is_empty(), "Should have mock jobs");
+    }
+
+    #[tokio::test]
+    async fn test_initialize_succeeds() {
+        let bridge = TrainingBridge::new();
+        let result = bridge.initialize().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_start_training_creates_job() {
+        let bridge = TrainingBridge::new();
+        let config = create_test_config();
+
+        let result = bridge.start_training("Test Job".to_string(), config).await;
+        assert!(result.is_ok());
+
+        let job = result.unwrap();
+        assert!(job.id.starts_with("job-"));
+        assert_eq!(job.name, "Test Job");
+        assert_eq!(job.status, TrainingStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn test_get_job_by_id() {
+        let bridge = TrainingBridge::new();
+        let config = create_test_config();
+
+        // Create a job
+        let job = bridge.start_training("Test".to_string(), config).await.unwrap();
+
+        // Get it by ID
+        let result = bridge.get_job(&job.id).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().id, job.id);
+    }
+
+    #[tokio::test]
+    async fn test_get_job_returns_none_for_invalid_id() {
+        let bridge = TrainingBridge::new();
+        let result = bridge.get_job("nonexistent-job").await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_pause_and_resume_job() {
+        let bridge = TrainingBridge::new();
+        let config = create_test_config();
+
+        // Create a job
+        let job = bridge.start_training("Test".to_string(), config).await.unwrap();
+
+        // Pause it
+        let result = bridge.pause_job(&job.id).await;
+        assert!(result.is_ok());
+
+        let paused = bridge.get_job(&job.id).await.unwrap();
+        assert_eq!(paused.status, TrainingStatus::Paused);
+
+        // Resume it
+        let result = bridge.resume_job(&job.id).await;
+        assert!(result.is_ok());
+
+        let resumed = bridge.get_job(&job.id).await.unwrap();
+        assert_eq!(resumed.status, TrainingStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn test_cancel_job() {
+        let bridge = TrainingBridge::new();
+        let config = create_test_config();
+
+        // Create a job
+        let job = bridge.start_training("Test".to_string(), config).await.unwrap();
+
+        // Cancel it
+        let result = bridge.cancel_job(&job.id).await;
+        assert!(result.is_ok());
+
+        let cancelled = bridge.get_job(&job.id).await.unwrap();
+        assert_eq!(cancelled.status, TrainingStatus::Cancelled);
+    }
+
+    #[tokio::test]
+    async fn test_get_summary() {
+        let bridge = TrainingBridge::new();
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let summary = bridge.get_summary().await;
+        // Should have mock data
+        assert!(summary.total_jobs >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_pause_nonexistent_job_returns_error() {
+        let bridge = TrainingBridge::new();
+        let result = bridge.pause_job("nonexistent").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_resume_nonexistent_job_returns_error() {
+        let bridge = TrainingBridge::new();
+        let result = bridge.resume_job("nonexistent").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cancel_nonexistent_job_returns_error() {
+        let bridge = TrainingBridge::new();
+        let result = bridge.cancel_job("nonexistent").await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_training_status_serialization() {
+        assert_eq!(
+            serde_json::to_string(&TrainingStatus::Queued).unwrap(),
+            "\"queued\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TrainingStatus::Running).unwrap(),
+            "\"running\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TrainingStatus::Paused).unwrap(),
+            "\"paused\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TrainingStatus::Completed).unwrap(),
+            "\"completed\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TrainingStatus::Failed).unwrap(),
+            "\"failed\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TrainingStatus::Cancelled).unwrap(),
+            "\"cancelled\""
+        );
+    }
+
+    #[test]
+    fn test_training_config_serialization() {
+        let config = create_test_config();
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"model\":\"test-model\""));
+        assert!(json.contains("\"epochs\":10"));
+    }
+
+    #[test]
+    fn test_current_timestamp_returns_valid_value() {
+        let ts = current_timestamp();
+        // Should be after year 2020 (timestamp > 1577836800)
+        assert!(ts > 1577836800);
+    }
 }

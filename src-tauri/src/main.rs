@@ -10,15 +10,18 @@
 
 mod cluster_bridge;
 mod commands;
+mod costs_bridge;
 mod data_pipeline_bridge;
 mod edge_proxy_bridge;
 mod ephemeral_bridge;
+mod error;
 mod events;
 mod evolution_bridge;
 mod gpu_compiler_bridge;
-mod hpc_bridge;
+mod intelligence_bridge;
 mod kernel_bridge;
 mod nebula_bridge;
+mod settings_bridge;
 mod slai_bridge;
 mod state;
 mod storage_bridge;
@@ -244,13 +247,13 @@ fn main() {
             commands::ephemeral::get_ephemeral_session,
             commands::ephemeral::create_ephemeral_session,
             commands::ephemeral::end_ephemeral_session,
-            commands::ephemeral::create_ephemeral_invite,
-            commands::ephemeral::revoke_ephemeral_invite,
-            commands::ephemeral::get_ephemeral_invite,
+            commands::ephemeral::get_invite_url,
+            commands::ephemeral::join_ephemeral_session,
+            commands::ephemeral::leave_ephemeral_session,
             commands::ephemeral::get_ephemeral_presence,
-            commands::ephemeral::update_ephemeral_cursor,
+            commands::ephemeral::update_ephemeral_activity,
             commands::ephemeral::get_ephemeral_stats,
-            commands::ephemeral::cleanup_expired_ephemeral,
+            commands::ephemeral::cleanup_expired_sessions,
             // SLAI commands (GPU scheduler and job management)
             commands::slai::get_slai_stats,
             commands::slai::get_slai_gpus,
@@ -261,6 +264,37 @@ fn main() {
             commands::slai::submit_slai_job,
             commands::slai::cancel_slai_job,
             commands::slai::schedule_slai_next,
+            // Cost Intelligence commands
+            commands::costs::get_cost_summary,
+            commands::costs::get_cost_attributions,
+            commands::costs::get_cost_forecasts,
+            commands::costs::get_budget_alerts,
+            commands::costs::list_cost_reports,
+            commands::costs::generate_chargeback_report,
+            commands::costs::generate_showback_report,
+            commands::costs::set_budget_threshold,
+            // Intelligence commands
+            commands::intelligence::get_intelligence_summary,
+            commands::intelligence::get_idle_resources,
+            commands::intelligence::get_profit_margins,
+            commands::intelligence::get_vendor_utilizations,
+            commands::intelligence::get_executive_kpis,
+            commands::intelligence::get_intelligence_alerts,
+            commands::intelligence::acknowledge_intelligence_alert,
+            commands::intelligence::terminate_idle_resource,
+            // Settings commands
+            commands::settings::get_settings_summary,
+            commands::settings::get_policies,
+            commands::settings::get_quotas,
+            commands::settings::get_app_settings,
+            commands::settings::create_policy,
+            commands::settings::update_policy,
+            commands::settings::delete_policy,
+            commands::settings::toggle_policy,
+            commands::settings::set_quota,
+            commands::settings::update_quota,
+            commands::settings::delete_quota,
+            commands::settings::update_app_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");

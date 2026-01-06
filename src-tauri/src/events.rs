@@ -1,6 +1,11 @@
 //! Real-time Event Emission
 //!
 //! Provides event-based updates for metrics, training progress, and system status.
+//!
+//! Note: Some items in this module are reserved for future event emission features
+//! and are currently unused but will be wired up when real-time updates are implemented.
+
+#![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

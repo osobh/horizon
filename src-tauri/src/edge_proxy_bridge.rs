@@ -380,7 +380,7 @@ impl MockEdgeProxyState {
         for protocol in &mut self.proxy.protocols {
             protocol.request_count += (rand_float() as u64 * 100) + 10;
             let latency_variance = rand_float() as f64 * 0.1 - 0.05;
-            protocol.avg_latency_ms = (protocol.avg_latency_ms + latency_variance).max(0.1).min(2.0);
+            protocol.avg_latency_ms = (protocol.avg_latency_ms + latency_variance).clamp(0.1, 2.0);
         }
 
         // Rotate routing decisions
@@ -411,10 +411,12 @@ impl MockEdgeProxyState {
         // Update backend health
         for backend in &mut self.proxy.backend_health {
             let gpu_variance = rand_float() * 10.0 - 5.0;
-            backend.gpu_utilization_pct = (backend.gpu_utilization_pct + gpu_variance).max(10.0).min(100.0);
+            backend.gpu_utilization_pct =
+                (backend.gpu_utilization_pct + gpu_variance).clamp(10.0, 100.0);
 
             let mem_variance = rand_float() * 5.0 - 2.5;
-            backend.memory_utilization_pct = (backend.memory_utilization_pct + mem_variance).max(10.0).min(100.0);
+            backend.memory_utilization_pct =
+                (backend.memory_utilization_pct + mem_variance).clamp(10.0, 100.0);
 
             // Update failure probability based on utilization
             if backend.gpu_utilization_pct > 90.0 {
@@ -463,6 +465,7 @@ impl EdgeProxyBridge {
     }
 
     /// Initialize the edge proxy bridge.
+    #[allow(dead_code)]
     pub async fn initialize(&self) -> Result<(), String> {
         tracing::info!("Edge proxy bridge initialized (mock mode)");
         Ok(())

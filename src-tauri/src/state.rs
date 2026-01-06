@@ -3,13 +3,16 @@
 //! Centralized state for the Horizon application.
 
 use crate::cluster_bridge::ClusterBridge;
+use crate::costs_bridge::CostsBridge;
 use crate::data_pipeline_bridge::DataPipelineBridge;
 use crate::edge_proxy_bridge::EdgeProxyBridge;
 use crate::ephemeral_bridge::EphemeralBridge;
 use crate::evolution_bridge::EvolutionBridge;
 use crate::gpu_compiler_bridge::GpuCompilerBridge;
+use crate::intelligence_bridge::IntelligenceBridge;
 use crate::kernel_bridge::KernelBridge;
 use crate::nebula_bridge::NebulaBridge;
+use crate::settings_bridge::SettingsBridge;
 use crate::slai_bridge::SlaiBridge;
 use crate::storage_bridge::StorageBridge;
 use crate::tensor_mesh_bridge::TensorMeshBridge;
@@ -48,6 +51,12 @@ pub struct AppState {
     pub ephemeral: Arc<EphemeralBridge>,
     /// SLAI bridge for GPU scheduler and job management
     pub slai: Arc<SlaiBridge>,
+    /// Costs bridge for cost intelligence services
+    pub costs: Arc<CostsBridge>,
+    /// Intelligence bridge for efficiency, margin, and vendor intelligence
+    pub intelligence: Arc<IntelligenceBridge>,
+    /// Settings bridge for policies, quotas, and app settings
+    pub settings: Arc<SettingsBridge>,
 }
 
 impl AppState {
@@ -67,6 +76,9 @@ impl AppState {
             edge_proxy: Arc::new(EdgeProxyBridge::new()),
             ephemeral: Arc::new(EphemeralBridge::new()),
             slai: Arc::new(SlaiBridge::new()),
+            costs: Arc::new(CostsBridge::new()),
+            intelligence: Arc::new(IntelligenceBridge::new()),
+            settings: Arc::new(SettingsBridge::new()),
         }
     }
 

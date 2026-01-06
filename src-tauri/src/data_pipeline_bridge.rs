@@ -229,33 +229,30 @@ impl MockPipelineState {
     fn simulate_activity(&mut self) {
         // Simulate encryption/hashing throughput variation
         let variance = rand_float() as f64 * 4.0 - 2.0;
-        self.stats.encryption_throughput_gbps = (self.stats.encryption_throughput_gbps + variance)
-            .max(15.0)
-            .min(22.0);
+        self.stats.encryption_throughput_gbps =
+            (self.stats.encryption_throughput_gbps + variance).clamp(15.0, 22.0);
 
         let variance = rand_float() as f64 * 3.0 - 1.5;
-        self.stats.hashing_throughput_gbps = (self.stats.hashing_throughput_gbps + variance)
-            .max(13.0)
-            .min(18.0);
+        self.stats.hashing_throughput_gbps =
+            (self.stats.hashing_throughput_gbps + variance).clamp(13.0, 18.0);
 
         // Update bytes processed
         self.stats.bytes_processed += (rand_float() as u64 * 100_000_000) + 50_000_000;
 
         // Update pipeline utilization
         let util_variance = rand_float() * 10.0 - 5.0;
-        self.stats.pipeline_utilization_pct = (self.stats.pipeline_utilization_pct + util_variance)
-            .max(50.0)
-            .min(95.0);
+        self.stats.pipeline_utilization_pct =
+            (self.stats.pipeline_utilization_pct + util_variance).clamp(50.0, 95.0);
 
         // Update stage statistics
         for stage in &mut self.stages {
             stage.bytes_processed += (rand_float() as u64 * 50_000_000) + 10_000_000;
 
             let variance = rand_float() * 2.0 - 1.0;
-            stage.throughput_gbps = (stage.throughput_gbps + variance as f64).max(5.0).min(20.0);
+            stage.throughput_gbps = (stage.throughput_gbps + variance as f64).clamp(5.0, 20.0);
 
             let fill_variance = rand_float() * 20.0 - 10.0;
-            stage.buffer_fill_pct = (stage.buffer_fill_pct + fill_variance).max(20.0).min(95.0);
+            stage.buffer_fill_pct = (stage.buffer_fill_pct + fill_variance).clamp(20.0, 95.0);
 
             // Update status based on buffer fill
             stage.status = if stage.buffer_fill_pct > 90.0 {
@@ -276,9 +273,8 @@ impl MockPipelineState {
 
             // Update throughput
             let variance = rand_float() as f64 * 2.0 - 1.0;
-            job.current_throughput_gbps = (job.current_throughput_gbps + variance)
-                .max(10.0)
-                .min(20.0);
+            job.current_throughput_gbps =
+                (job.current_throughput_gbps + variance).clamp(10.0, 20.0);
 
             // Update ETA
             let remaining = job.total_bytes - job.processed_bytes;
@@ -335,6 +331,7 @@ impl DataPipelineBridge {
     }
 
     /// Initialize the data pipeline bridge.
+    #[allow(dead_code)]
     pub async fn initialize(&self) -> Result<(), String> {
         tracing::info!("Data pipeline bridge initialized (mock mode)");
         Ok(())

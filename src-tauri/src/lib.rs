@@ -4,14 +4,17 @@
 
 pub mod cluster_bridge;
 pub mod commands;
+pub mod costs_bridge;
 pub mod data_pipeline_bridge;
 pub mod edge_proxy_bridge;
 pub mod ephemeral_bridge;
+pub mod error;
 pub mod evolution_bridge;
 pub mod gpu_compiler_bridge;
-pub mod hpc_bridge;
+pub mod intelligence_bridge;
 pub mod kernel_bridge;
 pub mod nebula_bridge;
+pub mod settings_bridge;
 pub mod slai_bridge;
 pub mod state;
 pub mod storage_bridge;
@@ -19,27 +22,21 @@ pub mod tensor_mesh_bridge;
 pub mod training_bridge;
 
 pub use cluster_bridge::ClusterBridge;
+pub use costs_bridge::CostsBridge;
 pub use data_pipeline_bridge::DataPipelineBridge;
 pub use edge_proxy_bridge::EdgeProxyBridge;
 pub use ephemeral_bridge::{
-    EphemeralBridge, EphemeralSession, EphemeralSessionType, EphemeralParticipant,
-    InviteLink, CreateSessionRequest, CreateInviteRequest, EphemeralStats,
-    ConnectionStatus, CursorPosition, SessionQuota,
+    EphemeralBridge, EphemeralSession, SessionType, EphemeralParticipant,
+    InviteLink, EphemeralStats, EphemeralPermissions, SessionStatus,
+    ConnectionQuality, CreateSessionResponse, JoinSessionResponse,
 };
+pub use error::HorizonError;
 pub use evolution_bridge::EvolutionBridge;
 pub use gpu_compiler_bridge::GpuCompilerBridge;
-pub use hpc_bridge::{
-    HorizonChannelBridge, SharedHorizonChannelBridge,
-    SessionStartEvent, SessionEndEvent,
-    NotebookOpenEvent, NotebookSaveEvent, NotebookCellEvent, CellType, CellEventType,
-    CollabCursorEvent, CollabEditEvent, EditOperation, CollabPresenceEvent,
-    RdmaTransferEvent, RdmaStatus, RdmaCompleteEvent,
-    ZkProofEvent, ZkVerifyEvent,
-    TensorMeshAllocEvent, TensorMeshFreeEvent, TensorMeshSyncEvent,
-    shared_channel_bridge,
-};
+pub use intelligence_bridge::IntelligenceBridge;
 pub use kernel_bridge::KernelBridge;
 pub use nebula_bridge::NebulaBridge;
+pub use settings_bridge::SettingsBridge;
 pub use slai_bridge::SlaiBridge;
 pub use state::AppState;
 pub use storage_bridge::StorageBridge;

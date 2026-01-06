@@ -4,6 +4,7 @@
 //! When the `embedded-cluster` feature is enabled, uses the real cluster-mesh API.
 //! Otherwise, provides mock data for development.
 
+#[cfg(feature = "hpc-channels")]
 use hpc_channels::{channels, ClusterMessage, NodeInfo as ChannelNodeInfo, NodeRole, NodeCapabilities as ChannelCapabilities, GpuInfo as ChannelGpuInfo};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -142,9 +143,12 @@ impl ClusterBridge {
         state.endpoint = Some(endpoint.to_string());
 
         // Broadcast connection event
+        #[cfg(feature = "hpc-channels")]
         if let Some(tx) = hpc_channels::sender::<ClusterMessage>(channels::CLUSTER_CONNECTION) {
             let node_count = self.get_nodes().await.len();
-            let _ = tx.send(ClusterMessage::Connected { node_count }).await;
+            if let Err(e) = tx.send(ClusterMessage::Connected { node_count }).await {
+                tracing::warn!("Failed to send cluster connection message: {}", e);
+            }
         }
 
         tracing::info!("Connected to cluster successfully via cluster-mesh");
@@ -266,6 +270,7 @@ impl ClusterBridge {
     }
 
     /// Convert to hpc-channels NodeInfo format
+    #[cfg(feature = "hpc-channels")]
     #[allow(dead_code)]
     pub fn to_channel_node_info(node: &ClusterNode) -> ChannelNodeInfo {
         ChannelNodeInfo {
@@ -449,10 +454,13 @@ impl ClusterBridge {
         state.endpoint = Some(endpoint.to_string());
 
         // Broadcast connection event
+        #[cfg(feature = "hpc-channels")]
         if let Some(tx) = hpc_channels::sender::<ClusterMessage>(channels::CLUSTER_CONNECTION) {
-            let _ = tx.send(ClusterMessage::Connected {
+            if let Err(e) = tx.send(ClusterMessage::Connected {
                 node_count: self.mock_nodes.read().await.len(),
-            }).await;
+            }).await {
+                tracing::warn!("Failed to send cluster connection message: {}", e);
+            }
         }
 
         tracing::info!("Connected to cluster successfully (mock)");
@@ -526,6 +534,7 @@ impl ClusterBridge {
     }
 
     /// Convert to hpc-channels NodeInfo format
+    #[cfg(feature = "hpc-channels")]
     #[allow(dead_code)]
     pub fn to_channel_node_info(node: &ClusterNode) -> ChannelNodeInfo {
         ChannelNodeInfo {
@@ -559,6 +568,7 @@ impl Default for ClusterBridge {
 }
 
 /// Start the cluster message handler task.
+#[cfg(feature = "hpc-channels")]
 #[allow(dead_code)]
 pub async fn start_cluster_handler(bridge: Arc<ClusterBridge>) {
     // Create cluster channels
@@ -583,10 +593,122 @@ pub async fn start_cluster_handler(bridge: Arc<ClusterBridge>) {
                         .map(ClusterBridge::to_channel_node_info)
                         .collect();
 
-                    let _ = nodes_tx.send(ClusterMessage::Topology { nodes: node_infos });
+                    if let Err(e) = nodes_tx.send(ClusterMessage::Topology { nodes: node_infos }) {
+                        tracing::warn!("Failed to send cluster topology message: {}", e);
+                    }
                 }
                 _ => {}
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_new_creates_bridge_with_mock_nodes() {
+        let bridge = ClusterBridge::new();
+        // Give mock data time to populate
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let nodes = bridge.get_nodes().await;
+        assert!(!nodes.is_empty(), "Should have mock nodes");
+        assert!(nodes.len() >= 3, "Should have at least 3 mock nodes");
+    }
+
+    #[tokio::test]
+    async fn test_connect_and_disconnect() {
+        let bridge = ClusterBridge::new();
+
+        // Initially not connected
+        assert!(!bridge.is_connected().await);
+
+        // Connect
+        let result = bridge.connect("localhost:50051").await;
+        assert!(result.is_ok());
+        assert!(bridge.is_connected().await);
+
+        // Disconnect
+        let result = bridge.disconnect().await;
+        assert!(result.is_ok());
+        assert!(!bridge.is_connected().await);
+    }
+
+    #[tokio::test]
+    async fn test_get_node_by_id() {
+        let bridge = ClusterBridge::new();
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let nodes = bridge.get_nodes().await;
+        if let Some(first_node) = nodes.first() {
+            let node = bridge.get_node(&first_node.id).await;
+            assert!(node.is_some());
+            assert_eq!(node.unwrap().id, first_node.id);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_node_returns_none_for_invalid_id() {
+        let bridge = ClusterBridge::new();
+        let node = bridge.get_node("nonexistent-node-id").await;
+        assert!(node.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_statistics() {
+        let bridge = ClusterBridge::new();
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let stats = bridge.get_statistics().await;
+        assert!(stats.total_nodes > 0);
+        assert!(stats.total_cpu_cores > 0);
+        assert!(stats.total_memory_gb > 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_disconnect_without_connect() {
+        let bridge = ClusterBridge::new();
+
+        // Disconnecting when not connected should still work
+        let result = bridge.disconnect().await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_node_type_serialization() {
+        assert_eq!(
+            serde_json::to_string(&NodeType::DataCenter).unwrap(),
+            "\"datacenter\""
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeType::Edge).unwrap(),
+            "\"edge\""
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeType::Workstation).unwrap(),
+            "\"workstation\""
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeType::Laptop).unwrap(),
+            "\"laptop\""
+        );
+    }
+
+    #[test]
+    fn test_node_status_serialization() {
+        assert_eq!(
+            serde_json::to_string(&NodeStatus::Online).unwrap(),
+            "\"online\""
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeStatus::Offline).unwrap(),
+            "\"offline\""
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeStatus::Degraded).unwrap(),
+            "\"degraded\""
+        );
+    }
 }

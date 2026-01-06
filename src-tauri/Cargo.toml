@@ -1,9 +1,11 @@
+[workspace]
+
 [package]
 name = "horizon"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
+authors = ["HPC-AI Team"]
+license = "MIT OR Apache-2.0"
 description = "Unified HPC-AI Platform - Single pane of glass for the entire stack"
 build = "build.rs"
 
@@ -16,19 +18,19 @@ name = "horizon"
 path = "src/main.rs"
 
 [build-dependencies]
-tauri-build.workspace = true
+tauri-build = "2.0"
 
 [dependencies]
-tauri.workspace = true
-tokio.workspace = true
-tokio-util.workspace = true
-async-trait.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-anyhow.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
+tauri = { version = "2.1", features = [] }
+tokio = { version = "1.42", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.11", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 sysinfo = "0.30"  # For system/GPU detection
@@ -36,66 +38,41 @@ hex = "0.4"  # For encoding merkle roots
 dashmap = "6.1"  # Lock-free concurrent HashMap
 rand = "0.8"  # Random number generation for ephemeral tokens
 
-# Internal crate dependencies
-hpc-channels.workspace = true
-stratoswarm-cluster-mesh = { path = "../../06-stratoswarm/crates/cluster-mesh", optional = true }
-rtx-distributed = { path = "../../08-rustytorch/crates/training/rtx-distributed", optional = true, default-features = false }
-warp-core = { path = "../../05-warp/crates/warp-core", optional = true }
-warp-format = { path = "../../05-warp/crates/warp-format", optional = true }
-warp-ipc = { workspace = true, optional = true }
-warp-dashboard = { workspace = true, optional = true }
+# Internal crate dependencies (commented out temporarily for testing)
+# hpc-channels = { path = "../../02-hpc-channels", features = ["shared-memory", "rkyv-codec"] }
+# stratoswarm-cluster-mesh = { path = "../../06-stratoswarm/crates/cluster-mesh", optional = true }
+# rtx-distributed = { path = "../../08-rustytorch/crates/training/rtx-distributed", optional = true, default-features = false }
+# warp-core = { path = "../../05-warp/crates/warp-core", optional = true }
+# warp-format = { path = "../../05-warp/crates/warp-format", optional = true }
+# warp-ipc = { path = "../../05-warp/crates/warp-ipc", optional = true }
+# warp-dashboard = { path = "../../05-warp/crates/warp-dashboard", optional = true }
 # vortex-core = { path = "../../09-vortex/crates/vortex-core", optional = true }
 
 # GPU-accelerated Rust compilation (10x faster)
 # Works on macOS (Metal) and Linux/Windows (CUDA)
-rustg = { path = "../../00-rust/rustg", optional = true, default-features = false }
+# rustg = { path = "../../00-rust/rustg", optional = true, default-features = false }
 
 # SLAI - GPU cluster scheduler with multi-vendor support
 # Includes 'metal' feature for macOS GPU detection
-slai = { path = "../../04-slai", optional = true }
+# slai = { path = "../../04-slai", optional = true }
 
 [features]
 # Default: no embedded features (uses mock implementations)
 default = []
 
-# Embed stratoswarm cluster-mesh for real cluster management
-# NOTE: Currently Linux-only due to procfs dependency in cluster-mesh
-# On macOS/Windows, the mock implementation is used automatically
-embedded-cluster = ["stratoswarm-cluster-mesh"]
+# Declare features for conditional compilation (even when dependencies are commented out)
+# This silences cfg warnings while maintaining forward compatibility
+hpc-channels = []  # Add when dependency is ready: ["dep:hpc-channels"]
+embedded-cluster = []  # Add when ready: ["dep:stratoswarm-cluster-mesh"]
+embedded-training = []  # Add when ready: ["dep:rtx-distributed"]
+embedded-storage = []  # Add when ready: ["dep:warp-core", "dep:warp-format"]
+embedded-warp-dashboard = []  # Add when ready: ["dep:warp-ipc", "dep:warp-dashboard"]
+gpu-compiler = []  # Add when ready: ["dep:rustg"]
+embedded-slai = []  # Add when ready: ["dep:slai"]
+embedded-kernel = []  # Add when ready for notebook kernel integration
 
-# Embed rtx-distributed for real distributed training
-# NOTE: Requires CUDA/NCCL - on non-CUDA systems, mock implementation is used
-embedded-training = ["rtx-distributed"]
-
-# Embed warp-core for real file transfers
-# Works on all platforms - local and remote transfers
-embedded-storage = ["warp-core", "warp-format"]
-
-# Embed warp-dashboard for real-time transfer monitoring
-# Provides IPC integration for WARP transfer state
-embedded-warp-dashboard = ["warp-ipc", "warp-dashboard"]
-
-# Embed vortex for protocol transmutation (when available)
-# embedded-vortex = ["vortex-core"]
-
-# GPU-accelerated Rust compilation via rustg
-# Provides 10x faster compilation in notebook cells
-# macOS: Uses Metal GPU acceleration
-# Linux/Windows: Uses CUDA GPU acceleration
-gpu-compiler = ["rustg"]
-
-# SLAI embedded runtime for real GPU detection and job scheduling
-# Provides multi-vendor GPU support (Metal, CUDA, ROCm)
-# Includes fair-share scheduler with tenant management
-embedded-slai = ["slai"]
-
-# Embed nebula for RDMA transport and ZK proofs
-# NOTE: RDMA requires Linux with InfiniBand/RoCE
-# On non-Linux systems, mock implementation is used
-# embedded-nebula = ["nebula-rdma", "nebula-zk", "nebula-relay"]
-
-# Embed all optional crates for full functionality
-full = ["embedded-cluster", "embedded-training", "embedded-storage", "embedded-warp-dashboard", "gpu-compiler", "embedded-slai"]
+# Full feature set (enable when dependencies are ready)
+# full = ["hpc-channels", "embedded-cluster", "embedded-training", "embedded-storage", "embedded-warp-dashboard", "gpu-compiler", "embedded-slai", "embedded-kernel"]
 
 # Minimal build without embedded crates (uses mocks)
 minimal = []
