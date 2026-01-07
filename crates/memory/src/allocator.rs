@@ -121,7 +121,7 @@ impl MemoryManager for GpuMemoryAllocator {
 
         allocations.insert(id, AllocationInfo { size, buffer });
 
-        Ok(GpuMemoryHandle { ptr, size, id })
+        Ok(GpuMemoryHandle::new(ptr, size, id))
     }
 
     async fn deallocate(&self, handle: GpuMemoryHandle) -> Result<(), MemoryError> {
@@ -133,8 +133,8 @@ impl MemoryManager for GpuMemoryAllocator {
                 })?;
 
         allocations
-            .remove(&handle.id)
-            .ok_or(MemoryError::HandleNotFound { id: handle.id })?;
+            .remove(&handle.id())
+            .ok_or(MemoryError::HandleNotFound { id: handle.id() })?;
 
         Ok(())
     }
@@ -202,14 +202,16 @@ mod tests {
         // SAFETY: Creating a null DevicePointer for testing purposes only.
         // This handle is never dereferenced - it's used to test error handling
         // when deallocating an invalid/unknown handle.
-        let fake_handle = GpuMemoryHandle {
-            #[cfg(feature = "cuda")]
-            ptr: unsafe { cust::memory::DevicePointer::from_raw(0) },
-            #[cfg(not(feature = "cuda"))]
-            ptr: 0usize, // Use 0 as null pointer equivalent
-            size: 1024,
-            id: Uuid::new_v4(),
+        #[cfg(feature = "cuda")]
+        let fake_handle = unsafe {
+            GpuMemoryHandle::new_unchecked(
+                cust::memory::DevicePointer::from_raw(0),
+                1024,
+                Uuid::new_v4(),
+            )
         };
+        #[cfg(not(feature = "cuda"))]
+        let fake_handle = unsafe { GpuMemoryHandle::new_unchecked(0usize, 1024, Uuid::new_v4()) };
 
         let result = allocator.deallocate(fake_handle).await;
         assert!(matches!(result, Err(MemoryError::HandleNotFound { .. })));
@@ -258,14 +260,16 @@ mod tests {
         // SAFETY: Creating a null DevicePointer for testing purposes only.
         // This handle is never dereferenced - it's used to test error handling
         // when deallocating with a poisoned mutex.
-        let handle = GpuMemoryHandle {
-            #[cfg(feature = "cuda")]
-            ptr: unsafe { cust::memory::DevicePointer::from_raw(0) },
-            #[cfg(not(feature = "cuda"))]
-            ptr: 0usize,
-            size: 1024,
-            id: Uuid::new_v4(),
+        #[cfg(feature = "cuda")]
+        let handle = unsafe {
+            GpuMemoryHandle::new_unchecked(
+                cust::memory::DevicePointer::from_raw(0),
+                1024,
+                Uuid::new_v4(),
+            )
         };
+        #[cfg(not(feature = "cuda"))]
+        let handle = unsafe { GpuMemoryHandle::new_unchecked(0usize, 1024, Uuid::new_v4()) };
 
         let result = allocator.deallocate(handle).await;
         assert!(result.is_err());

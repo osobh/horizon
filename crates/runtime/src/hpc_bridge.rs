@@ -27,6 +27,7 @@
 
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tracing;
 
 /// Container lifecycle event published when a container starts.
 #[derive(Clone, Debug)]
@@ -116,44 +117,73 @@ impl RuntimeChannelBridge {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as u64)
-            .unwrap_or(0)
+            .unwrap_or_else(|e| {
+                tracing::error!(error = ?e, "System clock is before UNIX epoch - using 0 timestamp");
+                0
+            })
     }
 
     /// Publish a container created event.
     pub fn publish_container_created(&self, container_id: &str) {
         // Use start channel for created events too
-        let _ = self.start_tx.send(ContainerStartEvent {
+        if let Err(e) = self.start_tx.send(ContainerStartEvent {
             container_id: container_id.to_string(),
             state: "Created".to_string(),
             timestamp_ms: Self::now_ms(),
-        });
+        }) {
+            tracing::warn!(
+                container_id = container_id,
+                error = ?e,
+                "Failed to publish container created event - no subscribers"
+            );
+        }
     }
 
     /// Publish a container started event.
     pub fn publish_container_started(&self, container_id: &str, state: &str) {
-        let _ = self.start_tx.send(ContainerStartEvent {
+        if let Err(e) = self.start_tx.send(ContainerStartEvent {
             container_id: container_id.to_string(),
             state: state.to_string(),
             timestamp_ms: Self::now_ms(),
-        });
+        }) {
+            tracing::warn!(
+                container_id = container_id,
+                state = state,
+                error = ?e,
+                "Failed to publish container started event - no subscribers"
+            );
+        }
     }
 
     /// Publish a container stopped event.
     pub fn publish_container_stopped(&self, container_id: &str, state: &str) {
-        let _ = self.stop_tx.send(ContainerStopEvent {
+        if let Err(e) = self.stop_tx.send(ContainerStopEvent {
             container_id: container_id.to_string(),
             state: state.to_string(),
             timestamp_ms: Self::now_ms(),
-        });
+        }) {
+            tracing::warn!(
+                container_id = container_id,
+                state = state,
+                error = ?e,
+                "Failed to publish container stopped event - no subscribers"
+            );
+        }
     }
 
     /// Publish a container removed event.
     pub fn publish_container_removed(&self, container_id: &str) {
-        let _ = self.stop_tx.send(ContainerStopEvent {
+        if let Err(e) = self.stop_tx.send(ContainerStopEvent {
             container_id: container_id.to_string(),
             state: "Removed".to_string(),
             timestamp_ms: Self::now_ms(),
-        });
+        }) {
+            tracing::warn!(
+                container_id = container_id,
+                error = ?e,
+                "Failed to publish container removed event - no subscribers"
+            );
+        }
     }
 
     /// Subscribe to container start events.

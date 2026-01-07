@@ -169,9 +169,8 @@ impl SyncManager {
                 peer_id: (*peer_id).clone(),
                 requested_at: SystemTime::now()
                     .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis() as u64
-                    / 1000, // Store as seconds but use millis precision in timeout
+                    .map(|d| d.as_millis() as u64 / 1000)
+                    .unwrap_or(0), // Store as seconds but use millis precision in timeout
                 request_id: format!("sync_{}_{}", current_height, target_height),
             };
 
@@ -229,8 +228,8 @@ impl SyncManager {
     pub fn handle_timeouts(&mut self) -> Vec<SyncRequest> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64;
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
 
         let mut timed_out_requests = Vec::new();
         let timeout_millis = self.sync_timeout.as_millis() as u64;
@@ -262,9 +261,8 @@ impl SyncManager {
         if let Some(mut request) = self.request_queue.pop_front() {
             request.requested_at = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64
-                / 1000;
+                .map(|d| d.as_millis() as u64 / 1000)
+                .unwrap_or(0);
 
             self.pending_requests
                 .insert(request.target_height, request.clone());

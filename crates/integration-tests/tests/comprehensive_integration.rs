@@ -128,7 +128,7 @@ async fn test_memory_storage_network_pipeline() {
 
     // Stage 2: Generate and store processed data
     let processed_data = (0..1000).map(|i| (i % 256) as u8).collect::<Vec<u8>>();
-    let data_key = format!("processed_data_{memory_handle.id}");
+    let data_key = format!("processed_data_{}", memory_handle.id());
 
     storage
         .store(&data_key, &processed_data)
@@ -430,16 +430,16 @@ async fn test_zero_copy_gpu_memory_integration() {
 
     // Set up zero-copy transport with shared buffers
     transport
-        .allocate_shared_buffer("gpu_buffer_1", buffer1_handle.size)
+        .allocate_shared_buffer("gpu_buffer_1", buffer1_handle.size())
         .expect("Failed to allocate shared buffer 1");
     transport
-        .allocate_shared_buffer("gpu_buffer_2", buffer2_handle.size)
+        .allocate_shared_buffer("gpu_buffer_2", buffer2_handle.size())
         .expect("Failed to allocate shared buffer 2");
 
     // Create messages referencing GPU buffers
     let buffer_ref_msg = Message {
         msg_type: MessageType::KnowledgeSync,
-        payload: format!("gpu_buffer_1:{buffer1_handle.id}")
+        payload: format!("gpu_buffer_1:{}", buffer1_handle.id())
             .as_bytes()
             .to_vec(),
         timestamp: SystemTime::now()
@@ -471,7 +471,7 @@ async fn test_zero_copy_gpu_memory_integration() {
 
     let buffer_info = String::from_utf8(received_msg.payload).expect("Invalid buffer info");
     assert!(buffer_info.contains("gpu_buffer_1"));
-    assert!(buffer_info.contains(&buffer1_handle.id.to_string()));
+    assert!(buffer_info.contains(&buffer1_handle.id().to_string()));
 
     // Cleanup
     memory_allocator

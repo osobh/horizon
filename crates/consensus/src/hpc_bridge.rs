@@ -26,6 +26,7 @@
 
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tracing;
 
 use crate::ValidatorId;
 
@@ -106,54 +107,94 @@ impl ConsensusChannelBridge {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as u64)
-            .unwrap_or(0)
+            .unwrap_or_else(|e| {
+                tracing::error!(error = ?e, "System clock is before UNIX epoch - using 0 timestamp");
+                0
+            })
     }
 
     /// Publish an election started event.
     pub fn publish_election_started(&self, term: u64, candidate_id: &ValidatorId) {
-        let _ = self.events_tx.send(ConsensusEvent::ElectionStarted {
+        if let Err(e) = self.events_tx.send(ConsensusEvent::ElectionStarted {
             term,
             candidate_id: candidate_id.to_string(),
             timestamp_ms: Self::now_ms(),
-        });
+        }) {
+            tracing::warn!(
+                term = term,
+                candidate_id = %candidate_id,
+                error = ?e,
+                "Failed to publish election started event - no subscribers"
+            );
+        }
     }
 
     /// Publish a vote received event.
     pub fn publish_vote_received(&self, term: u64, voter_id: &ValidatorId, vote_granted: bool) {
-        let _ = self.events_tx.send(ConsensusEvent::VoteReceived {
+        if let Err(e) = self.events_tx.send(ConsensusEvent::VoteReceived {
             term,
             voter_id: voter_id.to_string(),
             vote_granted,
             timestamp_ms: Self::now_ms(),
-        });
+        }) {
+            tracing::warn!(
+                term = term,
+                voter_id = %voter_id,
+                vote_granted = vote_granted,
+                error = ?e,
+                "Failed to publish vote received event - no subscribers"
+            );
+        }
     }
 
     /// Publish a leader elected event.
     pub fn publish_leader_elected(&self, term: u64, leader_id: &ValidatorId) {
-        let _ = self.events_tx.send(ConsensusEvent::LeaderElected {
+        if let Err(e) = self.events_tx.send(ConsensusEvent::LeaderElected {
             term,
             leader_id: leader_id.to_string(),
             timestamp_ms: Self::now_ms(),
-        });
+        }) {
+            tracing::warn!(
+                term = term,
+                leader_id = %leader_id,
+                error = ?e,
+                "Failed to publish leader elected event - no subscribers"
+            );
+        }
     }
 
     /// Publish a leader stepped down event.
     pub fn publish_leader_stepped_down(&self, term: u64, leader_id: &ValidatorId) {
-        let _ = self.events_tx.send(ConsensusEvent::LeaderSteppedDown {
+        if let Err(e) = self.events_tx.send(ConsensusEvent::LeaderSteppedDown {
             term,
             leader_id: leader_id.to_string(),
             timestamp_ms: Self::now_ms(),
-        });
+        }) {
+            tracing::warn!(
+                term = term,
+                leader_id = %leader_id,
+                error = ?e,
+                "Failed to publish leader stepped down event - no subscribers"
+            );
+        }
     }
 
     /// Publish a quorum reached event.
     pub fn publish_quorum_reached(&self, term: u64, votes_received: u32, total_validators: u32) {
-        let _ = self.events_tx.send(ConsensusEvent::QuorumReached {
+        if let Err(e) = self.events_tx.send(ConsensusEvent::QuorumReached {
             term,
             votes_received,
             total_validators,
             timestamp_ms: Self::now_ms(),
-        });
+        }) {
+            tracing::warn!(
+                term = term,
+                votes_received = votes_received,
+                total_validators = total_validators,
+                error = ?e,
+                "Failed to publish quorum reached event - no subscribers"
+            );
+        }
     }
 
     /// Subscribe to consensus events.

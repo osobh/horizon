@@ -112,7 +112,7 @@ async fn test_memory_pool_integration() {
             .acquire()
             .await
             .expect(&format!("Failed to acquire block {i}"));
-        assert_eq!(handle.size, 1024 * 1024);
+        assert_eq!(handle.size(), 1024 * 1024);
         handles.push(handle);
     }
 

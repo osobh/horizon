@@ -230,7 +230,7 @@ impl GpuContainer {
             container_id: self.id.clone(),
             state: format!("{:?}", state),
             uptime_seconds: uptime.as_secs(),
-            memory_usage_bytes: self.memory_handle.as_ref().map(|h| h.size).unwrap_or(0),
+            memory_usage_bytes: self.memory_handle.as_ref().map(|h| h.size()).unwrap_or(0),
             gpu_utilization_percent: 0.0, // GPU utilization requires driver integration (CUDA/Metal/etc.)
             kernel_executions: self.kernel_executions.load(Ordering::Relaxed),
             last_activity_seconds,
@@ -601,16 +601,19 @@ mod tests {
     fn test_container_with_memory_handle() {
         let mut container = GpuContainer::new(ContainerConfig::default());
 
-        // Mock memory handle
         // SAFETY: Creating a null DevicePointer for testing purposes only.
         // This pointer is never dereferenced - it's used purely for stats testing.
-        let handle = stratoswarm_memory::GpuMemoryHandle {
-            #[cfg(feature = "cuda")]
-            ptr: unsafe { cust::memory::DevicePointer::from_raw(0u64) },
-            #[cfg(not(feature = "cuda"))]
-            ptr: 0,
-            size: 1024,
-            id: uuid::Uuid::new_v4(),
+        #[cfg(feature = "cuda")]
+        let handle = unsafe {
+            stratoswarm_memory::GpuMemoryHandle::new_unchecked(
+                cust::memory::DevicePointer::from_raw(0u64),
+                1024,
+                uuid::Uuid::new_v4(),
+            )
+        };
+        #[cfg(not(feature = "cuda"))]
+        let handle = unsafe {
+            stratoswarm_memory::GpuMemoryHandle::new_unchecked(0usize, 1024, uuid::Uuid::new_v4())
         };
 
         container.memory_handle = Some(handle);

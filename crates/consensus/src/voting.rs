@@ -7,7 +7,23 @@ use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tracing;
 use uuid::Uuid;
+
+/// Get current timestamp in seconds, logging an error if system clock is invalid.
+#[inline]
+fn current_timestamp_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or_else(|e| {
+            tracing::error!(
+                error = ?e,
+                "System clock is before UNIX epoch - consensus timestamps may be invalid"
+            );
+            0
+        })
+}
 
 /// Unique identifier for voting rounds
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -90,10 +106,7 @@ impl Vote {
             vote_type,
             validator_id,
             value_hash,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            timestamp: current_timestamp_secs(),
             signature,
         }
     }
@@ -175,10 +188,7 @@ impl Vote {
         value_hash: Option<String>,
         key_pair: &Ed25519KeyPair,
     ) -> Self {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let timestamp = current_timestamp_secs();
 
         // Create vote without signature first to compute payload
         let mut vote = Self {

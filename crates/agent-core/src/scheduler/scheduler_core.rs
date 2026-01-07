@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use stratoswarm_core::{PrioritySchedulerQueue, SchedulerPriority};
 use tokio::sync::Semaphore;
+use tracing;
 use uuid::Uuid;
 
 /// Convert GoalPriority to SchedulerPriority for branch-prediction-friendly queue.
@@ -259,7 +260,17 @@ impl SchedulerCore {
     /// Execute a task (placeholder for future implementation)
     async fn _execute_task(&self, task: ScheduledTask) {
         // Acquire semaphore permit
-        let _permit = self._task_semaphore.acquire().await.unwrap();
+        let _permit = match self._task_semaphore.acquire().await {
+            Ok(permit) => permit,
+            Err(e) => {
+                tracing::error!(
+                    task_id = %task.id,
+                    error = ?e,
+                    "Task semaphore closed - scheduler is shutting down"
+                );
+                return;
+            }
+        };
 
         // Simulate task execution
         tokio::time::sleep(task.estimated_duration).await;

@@ -69,8 +69,8 @@ impl MemoryPool {
 
     /// Return a block to the pool
     pub fn release(&self, handle: GpuMemoryHandle) -> Result<(), MemoryError> {
-        if handle.size != self.block_size {
-            return Err(MemoryError::InvalidSize { size: handle.size });
+        if handle.size() != self.block_size {
+            return Err(MemoryError::InvalidSize { size: handle.size() });
         }
 
         let mut pool = self.pool.lock().map_err(|e| MemoryError::PoolInitFailed {
@@ -151,7 +151,7 @@ mod tests {
         let pool = MemoryPool::new(1024, 10, allocator);
 
         let handle = pool.acquire().await.expect("Failed to acquire block");
-        assert_eq!(handle.size, 1024);
+        assert_eq!(handle.size(), 1024);
     }
 
     #[tokio::test]
@@ -162,7 +162,7 @@ mod tests {
 
         // Acquire a block
         let handle = pool.acquire().await.expect("Failed to acquire block");
-        let original_id = handle.id;
+        let original_id = handle.id();
 
         // Release it back to pool
         pool.release(handle).expect("Failed to release block");
@@ -174,8 +174,8 @@ mod tests {
 
         // Acquire again - should get the same block
         let reused_handle = pool.acquire().await.expect("Failed to reacquire block");
-        assert_eq!(reused_handle.id, original_id);
-        assert_eq!(reused_handle.size, 1024);
+        assert_eq!(reused_handle.id(), original_id);
+        assert_eq!(reused_handle.size(), 1024);
 
         // Pool should now be empty again
         let stats = pool.stats().expect("Failed to get stats");
@@ -247,6 +247,7 @@ mod tests {
             pool: poisoned_pool.pool,
             max_blocks: poisoned_pool.max_blocks,
             allocator,
+            _config_padding: [0; 40],
             total_allocated: Arc::new(Mutex::new(0)),
         };
 
@@ -277,20 +278,23 @@ mod tests {
             pool: poisoned_pool.pool,
             max_blocks: poisoned_pool.max_blocks,
             allocator,
+            _config_padding: [0; 40],
             total_allocated: Arc::new(Mutex::new(0)),
         };
 
         // SAFETY: Creating a null DevicePointer for testing purposes only.
         // This handle is never dereferenced - it's used to test error handling
         // when releasing an invalid/unknown handle to a poisoned pool.
-        let handle = GpuMemoryHandle {
-            #[cfg(feature = "cuda")]
-            ptr: unsafe { cust::memory::DevicePointer::from_raw(0u64) },
-            #[cfg(not(feature = "cuda"))]
-            ptr: 0usize,
-            size: 1024,
-            id: Uuid::new_v4(),
+        #[cfg(feature = "cuda")]
+        let handle = unsafe {
+            GpuMemoryHandle::new_unchecked(
+                cust::memory::DevicePointer::from_raw(0u64),
+                1024,
+                Uuid::new_v4(),
+            )
         };
+        #[cfg(not(feature = "cuda"))]
+        let handle = unsafe { GpuMemoryHandle::new_unchecked(0usize, 1024, Uuid::new_v4()) };
 
         let result = pool.release(handle);
         assert!(result.is_err());
@@ -319,6 +323,7 @@ mod tests {
             pool: poisoned_pool.pool,
             max_blocks: poisoned_pool.max_blocks,
             allocator,
+            _config_padding: [0; 40],
             total_allocated: Arc::new(Mutex::new(0)),
         };
 
@@ -348,6 +353,7 @@ mod tests {
             pool: Arc::new(Mutex::new(VecDeque::new())),
             max_blocks: 10,
             allocator,
+            _config_padding: [0; 40],
             total_allocated: create_poisoned_mutex(),
         };
 
@@ -374,6 +380,7 @@ mod tests {
             pool: Arc::new(Mutex::new(VecDeque::new())),
             max_blocks: 10,
             allocator,
+            _config_padding: [0; 40],
             total_allocated: create_poisoned_mutex(),
         };
 

@@ -423,8 +423,8 @@ impl ConsensusProtocol {
             requester_id: self.validator.id().clone(),
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
         };
 
         let task_id_clone = task.task_id.clone();

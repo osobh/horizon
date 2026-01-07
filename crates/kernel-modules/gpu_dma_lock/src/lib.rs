@@ -40,15 +40,26 @@ static KERNEL_ALLOCATOR: KernelAllocator = KernelAllocator;
 #[cfg(not(test))]
 struct KernelAllocator;
 
+// SAFETY: KernelAllocator is a stub implementation for no_std builds.
+// This allocator is ONLY active when the crate is compiled as a kernel module
+// (not during tests). In actual kernel context, these methods would be replaced
+// with kmalloc/kfree calls. The current implementation:
+// - alloc: Returns null, which is valid per GlobalAlloc contract (signals OOM)
+// - dealloc: No-op, which is safe since alloc never succeeds
+// This stub exists to satisfy the global_allocator requirement for no_std.
+// Any code path that actually allocates in kernel mode must use a proper
+// kernel allocator or pre-allocated buffers.
 #[cfg(not(test))]
 unsafe impl core::alloc::GlobalAlloc for KernelAllocator {
     unsafe fn alloc(&self, _layout: core::alloc::Layout) -> *mut u8 {
         // In kernel: would use kmalloc
+        // Returns null to signal allocation failure (OOM) per GlobalAlloc contract
         core::ptr::null_mut()
     }
 
     unsafe fn dealloc(&self, _ptr: *mut u8, _layout: core::alloc::Layout) {
         // In kernel: would use kfree
+        // No-op is safe since alloc() never succeeds in stub mode
     }
 }
 

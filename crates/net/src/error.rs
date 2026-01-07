@@ -7,7 +7,10 @@ pub enum NetworkError {
     #[error("Connection failed: {endpoint}")]
     ConnectionFailed { endpoint: String },
 
+    /// Reserved for future use when connection lifecycle tracking is implemented.
+    /// Currently only used in tests for error display formatting verification.
     #[error("Connection closed")]
+    #[allow(dead_code)]
     ConnectionClosed,
 
     #[error("Operation timed out after {0:?}")]

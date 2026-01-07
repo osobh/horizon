@@ -112,8 +112,8 @@ impl Validator {
             status: ValidatorStatus::Active,
             last_heartbeat: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
             public_key,
         };
 
@@ -193,8 +193,8 @@ impl Validator {
         if let Some(validator) = self.validators.get_mut(validator_id) {
             validator.last_heartbeat = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
 
             // Update status if was offline
             if validator.status == ValidatorStatus::Offline {
@@ -227,8 +227,8 @@ impl Validator {
     pub fn check_offline_validators(&mut self) -> Vec<ValidatorId> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
         let max_offline_secs = self.max_offline_duration.as_secs();
 
         let mut offline_validators = Vec::new();

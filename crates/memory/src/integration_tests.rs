@@ -15,7 +15,7 @@ mod tests {
 
         // Test allocation
         let handle = allocator.allocate(1024).await.expect("Failed to allocate");
-        assert_eq!(handle.size, 1024);
+        assert_eq!(handle.size(), 1024);
 
         // Check stats after allocation
         let stats = allocator.stats().await.expect("Failed to get stats");
@@ -77,7 +77,7 @@ mod tests {
 
         // Acquire again - should reuse the pooled block
         let reused_handle = pool.acquire().await.expect("Failed to reacquire block");
-        assert_eq!(reused_handle.size, 512);
+        assert_eq!(reused_handle.size(), 512);
 
         // Pool should be empty again
         let pool_stats = pool.stats().expect("Failed to get pool stats");
@@ -190,7 +190,7 @@ mod tests {
         // Sequential acquire and release operations
         for _ in 0..100 {
             let handle = pool.acquire().await.expect("Failed to acquire");
-            assert_eq!(handle.size, 1024);
+            assert_eq!(handle.size(), 1024);
 
             pool.release(handle).expect("Failed to release");
         }
@@ -233,7 +233,7 @@ mod tests {
 
         // Test trait methods
         let handle = manager.allocate(1024).await.expect("Failed to allocate");
-        assert_eq!(handle.size, 1024);
+        assert_eq!(handle.size(), 1024);
 
         let stats = manager.stats().await.expect("Failed to get stats");
         assert_eq!(stats.used_bytes, 1024);
@@ -262,7 +262,7 @@ mod tests {
         // Check all handles have unique IDs
         let mut ids = std::collections::HashSet::new();
         for handle in &handles {
-            assert!(ids.insert(handle.id), "Found duplicate handle ID");
+            assert!(ids.insert(handle.id()), "Found duplicate handle ID");
         }
 
         // Clean up

@@ -18,6 +18,9 @@ pub mod hpc_bridge;
 #[cfg(test)]
 mod test_helpers;
 
+#[cfg(test)]
+mod additional_tests;
+
 pub use container::{
     ContainerConfig, ContainerStats, EvolutionState, GpuContainer, HardwareAffinity, MemoryTier,
 };

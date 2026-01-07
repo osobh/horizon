@@ -172,6 +172,17 @@ impl MemoryAllocation {
         }
     }
 
+    /// Get the raw pointer (unsafe)
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the pointer is used within its allocation lifetime
+    /// and that proper synchronization is maintained for concurrent access.
+    #[inline]
+    pub unsafe fn as_ptr(&self) -> NonNull<u8> {
+        self.ptr
+    }
+
     pub fn hint_gpu_usage(&self) -> Result<()> {
         if matches!(self.location, MemoryLocation::Unified) {
             // In a real implementation, this would use CUDA unified memory hints
@@ -576,9 +587,12 @@ impl GpuMemoryTier {
         if let Some(ref manager) = self.multi_gpu_manager {
             // Convert from multi_gpu MemoryAllocation to gpu_memory_tier MemoryAllocation
             let multi_alloc = manager.allocate_on_gpu(size, gpu_id)?;
+            // SAFETY: multi_alloc.as_ptr() returns a valid NonNull from the allocation
+            // that was just created. The pointer is immediately wrapped in a new
+            // MemoryAllocation with the same lifetime semantics.
             Ok(MemoryAllocation {
-                ptr: NonNull::new(multi_alloc.ptr.as_ptr()).unwrap(),
-                size: multi_alloc.size,
+                ptr: unsafe { multi_alloc.as_ptr() },
+                size: multi_alloc.size(),
                 location: MemoryLocation::Gpu,
                 allocation_type: AllocationType::Standard,
                 gpu_id: Some(gpu_id),
@@ -598,9 +612,15 @@ impl GpuMemoryTier {
     pub fn p2p_copy(&self, src: &MemoryAllocation, dest: &MemoryAllocation) -> Result<Duration> {
         if let Some(ref manager) = self.multi_gpu_manager {
             // Convert to multi_gpu MemoryAllocation type
-            let src_multi = crate::multi_gpu::MemoryAllocation::new(src.ptr, src.size, src.gpu_id);
-            let dest_multi =
-                crate::multi_gpu::MemoryAllocation::new(dest.ptr, dest.size, dest.gpu_id);
+            // SAFETY: src.as_ptr() and dest.as_ptr() return valid NonNull pointers
+            // from existing allocations. The multi_gpu MemoryAllocation wrappers
+            // are temporary and don't take ownership of the underlying memory.
+            let src_multi = unsafe {
+                crate::multi_gpu::MemoryAllocation::new(src.as_ptr(), src.size(), Some(src.gpu_id()))
+            };
+            let dest_multi = unsafe {
+                crate::multi_gpu::MemoryAllocation::new(dest.as_ptr(), dest.size(), Some(dest.gpu_id()))
+            };
             manager.p2p_copy(&src_multi, &dest_multi)
         } else {
             Err(GpuMemoryError::P2PTransferFailed {

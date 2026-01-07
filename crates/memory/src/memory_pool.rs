@@ -17,13 +17,76 @@ use crate::gpu_memory_tier::{AllocationType, GpuMemoryError, MemoryLocation};
 /// Memory allocation from the pool system
 #[derive(Debug)]
 pub struct MemoryAllocation {
-    pub ptr: NonNull<u8>,
-    pub size: u64,
-    pub location: MemoryLocation,
-    pub allocation_type: AllocationType,
-    pub gpu_id: Option<u32>,
-    pub created_at: Instant,
-    pub from_pool: bool,
+    ptr: NonNull<u8>,
+    size: u64,
+    location: MemoryLocation,
+    allocation_type: AllocationType,
+    gpu_id: Option<u32>,
+    created_at: Instant,
+    from_pool: bool,
+}
+
+impl MemoryAllocation {
+    /// Create a new memory allocation
+    pub(crate) fn new(
+        ptr: NonNull<u8>,
+        size: u64,
+        location: MemoryLocation,
+        allocation_type: AllocationType,
+        gpu_id: Option<u32>,
+        from_pool: bool,
+    ) -> Self {
+        Self {
+            ptr,
+            size,
+            location,
+            allocation_type,
+            gpu_id,
+            created_at: Instant::now(),
+            from_pool,
+        }
+    }
+
+    /// Get the raw pointer (unsafe)
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the pointer is used within its allocation lifetime
+    /// and that proper synchronization is maintained for concurrent access.
+    #[inline]
+    pub unsafe fn as_ptr(&self) -> NonNull<u8> {
+        self.ptr
+    }
+
+    /// Get the allocation size
+    #[inline]
+    pub fn size(&self) -> u64 {
+        self.size
+    }
+
+    /// Get the memory location
+    #[inline]
+    pub fn location(&self) -> &MemoryLocation {
+        &self.location
+    }
+
+    /// Get the allocation type
+    #[inline]
+    pub fn allocation_type(&self) -> &AllocationType {
+        &self.allocation_type
+    }
+
+    /// Get the GPU ID if allocated on a GPU
+    #[inline]
+    pub fn gpu_id(&self) -> Option<u32> {
+        self.gpu_id
+    }
+
+    /// Check if this allocation came from a pool
+    #[inline]
+    pub fn from_pool(&self) -> bool {
+        self.from_pool
+    }
 }
 
 /// A memory pool for efficient allocation and reuse
@@ -63,6 +126,9 @@ impl MemoryPool {
         let layout = std::alloc::Layout::from_size_align(total_size as usize, 8)
             .expect("Invalid layout for memory pool");
 
+        // SAFETY: Layout is valid (created from from_size_align which validates).
+        // The returned pointer is checked for null immediately after allocation.
+        // If non-null, the pointer is valid for reads/writes of `total_size` bytes.
         let pool_ptr = unsafe { std::alloc::alloc(layout) };
         if pool_ptr.is_null() {
             panic!("Failed to allocate memory pool of size {}", total_size);
@@ -103,9 +169,18 @@ impl MemoryPool {
             self.total_size
         );
 
-        let mut free_blocks = self.free_blocks.lock().unwrap();
-        let mut allocated_blocks = self.allocated_blocks.lock().unwrap();
-        let mut used_size = self.used_size.lock().unwrap();
+        let mut free_blocks = self.free_blocks.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (free_blocks), recovering inner data");
+            poisoned.into_inner()
+        });
+        let mut allocated_blocks = self.allocated_blocks.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (allocated_blocks), recovering inner data");
+            poisoned.into_inner()
+        });
+        let mut used_size = self.used_size.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (used_size), recovering inner data");
+            poisoned.into_inner()
+        });
 
         // Find a suitable free block (first-fit strategy)
         let mut block_index = None;
@@ -132,6 +207,12 @@ impl MemoryPool {
         if block.size > size {
             let original_size = block.size;
             let remaining_size = block.size - size;
+            // SAFETY: Pointer arithmetic is valid because:
+            // 1. The assert above guarantees block.size >= size
+            // 2. block.ptr points to a valid allocation of block.size bytes
+            // 3. Therefore block.ptr + size is within the allocation
+            // 4. NonNull::new().unwrap() is safe because ptr.add() on valid NonNull
+            //    always produces non-null pointer
             let remaining_ptr =
                 unsafe { NonNull::new(block.ptr.as_ptr().add(size as usize)).unwrap() };
 
@@ -160,7 +241,10 @@ impl MemoryPool {
         // Track the allocated block
         allocated_blocks.insert(block.ptr.as_ptr(), block.clone());
         *used_size += size;
-        *self.allocation_count.lock().unwrap() += 1;
+        *self.allocation_count.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (allocation_count), recovering inner data");
+            poisoned.into_inner()
+        }) += 1;
 
         Ok(PoolAllocation {
             ptr: block.ptr,
@@ -181,9 +265,18 @@ impl MemoryPool {
             self.name
         );
 
-        let mut free_blocks = self.free_blocks.lock().unwrap();
-        let mut allocated_blocks = self.allocated_blocks.lock().unwrap();
-        let mut used_size = self.used_size.lock().unwrap();
+        let mut free_blocks = self.free_blocks.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (free_blocks), recovering inner data");
+            poisoned.into_inner()
+        });
+        let mut allocated_blocks = self.allocated_blocks.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (allocated_blocks), recovering inner data");
+            poisoned.into_inner()
+        });
+        let mut used_size = self.used_size.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (used_size), recovering inner data");
+            poisoned.into_inner()
+        });
 
         // Invariant: Block must be tracked as allocated
         debug_assert!(
@@ -195,7 +288,10 @@ impl MemoryPool {
         // Remove from allocated blocks
         if let Some(block) = allocated_blocks.remove(&allocation.ptr.as_ptr()) {
             *used_size -= block.size;
-            *self.deallocation_count.lock().unwrap() += 1;
+            *self.deallocation_count.lock().unwrap_or_else(|poisoned| {
+                tracing::warn!("Mutex was poisoned (deallocation_count), recovering inner data");
+                poisoned.into_inner()
+            }) += 1;
 
             // Add back to free blocks
             let free_block = PoolBlock {
@@ -229,6 +325,12 @@ impl MemoryPool {
     fn coalesce_free_blocks(&self, free_blocks: &mut VecDeque<PoolBlock>) {
         let mut i = 0;
         while i < free_blocks.len().saturating_sub(1) {
+            // SAFETY: Pointer arithmetic is valid because:
+            // 1. free_blocks[i].ptr points to valid memory within the pool
+            // 2. free_blocks[i].size is the valid size of that block
+            // 3. ptr + size yields the one-past-the-end pointer, which is valid
+            //    for comparison (but not dereferencing) per Rust pointer semantics
+            // 4. We only compare pointers, never dereference the result
             let current_end = unsafe {
                 free_blocks[i]
                     .ptr
@@ -255,7 +357,10 @@ impl MemoryPool {
     /// Get the number of used bytes in the pool
     #[inline]
     pub fn used_bytes(&self) -> u64 {
-        *self.used_size.lock().unwrap()
+        *self.used_size.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (used_size), recovering inner data");
+            poisoned.into_inner()
+        })
     }
 
     /// Get the number of available bytes in the pool
@@ -267,7 +372,10 @@ impl MemoryPool {
     /// Get fragmentation percentage (0.0 to 100.0)
     #[inline]
     pub fn fragmentation_percent(&self) -> f32 {
-        let free_blocks = self.free_blocks.lock().unwrap();
+        let free_blocks = self.free_blocks.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (free_blocks), recovering inner data");
+            poisoned.into_inner()
+        });
         if free_blocks.is_empty() {
             return 0.0;
         }
@@ -284,8 +392,14 @@ impl MemoryPool {
 
     /// Get pool statistics
     pub fn get_stats(&self) -> PoolStats {
-        let free_blocks = self.free_blocks.lock().unwrap();
-        let allocated_blocks = self.allocated_blocks.lock().unwrap();
+        let free_blocks = self.free_blocks.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (free_blocks), recovering inner data");
+            poisoned.into_inner()
+        });
+        let allocated_blocks = self.allocated_blocks.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (allocated_blocks), recovering inner data");
+            poisoned.into_inner()
+        });
 
         PoolStats {
             name: self.name.clone(),
@@ -295,8 +409,14 @@ impl MemoryPool {
             allocated_blocks: allocated_blocks.len(),
             free_blocks: free_blocks.len(),
             fragmentation_percent: self.fragmentation_percent(),
-            allocation_count: *self.allocation_count.lock().unwrap(),
-            deallocation_count: *self.deallocation_count.lock().unwrap(),
+            allocation_count: *self.allocation_count.lock().unwrap_or_else(|poisoned| {
+                tracing::warn!("Mutex was poisoned (allocation_count), recovering inner data");
+                poisoned.into_inner()
+            }),
+            deallocation_count: *self.deallocation_count.lock().unwrap_or_else(|poisoned| {
+                tracing::warn!("Mutex was poisoned (deallocation_count), recovering inner data");
+                poisoned.into_inner()
+            }),
             uptime: self.created_at.elapsed(),
         }
     }
@@ -423,8 +543,16 @@ impl Drop for MemoryPool {
             .expect("Invalid layout for memory pool");
 
         // Get the base pointer from the first block
-        let free_blocks = self.free_blocks.lock().unwrap();
+        let free_blocks = self.free_blocks.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (free_blocks), recovering inner data");
+            poisoned.into_inner()
+        });
         if let Some(first_block) = free_blocks.front() {
+            // SAFETY: Deallocation is valid because:
+            // 1. The pool was originally allocated with the same layout in new()
+            // 2. first_block.ptr is the base pointer of the pool allocation
+            // 3. The layout matches what was used for the original alloc() call
+            // 4. This Drop impl ensures deallocation happens exactly once
             unsafe {
                 std::alloc::dealloc(first_block.ptr.as_ptr(), layout);
             }

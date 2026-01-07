@@ -365,8 +365,8 @@ impl LeaderElection {
             term: self.current_term,
             last_heartbeat: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64,
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0),
         };
 
         tracing::info!(
@@ -400,8 +400,8 @@ impl LeaderElection {
         if let LeaderState::Leader { last_heartbeat, .. } = &self.state {
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64;
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
 
             // last_heartbeat is already in milliseconds
             (now - last_heartbeat) >= self.heartbeat_interval.as_millis() as u64
@@ -415,8 +415,8 @@ impl LeaderElection {
         if let LeaderState::Leader { last_heartbeat, .. } = &mut self.state {
             *last_heartbeat = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64;
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
         }
         Ok(())
     }

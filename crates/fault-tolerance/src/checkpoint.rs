@@ -160,8 +160,12 @@ impl CheckpointManager {
 
         let data = if checkpoint.compressed {
             let serialized = bincode::serialize(checkpoint)?;
-            lz4::block::compress(&serialized, None, true)
-                .map_err(|e| FaultToleranceError::SerializationError(e.to_string()))?
+            lz4::block::compress(&serialized, None, true).map_err(|e| {
+                FaultToleranceError::SerializationError(format!(
+                    "LZ4 compression failed for checkpoint {}: {}",
+                    checkpoint.id.0, e
+                ))
+            })?
         } else {
             bincode::serialize(checkpoint)?
         };
@@ -182,8 +186,12 @@ impl CheckpointManager {
         let data = fs::read(file_path).await?;
 
         let decompressed = if self.compression_enabled {
-            lz4::block::decompress(&data, None)
-                .map_err(|e| FaultToleranceError::SerializationError(e.to_string()))?
+            lz4::block::decompress(&data, None).map_err(|e| {
+                FaultToleranceError::SerializationError(format!(
+                    "LZ4 decompression failed for checkpoint {}: {}",
+                    id.0, e
+                ))
+            })?
         } else {
             data
         };

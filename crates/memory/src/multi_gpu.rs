@@ -19,13 +19,13 @@ use cudarc::driver::{CudaDevice, DevicePtr};
 // Note: We'll use a local MemoryAllocation type for this module to avoid circular dependencies
 #[derive(Debug, Clone)]
 pub struct MemoryAllocation {
-    pub ptr: NonNull<u8>,
-    pub size: u64,
-    pub location: MemoryLocation,
-    pub allocation_type: AllocationType,
-    pub gpu_id: Option<u32>,
-    pub created_at: Instant,
-    pub from_pool: bool,
+    ptr: NonNull<u8>,
+    size: u64,
+    location: MemoryLocation,
+    allocation_type: AllocationType,
+    gpu_id: Option<u32>,
+    created_at: Instant,
+    from_pool: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,6 +68,17 @@ impl MemoryAllocation {
     #[inline]
     pub fn is_gpu_resident(&self) -> bool {
         matches!(self.location, MemoryLocation::Gpu | MemoryLocation::Unified)
+    }
+
+    /// Get the raw pointer (unsafe)
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the pointer is used within its allocation lifetime
+    /// and that proper synchronization is maintained for concurrent access.
+    #[inline]
+    pub unsafe fn as_ptr(&self) -> NonNull<u8> {
+        self.ptr
     }
 }
 
@@ -225,7 +236,10 @@ impl MultiGpuManager {
 
         self.gpu_allocations
             .lock()
-            .unwrap()
+            .unwrap_or_else(|poisoned| {
+                tracing::warn!("Mutex was poisoned (gpu_allocations), recovering inner data");
+                poisoned.into_inner()
+            })
             .get_mut(&gpu_id)
             .unwrap()
             .push(allocation_info);
@@ -233,7 +247,10 @@ impl MultiGpuManager {
         // Update load balancer
         self.load_balancer
             .lock()
-            .unwrap()
+            .unwrap_or_else(|poisoned| {
+                tracing::warn!("Mutex was poisoned (load_balancer), recovering inner data");
+                poisoned.into_inner()
+            })
             .update_utilization(gpu_id, size, true);
 
         Ok(MemoryAllocation::new(ptr, size, Some(gpu_id)))
@@ -244,7 +261,10 @@ impl MultiGpuManager {
         let gpu_id = self
             .load_balancer
             .lock()
-            .unwrap()
+            .unwrap_or_else(|poisoned| {
+                tracing::warn!("Mutex was poisoned (load_balancer), recovering inner data");
+                poisoned.into_inner()
+            })
             .select_gpu_for_allocation(size);
         self.allocate_on_gpu(size, gpu_id)
     }
@@ -262,7 +282,10 @@ impl MultiGpuManager {
     pub fn get_gpu_utilization(&self, gpu_id: u32) -> f32 {
         self.load_balancer
             .lock()
-            .unwrap()
+            .unwrap_or_else(|poisoned| {
+                tracing::warn!("Mutex was poisoned (load_balancer), recovering inner data");
+                poisoned.into_inner()
+            })
             .gpu_utilization
             .get(gpu_id as usize)
             .copied()
@@ -336,7 +359,10 @@ impl P2PManager {
         }
 
         // Check P2P connectivity
-        let p2p_matrix = self.p2p_matrix.lock().unwrap();
+        let p2p_matrix = self.p2p_matrix.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (p2p_matrix), recovering inner data");
+            poisoned.into_inner()
+        });
         if !p2p_matrix[src_gpu as usize][dst_gpu as usize] {
             return Err(GpuMemoryError::P2PTransferFailed {
                 src: src_gpu,
@@ -364,7 +390,10 @@ impl P2PManager {
         let duration = start.elapsed();
 
         // Update transfer statistics
-        let mut stats = self.transfer_stats.lock().unwrap();
+        let mut stats = self.transfer_stats.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (transfer_stats), recovering inner data");
+            poisoned.into_inner()
+        });
         let key = (src_gpu, dst_gpu);
         let transfer_stats = stats.entry(key).or_insert_with(|| TransferStats {
             total_transfers: 0,
@@ -396,7 +425,10 @@ impl P2PManager {
             // In a real implementation, this would use cuCtxEnablePeerAccess
         }
 
-        let mut p2p_matrix = self.p2p_matrix.lock().unwrap();
+        let mut p2p_matrix = self.p2p_matrix.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (p2p_matrix), recovering inner data");
+            poisoned.into_inner()
+        });
         p2p_matrix[gpu_src as usize][gpu_dst as usize] = true;
         Ok(())
     }
@@ -404,7 +436,10 @@ impl P2PManager {
     /// Get P2P connectivity matrix
     #[inline]
     pub fn get_connectivity_matrix(&self) -> Vec<Vec<bool>> {
-        self.p2p_matrix.lock().unwrap().clone()
+        self.p2p_matrix.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (p2p_matrix), recovering inner data");
+            poisoned.into_inner()
+        }).clone()
     }
 
     /// Get transfer statistics between two GPUs
@@ -412,7 +447,10 @@ impl P2PManager {
     pub fn get_stats(&self, gpu_src: u32, gpu_dst: u32) -> Option<TransferStats> {
         self.transfer_stats
             .lock()
-            .unwrap()
+            .unwrap_or_else(|poisoned| {
+                tracing::warn!("Mutex was poisoned (transfer_stats), recovering inner data");
+                poisoned.into_inner()
+            })
             .get(&(gpu_src, gpu_dst))
             .cloned()
     }

@@ -956,14 +956,16 @@ impl MillionNodeConsensus {
 
             let validator_info = ValidatorInfo {
                 id: ValidatorId::new(),
-                address: format!("127.0.0.1:{}", 8000 + (i % 60000)).parse().unwrap(),
+                address: format!("127.0.0.1:{}", 8000 + (i % 60000))
+                    .parse()
+                    .unwrap_or_else(|_| "127.0.0.1:8000".parse().expect("hardcoded fallback")),
                 stake,
                 gpu_capacity,
                 status: crate::validator::ValidatorStatus::Active,
                 last_heartbeat: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs(),
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0),
                 public_key: vec![i as u8; 32], // Mock public key
             };
 

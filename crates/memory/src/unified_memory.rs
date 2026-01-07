@@ -93,7 +93,10 @@ impl UnifiedMemoryManager {
     /// Allocate unified memory
     #[must_use = "UnifiedAllocation must be stored to free the memory later"]
     pub fn allocate(&self, size: u64) -> Result<UnifiedAllocation> {
-        let mut counter = self.allocation_counter.lock().unwrap();
+        let mut counter = self.allocation_counter.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (allocation_counter), recovering inner data");
+            poisoned.into_inner()
+        });
         let id = *counter;
         *counter += 1;
         drop(counter);
@@ -134,8 +137,14 @@ impl UnifiedMemoryManager {
             last_accessed: Instant::now(),
         };
 
-        self.allocations.lock().unwrap().push(allocation_info);
-        *self.total_allocated.lock().unwrap() += size;
+        self.allocations.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (allocations), recovering inner data");
+            poisoned.into_inner()
+        }).push(allocation_info);
+        *self.total_allocated.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (total_allocated), recovering inner data");
+            poisoned.into_inner()
+        }) += size;
 
         Ok(UnifiedAllocation {
             id,
@@ -149,10 +158,16 @@ impl UnifiedMemoryManager {
 
     /// Free a unified memory allocation
     pub fn free(&self, allocation: &UnifiedAllocation) -> Result<()> {
-        let mut allocations = self.allocations.lock().unwrap();
+        let mut allocations = self.allocations.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (allocations), recovering inner data");
+            poisoned.into_inner()
+        });
         if let Some(pos) = allocations.iter().position(|info| info.id == allocation.id) {
             let info = allocations.remove(pos);
-            *self.total_allocated.lock().unwrap() -= info.size;
+            *self.total_allocated.lock().unwrap_or_else(|poisoned| {
+                tracing::warn!("Mutex was poisoned (total_allocated), recovering inner data");
+                poisoned.into_inner()
+            }) -= info.size;
 
             #[cfg(feature = "cuda")]
             {
@@ -190,26 +205,38 @@ impl UnifiedMemoryManager {
         }
 
         // Update our tracking
-        let mut allocations = self.allocations.lock().unwrap();
+        let mut allocations = self.allocations.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (allocations), recovering inner data");
+            poisoned.into_inner()
+        });
         if let Some(info) = allocations.iter_mut().find(|info| info.id == allocation.id) {
             info.current_location = location.clone();
             info.last_accessed = Instant::now();
         }
 
-        *allocation.location.lock().unwrap() = location;
+        *allocation.location.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (location), recovering inner data");
+            poisoned.into_inner()
+        }) = location;
         Ok(())
     }
 
     /// Get total allocated unified memory
     #[inline]
     pub fn total_allocated(&self) -> u64 {
-        *self.total_allocated.lock().unwrap()
+        *self.total_allocated.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (total_allocated), recovering inner data");
+            poisoned.into_inner()
+        })
     }
 
     /// Get number of active allocations
     #[inline]
     pub fn allocation_count(&self) -> usize {
-        self.allocations.lock().unwrap().len()
+        self.allocations.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (allocations), recovering inner data");
+            poisoned.into_inner()
+        }).len()
     }
 }
 
@@ -241,13 +268,19 @@ impl UnifiedAllocation {
     /// Check if memory is currently resident on GPU
     #[inline]
     pub fn is_gpu_resident(&self) -> bool {
-        matches!(*self.location.lock().unwrap(), MemoryLocation::Gpu)
+        matches!(*self.location.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (location), recovering inner data");
+            poisoned.into_inner()
+        }), MemoryLocation::Gpu)
     }
 
     /// Check if memory is currently resident on CPU
     #[inline]
     pub fn is_cpu_resident(&self) -> bool {
-        matches!(*self.location.lock().unwrap(), MemoryLocation::Cpu)
+        matches!(*self.location.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Mutex was poisoned (location), recovering inner data");
+            poisoned.into_inner()
+        }), MemoryLocation::Cpu)
     }
 
     /// Provide hint that memory will be accessed primarily by GPU

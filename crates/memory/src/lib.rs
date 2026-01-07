@@ -45,14 +45,101 @@ pub trait MemoryManager: Send + Sync {
 }
 
 /// Handle to allocated GPU memory
+///
+/// This type encapsulates a GPU memory allocation. The raw pointer is kept private
+/// to ensure memory safety - access to the underlying pointer requires unsafe code.
 #[derive(Debug, Clone)]
 pub struct GpuMemoryHandle {
     #[cfg(feature = "cuda")]
-    pub ptr: DevicePointer<u8>,
+    ptr: DevicePointer<u8>,
     #[cfg(not(feature = "cuda"))]
-    pub ptr: usize, // Store as usize for Send safety in development mode
-    pub size: usize,
-    pub id: uuid::Uuid,
+    ptr: usize, // Store as usize for Send safety in development mode
+    size: usize,
+    id: uuid::Uuid,
+}
+
+impl GpuMemoryHandle {
+    /// Create a new GPU memory handle (crate-internal use only)
+    ///
+    /// This constructor is `pub(crate)` to prevent external code from creating
+    /// handles with arbitrary pointers. Only the memory allocator should create handles.
+    #[cfg(feature = "cuda")]
+    pub(crate) fn new(ptr: DevicePointer<u8>, size: usize, id: uuid::Uuid) -> Self {
+        Self { ptr, size, id }
+    }
+
+    /// Create a new GPU memory handle (crate-internal use only)
+    #[cfg(not(feature = "cuda"))]
+    pub(crate) fn new(ptr: usize, size: usize, id: uuid::Uuid) -> Self {
+        Self { ptr, size, id }
+    }
+
+    /// Create a handle with an arbitrary pointer for testing purposes.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure:
+    /// - `ptr` points to valid GPU memory (or is a null/test pointer that won't be dereferenced)
+    /// - The memory region is at least `size` bytes
+    /// - The handle will not outlive the underlying allocation
+    #[cfg(feature = "cuda")]
+    pub unsafe fn new_unchecked(ptr: DevicePointer<u8>, size: usize, id: uuid::Uuid) -> Self {
+        Self { ptr, size, id }
+    }
+
+    /// Create a handle with an arbitrary pointer for testing purposes.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure:
+    /// - `ptr` represents valid GPU memory (or is a test value that won't be dereferenced)
+    /// - The memory region is at least `size` bytes
+    /// - The handle will not outlive the underlying allocation
+    #[cfg(not(feature = "cuda"))]
+    pub unsafe fn new_unchecked(ptr: usize, size: usize, id: uuid::Uuid) -> Self {
+        Self { ptr, size, id }
+    }
+
+    /// Get the size of the allocated memory in bytes
+    #[inline]
+    #[must_use]
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    /// Get the unique identifier for this allocation
+    #[inline]
+    #[must_use]
+    pub fn id(&self) -> uuid::Uuid {
+        self.id
+    }
+
+    /// Get the raw device pointer.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure:
+    /// - The pointer is not used after the handle is deallocated
+    /// - Proper synchronization is maintained for concurrent access
+    /// - The pointer is used according to GPU memory access rules
+    #[cfg(feature = "cuda")]
+    #[inline]
+    pub unsafe fn as_raw_ptr(&self) -> DevicePointer<u8> {
+        self.ptr
+    }
+
+    /// Get the raw pointer value.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure:
+    /// - The pointer is not used after the handle is deallocated
+    /// - Proper synchronization is maintained for concurrent access
+    #[cfg(not(feature = "cuda"))]
+    #[inline]
+    pub unsafe fn as_raw_ptr(&self) -> usize {
+        self.ptr
+    }
 }
 
 // SAFETY: GpuMemoryHandle is Send because:
@@ -153,48 +240,59 @@ mod tests {
 
     #[test]
     fn test_gpu_memory_handle_creation() {
-        let handle = GpuMemoryHandle {
-            #[cfg(feature = "cuda")]
-            ptr: unsafe { cust::memory::DevicePointer::from_raw(0x1000) },
-            #[cfg(not(feature = "cuda"))]
-            ptr: 0x1000,
-            size: 1024,
-            id: uuid::Uuid::new_v4(),
+        // SAFETY: Test pointer that won't be dereferenced - used for API testing only
+        #[cfg(feature = "cuda")]
+        let handle = unsafe {
+            GpuMemoryHandle::new_unchecked(
+                cust::memory::DevicePointer::from_raw(0x1000),
+                1024,
+                uuid::Uuid::new_v4(),
+            )
         };
-
-        assert_eq!(handle.size, 1024);
         #[cfg(not(feature = "cuda"))]
-        assert_eq!(handle.ptr, 0x1000);
+        let handle = unsafe { GpuMemoryHandle::new_unchecked(0x1000, 1024, uuid::Uuid::new_v4()) };
+
+        assert_eq!(handle.size(), 1024);
+        #[cfg(not(feature = "cuda"))]
+        assert_eq!(unsafe { handle.as_raw_ptr() }, 0x1000);
     }
 
     #[test]
     fn test_gpu_memory_handle_clone() {
-        let original = GpuMemoryHandle {
-            #[cfg(feature = "cuda")]
-            ptr: unsafe { cust::memory::DevicePointer::from_raw(0x2000) },
-            #[cfg(not(feature = "cuda"))]
-            ptr: 0x2000,
-            size: 2048,
-            id: uuid::Uuid::new_v4(),
+        // SAFETY: Test pointer that won't be dereferenced - used for clone testing only
+        #[cfg(feature = "cuda")]
+        let original = unsafe {
+            GpuMemoryHandle::new_unchecked(
+                cust::memory::DevicePointer::from_raw(0x2000),
+                2048,
+                uuid::Uuid::new_v4(),
+            )
         };
+        #[cfg(not(feature = "cuda"))]
+        let original = unsafe { GpuMemoryHandle::new_unchecked(0x2000, 2048, uuid::Uuid::new_v4()) };
 
         let cloned = original.clone();
-        assert_eq!(cloned.size, original.size);
-        assert_eq!(cloned.id, original.id);
+        assert_eq!(cloned.size(), original.size());
+        assert_eq!(cloned.id(), original.id());
         #[cfg(not(feature = "cuda"))]
-        assert_eq!(cloned.ptr, original.ptr);
+        assert_eq!(unsafe { cloned.as_raw_ptr() }, unsafe {
+            original.as_raw_ptr()
+        });
     }
 
     #[test]
     fn test_gpu_memory_handle_debug() {
-        let handle = GpuMemoryHandle {
-            #[cfg(feature = "cuda")]
-            ptr: unsafe { cust::memory::DevicePointer::from_raw(0x3000) },
-            #[cfg(not(feature = "cuda"))]
-            ptr: 0x3000,
-            size: 4096,
-            id: uuid::Uuid::new_v4(),
+        // SAFETY: Test pointer that won't be dereferenced - used for debug output testing only
+        #[cfg(feature = "cuda")]
+        let handle = unsafe {
+            GpuMemoryHandle::new_unchecked(
+                cust::memory::DevicePointer::from_raw(0x3000),
+                4096,
+                uuid::Uuid::new_v4(),
+            )
         };
+        #[cfg(not(feature = "cuda"))]
+        let handle = unsafe { GpuMemoryHandle::new_unchecked(0x3000, 4096, uuid::Uuid::new_v4()) };
 
         let debug_str = format!("{:?}", handle);
         assert!(debug_str.contains("GpuMemoryHandle"));
@@ -247,7 +345,7 @@ mod tests {
 
         // Test that trait object works correctly
         let handle = allocator.allocate(1024).await.expect("Failed to allocate");
-        assert_eq!(handle.size, 1024);
+        assert_eq!(handle.size(), 1024);
 
         let stats = allocator.stats().await.expect("Failed to get stats");
         assert_eq!(stats.used_bytes, 1024);
@@ -323,24 +421,29 @@ mod tests {
         let id1 = uuid::Uuid::new_v4();
         let id2 = uuid::Uuid::new_v4();
 
-        let handle1 = GpuMemoryHandle {
-            #[cfg(feature = "cuda")]
-            ptr: unsafe { cust::memory::DevicePointer::from_raw(0x1000) },
-            #[cfg(not(feature = "cuda"))]
-            ptr: 0x1000,
-            size: 1024,
-            id: id1,
+        // SAFETY: Test pointers that won't be dereferenced - used for UUID comparison only
+        #[cfg(feature = "cuda")]
+        let handle1 = unsafe {
+            GpuMemoryHandle::new_unchecked(
+                cust::memory::DevicePointer::from_raw(0x1000),
+                1024,
+                id1,
+            )
         };
+        #[cfg(not(feature = "cuda"))]
+        let handle1 = unsafe { GpuMemoryHandle::new_unchecked(0x1000, 1024, id1) };
 
-        let handle2 = GpuMemoryHandle {
-            #[cfg(feature = "cuda")]
-            ptr: unsafe { cust::memory::DevicePointer::from_raw(0x2000) },
-            #[cfg(not(feature = "cuda"))]
-            ptr: 0x2000,
-            size: 1024,
-            id: id2,
+        #[cfg(feature = "cuda")]
+        let handle2 = unsafe {
+            GpuMemoryHandle::new_unchecked(
+                cust::memory::DevicePointer::from_raw(0x2000),
+                1024,
+                id2,
+            )
         };
+        #[cfg(not(feature = "cuda"))]
+        let handle2 = unsafe { GpuMemoryHandle::new_unchecked(0x2000, 1024, id2) };
 
-        assert_ne!(handle1.id, handle2.id);
+        assert_ne!(handle1.id(), handle2.id());
     }
 }

@@ -561,8 +561,8 @@ impl ConsensusCompressionEngine {
             algorithm,
             compressed_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
             checksum,
             metadata,
         })
@@ -1418,5 +1418,548 @@ impl GpuPerformanceTracker {
             memory_transfers: Arc::new(RwLock::new(Vec::new())),
             utilization_history: Arc::new(RwLock::new(Vec::new())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ==================== Configuration Tests ====================
+
+    #[test]
+    fn test_compression_config_default() {
+        let config = CompressionConfig::default();
+        assert_eq!(config.target_ratio, 0.90);
+        assert_eq!(config.algorithm, CompressionAlgorithm::Adaptive);
+        assert_eq!(config.max_compression_latency, Duration::from_micros(100));
+        assert!(config.adaptive_compression);
+        assert_eq!(config.batch_size, 1000);
+    }
+
+    #[test]
+    fn test_compression_gpu_config_defaults() {
+        let config = CompressionConfig::default();
+        assert!(config.gpu_config.enabled);
+        assert_eq!(config.gpu_config.device_count, 2);
+        assert_eq!(config.gpu_config.memory_pool_size, 4096);
+        assert_eq!(config.gpu_config.stream_count, 16);
+        assert_eq!(config.gpu_config.optimization_level, 3);
+    }
+
+    #[test]
+    fn test_compression_memory_config_defaults() {
+        let config = CompressionConfig::default();
+        assert_eq!(config.memory_config.buffer_size, 1024);
+        assert_eq!(config.memory_config.dictionary_cache_size, 10000);
+        assert!(config.memory_config.use_mmap);
+        assert_eq!(config.memory_config.memory_limit, 8192);
+    }
+
+    #[test]
+    fn test_pattern_analysis_config_defaults() {
+        let config = CompressionConfig::default();
+        assert!(config.pattern_config.consensus_aware);
+        assert_eq!(config.pattern_config.history_size, 1000);
+        assert_eq!(config.pattern_config.frequency_threshold, 0.1);
+        assert_eq!(config.pattern_config.adaptation_interval, Duration::from_secs(30));
+    }
+
+    // ==================== Algorithm Enum Tests ====================
+
+    #[test]
+    fn test_compression_algorithm_variants() {
+        let algorithms = vec![
+            CompressionAlgorithm::LZ4,
+            CompressionAlgorithm::ZSTD,
+            CompressionAlgorithm::ConsensusAware,
+            CompressionAlgorithm::GpuAccelerated,
+            CompressionAlgorithm::Adaptive,
+            CompressionAlgorithm::Hybrid,
+        ];
+
+        for algo in algorithms {
+            // Test Debug trait
+            let debug_str = format!("{:?}", algo);
+            assert!(!debug_str.is_empty());
+
+            // Test Clone trait
+            let cloned = algo;
+            assert_eq!(algo, cloned);
+
+            // Test Copy trait (implicit)
+            let copied = algo;
+            assert_eq!(algo, copied);
+        }
+    }
+
+    #[test]
+    fn test_compression_algorithm_serialization() {
+        let algo = CompressionAlgorithm::ZSTD;
+        let serialized = serde_json::to_string(&algo).expect("Serialization failed");
+        let deserialized: CompressionAlgorithm =
+            serde_json::from_str(&serialized).expect("Deserialization failed");
+        assert_eq!(algo, deserialized);
+    }
+
+    #[test]
+    fn test_compression_algorithm_hash() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        set.insert(CompressionAlgorithm::LZ4);
+        set.insert(CompressionAlgorithm::ZSTD);
+        set.insert(CompressionAlgorithm::LZ4); // Duplicate
+
+        assert_eq!(set.len(), 2);
+        assert!(set.contains(&CompressionAlgorithm::LZ4));
+        assert!(set.contains(&CompressionAlgorithm::ZSTD));
+    }
+
+    // ==================== Message Pattern Tests ====================
+
+    #[test]
+    fn test_message_pattern_variants() {
+        let patterns = vec![
+            MessagePattern::VotingRound,
+            MessagePattern::GpuComputation,
+            MessagePattern::HeartbeatBurst,
+            MessagePattern::ElectionCampaign,
+            MessagePattern::StateSync,
+            MessagePattern::ByzantineDetection,
+            MessagePattern::Mixed,
+        ];
+
+        for pattern in patterns {
+            let debug_str = format!("{:?}", pattern);
+            assert!(!debug_str.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_message_pattern_serialization() {
+        let pattern = MessagePattern::VotingRound;
+        let serialized = serde_json::to_string(&pattern).expect("Serialization failed");
+        let deserialized: MessagePattern =
+            serde_json::from_str(&serialized).expect("Deserialization failed");
+        assert_eq!(pattern, deserialized);
+    }
+
+    // ==================== Consensus Phase Tests ====================
+
+    #[test]
+    fn test_consensus_phase_variants() {
+        let phases = vec![
+            ConsensusPhase::PreVote,
+            ConsensusPhase::PreCommit,
+            ConsensusPhase::Commit,
+            ConsensusPhase::Complete,
+        ];
+
+        for phase in phases {
+            let debug_str = format!("{:?}", phase);
+            assert!(!debug_str.is_empty());
+        }
+    }
+
+    // ==================== Selection Strategy Tests ====================
+
+    #[test]
+    fn test_selection_strategy_variants() {
+        let strategies = vec![
+            SelectionStrategy::RatioBased,
+            SelectionStrategy::SpeedBased,
+            SelectionStrategy::Balanced,
+            SelectionStrategy::MLBased,
+        ];
+
+        for strategy in strategies {
+            let debug_str = format!("{:?}", strategy);
+            assert!(!debug_str.is_empty());
+        }
+    }
+
+    // ==================== Transfer Direction Tests ====================
+
+    #[test]
+    fn test_transfer_direction_variants() {
+        let directions = vec![
+            TransferDirection::HostToDevice,
+            TransferDirection::DeviceToHost,
+            TransferDirection::DeviceToDevice,
+        ];
+
+        for direction in directions {
+            let debug_str = format!("{:?}", direction);
+            assert!(!debug_str.is_empty());
+        }
+    }
+
+    // ==================== Compression Stats Tests ====================
+
+    #[test]
+    fn test_compression_stats_new() {
+        let stats = CompressionStats::new();
+        assert_eq!(stats.compression_ratio, 0.0);
+        assert_eq!(stats.compression_time, Duration::ZERO);
+        assert_eq!(stats.decompression_time, Duration::ZERO);
+        assert_eq!(stats.messages_processed, 0);
+        assert_eq!(stats.bytes_saved, 0);
+        assert_eq!(stats.errors_encountered, 0);
+        assert_eq!(stats.gpu_utilization, 0.0);
+        assert_eq!(stats.memory_efficiency, 0.0);
+        assert!(stats.algorithm_scores.is_empty());
+    }
+
+    #[test]
+    fn test_compression_stats_clone() {
+        let mut stats = CompressionStats::new();
+        stats.compression_ratio = 0.85;
+        stats.messages_processed = 100;
+        stats.bytes_saved = 5000;
+
+        let cloned = stats.clone();
+        assert_eq!(cloned.compression_ratio, 0.85);
+        assert_eq!(cloned.messages_processed, 100);
+        assert_eq!(cloned.bytes_saved, 5000);
+    }
+
+    // ==================== Compressed Message Tests ====================
+
+    #[test]
+    fn test_compressed_message_serialization() {
+        let msg = CompressedMessage {
+            message_type: 1,
+            compressed_data: vec![1, 2, 3, 4, 5],
+            original_size: 100,
+            algorithm: CompressionAlgorithm::LZ4,
+            compressed_at: 1234567890,
+            checksum: 0xDEADBEEF,
+            metadata: CompressionMetadata {
+                dictionary_id: Some(42),
+                compression_level: 6,
+                pattern_signature: vec![0xAB, 0xCD],
+                context_hints: HashMap::new(),
+            },
+        };
+
+        let serialized = serde_json::to_string(&msg).expect("Serialization failed");
+        let deserialized: CompressedMessage =
+            serde_json::from_str(&serialized).expect("Deserialization failed");
+
+        assert_eq!(deserialized.message_type, 1);
+        assert_eq!(deserialized.compressed_data, vec![1, 2, 3, 4, 5]);
+        assert_eq!(deserialized.original_size, 100);
+        assert_eq!(deserialized.algorithm, CompressionAlgorithm::LZ4);
+        assert_eq!(deserialized.checksum, 0xDEADBEEF);
+        assert_eq!(deserialized.metadata.dictionary_id, Some(42));
+    }
+
+    #[test]
+    fn test_compressed_message_debug() {
+        let msg = CompressedMessage {
+            message_type: 2,
+            compressed_data: vec![],
+            original_size: 0,
+            algorithm: CompressionAlgorithm::ZSTD,
+            compressed_at: 0,
+            checksum: 0,
+            metadata: CompressionMetadata {
+                dictionary_id: None,
+                compression_level: 0,
+                pattern_signature: vec![],
+                context_hints: HashMap::new(),
+            },
+        };
+
+        let debug_str = format!("{:?}", msg);
+        assert!(debug_str.contains("CompressedMessage"));
+        assert!(debug_str.contains("ZSTD"));
+    }
+
+    // ==================== Compression Metadata Tests ====================
+
+    #[test]
+    fn test_compression_metadata_with_context_hints() {
+        let mut hints = HashMap::new();
+        hints.insert("consensus_height".to_string(), "12345".to_string());
+        hints.insert("validator_count".to_string(), "100".to_string());
+
+        let metadata = CompressionMetadata {
+            dictionary_id: Some(99),
+            compression_level: 9,
+            pattern_signature: vec![0x01, 0x02, 0x03],
+            context_hints: hints,
+        };
+
+        assert_eq!(metadata.dictionary_id, Some(99));
+        assert_eq!(metadata.compression_level, 9);
+        assert_eq!(metadata.pattern_signature.len(), 3);
+        assert_eq!(metadata.context_hints.len(), 2);
+        assert_eq!(
+            metadata.context_hints.get("consensus_height"),
+            Some(&"12345".to_string())
+        );
+    }
+
+    // ==================== Pattern Stats Tests ====================
+
+    #[test]
+    fn test_pattern_stats_creation() {
+        let stats = PatternStats {
+            frequency: 100,
+            average_size: 1024,
+            compression_efficiency: 0.85,
+            last_seen: Instant::now(),
+            entropy_score: 0.72,
+        };
+
+        assert_eq!(stats.frequency, 100);
+        assert_eq!(stats.average_size, 1024);
+        assert!((stats.compression_efficiency - 0.85).abs() < 0.001);
+        assert!((stats.entropy_score - 0.72).abs() < 0.001);
+    }
+
+    // ==================== Algorithm Performance Tests ====================
+
+    #[test]
+    fn test_algorithm_performance_creation() {
+        let perf = AlgorithmPerformance {
+            average_ratio: 0.90,
+            average_latency: Duration::from_micros(50),
+            success_rate: 0.99,
+            memory_efficiency: 0.80,
+            gpu_utilization: 0.75,
+            sample_count: 1000,
+            last_updated: Instant::now(),
+        };
+
+        assert!((perf.average_ratio - 0.90).abs() < 0.001);
+        assert_eq!(perf.average_latency, Duration::from_micros(50));
+        assert!((perf.success_rate - 0.99).abs() < 0.001);
+        assert_eq!(perf.sample_count, 1000);
+    }
+
+    // ==================== Compression Dictionary Tests ====================
+
+    #[test]
+    fn test_compression_dictionary_creation() {
+        let dict = CompressionDictionary {
+            id: 42,
+            data: vec![0x00, 0x11, 0x22, 0x33],
+            pattern: MessagePattern::VotingRound,
+            created_at: Instant::now(),
+            usage_count: 500,
+            effectiveness_score: 0.92,
+        };
+
+        assert_eq!(dict.id, 42);
+        assert_eq!(dict.data.len(), 4);
+        assert_eq!(dict.pattern, MessagePattern::VotingRound);
+        assert_eq!(dict.usage_count, 500);
+        assert!((dict.effectiveness_score - 0.92).abs() < 0.001);
+    }
+
+    // ==================== GPU Kernel Tests ====================
+
+    #[test]
+    fn test_gpu_kernel_creation() {
+        let kernel = GpuKernel {
+            kernel_code: vec![0x01, 0x02, 0x03],
+            kernel_name: "compress_lz4".to_string(),
+            block_size: (256, 1, 1),
+            grid_size: (128, 1, 1),
+            shared_memory_size: 4096,
+        };
+
+        assert_eq!(kernel.kernel_name, "compress_lz4");
+        assert_eq!(kernel.block_size, (256, 1, 1));
+        assert_eq!(kernel.grid_size, (128, 1, 1));
+        assert_eq!(kernel.shared_memory_size, 4096);
+    }
+
+    // ==================== GPU Compression Task Tests ====================
+
+    #[test]
+    fn test_gpu_compression_task_creation() {
+        let task = GpuCompressionTask {
+            task_id: "task-001".to_string(),
+            algorithm: CompressionAlgorithm::GpuAccelerated,
+            input_data: vec![0u8; 1024],
+            compression_level: 6,
+            priority: 10,
+            created_at: Instant::now(),
+            expected_ratio: 0.85,
+        };
+
+        assert_eq!(task.task_id, "task-001");
+        assert_eq!(task.algorithm, CompressionAlgorithm::GpuAccelerated);
+        assert_eq!(task.input_data.len(), 1024);
+        assert_eq!(task.compression_level, 6);
+        assert_eq!(task.priority, 10);
+        assert!((task.expected_ratio - 0.85).abs() < 0.001);
+    }
+
+    // ==================== Compression Error Tests ====================
+
+    #[test]
+    fn test_compression_error_creation() {
+        let error = CompressionError {
+            error_type: "OutOfMemory".to_string(),
+            algorithm: CompressionAlgorithm::ZSTD,
+            timestamp: Instant::now(),
+            message: "Failed to allocate compression buffer".to_string(),
+            recoverable: true,
+        };
+
+        assert_eq!(error.error_type, "OutOfMemory");
+        assert_eq!(error.algorithm, CompressionAlgorithm::ZSTD);
+        assert!(error.recoverable);
+        assert!(error.message.contains("buffer"));
+    }
+
+    // ==================== Memory Transfer Tests ====================
+
+    #[test]
+    fn test_memory_transfer_creation() {
+        let transfer = MemoryTransfer {
+            size: 1024 * 1024, // 1MB
+            direction: TransferDirection::HostToDevice,
+            duration: Duration::from_micros(100),
+            timestamp: Instant::now(),
+        };
+
+        assert_eq!(transfer.size, 1024 * 1024);
+        assert!(matches!(transfer.direction, TransferDirection::HostToDevice));
+        assert_eq!(transfer.duration, Duration::from_micros(100));
+    }
+
+    // ==================== GPU Utilization Tests ====================
+
+    #[test]
+    fn test_gpu_utilization_creation() {
+        let util = GpuUtilization {
+            device_id: 0,
+            compute_utilization: 0.85,
+            memory_utilization: 0.60,
+            timestamp: Instant::now(),
+        };
+
+        assert_eq!(util.device_id, 0);
+        assert!((util.compute_utilization - 0.85).abs() < 0.001);
+        assert!((util.memory_utilization - 0.60).abs() < 0.001);
+    }
+
+    // ==================== Consensus Context Tests ====================
+
+    #[test]
+    fn test_consensus_context_creation() {
+        let ctx = ConsensusContext {
+            current_height: 12345,
+            current_round: Some(RoundId::new()),
+            consensus_phase: ConsensusPhase::PreCommit,
+            active_validators: 100,
+            message_volume: 1000.5,
+        };
+
+        assert_eq!(ctx.current_height, 12345);
+        assert!(ctx.current_round.is_some());
+        assert!(matches!(ctx.consensus_phase, ConsensusPhase::PreCommit));
+        assert_eq!(ctx.active_validators, 100);
+        assert!((ctx.message_volume - 1000.5).abs() < 0.1);
+    }
+
+    // ==================== Pattern History Entry Tests ====================
+
+    #[test]
+    fn test_pattern_history_entry_creation() {
+        let entry = PatternHistoryEntry {
+            pattern: MessagePattern::ElectionCampaign,
+            timestamp: Instant::now(),
+            compression_ratio: 0.88,
+            message_count: 50,
+        };
+
+        assert_eq!(entry.pattern, MessagePattern::ElectionCampaign);
+        assert!((entry.compression_ratio - 0.88).abs() < 0.001);
+        assert_eq!(entry.message_count, 50);
+    }
+
+    // ==================== Tracker Component Tests ====================
+
+    #[test]
+    fn test_compression_latency_tracker_new() {
+        let tracker = CompressionLatencyTracker::new();
+        assert!(tracker.samples.read().is_empty());
+        assert!(tracker.percentiles.read().is_empty());
+    }
+
+    #[test]
+    fn test_compression_ratio_tracker_new() {
+        let tracker = CompressionRatioTracker::new();
+        assert!(tracker.ratios.read().is_empty());
+        assert!(tracker.by_algorithm.is_empty());
+        assert!(tracker.by_pattern.is_empty());
+    }
+
+    #[test]
+    fn test_compression_throughput_tracker_new() {
+        let tracker = CompressionThroughputTracker::new();
+        assert_eq!(*tracker.messages_per_second.read(), 0.0);
+        assert_eq!(*tracker.bytes_per_second.read(), 0.0);
+        assert_eq!(*tracker.message_count.read(), 0);
+        assert_eq!(*tracker.byte_count.read(), 0);
+    }
+
+    #[test]
+    fn test_compression_resource_tracker_new() {
+        let tracker = CompressionResourceTracker::new();
+        assert_eq!(*tracker.cpu_usage.read(), 0.0);
+        assert_eq!(*tracker.memory_usage.read(), 0);
+        assert!(tracker.gpu_usage.is_empty());
+        assert_eq!(*tracker.disk_io.read(), 0);
+    }
+
+    #[test]
+    fn test_compression_error_tracker_new() {
+        let tracker = CompressionErrorTracker::new();
+        assert!(tracker.error_counts.is_empty());
+        assert!(tracker.error_rates.is_empty());
+        assert!(tracker.recent_errors.read().is_empty());
+    }
+
+    #[test]
+    fn test_gpu_performance_tracker_new() {
+        let tracker = GpuPerformanceTracker::new();
+        assert!(tracker.kernel_execution_times.is_empty());
+        assert!(tracker.memory_transfers.read().is_empty());
+        assert!(tracker.utilization_history.read().is_empty());
+    }
+
+    // ==================== Async Tracker Stats Tests ====================
+
+    #[tokio::test]
+    async fn test_throughput_tracker_get_current_stats() {
+        let tracker = CompressionThroughputTracker::new();
+        let stats = tracker.get_current_stats().await;
+        assert_eq!(stats.messages_per_second, 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_resource_tracker_get_current_stats() {
+        let tracker = CompressionResourceTracker::new();
+        let stats = tracker.get_current_stats().await;
+        assert_eq!(stats.cpu_usage, 0.0);
+        assert_eq!(stats.memory_usage, 0);
+        assert_eq!(stats.gpu_average_usage, 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_resource_tracker_with_gpu_data() {
+        let tracker = CompressionResourceTracker::new();
+        tracker.gpu_usage.insert(0, 0.80);
+        tracker.gpu_usage.insert(1, 0.60);
+
+        let stats = tracker.get_current_stats().await;
+        assert!((stats.gpu_average_usage - 0.70).abs() < 0.001);
     }
 }

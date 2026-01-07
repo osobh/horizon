@@ -38,8 +38,12 @@ impl Message {
             payload,
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+                .map(|d| d.as_secs())
+                .unwrap_or_else(|_| {
+                    // Clock before UNIX epoch - use 0 as fallback
+                    // This is extremely rare but prevents panics on misconfigured systems
+                    0
+                }),
         }
     }
 
