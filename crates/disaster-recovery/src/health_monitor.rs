@@ -988,7 +988,7 @@ mod tests {
     }
 
     #[test]
-    fn test_health_status_serialization() {
+    fn test_health_status_serialization() -> anyhow::Result<()> {
         let statuses = vec![
             HealthStatus::Healthy,
             HealthStatus::Degraded,
@@ -1002,10 +1002,11 @@ mod tests {
             let deserialized: HealthStatus = serde_json::from_str(&serialized).unwrap();
             assert_eq!(status, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_health_check_protocols() {
+    fn test_health_check_protocols() -> anyhow::Result<()> {
         let protocols = vec![
             HealthCheckProtocol::Http {
                 path: "/health".to_string(),
@@ -1034,27 +1035,30 @@ mod tests {
             let deserialized: HealthCheckProtocol = serde_json::from_str(&serialized).unwrap();
             assert_eq!(protocol, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_health_monitor_config_default() {
+    fn test_health_monitor_config_default() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         assert_eq!(config.default_interval_ms, 30000);
         assert_eq!(config.default_timeout_ms, 5000);
         assert_eq!(config.max_concurrent_checks, 100);
         assert!(config.cascade_detection_enabled);
         assert_eq!(config.cascade_threshold, 0.3);
+        Ok(())
     }
 
     #[test]
-    fn test_health_monitor_creation() {
+    fn test_health_monitor_creation() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config);
         assert!(monitor.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_register_service() {
+    async fn test_register_service() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config).unwrap();
 
@@ -1065,10 +1069,11 @@ mod tests {
         assert!(monitor.services.contains_key(&service_id));
         assert!(monitor.circuit_breakers.contains_key(&service_id));
         assert!(monitor.scheduler.contains_key(&service_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_validate_service() {
+    async fn test_validate_service() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config).unwrap();
 
@@ -1082,10 +1087,11 @@ mod tests {
         service.endpoint = String::new();
         let result = monitor.register_service(service).await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_unregister_service() {
+    async fn test_unregister_service() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config).unwrap();
 
@@ -1097,10 +1103,11 @@ mod tests {
         assert!(!monitor.services.contains_key(&service_id));
         assert!(!monitor.circuit_breakers.contains_key(&service_id));
         assert!(!monitor.scheduler.contains_key(&service_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_add_service_dependency() {
+    async fn test_add_service_dependency() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config).unwrap();
 
@@ -1130,10 +1137,11 @@ mod tests {
 
         let db_service = monitor.get_service_health(db_id).unwrap();
         assert!(db_service.dependents.contains(&api_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_invalid_dependency() {
+    async fn test_invalid_dependency() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config).unwrap();
 
@@ -1148,10 +1156,11 @@ mod tests {
 
         let result = monitor.add_dependency(dependency).await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_health_monitoring() {
+    async fn test_health_monitoring() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config).unwrap();
         monitor.start().await.unwrap();
@@ -1167,23 +1176,25 @@ mod tests {
 
         let service = monitor.get_service_health(service_id).unwrap();
         assert!(service.last_check.is_some());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_circuit_breaker() {
+    async fn test_circuit_breaker() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config).unwrap();
 
         let service = create_test_service("Flaky Service");
         let service_id = monitor.register_service(service).await?;
 
-        let breaker = monitor.circuit_breakers.get(&service_id)?;
+        let breaker = monitor.circuit_breakers.get(&service_id).unwrap();
         assert_eq!(breaker.state, CircuitBreakerState::Closed);
         assert_eq!(breaker.failure_count, 0);
+        Ok(())
     }
 
     #[test]
-    fn test_alert_types() {
+    fn test_alert_types() -> anyhow::Result<()> {
         let alert_types = vec![
             AlertType::ServiceDown,
             AlertType::ServiceRecovered,
@@ -1200,10 +1211,11 @@ mod tests {
             let deserialized: AlertType = serde_json::from_str(&serialized).unwrap();
             assert_eq!(alert_type, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_alert_severities() {
+    fn test_alert_severities() -> anyhow::Result<()> {
         let severities = vec![
             AlertSeverity::Critical,
             AlertSeverity::High,
@@ -1217,10 +1229,11 @@ mod tests {
             let deserialized: AlertSeverity = serde_json::from_str(&serialized).unwrap();
             assert_eq!(severity, deserialized);
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_acknowledge_alert() {
+    async fn test_acknowledge_alert() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config).unwrap();
 
@@ -1252,10 +1265,11 @@ mod tests {
             alerts[0].acknowledged_by,
             Some("user@example.com".to_string())
         );
+        Ok(())
     }
 
     #[test]
-    fn test_dependency_types() {
+    fn test_dependency_types() -> anyhow::Result<()> {
         let types = vec![
             DependencyType::Hard,
             DependencyType::Soft,
@@ -1267,10 +1281,11 @@ mod tests {
             let deserialized: DependencyType = serde_json::from_str(&serialized)?;
             assert_eq!(dep_type, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_circuit_breaker_states() {
+    fn test_circuit_breaker_states() -> anyhow::Result<()> {
         let states = vec![
             CircuitBreakerState::Closed,
             CircuitBreakerState::Open,
@@ -1282,10 +1297,11 @@ mod tests {
             let deserialized: CircuitBreakerState = serde_json::from_str(&serialized)?;
             assert_eq!(state, deserialized);
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_cascade_failure_detection() {
+    async fn test_cascade_failure_detection() -> anyhow::Result<()> {
         let mut config = HealthMonitorConfig::default();
         config.cascade_threshold = 0.5; // 50% threshold
         let monitor = HealthMonitor::new(config).unwrap();
@@ -1298,7 +1314,7 @@ mod tests {
 
         // Mark some services as unhealthy
         let mut count = 0;
-        for service_entry in monitor.services.iter_mut() {
+        for mut service_entry in monitor.services.iter_mut() {
             if count >= 2 {
                 // Mark 2 out of 4 as unhealthy (50%)
                 service_entry.status = HealthStatus::Unhealthy;
@@ -1309,10 +1325,11 @@ mod tests {
         let cascades = monitor.detect_cascade_failures().await;
         assert!(!cascades.is_empty());
         assert_eq!(cascades[0].impact_severity, 0.5);
+        Ok(())
     }
 
     #[test]
-    fn test_health_metrics() {
+    fn test_health_metrics() -> anyhow::Result<()> {
         let metrics = HealthMetrics {
             total_services: 10,
             healthy_services: 7,
@@ -1331,5 +1348,6 @@ mod tests {
         assert_eq!(metrics.unhealthy_services, 2);
         assert_eq!(metrics.degraded_services, 1);
         assert_eq!(metrics.avg_response_time_ms, 150);
+        Ok(())
     }
 }

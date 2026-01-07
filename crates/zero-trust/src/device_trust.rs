@@ -684,7 +684,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_device_registration() {
+    async fn test_device_registration() -> anyhow::Result<()> {
         let config = DeviceTrustConfig::default();
         let manager = DeviceTrustManager::new(config)?;
 
@@ -702,10 +702,11 @@ mod tests {
         assert_eq!(device.hardware_id, "HW123456");
         assert_eq!(device.state, DeviceState::PendingVerification);
         assert_eq!(device.trust_score, 0.5);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_device_attestation() {
+    async fn test_device_attestation() -> anyhow::Result<()> {
         let config = DeviceTrustConfig::default();
         let manager = DeviceTrustManager::new(config)?;
 
@@ -745,10 +746,11 @@ mod tests {
             .await
             .unwrap();
         assert!(result);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_trust_score_calculation() {
+    async fn test_trust_score_calculation() -> anyhow::Result<()> {
         let config = DeviceTrustConfig::default();
         let manager = DeviceTrustManager::new(config)?;
 
@@ -785,10 +787,11 @@ mod tests {
             score > 0.8,
             "Trust score should be high with all positive factors"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_certificate_validation() {
+    async fn test_certificate_validation() -> anyhow::Result<()> {
         let config = DeviceTrustConfig::default();
         let manager = DeviceTrustManager::new(config)?;
 
@@ -810,10 +813,11 @@ mod tests {
             .validate_certificate(device.device_id, cert_data.to_vec())
             .await;
         assert!(result.is_err() || !result.unwrap());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_compliance_checking() {
+    async fn test_compliance_checking() -> anyhow::Result<()> {
         let config = DeviceTrustConfig::default();
         let manager = DeviceTrustManager::new(config)?;
 
@@ -830,10 +834,11 @@ mod tests {
         assert!(!compliance.compliant);
         assert!(!compliance.failed_policies.is_empty());
         assert!(compliance.score < 1.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_device_state_transitions() {
+    async fn test_device_state_transitions() -> anyhow::Result<()> {
         let config = DeviceTrustConfig::default();
         let manager = DeviceTrustManager::new(config)?;
 
@@ -861,10 +866,11 @@ mod tests {
             .unwrap();
         let quarantined = manager.get_device(device.device_id).await?;
         assert_eq!(quarantined.state, DeviceState::Quarantined);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_device_revocation() {
+    async fn test_device_revocation() -> anyhow::Result<()> {
         let config = DeviceTrustConfig::default();
         let manager = DeviceTrustManager::new(config)?;
 
@@ -908,10 +914,11 @@ mod tests {
         // Check data is removed
         assert!(manager.attestations.get(&device.device_id).is_none());
         assert!(manager.trust_factors.get(&device.device_id).is_none());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_attestation_levels() {
+    async fn test_attestation_levels() -> anyhow::Result<()> {
         // Test with no attestation required
         let mut config = DeviceTrustConfig::default();
         config.attestation_level = AttestationLevel::None;
@@ -979,10 +986,11 @@ mod tests {
             !result,
             "Basic attestation should fail with enhanced requirements"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_trust_score_decay() {
+    async fn test_trust_score_decay() -> anyhow::Result<()> {
         let mut config = DeviceTrustConfig::default();
         config.trust_decay_rate = 0.1; // 10% per hour
         let manager = DeviceTrustManager::new(config)?;
@@ -1017,10 +1025,11 @@ mod tests {
             .await
             .unwrap();
         assert!(score < 0.95, "Trust score should decay over time");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_vulnerability_impact() {
+    async fn test_vulnerability_impact() -> anyhow::Result<()> {
         let config = DeviceTrustConfig::default();
         let manager = DeviceTrustManager::new(config)?;
 
@@ -1057,10 +1066,11 @@ mod tests {
             score < 0.8,
             "High vulnerability count should reduce trust score"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_concurrent_device_operations() {
+    async fn test_concurrent_device_operations() -> anyhow::Result<()> {
         let config = DeviceTrustConfig::default();
         let manager = Arc::new(DeviceTrustManager::new(config).unwrap());
 
@@ -1085,5 +1095,6 @@ mod tests {
             let result = handle.await?;
             assert!(result.is_ok());
         }
+        Ok(())
     }
 }

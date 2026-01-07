@@ -899,7 +899,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_event_recording() {
+    async fn test_event_recording() -> anyhow::Result<()> {
         let config = BehaviorAnalysisConfig::default();
         let engine = BehaviorAnalysisEngine::new(config)?;
 
@@ -929,10 +929,11 @@ mod tests {
 
         let profile = engine.get_profile(entity_id).await?;
         assert_eq!(profile.entity_id, entity_id);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_anomaly_detection() {
+    async fn test_anomaly_detection() -> anyhow::Result<()> {
         let config = BehaviorAnalysisConfig::default();
         let engine = BehaviorAnalysisEngine::new(config)?;
 
@@ -944,7 +945,7 @@ mod tests {
                 event_id: Uuid::new_v4(),
                 entity_id,
                 event_type: EventType::Access(AccessEventType::ResourceAccess),
-                timestamp: Utc::now().with_hour(hour)?,
+                timestamp: Utc::now().with_hour(hour).unwrap(),
                 metadata: EventMetadata {
                     source_ip: Some("192.168.1.100".to_string()),
                     destination: None,
@@ -971,7 +972,7 @@ mod tests {
             event_id: Uuid::new_v4(),
             entity_id,
             event_type: EventType::Access(AccessEventType::ResourceAccess),
-            timestamp: Utc::now().with_hour(3)?, // 3 AM
+            timestamp: Utc::now().with_hour(3).unwrap(), // 3 AM
             metadata: EventMetadata {
                 source_ip: Some("192.168.1.100".to_string()),
                 destination: None,
@@ -992,10 +993,11 @@ mod tests {
         let anomaly = engine.analyze_behavior(entity_id).await?;
         assert!(anomaly.anomaly_score > 0.0);
         assert!(!anomaly.factors.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_pattern_detection() {
+    async fn test_pattern_detection() -> anyhow::Result<()> {
         let config = BehaviorAnalysisConfig::default();
         let engine = BehaviorAnalysisEngine::new(config)?;
 
@@ -1041,10 +1043,11 @@ mod tests {
         assert!(patterns
             .iter()
             .any(|p| p.pattern_type == PatternType::Sequential));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_risk_score_calculation() {
+    async fn test_risk_score_calculation() -> anyhow::Result<()> {
         let config = BehaviorAnalysisConfig::default();
         let engine = BehaviorAnalysisEngine::new(config)?;
 
@@ -1071,10 +1074,11 @@ mod tests {
 
         let risk_score = engine.calculate_risk_score(entity_id).await?;
         assert!(risk_score >= 0.0 && risk_score <= 1.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_baseline_update() {
+    async fn test_baseline_update() -> anyhow::Result<()> {
         let config = BehaviorAnalysisConfig::default();
         let engine = BehaviorAnalysisEngine::new(config)?;
 
@@ -1086,7 +1090,7 @@ mod tests {
                 event_id: Uuid::new_v4(),
                 entity_id,
                 event_type: EventType::Access(AccessEventType::ResourceAccess),
-                timestamp: Utc::now().with_hour(*hour)?,
+                timestamp: Utc::now().with_hour(*hour).unwrap(),
                 metadata: EventMetadata {
                     source_ip: Some("192.168.1.100".to_string()),
                     destination: None,
@@ -1113,10 +1117,11 @@ mod tests {
             .baseline
             .common_locations
             .contains(&"US".to_string()));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_peer_group_comparison() {
+    async fn test_peer_group_comparison() -> anyhow::Result<()> {
         let config = BehaviorAnalysisConfig::default();
         let engine = BehaviorAnalysisEngine::new(config)?;
 
@@ -1151,10 +1156,11 @@ mod tests {
 
         let stats = engine.get_peer_group_stats(peer_ids[0]).await?;
         assert_eq!(stats.avg_events_per_hour, 10.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_adaptive_learning() {
+    async fn test_adaptive_learning() -> anyhow::Result<()> {
         let mut config = BehaviorAnalysisConfig::default();
         config.adaptive_learning = true;
         let engine = BehaviorAnalysisEngine::new(config)?;
@@ -1182,13 +1188,14 @@ mod tests {
 
         engine.train_model(entity_id).await?;
 
-        let model = engine.models.get(&entity_id)?;
+        let model = engine.models.get(&entity_id).unwrap();
         assert!(model.samples > 0);
         assert!(!model.weights.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_high_frequency_detection() {
+    async fn test_high_frequency_detection() -> anyhow::Result<()> {
         let config = BehaviorAnalysisConfig::default();
         let engine = BehaviorAnalysisEngine::new(config)?;
 
@@ -1218,10 +1225,11 @@ mod tests {
 
         let anomaly = engine.analyze_behavior(entity_id).await?;
         assert!(anomaly.anomaly_score > 0.5);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_volumetric_pattern() {
+    async fn test_volumetric_pattern() -> anyhow::Result<()> {
         let config = BehaviorAnalysisConfig::default();
         let engine = BehaviorAnalysisEngine::new(config)?;
 
@@ -1269,10 +1277,11 @@ mod tests {
 
         let patterns = engine.detect_patterns(entity_id).await?;
         assert!(!patterns.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_geographic_anomaly() {
+    async fn test_geographic_anomaly() -> anyhow::Result<()> {
         let config = BehaviorAnalysisConfig::default();
         let engine = BehaviorAnalysisEngine::new(config)?;
 
@@ -1330,5 +1339,6 @@ mod tests {
 
         let anomaly = engine.analyze_behavior(entity_id).await?;
         assert!(anomaly.factors.iter().any(|f| f.name == "geographic"));
+        Ok(())
     }
 }

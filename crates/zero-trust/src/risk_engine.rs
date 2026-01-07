@@ -919,7 +919,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_risk_assessment_basic() {
+    async fn test_risk_assessment_basic() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -955,10 +955,11 @@ mod tests {
         assert!(assessment.risk_score < 0.5);
         assert_eq!(assessment.risk_level, RiskLevel::Low);
         assert_eq!(assessment.recommendation, RiskDecision::Allow);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_high_risk_assessment() {
+    async fn test_high_risk_assessment() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -969,7 +970,7 @@ mod tests {
             context: RiskContext {
                 action: "delete".to_string(),
                 resource: "admin/users".to_string(),
-                timestamp: Utc::now().with_hour(3)?, // 3 AM
+                timestamp: Utc::now().with_hour(3).unwrap(), // 3 AM
                 source_location: Some("external".to_string()),
                 metadata: serde_json::json!({}),
             },
@@ -999,10 +1000,11 @@ mod tests {
         assert!(assessment.risk_score > 0.8);
         assert_eq!(assessment.risk_level, RiskLevel::Critical);
         assert_eq!(assessment.recommendation, RiskDecision::Deny);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_contextual_risk_adjustment() {
+    async fn test_contextual_risk_adjustment() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -1012,7 +1014,7 @@ mod tests {
         let high_risk_context = RiskContext {
             action: "delete".to_string(),
             resource: "admin/system".to_string(),
-            timestamp: Utc::now().with_hour(2)?,
+            timestamp: Utc::now().with_hour(2).unwrap(),
             source_location: Some("external".to_string()),
             metadata: serde_json::json!({}),
         };
@@ -1027,7 +1029,7 @@ mod tests {
         let low_risk_context = RiskContext {
             action: "read".to_string(),
             resource: "public/docs".to_string(),
-            timestamp: Utc::now().with_hour(14)?,
+            timestamp: Utc::now().with_hour(14).unwrap(),
             source_location: Some("internal".to_string()),
             metadata: serde_json::json!({}),
         };
@@ -1037,10 +1039,11 @@ mod tests {
             .await
             .unwrap();
         assert!(adjusted_risk < base_risk);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_risk_history() {
+    async fn test_risk_history() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -1058,10 +1061,11 @@ mod tests {
         assert_eq!(history.scores.len(), 5);
         assert!(history.average_risk > 0.0);
         assert_eq!(history.peak_risk, 0.7);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_policy_evaluation() {
+    async fn test_policy_evaluation() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -1100,10 +1104,11 @@ mod tests {
         assert!(actions
             .iter()
             .any(|a| matches!(a, PolicyAction::TriggerAlert { .. })));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_aggregation_methods() {
+    async fn test_aggregation_methods() -> anyhow::Result<()> {
         let config_max = RiskEngineConfig {
             aggregation_method: AggregationMethod::Maximum,
             ..Default::default()
@@ -1127,10 +1132,11 @@ mod tests {
 
         let avg_score = engine_avg.aggregate_scores(&factor_scores).await;
         assert!((avg_score - 0.5).abs() < 0.01);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_data_sensitivity_factor() {
+    async fn test_data_sensitivity_factor() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -1155,10 +1161,11 @@ mod tests {
 
         let assessment = engine.assess_risk(request).await?;
         assert!(assessment.risk_score > 0.5);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_environmental_factor() {
+    async fn test_environmental_factor() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -1184,10 +1191,11 @@ mod tests {
         let assessment = engine.assess_risk(request).await?;
         assert!(assessment.risk_score > 0.7);
         assert_eq!(assessment.risk_level, RiskLevel::High);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_risk_trends() {
+    async fn test_risk_trends() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -1213,10 +1221,11 @@ mod tests {
         for i in 1..scores.len() {
             assert!(scores[i] >= scores[i - 1]);
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_recommendations() {
+    async fn test_recommendations() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -1250,10 +1259,11 @@ mod tests {
         assert!(recommendations
             .iter()
             .any(|r| r.contains("VPN") || r.contains("network")));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_combined_subject_risk() {
+    async fn test_combined_subject_risk() -> anyhow::Result<()> {
         let config = RiskEngineConfig::default();
         let engine = RiskEngine::new(config)?;
 
@@ -1291,5 +1301,6 @@ mod tests {
         let assessment = engine.assess_risk(request).await?;
         assert!(assessment.risk_score > 0.3);
         assert!(assessment.risk_score < 0.6);
+        Ok(())
     }
 }

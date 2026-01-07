@@ -916,7 +916,7 @@ mod tests {
     }
 
     #[test]
-    fn test_site_role_serialization() {
+    fn test_site_role_serialization() -> anyhow::Result<()> {
         let roles = vec![
             SiteRole::Primary,
             SiteRole::Secondary,
@@ -929,10 +929,11 @@ mod tests {
             let deserialized: SiteRole = serde_json::from_str(&serialized)?;
             assert_eq!(role, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_site_state_transitions() {
+    fn test_site_state_transitions() -> anyhow::Result<()> {
         let states = vec![
             SiteState::Healthy,
             SiteState::Degraded,
@@ -947,10 +948,11 @@ mod tests {
             let deserialized: SiteState = serde_json::from_str(&serialized).unwrap();
             assert_eq!(state, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_failover_config_default() {
+    fn test_failover_config_default() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         assert_eq!(config.health_check_interval_ms, 5000);
         assert_eq!(config.health_check_timeout_ms, 3000);
@@ -958,17 +960,19 @@ mod tests {
         assert!(config.auto_failover_enabled);
         assert!(config.require_quorum);
         assert!(config.split_brain_prevention);
+        Ok(())
     }
 
     #[test]
-    fn test_failover_coordinator_creation() {
+    fn test_failover_coordinator_creation() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config);
         assert!(coordinator.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_register_site() {
+    async fn test_register_site() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config).unwrap();
 
@@ -977,10 +981,11 @@ mod tests {
 
         assert_eq!(coordinator.sites.len(), 1);
         assert!(coordinator.sites.contains_key(&site_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_validate_site() {
+    async fn test_validate_site() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config).unwrap();
 
@@ -995,10 +1000,11 @@ mod tests {
         site.capacity = 2.0;
         let result = coordinator.register_site(site).await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_update_site() {
+    async fn test_update_site() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config).unwrap();
 
@@ -1018,10 +1024,11 @@ mod tests {
         assert_eq!(updated_site.role, SiteRole::Primary);
         assert_eq!(updated_site.state, SiteState::Maintenance);
         assert_eq!(updated_site.capacity, 0.8);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_create_failover_plan() {
+    async fn test_create_failover_plan() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config).unwrap();
 
@@ -1036,10 +1043,11 @@ mod tests {
 
         assert_eq!(coordinator.plans.len(), 1);
         assert!(coordinator.plans.contains_key(&plan_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_validate_failover_plan() {
+    async fn test_validate_failover_plan() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config).unwrap();
 
@@ -1058,10 +1066,11 @@ mod tests {
         plan.services.clear();
         let result = coordinator.create_plan(plan).await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_initiate_failover() {
+    async fn test_initiate_failover() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config).unwrap();
         coordinator.start().await.unwrap();
@@ -1089,10 +1098,11 @@ mod tests {
 
         let metrics = coordinator.get_metrics();
         assert_eq!(metrics.total_failovers, 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_failover_cooldown() {
+    async fn test_failover_cooldown() -> anyhow::Result<()> {
         let mut config = FailoverConfig::default();
         config.failover_cooldown_ms = 1000; // 1 second cooldown
         let coordinator = FailoverCoordinator::new(config).unwrap();
@@ -1133,10 +1143,11 @@ mod tests {
         };
         let result = coordinator.initiate_failover(plan_id, trigger).await;
         assert!(result.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_concurrent_failover_prevention() {
+    async fn test_concurrent_failover_prevention() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config).unwrap();
         coordinator.start().await.unwrap();
@@ -1167,10 +1178,11 @@ mod tests {
         // Try to start second failover - should fail
         let result = coordinator.initiate_failover(plan2_id, trigger).await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_service_dependencies() {
+    async fn test_service_dependencies() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config).unwrap();
 
@@ -1193,10 +1205,11 @@ mod tests {
 
         assert_eq!(coordinator.dependencies.len(), 1);
         assert_eq!(coordinator.dependencies.get("api").unwrap().len(), 2);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_failover_testing() {
+    async fn test_failover_testing() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config).unwrap();
 
@@ -1216,10 +1229,11 @@ mod tests {
         assert_eq!(result.steps_tested, 3); // 1 pre + 2 failover
         assert_eq!(result.steps_passed, 3);
         assert!(result.issues.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn test_failover_trigger_types() {
+    fn test_failover_trigger_types() -> anyhow::Result<()> {
         let triggers = vec![
             FailoverTrigger::Manual {
                 reason: "Planned maintenance".to_string(),
@@ -1247,10 +1261,11 @@ mod tests {
             let deserialized: FailoverTrigger = serde_json::from_str(&serialized).unwrap();
             assert_eq!(trigger, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_step_types() {
+    fn test_step_types() -> anyhow::Result<()> {
         let steps = vec![
             StepType::StopService,
             StepType::StartService,
@@ -1267,10 +1282,11 @@ mod tests {
             let deserialized: StepType = serde_json::from_str(&serialized).unwrap();
             assert_eq!(step_type, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_site_health_info() {
+    fn test_site_health_info() -> anyhow::Result<()> {
         let health = SiteHealth {
             site_id: Uuid::new_v4(),
             state: SiteState::Degraded,
@@ -1282,5 +1298,6 @@ mod tests {
         assert_eq!(health.state, SiteState::Degraded);
         assert_eq!(health.failed_checks, 2);
         assert_eq!(health.capacity_available, 0.5);
+        Ok(())
     }
 }

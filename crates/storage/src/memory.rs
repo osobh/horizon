@@ -414,29 +414,29 @@ mod tests {
         let handle1 = tokio::spawn(async move {
             for i in 0..10 {
                 let key = format!("task1_{i}");
-                storage1.store(&key, &[i as u8]).await?;
+                storage1.store(&key, &[i as u8]).await.unwrap();
             }
         });
 
         let handle2 = tokio::spawn(async move {
             for i in 0..10 {
                 let key = format!("task2_{i}");
-                storage2.store(&key, &[i as u8]).await?;
+                storage2.store(&key, &[i as u8]).await.unwrap();
             }
         });
 
         let handle3 = tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
-            let keys = storage3.list_keys("task").await?;
+            let keys = storage3.list_keys("task").await.unwrap();
             assert!(keys.len() > 0);
         });
 
-        handle1.await?;
-        handle2.await?;
-        handle3.await?;
+        handle1.await.unwrap();
+        handle2.await.unwrap();
+        handle3.await.unwrap();
 
         // Verify all data was stored
-        let all_keys = storage.list_keys("").await?;
+        let all_keys = storage.list_keys("").await.unwrap();
         assert_eq!(all_keys.len(), 20);
     }
 

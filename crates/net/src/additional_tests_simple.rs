@@ -45,9 +45,14 @@ mod additional_tests_simple {
             let error_str = error.to_string();
             assert!(!error_str.is_empty());
 
-            // Test Debug formatting
+            // Test Debug formatting - variant names are shown, not enum name
             let debug_str = format!("{:?}", error);
-            assert!(debug_str.contains("NetworkError"));
+            assert!(
+                debug_str.contains("ConnectionClosed")
+                    || debug_str.contains("Timeout")
+                    || debug_str.contains("InvalidMessage")
+                    || debug_str.contains("Io")
+            );
         }
     }
 
@@ -125,7 +130,7 @@ mod additional_tests_simple {
                 num_messages: 1000,
                 warmup_messages: 100,
                 parallel_connections: 1,
-                ..Default::default()..Default::default()
+                ..Default::default()
             },
             NetworkBenchmarkConfig {
                 message_sizes: vec![1],
@@ -317,12 +322,13 @@ mod additional_tests_simple {
 
             // Test error message contains duration info
             let err_str = err.to_string();
-            assert!(err_str.contains("timeout") || err_str.contains("Timeout"));
+            assert!(err_str.contains("timed out") || err_str.contains("Timeout"));
         }
     }
 
     #[test]
     fn test_message_id_boundaries() {
+        use std::time::{SystemTime, UNIX_EPOCH};
         let ids = vec![0, 1, u64::MAX / 2, u64::MAX - 1, u64::MAX];
 
         for id in ids {
@@ -330,7 +336,10 @@ mod additional_tests_simple {
                 id,
                 msg_type: MessageType::Data,
                 payload: vec![1, 2, 3],
-                timestamp: std::time::SystemTime::now(),
+                timestamp: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
             };
 
             assert_eq!(msg.id, id);
@@ -351,9 +360,13 @@ mod additional_tests_simple {
         for connections in edge_cases {
             let config = NetworkBenchmarkConfig {
                 message_sizes: vec![1024],
+                message_size: 1024,
                 num_messages: 100,
                 warmup_messages: 10,
+                warmup_iterations: 5,
                 parallel_connections: connections,
+                concurrent_connections: connections,
+                batch_size: 10,
             };
 
             assert_eq!(config.parallel_connections, connections);

@@ -42,11 +42,27 @@ impl Default for TransportConfig {
 
 /// Per-endpoint rate limiting state
 #[derive(Debug)]
-struct RateLimitState {
+pub struct RateLimitState {
     /// Message count in current window
     count: u32,
     /// Window start time
     window_start: Instant,
+}
+
+impl Default for RateLimitState {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            window_start: Instant::now(),
+        }
+    }
+}
+
+impl RateLimitState {
+    /// Create a new rate limit state
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 /// Zero-copy transport for GPU memory operations with DoS protections
@@ -620,6 +636,11 @@ mod tests {
             buffer_pools: poisoned.buffer_pools,
             stats: poisoned.stats,
             message_queue: poisoned.message_queue,
+            config: poisoned.config,
+            rate_limits: poisoned.rate_limits,
+            total_buffer_size: poisoned.total_buffer_size,
+            dropped_messages: poisoned.dropped_messages,
+            rate_limited_messages: poisoned.rate_limited_messages,
         };
 
         let result = transport.allocate_shared_buffer("test_buffer", 1024);
@@ -642,6 +663,11 @@ mod tests {
             buffer_pools: poisoned.buffer_pools,
             stats: poisoned.stats,
             message_queue: poisoned.message_queue,
+            config: poisoned.config,
+            rate_limits: poisoned.rate_limits,
+            total_buffer_size: poisoned.total_buffer_size,
+            dropped_messages: poisoned.dropped_messages,
+            rate_limited_messages: poisoned.rate_limited_messages,
         };
 
         let message = create_test_message(MessageType::AgentSpawn, b"test");
@@ -665,6 +691,11 @@ mod tests {
             buffer_pools: poisoned.buffer_pools,
             stats: poisoned.stats,
             message_queue: poisoned.message_queue,
+            config: poisoned.config,
+            rate_limits: poisoned.rate_limits,
+            total_buffer_size: poisoned.total_buffer_size,
+            dropped_messages: poisoned.dropped_messages,
+            rate_limited_messages: poisoned.rate_limited_messages,
         };
 
         let result = transport.stats().await;
@@ -687,6 +718,11 @@ mod tests {
             buffer_pools: poisoned.buffer_pools,
             stats: poisoned.stats,
             message_queue: poisoned.message_queue,
+            config: poisoned.config,
+            rate_limits: poisoned.rate_limits,
+            total_buffer_size: poisoned.total_buffer_size,
+            dropped_messages: poisoned.dropped_messages,
+            rate_limited_messages: poisoned.rate_limited_messages,
         };
 
         let message = create_test_message(MessageType::AgentSpawn, b"test");
@@ -712,6 +748,11 @@ mod tests {
             buffer_pools: poisoned.buffer_pools,
             stats: poisoned.stats,
             message_queue: poisoned.message_queue,
+            config: poisoned.config,
+            rate_limits: poisoned.rate_limits,
+            total_buffer_size: poisoned.total_buffer_size,
+            dropped_messages: poisoned.dropped_messages,
+            rate_limited_messages: poisoned.rate_limited_messages,
         };
 
         let result = transport.receive().await;
@@ -806,8 +847,8 @@ mod tests {
                 .expect("Failed to send");
         }
 
-        // Receive messages - ZeroCopyTransport uses pop() so it's LIFO order
-        for i in (0..5).rev() {
+        // Receive messages - ZeroCopyTransport uses VecDeque with pop_front() for FIFO order
+        for i in 0..5 {
             let (endpoint, msg) = transport.receive().await.expect("Failed to receive");
             assert_eq!(endpoint, format!("endpoint_{}", i));
             assert_eq!(msg.payload, format!("message_{}", i).as_bytes());
@@ -921,8 +962,8 @@ mod tests {
                 .unwrap();
         }
 
-        // Verify order and types are preserved (LIFO order due to pop())
-        for (i, (expected_type, expected_data)) in message_types.iter().enumerate().rev() {
+        // Verify order and types are preserved (FIFO order with VecDeque)
+        for (i, (expected_type, expected_data)) in message_types.iter().enumerate() {
             let (endpoint, msg) = transport.receive().await.unwrap();
             assert_eq!(endpoint, format!("endpoint_{}", i));
             assert_eq!(msg.msg_type, *expected_type);

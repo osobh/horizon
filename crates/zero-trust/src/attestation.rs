@@ -891,7 +891,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_attestation_request() {
+    async fn test_attestation_request() -> anyhow::Result<()> {
         let config = AttestationConfig::default();
         let service = AttestationService::new(config).unwrap();
 
@@ -916,10 +916,11 @@ mod tests {
             evidence.evidence_type,
             EvidenceType::TpmQuote { .. }
         ));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_evidence_verification() {
+    async fn test_evidence_verification() -> anyhow::Result<()> {
         let config = AttestationConfig::default();
         let service = AttestationService::new(config).unwrap();
 
@@ -965,10 +966,11 @@ mod tests {
         assert!(result.valid);
         assert!(result.trust_level >= TrustLevel::Medium);
         assert!(!result.validation_details.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_reference_measurements() {
+    async fn test_reference_measurements() -> anyhow::Result<()> {
         let config = AttestationConfig::default();
         let service = AttestationService::new(config).unwrap();
 
@@ -991,10 +993,11 @@ mod tests {
             .unwrap();
         assert_eq!(retrieved.component, reference.component);
         assert_eq!(retrieved.expected_hash, reference.expected_hash);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_policy_creation_and_evaluation() {
+    async fn test_policy_creation_and_evaluation() -> anyhow::Result<()> {
         let config = AttestationConfig::default();
         let service = AttestationService::new(config).unwrap();
 
@@ -1038,10 +1041,11 @@ mod tests {
             .await
             .unwrap();
         assert!(actions.contains(&PolicyAction::Allow));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_integrity_monitoring() {
+    async fn test_integrity_monitoring() -> anyhow::Result<()> {
         let config = AttestationConfig::default();
         let service = AttestationService::new(config).unwrap();
 
@@ -1059,10 +1063,11 @@ mod tests {
         assert!(status.integrity_valid);
         assert!(status.changed_measurements.is_empty());
         assert!(status.next_check > status.last_check);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_secure_enclave_attestation() {
+    async fn test_secure_enclave_attestation() -> anyhow::Result<()> {
         let config = AttestationConfig::default();
         let service = AttestationService::new(config).unwrap();
 
@@ -1084,10 +1089,11 @@ mod tests {
 
         let result = service.verify_evidence(evidence).await.unwrap();
         assert!(result.trust_level >= TrustLevel::High);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_attestation_history() {
+    async fn test_attestation_history() -> anyhow::Result<()> {
         let config = AttestationConfig::default();
         let service = AttestationService::new(config).unwrap();
 
@@ -1110,10 +1116,11 @@ mod tests {
 
         let history = service.get_history(device_id).await.unwrap();
         assert_eq!(history.len(), 3);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_attestation_levels() {
+    async fn test_attestation_levels() -> anyhow::Result<()> {
         let mut config = AttestationConfig::default();
         config.required_level = AttestationLevel::Enhanced;
         let service = AttestationService::new(config).unwrap();
@@ -1169,10 +1176,11 @@ mod tests {
 
         let tpm_result = service.verify_evidence(tpm_evidence).await.unwrap();
         assert!(tpm_result.trust_level >= TrustLevel::Medium);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_quote_freshness() {
+    async fn test_quote_freshness() -> anyhow::Result<()> {
         let mut config = AttestationConfig::default();
         config.max_attestation_age = Duration::minutes(5);
         let service = AttestationService::new(config).unwrap();
@@ -1204,10 +1212,11 @@ mod tests {
 
         assert!(!freshness_check.passed);
         assert_eq!(freshness_check.severity, Severity::Error);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_measurement_validation() {
+    async fn test_measurement_validation() -> anyhow::Result<()> {
         let config = AttestationConfig::default();
         let service = AttestationService::new(config).unwrap();
 
@@ -1251,5 +1260,6 @@ mod tests {
         assert_eq!(details.len(), 2);
         assert!(details[0].passed); // Boot measurement matches
         assert!(!details[1].passed); // Kernel has no reference
+        Ok(())
     }
 }

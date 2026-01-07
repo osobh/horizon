@@ -2,7 +2,10 @@
 
 #[cfg(test)]
 pub mod tests {
+    use crate::zero_copy::{RateLimitState, TransportConfig};
     use crate::{Message, NetworkStats};
+    use std::collections::{HashMap, VecDeque};
+    use std::sync::atomic::AtomicU64;
     use std::sync::{Arc, Mutex};
     use std::thread;
 
@@ -58,9 +61,14 @@ pub mod tests {
 
     /// ZeroCopyTransport wrapper that uses pre-poisoned mutexes for testing
     pub struct PoisonedZeroCopyTransport {
-        pub buffer_pools: Arc<Mutex<std::collections::HashMap<String, Vec<u8>>>>,
+        pub buffer_pools: Arc<Mutex<HashMap<String, Vec<u8>>>>,
         pub stats: Arc<Mutex<NetworkStats>>,
-        pub message_queue: Arc<Mutex<Vec<(String, Message)>>>,
+        pub message_queue: Arc<Mutex<VecDeque<(String, Message)>>>,
+        pub config: TransportConfig,
+        pub rate_limits: Arc<Mutex<HashMap<String, RateLimitState>>>,
+        pub total_buffer_size: AtomicU64,
+        pub dropped_messages: AtomicU64,
+        pub rate_limited_messages: AtomicU64,
     }
 
     impl PoisonedZeroCopyTransport {
@@ -68,23 +76,38 @@ pub mod tests {
             Self {
                 buffer_pools: create_poisoned_mutex(),
                 stats: Arc::new(Mutex::new(NetworkStats::default())),
-                message_queue: Arc::new(Mutex::new(Vec::new())),
+                message_queue: Arc::new(Mutex::new(VecDeque::new())),
+                config: TransportConfig::default(),
+                rate_limits: Arc::new(Mutex::new(HashMap::new())),
+                total_buffer_size: AtomicU64::new(0),
+                dropped_messages: AtomicU64::new(0),
+                rate_limited_messages: AtomicU64::new(0),
             }
         }
 
         pub fn new_stats_poisoned() -> Self {
             Self {
-                buffer_pools: Arc::new(Mutex::new(std::collections::HashMap::new())),
+                buffer_pools: Arc::new(Mutex::new(HashMap::new())),
                 stats: create_poisoned_mutex(),
-                message_queue: Arc::new(Mutex::new(Vec::new())),
+                message_queue: Arc::new(Mutex::new(VecDeque::new())),
+                config: TransportConfig::default(),
+                rate_limits: Arc::new(Mutex::new(HashMap::new())),
+                total_buffer_size: AtomicU64::new(0),
+                dropped_messages: AtomicU64::new(0),
+                rate_limited_messages: AtomicU64::new(0),
             }
         }
 
         pub fn new_message_queue_poisoned() -> Self {
             Self {
-                buffer_pools: Arc::new(Mutex::new(std::collections::HashMap::new())),
+                buffer_pools: Arc::new(Mutex::new(HashMap::new())),
                 stats: Arc::new(Mutex::new(NetworkStats::default())),
                 message_queue: create_poisoned_mutex(),
+                config: TransportConfig::default(),
+                rate_limits: Arc::new(Mutex::new(HashMap::new())),
+                total_buffer_size: AtomicU64::new(0),
+                dropped_messages: AtomicU64::new(0),
+                rate_limited_messages: AtomicU64::new(0),
             }
         }
     }

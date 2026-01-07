@@ -105,7 +105,14 @@ mod tests {
         for error in errors {
             let debug_str = format!("{:?}", error);
             assert!(!debug_str.is_empty());
-            assert!(debug_str.contains("MemoryError"));
+            // Debug format shows variant name, not enum name
+            assert!(
+                debug_str.contains("OutOfMemory")
+                    || debug_str.contains("InvalidSize")
+                    || debug_str.contains("HandleNotFound")
+                    || debug_str.contains("AllocationFailed")
+                    || debug_str.contains("PoolInitFailed")
+            );
         }
     }
 

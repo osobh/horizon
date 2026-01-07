@@ -73,6 +73,9 @@ pub use usage_analyzer::{
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+    use uuid::Uuid;
+    use crate::gpu_optimizer::GpuAffinity;
 
     #[test]
     fn test_cost_optimization_framework_creation() {
@@ -106,10 +109,9 @@ mod tests {
         let scheduler = WorkloadScheduler::new(scheduler_config);
         assert!(scheduler.is_ok());
 
-        // Spot Manager
-        let spot_config = SpotManagerConfig::default();
-        let spot_manager = SpotManager::new(spot_config);
-        assert!(spot_manager.is_ok());
+        // Spot Manager - SpotManager is an empty struct, no constructor needed
+        let _spot_config = SpotManagerConfig { max_bid_price: 0.5 };
+        let _spot_manager = SpotManager;
 
         // Cost Predictor
         let predictor_config = CostPredictorConfig::default();
@@ -133,14 +135,14 @@ mod tests {
 
         // Resource tracking types
         let _resource_type = ResourceType::Cpu;
-        let _alert_severity = AlertSeverity::Low;
+        let _alert_severity = AlertSeverity::Info;
 
         // GPU optimization types
         let _allocation_strategy = AllocationStrategy::BestFit;
-        let _sharing_policy = GpuSharingPolicy::Exclusive;
+        let _sharing_policy = GpuSharingPolicy::default();
 
         // Cloud pricing types
-        let _cloud_provider = CloudProvider::AWS;
+        let _cloud_provider = CloudProvider::Aws;
         let _pricing_model = PricingModel::OnDemand;
 
         // Workload scheduling types
@@ -155,17 +157,31 @@ mod tests {
 
         // Cost prediction types
         let _anomaly_type = AnomalyType::Spike;
-        let _cost_metric = CostMetricType::Daily;
-        let _prediction_model = PredictionModel::ARIMA;
+        let _cost_metric = CostMetricType::TotalCost;
+        let _prediction_model = PredictionModel::Arima;
 
         // Budget management types
         let _budget_period = BudgetPeriod::Monthly;
         let _budget_scope = BudgetScope::Global;
-        let _budget_status = BudgetStatus::Active;
+        // BudgetStatus is a struct, not an enum - test its construction
+        let _budget_status = BudgetStatus {
+            budget_id: "test".to_string(),
+            current_spend: 0.0,
+            allocated_budget: 1000.0,
+            remaining_budget: 1000.0,
+            utilization_percent: 0.0,
+            projected_spend: 0.0,
+            period_start: chrono::Utc::now(),
+            period_end: chrono::Utc::now(),
+            trend: crate::budget_manager::SpendTrend::Stable,
+            days_remaining: 30,
+            is_over_budget: false,
+            last_updated: chrono::Utc::now(),
+        };
 
         // Usage analysis types
-        let _optimization_type = OptimizationType::ResourceRightsizing;
-        let _usage_pattern = UsagePattern::Steady;
+        let _optimization_type = OptimizationType::Rightsize;
+        let _usage_pattern = UsagePattern::ConstantHigh;
     }
 
     #[test]
@@ -190,62 +206,72 @@ mod tests {
     #[test]
     fn test_gpu_allocation_request() {
         let request = GpuAllocationRequest {
+            request_id: Uuid::new_v4(),
             workload_id: "wl-123".to_string(),
-            gpu_memory_gb: 16.0,
-            gpu_count: 2,
-            sharing_policy: GpuSharingPolicy::Exclusive,
-            priority: WorkloadPriority::High,
-            duration_hours: Some(24),
-            preferred_device: Some("RTX 4090".to_string()),
+            memory_required: 16.0,
+            compute_required: 80.0,
+            preferred_models: vec!["RTX 4090".to_string()],
+            exclusive: true,
+            duration: std::time::Duration::from_secs(24 * 3600),
+            priority: 10,
+            affinity: GpuAffinity {
+                numa_aware: true,
+                nvlink_required: false,
+                min_compute_capability: None,
+                anti_affinity: vec![],
+            },
         };
 
         assert_eq!(request.workload_id, "wl-123");
-        assert_eq!(request.gpu_memory_gb, 16.0);
-        assert_eq!(request.gpu_count, 2);
-        assert_eq!(request.sharing_policy, GpuSharingPolicy::Exclusive);
+        assert_eq!(request.memory_required, 16.0);
+        assert!(request.exclusive);
     }
 
     #[test]
     fn test_workload_creation() {
+        use crate::workload_scheduler::{ResourceRequirements, PlacementConstraints};
+
         let workload = Workload {
-            id: "wl-456".to_string(),
+            id: Uuid::new_v4(),
             name: "Training Job".to_string(),
             priority: WorkloadPriority::Normal,
-            cpu_cores: 8.0,
-            memory_gb: 32.0,
-            gpu_count: Some(1),
-            gpu_memory_gb: Some(12.0),
-            estimated_duration_hours: 6.0,
+            resources: ResourceRequirements {
+                cpu_cores: 8.0,
+                memory_gb: 32.0,
+                gpu_count: 1,
+                gpu_memory_gb: 12.0,
+                storage_gb: 100.0,
+                network_gbps: 1.0,
+                gpu_models: vec![],
+                exclusive: false,
+            },
+            constraints: PlacementConstraints {
+                node_selector: HashMap::new(),
+                node_affinity: vec![],
+                pod_affinity: vec![],
+                pod_anti_affinity: vec![],
+                tolerations: vec![],
+                topology_spread: vec![],
+            },
+            estimated_duration: std::time::Duration::from_secs(6 * 3600),
             max_cost_per_hour: Some(10.0),
-            preferred_regions: vec!["us-east-1".to_string()],
-            constraints: std::collections::HashMap::new(),
-            created_at: chrono::Utc::now(),
             deadline: None,
+            metadata: HashMap::new(),
         };
 
-        assert_eq!(workload.id, "wl-456");
         assert_eq!(workload.name, "Training Job");
-        assert_eq!(workload.cpu_cores, 8.0);
-        assert_eq!(workload.memory_gb, 32.0);
+        assert_eq!(workload.resources.cpu_cores, 8.0);
+        assert_eq!(workload.resources.memory_gb, 32.0);
     }
 
     #[test]
     fn test_spot_instance_request() {
+        // SpotInstanceRequest only has instance_type field in current implementation
         let request = SpotInstanceRequest {
             instance_type: "p3.2xlarge".to_string(),
-            region: "us-west-2".to_string(),
-            availability_zone: Some("us-west-2a".to_string()),
-            max_price_per_hour: 3.50,
-            duration_hours: 12,
-            workload_id: "wl-789".to_string(),
-            bidding_strategy: BiddingStrategy::Aggressive,
-            fallback_strategy: FallbackStrategy::Wait,
         };
 
         assert_eq!(request.instance_type, "p3.2xlarge");
-        assert_eq!(request.region, "us-west-2");
-        assert_eq!(request.max_price_per_hour, 3.50);
-        assert_eq!(request.duration_hours, 12);
     }
 
     #[test]
@@ -270,18 +296,25 @@ mod tests {
 
     #[test]
     fn test_cost_calculation_request() {
+        use crate::cloud_pricing::DataTransferEstimate;
+
         let request = CostCalculationRequest {
-            provider: CloudProvider::AWS,
+            provider: CloudProvider::Aws,
             region: "eu-west-1".to_string(),
             instance_type: "g4dn.xlarge".to_string(),
+            instance_count: 1,
             pricing_model: PricingModel::Spot,
             duration_hours: 48.0,
-            data_transfer_gb: Some(100.0),
-            storage_gb: Some(500.0),
-            additional_services: vec![],
+            storage_gb: 500.0,
+            data_transfer: DataTransferEstimate {
+                inbound_gb: 0.0,
+                outbound_internet_gb: 100.0,
+                outbound_same_region_gb: 0.0,
+                outbound_cross_region_gb: 0.0,
+            },
         };
 
-        assert_eq!(request.provider, CloudProvider::AWS);
+        assert_eq!(request.provider, CloudProvider::Aws);
         assert_eq!(request.region, "eu-west-1");
         assert_eq!(request.instance_type, "g4dn.xlarge");
         assert_eq!(request.duration_hours, 48.0);
@@ -289,36 +322,35 @@ mod tests {
 
     #[test]
     fn test_prediction_request() {
+        use crate::cost_predictor::Seasonality;
+
         let request = PredictionRequest {
-            metric_type: CostMetricType::Daily,
-            historical_days: 30,
-            forecast_days: 7,
-            model: PredictionModel::Prophet,
+            metric_type: CostMetricType::TotalCost,
+            horizon: std::time::Duration::from_secs(7 * 24 * 3600), // 7 days
+            model: PredictionModel::Arima,
             confidence_level: 0.95,
-            include_seasonality: true,
-            include_anomalies: false,
+            seasonality: Seasonality::Weekly,
+            filters: HashMap::new(),
         };
 
-        assert_eq!(request.metric_type, CostMetricType::Daily);
-        assert_eq!(request.historical_days, 30);
-        assert_eq!(request.forecast_days, 7);
+        assert_eq!(request.metric_type, CostMetricType::TotalCost);
         assert_eq!(request.confidence_level, 0.95);
     }
 
     #[test]
     fn test_analysis_request() {
         let request = AnalysisRequest {
-            start_date: chrono::Utc::now() - chrono::Duration::days(30),
-            end_date: chrono::Utc::now(),
-            resource_types: vec![ResourceType::Gpu, ResourceType::Cpu],
-            group_by: vec!["department".to_string(), "project".to_string()],
+            resource_id: "res-123".to_string(),
+            resource_type: ResourceType::Gpu,
+            period: std::time::Duration::from_secs(30 * 24 * 3600), // 30 days
             include_recommendations: true,
-            minimum_savings_threshold: Some(100.0),
+            confidence_threshold: 0.8,
+            cost_per_hour: Some(5.0),
         };
 
-        assert_eq!(request.resource_types.len(), 2);
+        assert_eq!(request.resource_id, "res-123");
         assert!(request.include_recommendations);
-        assert_eq!(request.minimum_savings_threshold, Some(100.0));
+        assert_eq!(request.cost_per_hour, Some(5.0));
     }
 
     #[test]
@@ -337,48 +369,49 @@ mod tests {
     #[test]
     fn test_resource_thresholds() {
         let thresholds = ResourceThresholds {
-            cpu_percent: Some(80.0),
-            memory_percent: Some(85.0),
-            gpu_percent: Some(90.0),
-            gpu_memory_percent: Some(95.0),
-            network_mbps: Some(1000.0),
-            disk_iops: Some(5000),
-            disk_throughput_mbps: Some(500.0),
+            warning: 80.0,
+            critical: 95.0,
+            sustained_duration: std::time::Duration::from_secs(60),
         };
 
-        assert_eq!(thresholds.cpu_percent, Some(80.0));
-        assert_eq!(thresholds.gpu_percent, Some(90.0));
-        assert_eq!(thresholds.disk_iops, Some(5000));
+        assert_eq!(thresholds.warning, 80.0);
+        assert_eq!(thresholds.critical, 95.0);
     }
 
     #[test]
     fn test_optimization_opportunity() {
+        use crate::usage_analyzer::{ImplementationEffort, RiskLevel, RecommendationDetails};
+
         let opportunity = OptimizationOpportunity {
-            id: "opt-001".to_string(),
-            optimization_type: OptimizationType::ResourceRightsizing,
-            resource_id: "i-1234567890".to_string(),
-            current_cost_per_month: 500.0,
-            optimized_cost_per_month: 300.0,
-            savings_per_month: 200.0,
-            savings_percentage: 40.0,
-            effort_level: "Low".to_string(),
-            risk_level: "Low".to_string(),
-            description: "Downsize instance".to_string(),
-            recommendations: vec!["Change from m5.xlarge to m5.large".to_string()],
+            id: Uuid::new_v4(),
+            optimization_type: OptimizationType::Rightsize,
+            title: "Downsize instance".to_string(),
+            description: "Change from m5.xlarge to m5.large".to_string(),
+            estimated_savings: 200.0,
+            savings_percent: 40.0,
+            effort: ImplementationEffort::Low,
+            risk: RiskLevel::Low,
+            recommendation: RecommendationDetails {
+                current_config: HashMap::new(),
+                recommended_config: HashMap::new(),
+                steps: vec!["Change instance type".to_string()],
+                prerequisites: vec![],
+                rollback_plan: "Revert to original instance type".to_string(),
+            },
         };
 
-        assert_eq!(opportunity.id, "opt-001");
-        assert_eq!(opportunity.savings_per_month, 200.0);
-        assert_eq!(opportunity.savings_percentage, 40.0);
+        assert_eq!(opportunity.optimization_type, OptimizationType::Rightsize);
+        assert_eq!(opportunity.estimated_savings, 200.0);
+        assert_eq!(opportunity.savings_percent, 40.0);
     }
 
     #[test]
     fn test_multiple_cloud_providers() {
         let providers = vec![
-            CloudProvider::AWS,
+            CloudProvider::Aws,
             CloudProvider::Azure,
-            CloudProvider::GCP,
-            CloudProvider::OnPremise,
+            CloudProvider::Gcp,
+            CloudProvider::Other,
         ];
 
         for provider in providers {
@@ -393,7 +426,7 @@ mod tests {
             SchedulingStrategy::CostOptimized,
             SchedulingStrategy::PerformanceOptimized,
             SchedulingStrategy::Balanced,
-            SchedulingStrategy::SpotFirst,
+            SchedulingStrategy::LatencyOptimized,
         ];
 
         for strategy in strategies {
@@ -405,18 +438,17 @@ mod tests {
     #[test]
     fn test_anomaly_detection() {
         let anomaly = Anomaly {
+            id: Uuid::new_v4(),
             timestamp: chrono::Utc::now(),
-            metric_type: CostMetricType::Hourly,
             anomaly_type: AnomalyType::Spike,
-            severity: 0.85,
             actual_value: 150.0,
             expected_value: 50.0,
-            deviation_percentage: 200.0,
-            description: "Unusual spike in GPU costs".to_string(),
+            deviation_percent: 200.0,
+            score: 85.0,
         };
 
         assert_eq!(anomaly.anomaly_type, AnomalyType::Spike);
-        assert_eq!(anomaly.severity, 0.85);
-        assert_eq!(anomaly.deviation_percentage, 200.0);
+        assert_eq!(anomaly.score, 85.0);
+        assert_eq!(anomaly.deviation_percent, 200.0);
     }
 }

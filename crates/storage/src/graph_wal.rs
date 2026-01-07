@@ -233,16 +233,17 @@ mod tests {
     use tempfile::tempdir;
 
     #[tokio::test]
-    async fn test_wal_creation() {
+    async fn test_wal_creation() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let wal = GraphWAL::new(dir.path().to_path_buf()).await?;
 
         assert_eq!(wal.current_segment_id().await?, 0);
         assert!(dir.path().join("segment_00000000.wal").exists());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_append_node_write() {
+    async fn test_wal_append_node_write() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let wal = GraphWAL::new(dir.path().to_path_buf()).await?;
 
@@ -256,10 +257,11 @@ mod tests {
             .await
             .unwrap();
         assert!(metadata.len() > 0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_append_multiple_entries() {
+    async fn test_wal_append_multiple_entries() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let wal = GraphWAL::new(dir.path().to_path_buf()).await?;
 
@@ -294,10 +296,11 @@ mod tests {
         .unwrap();
 
         wal.checkpoint().await?;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_reader() {
+    async fn test_wal_reader() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let wal = GraphWAL::new(dir.path().to_path_buf()).await?;
 
@@ -335,10 +338,11 @@ mod tests {
             }
             _ => panic!("Expected NodeWrite entry"),
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_segment_rotation() {
+    async fn test_wal_segment_rotation() -> anyhow::Result<()> {
         let dir = tempdir()?;
         // Create WAL with small segment size (1KB)
         let wal = GraphWAL::with_segment_size(dir.path().to_path_buf(), 1024)
@@ -359,10 +363,11 @@ mod tests {
         // Both segment files should exist
         assert!(dir.path().join("segment_00000000.wal").exists());
         assert!(dir.path().join("segment_00000001.wal").exists());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_checkpoint() {
+    async fn test_wal_checkpoint() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let wal = GraphWAL::new(dir.path().to_path_buf()).await?;
 
@@ -378,11 +383,12 @@ mod tests {
             }
             _ => panic!("Expected Checkpoint entry"),
         }
+        Ok(())
     }
 
     #[tokio::test]
     #[ignore] // Disabled: tokio::sync::Mutex doesn't have poisoning
-    async fn test_wal_mutex_poisoning() {
+    async fn test_wal_mutex_poisoning() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let wal = GraphWAL::new(dir.path().to_path_buf()).await?;
 
@@ -405,20 +411,22 @@ mod tests {
         assert!(
             matches!(result, Err(StorageError::LockPoisoned { resource }) if resource == "WAL segment")
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_reader_error_cases() {
+    async fn test_wal_reader_error_cases() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let reader = WALReader::new(dir.path().to_path_buf());
 
         // Try to read non-existent segment
         let result = reader.read_segment(999).await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_entry_types() {
+    async fn test_wal_entry_types() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let wal = GraphWAL::new(dir.path().to_path_buf()).await?;
 
@@ -456,10 +464,11 @@ mod tests {
         let read_entries = reader.read_segment(0).await?;
 
         assert_eq!(read_entries.len(), 5);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_serialization_error_path() {
+    async fn test_wal_serialization_error_path() -> anyhow::Result<()> {
         // TDD test for line 130 - serialize error path in append()
         // This is a defensive test to ensure error handling works correctly
         let dir = tempdir()?;
@@ -476,11 +485,12 @@ mod tests {
 
         // Note: bincode::serialize rarely fails for well-formed structs,
         // but the error path exists for safety and is properly handled
+        Ok(())
     }
 
     #[tokio::test]
     #[ignore] // Disabled: tokio::sync::Mutex doesn't have poisoning
-    async fn test_current_segment_id_lock_poisoning() {
+    async fn test_current_segment_id_lock_poisoning() -> anyhow::Result<()> {
         // TDD test for lines 181-182 - lock poisoning in current_segment_id()
         use std::sync::Arc;
 
@@ -491,10 +501,11 @@ mod tests {
         // This test is kept for documentation but marked as ignored
         let result = wal.current_segment_id().await;
         assert!(result.is_ok(), "tokio::sync::Mutex doesn't poison on panic");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_reader_invalid_entry_size() {
+    async fn test_wal_reader_invalid_entry_size() -> anyhow::Result<()> {
         // TDD test for lines 214-215 - invalid entry size format in WALReader
         let dir = tempdir()?;
         let segment_path = dir.path().join("segment_00000000.wal");
@@ -517,10 +528,11 @@ mod tests {
             }
             Err(other) => panic!("Unexpected error: {:?}", other),
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_reader_deserialization_error() {
+    async fn test_wal_reader_deserialization_error() -> anyhow::Result<()> {
         // TDD test for lines 228-229 - deserialization error in WALReader
         let dir = tempdir()?;
         let segment_path = dir.path().join("segment_00000000.wal");
@@ -552,10 +564,11 @@ mod tests {
                 result
             ),
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_wal_reader_buffer_overflow_protection() {
+    async fn test_wal_reader_buffer_overflow_protection() -> anyhow::Result<()> {
         // TDD test to ensure lines 214-215 and 228-229 handle edge cases
         let dir = tempdir()?;
         let segment_path = dir.path().join("segment_00000000.wal");
@@ -583,5 +596,6 @@ mod tests {
                 // Or returns appropriate error - both are acceptable for safety
             }
         }
+        Ok(())
     }
 }

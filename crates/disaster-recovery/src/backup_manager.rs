@@ -827,7 +827,7 @@ mod tests {
     }
 
     #[test]
-    fn test_backup_type_serialization() {
+    fn test_backup_type_serialization() -> anyhow::Result<()> {
         let types = vec![
             BackupType::Full,
             BackupType::Incremental,
@@ -840,10 +840,11 @@ mod tests {
             let deserialized: BackupType = serde_json::from_str(&serialized)?;
             assert_eq!(backup_type, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_retention_policy() {
+    fn test_retention_policy() -> anyhow::Result<()> {
         let policies = vec![
             RetentionPolicy::Duration(Duration::days(30)),
             RetentionPolicy::Count(10),
@@ -861,10 +862,11 @@ mod tests {
             let deserialized: RetentionPolicy = serde_json::from_str(&serialized).unwrap();
             assert_eq!(policy, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_storage_backend() {
+    fn test_storage_backend() -> anyhow::Result<()> {
         let backends = vec![
             StorageBackend::Local(PathBuf::from("/backup")),
             StorageBackend::S3 {
@@ -882,26 +884,29 @@ mod tests {
             let deserialized: StorageBackend = serde_json::from_str(&serialized).unwrap();
             assert_eq!(backend, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_backup_config_default() {
+    fn test_backup_config_default() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         assert_eq!(config.max_concurrent_backups, 4);
         assert_eq!(config.compression_algorithm, "lz4");
         assert_eq!(config.encryption_algorithm, "aes-256-gcm");
         assert_eq!(config.verification_sample_rate, 0.1);
+        Ok(())
     }
 
     #[test]
-    fn test_backup_manager_creation() {
+    fn test_backup_manager_creation() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         let manager = BackupManager::new(config);
         assert!(manager.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_create_backup_job() {
+    async fn test_create_backup_job() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         let manager = BackupManager::new(config).unwrap();
 
@@ -910,10 +915,11 @@ mod tests {
 
         assert_eq!(manager.jobs.len(), 1);
         assert!(manager.jobs.contains_key(&job_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_validate_backup_job() {
+    async fn test_validate_backup_job() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         let manager = BackupManager::new(config).unwrap();
 
@@ -928,10 +934,11 @@ mod tests {
         job.storage_backends.clear();
         let result = manager.create_job(job).await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_update_backup_job() {
+    async fn test_update_backup_job() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         let manager = BackupManager::new(config).unwrap();
 
@@ -950,10 +957,11 @@ mod tests {
         let updated_job = manager.jobs.get(&job_id).unwrap();
         assert!(!updated_job.enabled);
         assert!(matches!(updated_job.schedule, BackupSchedule::Hourly(30)));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_delete_backup_job() {
+    async fn test_delete_backup_job() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         let manager = BackupManager::new(config).unwrap();
 
@@ -963,10 +971,11 @@ mod tests {
         let result = manager.delete_job(job_id).await;
         assert!(result.is_ok());
         assert!(!manager.jobs.contains_key(&job_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_start_manual_backup() {
+    async fn test_start_manual_backup() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         let manager = BackupManager::new(config).unwrap();
         manager.start().await.unwrap();
@@ -980,10 +989,11 @@ mod tests {
         let status = manager.get_backup_status(backup_id);
         assert!(status.is_some());
         assert_eq!(status.unwrap().state, BackupState::Scheduled);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_backup_filtering() {
+    async fn test_backup_filtering() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         let manager = BackupManager::new(config).unwrap();
 
@@ -1031,10 +1041,11 @@ mod tests {
         };
         let backups = manager.list_backups(filters);
         assert_eq!(backups.len(), 3); // Last 3 backups
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_backup_expiration_calculation() {
+    async fn test_backup_expiration_calculation() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         let manager = BackupManager::new(config).unwrap();
 
@@ -1050,10 +1061,11 @@ mod tests {
         let expected = Utc::now() + Duration::days(30);
         let actual = expiration.unwrap();
         assert!((actual - expected).num_seconds().abs() < 5);
+        Ok(())
     }
 
     #[test]
-    fn test_backup_state_transitions() {
+    fn test_backup_state_transitions() -> anyhow::Result<()> {
         let states = vec![
             BackupState::Scheduled,
             BackupState::InProgress,
@@ -1069,10 +1081,11 @@ mod tests {
             let deserialized: BackupState = serde_json::from_str(&serialized).unwrap();
             assert_eq!(state, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_backup_schedule_types() {
+    fn test_backup_schedule_types() -> anyhow::Result<()> {
         let schedules = vec![
             BackupSchedule::Hourly(30),
             BackupSchedule::Daily {
@@ -1098,10 +1111,11 @@ mod tests {
             let deserialized: BackupSchedule = serde_json::from_str(&serialized).unwrap();
             assert_eq!(schedule, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_verification_result() {
+    fn test_verification_result() -> anyhow::Result<()> {
         let result = VerificationResult {
             backup_id: Uuid::new_v4(),
             passed: true,
@@ -1118,10 +1132,11 @@ mod tests {
         assert!(result.size_match);
         assert_eq!(result.files_verified, 1000);
         assert!(result.errors.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn test_backup_stats_tracking() {
+    fn test_backup_stats_tracking() -> anyhow::Result<()> {
         let stats = BackupStats {
             total_backups: 100,
             successful_backups: 95,
@@ -1138,5 +1153,6 @@ mod tests {
         assert_eq!(stats.successful_backups, 95);
         assert_eq!(stats.failed_backups, 5);
         assert_eq!(stats.avg_compression_ratio, 0.5);
+        Ok(())
     }
 }

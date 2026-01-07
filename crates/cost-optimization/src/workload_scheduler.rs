@@ -1085,11 +1085,11 @@ mod tests {
         let scheduler = WorkloadScheduler::new(config).unwrap();
 
         // Start scheduler
-        scheduler.start().await?;
+        scheduler.start().await.unwrap();
 
         // Register a node
         let node = create_test_node("node-1", 32.0, 4, 10.0);
-        scheduler.register_node(node).await?;
+        scheduler.register_node(node).await.unwrap();
 
         // Submit a workload
         let workload = create_test_workload("test-job", WorkloadPriority::Normal, 4.0, 1);
@@ -1202,7 +1202,7 @@ mod tests {
         config.strategy = SchedulingStrategy::CostOptimized;
 
         let scheduler = WorkloadScheduler::new(config).unwrap();
-        scheduler.start().await?;
+        scheduler.start().await.unwrap();
 
         // Register nodes with different costs
         scheduler
@@ -1233,7 +1233,7 @@ mod tests {
         config.enable_preemption = true;
 
         let scheduler = WorkloadScheduler::new(config).unwrap();
-        scheduler.start().await?;
+        scheduler.start().await.unwrap();
 
         // Register a small node
         scheduler
@@ -1300,7 +1300,7 @@ mod tests {
         for i in 0..2 {
             let workload =
                 create_test_workload(&format!("job-{}", i), WorkloadPriority::Normal, 4.0, 1);
-            scheduler.submit_workload(workload).await?;
+            scheduler.submit_workload(workload).await.unwrap();
         }
 
         // Next submission should fail

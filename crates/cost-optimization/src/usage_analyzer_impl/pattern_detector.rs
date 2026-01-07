@@ -286,7 +286,7 @@ mod tests {
         let std_dev = standard_deviation(&utilizations, Some(avg));
 
         let mut sorted = utilizations.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b)?);
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         let p95 = sorted[(sorted.len() as f64 * 0.95) as usize];
         let p99 = sorted[(sorted.len() as f64 * 0.99) as usize];
@@ -317,7 +317,7 @@ mod tests {
         let snapshots = create_test_snapshots(100, "constant_high");
         let statistics = create_test_statistics(&snapshots);
 
-        let (pattern, confidence) = detector.detect_pattern(&snapshots, &statistics)?;
+        let (pattern, confidence) = detector.detect_pattern(&snapshots, &statistics).unwrap();
 
         assert_eq!(pattern, UsagePattern::ConstantHigh);
         assert!(confidence > 0.8);
@@ -331,7 +331,7 @@ mod tests {
         let snapshots = create_test_snapshots(100, "spiky");
         let statistics = create_test_statistics(&snapshots);
 
-        let (pattern, confidence) = detector.detect_pattern(&snapshots, &statistics)?;
+        let (pattern, confidence) = detector.detect_pattern(&snapshots, &statistics).unwrap();
 
         assert_eq!(pattern, UsagePattern::Spiky);
         assert!(confidence > 0.8);
@@ -345,7 +345,7 @@ mod tests {
         let snapshots = create_test_snapshots(100, "idle");
         let statistics = create_test_statistics(&snapshots);
 
-        let (pattern, confidence) = detector.detect_pattern(&snapshots, &statistics)?;
+        let (pattern, confidence) = detector.detect_pattern(&snapshots, &statistics).unwrap();
 
         assert_eq!(pattern, UsagePattern::Idle);
         assert!(confidence > 0.9);

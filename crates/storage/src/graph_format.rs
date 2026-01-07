@@ -150,7 +150,7 @@ mod tests {
         let original = NodeRecord::new(999, 111);
         let bytes = original.to_bytes();
 
-        let recovered = NodeRecord::from_bytes(&bytes)?;
+        let recovered = NodeRecord::from_bytes(&bytes).unwrap();
 
         assert_eq!(recovered.id, original.id);
         assert_eq!(recovered.type_id, original.type_id);
@@ -208,7 +208,7 @@ mod tests {
         original.importance_score = 0.95;
 
         let bytes = original.to_bytes();
-        let recovered = NodeRecord::from_bytes(&bytes)?;
+        let recovered = NodeRecord::from_bytes(&bytes).unwrap();
 
         assert_eq!(original, recovered);
     }

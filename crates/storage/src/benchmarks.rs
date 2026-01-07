@@ -363,7 +363,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_memory_storage_write_benchmark() {
+    async fn test_memory_storage_write_benchmark() -> anyhow::Result<()> {
         let storage = MemoryStorage::new(10 * 1024 * 1024); // 10MB
         let config = BenchmarkConfig {
             num_operations: 100,
@@ -378,10 +378,11 @@ mod tests {
         assert!(results.operations_per_second > 0.0);
         assert!(results.avg_latency_ms >= 0.0);
         assert!(results.throughput_mbps > 0.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_memory_storage_read_benchmark() {
+    async fn test_memory_storage_read_benchmark() -> anyhow::Result<()> {
         let storage = MemoryStorage::new(10 * 1024 * 1024); // 10MB
         let config = BenchmarkConfig {
             num_operations: 100,
@@ -396,10 +397,11 @@ mod tests {
         assert!(results.operations_per_second > 0.0);
         assert!(results.avg_latency_ms >= 0.0);
         assert!(results.throughput_mbps > 0.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_storage_benchmark() {
+    async fn test_nvme_storage_benchmark() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let nvme_config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -419,10 +421,11 @@ mod tests {
 
         assert!(results.operations_per_second > 0.0);
         assert!(results.throughput_mbps > 0.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_concurrent_benchmark() {
+    async fn test_concurrent_benchmark() -> anyhow::Result<()> {
         let storage = Arc::new(MemoryStorage::new(10 * 1024 * 1024));
         let config = BenchmarkConfig {
             num_operations: 100,
@@ -436,10 +439,11 @@ mod tests {
 
         assert!(results.operations_per_second > 0.0);
         assert!(results.throughput_mbps > 0.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_mixed_workload_benchmark() {
+    async fn test_mixed_workload_benchmark() -> anyhow::Result<()> {
         let storage = MemoryStorage::new(10 * 1024 * 1024);
         let config = BenchmarkConfig {
             num_operations: 100,
@@ -453,6 +457,7 @@ mod tests {
 
         assert!(results.operations_per_second > 0.0);
         assert!(results.throughput_mbps > 0.0);
+        Ok(())
     }
 
     #[tokio::test]
@@ -482,7 +487,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_benchmark_comparison() {
+    async fn test_benchmark_comparison() -> anyhow::Result<()> {
         let memory_storage = Arc::new(MemoryStorage::new(10 * 1024 * 1024));
         let temp_dir = tempdir()?;
         let nvme_config = NvmeConfig {
@@ -523,10 +528,11 @@ mod tests {
             "NVMe OPS: {:.2}",
             nvme_results.write_results.operations_per_second
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_benchmark_config_edge_cases() {
+    async fn test_benchmark_config_edge_cases() -> anyhow::Result<()> {
         // Test with minimal operations
         let min_config = BenchmarkConfig {
             num_operations: 1,
@@ -542,6 +548,7 @@ mod tests {
         assert!(results.operations_per_second > 0.0);
         assert!(results.avg_latency_ms >= 0.0);
         assert_eq!(results.min_latency_ms, results.max_latency_ms); // Only one operation
+        Ok(())
     }
 
     #[tokio::test]
@@ -562,7 +569,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_benchmark_large_data_size() {
+    async fn test_benchmark_large_data_size() -> anyhow::Result<()> {
         let storage = MemoryStorage::new(10 * 1024 * 1024); // 10MB
         let config = BenchmarkConfig {
             num_operations: 5,
@@ -576,6 +583,7 @@ mod tests {
 
         assert!(results.throughput_mbps > 0.0);
         assert!(results.operations_per_second > 0.0);
+        Ok(())
     }
 
     #[tokio::test]
@@ -611,7 +619,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_benchmark_mixed_workload_edge_cases() {
+    async fn test_benchmark_mixed_workload_edge_cases() -> anyhow::Result<()> {
         let storage = MemoryStorage::new(1024 * 1024);
 
         // Test with operations that are exactly divisible by 10
@@ -627,6 +635,7 @@ mod tests {
 
         assert!(results.operations_per_second > 0.0);
         assert!(results.throughput_mbps > 0.0);
+        Ok(())
     }
 
     #[tokio::test]
@@ -655,7 +664,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_benchmark_zero_warmup_iterations() {
+    async fn test_benchmark_zero_warmup_iterations() -> anyhow::Result<()> {
         let storage = MemoryStorage::new(1024 * 1024);
         let config = BenchmarkConfig {
             num_operations: 10,
@@ -672,6 +681,7 @@ mod tests {
 
         assert!(write_results.operations_per_second > 0.0);
         assert!(read_results.operations_per_second > 0.0);
+        Ok(())
     }
 
     #[tokio::test]

@@ -129,7 +129,7 @@ mod config_tests {
     }
 
     #[tokio::test]
-    async fn test_config_file_serialization() {
+    async fn test_config_file_serialization() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("test_config.json");
         let config_path_str = config_path.to_str().unwrap();
@@ -155,6 +155,7 @@ mod config_tests {
             original_config.resources.gpu_memory_per_agent,
             loaded_config.resources.gpu_memory_per_agent
         );
+        Ok(())
     }
 }
 
@@ -325,22 +326,23 @@ mod population_controller_tests {
     }
 
     #[tokio::test]
-    async fn test_agent_registration() {
+    async fn test_agent_registration() -> Result<()> {
         let config = BootstrapConfig::default();
         let mut controller = PopulationController::new(config).unwrap();
 
         let dna = AgentDNA::create_template(AgentType::Prime);
-        let agent_id = dna.id;
+        let _agent_id = dna.id;
 
         controller.register_agent(dna).await?;
 
         let stats = controller.get_stats();
         assert_eq!(stats.total_agents, 1);
         assert_eq!(stats.active_agents, 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_agent_metrics_update() {
+    async fn test_agent_metrics_update() -> Result<()> {
         let config = BootstrapConfig::default();
         let mut controller = PopulationController::new(config).unwrap();
 
@@ -364,10 +366,11 @@ mod population_controller_tests {
             .update_agent_metrics(agent_id, metrics)
             .await
             .unwrap();
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_agent_removal() {
+    async fn test_agent_removal() -> Result<()> {
         let config = BootstrapConfig::default();
         let mut controller = PopulationController::new(config).unwrap();
 
@@ -379,30 +382,33 @@ mod population_controller_tests {
 
         controller.remove_agent(agent_id).await?;
         assert_eq!(controller.get_stats().total_agents, 0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_health_score_calculation() {
+    async fn test_health_score_calculation() -> Result<()> {
         let config = BootstrapConfig::default();
         let controller = PopulationController::new(config).unwrap();
 
         // Empty population should have health score 0
         let health = controller.health_score().await?;
         assert_eq!(health, 0.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_diversity_score_calculation() {
+    async fn test_diversity_score_calculation() -> Result<()> {
         let config = BootstrapConfig::default();
         let controller = PopulationController::new(config).unwrap();
 
         // Empty population should have diversity score 0
         let diversity = controller.diversity_score().await?;
         assert_eq!(diversity, 0.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_mutation_rate_setting() {
+    async fn test_mutation_rate_setting() -> Result<()> {
         let config = BootstrapConfig::default();
         let mut controller = PopulationController::new(config).unwrap();
 
@@ -412,6 +418,7 @@ mod population_controller_tests {
         // Test bounds clamping
         controller.set_mutation_rate(-0.5).await?; // Should clamp to 0.0
         controller.set_mutation_rate(1.5).await?; // Should clamp to 1.0
+        Ok(())
     }
 
     #[tokio::test]
@@ -424,12 +431,13 @@ mod population_controller_tests {
     }
 
     #[tokio::test]
-    async fn test_evolution_cycle() {
+    async fn test_evolution_cycle() -> Result<()> {
         let config = BootstrapConfig::default();
         let controller = PopulationController::new(config).unwrap();
 
         // Test evolution cycle on empty population doesn't crash
         controller.run_evolution_cycle().await?;
+        Ok(())
     }
 }
 
@@ -492,7 +500,7 @@ mod safeguards_tests {
     }
 
     #[tokio::test]
-    async fn test_emergency_reset() {
+    async fn test_emergency_reset() -> Result<()> {
         let config = BootstrapConfig::default();
         let mut safeguards = BootstrapSafeguards::new(config.clone()).unwrap();
         let population = Arc::new(RwLock::new(PopulationController::new(config).unwrap()));
@@ -503,6 +511,7 @@ mod safeguards_tests {
             .await?;
 
         assert!(safeguards.is_emergency_mode());
+        Ok(())
     }
 }
 
@@ -563,13 +572,13 @@ mod monitor_tests {
     }
 
     #[tokio::test]
-    async fn test_metrics_export() {
+    async fn test_metrics_export() -> Result<()> {
         let config = BootstrapConfig::default();
         let monitor = BootstrapMonitor::new(config).unwrap();
 
         let temp_dir = TempDir::new().unwrap();
         let export_path = temp_dir.path().join("test_export.json");
-        let export_path_str = export_path.to_str()?;
+        let export_path_str = export_path.to_str().ok_or_else(|| anyhow::anyhow!("Invalid path"))?;
 
         monitor.export_metrics(export_path_str).await?;
 
@@ -577,6 +586,7 @@ mod monitor_tests {
         let content = tokio::fs::read_to_string(export_path_str).await.unwrap();
         assert!(content.contains("start_time"));
         assert!(content.contains("metrics_history"));
+        Ok(())
     }
 }
 
@@ -639,7 +649,7 @@ mod agent_tests {
     }
 
     #[tokio::test]
-    async fn test_agent_replication() {
+    async fn test_agent_replication() -> Result<()> {
         let agent1 = PrimeAgent::new().await.unwrap();
         let agent2 = ReplicatorAgent::new().await.unwrap();
 
@@ -650,6 +660,7 @@ mod agent_tests {
         assert_ne!(offspring.dna().id, agent1.dna().id);
         assert_ne!(offspring.dna().id, agent2.dna().id);
         assert_eq!(offspring.dna().generation, agent1.dna().generation + 1);
+        Ok(())
     }
 
     #[tokio::test]
@@ -666,9 +677,9 @@ mod integration_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_basic_bootstrap_workflow() {
+    async fn test_basic_bootstrap_workflow() -> Result<()> {
         let config = BootstrapConfig::default();
-        let mut genesis = GenesisLoader::with_config(config.clone()).unwrap();
+        let _genesis = GenesisLoader::with_config(config.clone()).unwrap();
 
         // Test basic workflow components exist
         let _monitor = BootstrapMonitor::new(config.clone())?;
@@ -676,10 +687,11 @@ mod integration_tests {
         let _population = PopulationController::new(config)?;
 
         // Basic workflow test passes if no panics occur
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_agent_population_interaction() {
+    async fn test_agent_population_interaction() -> Result<()> {
         let config = BootstrapConfig::default();
         let mut population = PopulationController::new(config).unwrap();
 
@@ -711,17 +723,18 @@ mod integration_tests {
 
         assert!(health >= 0.0 && health <= 1.0);
         assert!(diversity >= 0.0 && diversity <= 1.0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_monitoring_and_safeguards_integration() {
+    async fn test_monitoring_and_safeguards_integration() -> Result<()> {
         let config = BootstrapConfig::default();
         let mut monitor = BootstrapMonitor::new(config.clone()).unwrap();
         let mut safeguards = BootstrapSafeguards::new(config.clone()).unwrap();
-        let population = Arc::new(RwLock::new(PopulationController::new(config).unwrap()));
+        let _population = Arc::new(RwLock::new(PopulationController::new(config).unwrap()));
 
         // Test safeguard check
-        let intervention = safeguards.check_and_intervene().await?;
+        let _intervention = safeguards.check_and_intervene().await?;
 
         // Test phase recording
         monitor
@@ -748,6 +761,7 @@ mod integration_tests {
 
         assert_eq!(monitor.get_phase_transitions().len(), 1);
         assert_eq!(monitor.get_recent_alerts(Duration::from_secs(60)).len(), 1);
+        Ok(())
     }
 
     #[tokio::test]
@@ -813,7 +827,7 @@ mod stress_tests {
     }
 
     #[tokio::test]
-    async fn test_rapid_agent_creation_and_removal() {
+    async fn test_rapid_agent_creation_and_removal() -> Result<()> {
         let config = BootstrapConfig::default();
         let mut population = PopulationController::new(config).unwrap();
 
@@ -834,6 +848,7 @@ mod stress_tests {
         }
 
         assert_eq!(population.get_stats().total_agents, 0);
+        Ok(())
     }
 
     #[tokio::test]
@@ -864,7 +879,7 @@ mod stress_tests {
     }
 
     #[tokio::test]
-    async fn test_memory_efficiency_with_large_history() {
+    async fn test_memory_efficiency_with_large_history() -> Result<()> {
         let config = BootstrapConfig::default();
         let mut safeguards = BootstrapSafeguards::new(config).unwrap();
 
@@ -874,5 +889,6 @@ mod stress_tests {
         }
 
         // Should not crash with large history (internal VecDeque should cap at 100)
+        Ok(())
     }
 }

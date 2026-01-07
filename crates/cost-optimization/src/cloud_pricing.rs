@@ -928,7 +928,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let pricing = result?;
+        let pricing = result.unwrap();
         assert!(!pricing.is_empty());
         assert!(pricing.iter().any(|p| p.gpu_count > 0));
     }
@@ -1111,7 +1111,7 @@ mod tests {
         };
 
         assert_eq!(price_info.hourly_rate, 10.0);
-        assert_eq!(price_info.min_commitment?, 8760);
+        assert_eq!(price_info.min_commitment.unwrap(), 8760);
         assert_eq!(price_info.upfront_cost.unwrap(), 10000.0);
         assert_eq!(price_info.discount_percent, 40.0);
     }

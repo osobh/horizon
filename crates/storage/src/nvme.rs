@@ -311,7 +311,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_nvme_storage_with_config() {
+    async fn test_nvme_storage_with_config() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -324,10 +324,11 @@ mod tests {
         assert_eq!(storage.config.block_size, 8192);
         assert_eq!(storage.config.cache_size, 512 * 1024);
         assert!(!storage.config.sync_writes);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_block_operations() {
+    async fn test_nvme_block_operations() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -350,10 +351,11 @@ mod tests {
         // Check file size
         let size = storage.file_size("test_key").await?;
         assert_eq!(size, test_data.len() as u64);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_storage_interface() {
+    async fn test_nvme_storage_interface() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -378,10 +380,11 @@ mod tests {
         let stats = storage.stats().await?;
         assert!(stats.total_files >= 1);
         assert!(stats.used_bytes >= test_data.len() as u64);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_stats() {
+    async fn test_nvme_stats() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -406,10 +409,11 @@ mod tests {
         assert!(stats.bytes_read >= test_data.len() as u64);
         assert!(stats.write_operations >= 1);
         assert!(stats.read_operations >= 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_delete() {
+    async fn test_nvme_delete() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -426,10 +430,11 @@ mod tests {
         // Delete and verify
         storage.delete("delete_test").await?;
         assert!(storage.retrieve("delete_test").await.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_key_not_found() {
+    async fn test_nvme_key_not_found() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -449,10 +454,11 @@ mod tests {
         // Try to delete non-existent key
         let result = storage.delete("nonexistent").await;
         assert!(matches!(result, Err(StorageError::KeyNotFound { key }) if key == "nonexistent"));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_sync_operations() {
+    async fn test_nvme_sync_operations() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -471,10 +477,11 @@ mod tests {
 
         let stats = storage.nvme_stats()?;
         assert!(stats.sync_operations >= 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_optimize() {
+    async fn test_nvme_optimize() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -492,10 +499,11 @@ mod tests {
         // Verify data is still accessible
         let data = storage.retrieve("optimize_test").await?;
         assert_eq!(data, b"test data");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_list_keys_with_prefix() {
+    async fn test_nvme_list_keys_with_prefix() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -518,6 +526,7 @@ mod tests {
         // List all keys
         let all_keys = storage.list_keys("").await?;
         assert_eq!(all_keys.len(), 3);
+        Ok(())
     }
 
     #[tokio::test]
@@ -583,7 +592,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_nvme_block_operations_edge_cases() {
+    async fn test_nvme_block_operations_edge_cases() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -620,10 +629,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(read_offset, offset_data);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_unicode_keys() {
+    async fn test_nvme_unicode_keys() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -644,10 +654,11 @@ mod tests {
         // List keys should include unicode key
         let keys = storage.list_keys("").await?;
         assert!(keys.contains(&unicode_key.to_string()));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_special_characters_in_keys() {
+    async fn test_nvme_special_characters_in_keys() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -670,10 +681,11 @@ mod tests {
             let retrieved = storage.retrieve(key).await?;
             assert_eq!(retrieved, data);
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_concurrent_operations() {
+    async fn test_nvme_concurrent_operations() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -689,7 +701,7 @@ mod tests {
             let handle = tokio::spawn(async move {
                 let key = format!("concurrent_key_{}", i);
                 let data = format!("data_{}", i).into_bytes();
-                storage_clone.store(&key, &data).await?;
+                storage_clone.store(&key, &data).await.unwrap();
                 (key, data)
             });
             handles.push(handle);
@@ -701,10 +713,11 @@ mod tests {
             let retrieved = storage.retrieve(&key).await?;
             assert_eq!(retrieved, expected_data);
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_stats_mutex_poisoning() {
+    async fn test_nvme_stats_mutex_poisoning() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -716,7 +729,7 @@ mod tests {
         // Poison the stats mutex
         let stats_clone = storage.stats.clone();
         let handle = std::thread::spawn(move || {
-            let _guard = stats_clone.lock()?;
+            let _guard = stats_clone.lock().unwrap();
             panic!("Poison stats mutex");
         });
         let _ = handle.join();
@@ -730,10 +743,11 @@ mod tests {
             }
             _ => panic!("Expected LockPoisoned error"),
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_file_handles_mutex_poisoning() {
+    async fn test_nvme_file_handles_mutex_poisoning() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -745,7 +759,7 @@ mod tests {
         // Poison the file handles mutex
         let handles_clone = storage.file_handles.clone();
         let handle = std::thread::spawn(move || {
-            let _guard = handles_clone.lock()?;
+            let _guard = handles_clone.lock().unwrap();
             panic!("Poison file handles mutex");
         });
         let _ = handle.join();
@@ -759,10 +773,11 @@ mod tests {
             }
             _ => panic!("Expected LockPoisoned error"),
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_invalid_read_range() {
+    async fn test_nvme_invalid_read_range() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -788,10 +803,11 @@ mod tests {
             Ok(data) => assert!(!data.is_empty()),
             Err(_) => {} // Also acceptable
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_overwrite_operations() {
+    async fn test_nvme_overwrite_operations() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -820,10 +836,11 @@ mod tests {
         storage.store("overwrite_test", b"small").await?;
         let _small = storage.retrieve("overwrite_test").await?;
         // Note: In some implementations, smaller overwrites may not truncate the file\n        // Just verify we can read some data back\n        assert!(!_small.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_nvme_empty_prefix_list() {
+    async fn test_nvme_empty_prefix_list() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
         let config = NvmeConfig {
             base_path: temp_dir.path().to_path_buf(),
@@ -839,5 +856,6 @@ mod tests {
         // List with non-matching prefix
         let no_match_keys = storage.list_keys("nonexistent_prefix").await?;
         assert_eq!(no_match_keys.len(), 0);
+        Ok(())
     }
 }
