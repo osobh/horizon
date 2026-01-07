@@ -82,6 +82,7 @@ members = [
     "crates/hpc-foundation/hpc-types",
     "crates/hpc-foundation/hpc-provider",
     "crates/hpc-foundation/hpc-ephemeral-identity",
+    "crates/hpc-foundation/hpc-inventory",
 
     # ==========================================
     # Horizon Services (Cost Intelligence, Enterprise Intelligence)
@@ -124,6 +125,11 @@ members = [
     # Subnet Manager (WireGuard subnet management)
     # ==========================================
     "crates/subnet-manager",
+
+    # ==========================================
+    # HPC CLI (unified CLI + TUI for HPC-AI platform)
+    # ==========================================
+    "crates/hpc-cli",
 ]
 
 [workspace.package]
@@ -193,10 +199,10 @@ cust = "0.3"
 cudarc = { version = "0.11", features = ["cuda-12050"] }
 
 # Additional dependencies
-uuid = { version = "1.0", features = ["v4", "serde"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
 sled = "0.34"
 axum = "0.7"
-tower = { version = "0.4", features = ["timeout"] }
+tower = { version = "0.5", features = ["timeout"] }
 hyper = "1.0"
 rand = "0.8"
 rayon = "1.7"

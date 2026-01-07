@@ -59,16 +59,61 @@ impl GpuMutationEngine {
         let pointers = population.gpu_pointers();
         let start = Instant::now();
 
+        // Get RNG states from population
+        let rng_states = population.rng_states()
+            .ok_or_else(|| anyhow::anyhow!("RNG states not initialized in population"))?;
+
         match self.mutation_strategy {
             MutationStrategy::Adaptive => {
                 // Calculate diversity for adaptive mutation
                 let diversity = population.diversity_index();
                 self.adaptive_mutation(&pointers, diversity as f32)?;
             }
-            _ => {
-                // Standard mutation - need to get RNG states from population
-                // For now, skip mutation since we need access to RNG states
-                // TODO: Implement mutation with proper RNG state management
+            MutationStrategy::Uniform => {
+                // Launch uniform mutation kernel
+                // SAFETY: pointers.genomes is valid from GpuPopulation allocation.
+                // rng_states is non-null (checked above). population_size and genome_size
+                // match allocation sizes. mutation_rate is a valid f32.
+                unsafe {
+                    crate::evolution::kernels::launch_uniform_mutation(
+                        pointers.genomes,
+                        rng_states,
+                        pointers.population_size as u32,
+                        pointers.genome_size as u32,
+                        self.mutation_rate,
+                        std::ptr::null_mut(), // stream
+                    );
+                }
+            }
+            MutationStrategy::Gaussian => {
+                // Launch Gaussian mutation kernel
+                // SAFETY: Same as Uniform - all pointers are valid and sizes match allocations.
+                unsafe {
+                    crate::evolution::kernels::launch_gaussian_mutation(
+                        pointers.genomes,
+                        rng_states,
+                        pointers.population_size as u32,
+                        pointers.genome_size as u32,
+                        self.mutation_rate,
+                        0.1, // sigma - standard deviation
+                        std::ptr::null_mut(), // stream
+                    );
+                }
+            }
+            MutationStrategy::BitFlip => {
+                // Launch bit flip mutation kernel
+                // This treats the genome as bits and flips each with mutation_rate probability
+                // SAFETY: Same as above - all pointers valid, sizes match allocations.
+                unsafe {
+                    crate::evolution::kernels::launch_bitflip_mutation(
+                        pointers.genomes as *mut u8,
+                        rng_states,
+                        pointers.population_size as u32,
+                        (pointers.genome_size * std::mem::size_of::<f32>()) as u32, // bytes
+                        self.mutation_rate,
+                        std::ptr::null_mut(), // stream
+                    );
+                }
             }
         }
 

@@ -260,23 +260,69 @@ impl GpuPopulation {
         diversity[0] as f64
     }
 
-    /// Create offspring from selected parents
+    /// Create offspring from selected parents using crossover
+    ///
+    /// Parents are paired sequentially from selected_indices:
+    /// - Parent 1 and 2 produce offspring 1 and 2
+    /// - Parent 3 and 4 produce offspring 3 and 4
+    /// - etc.
+    ///
+    /// Crossover uses uniform crossover where each gene has crossover_rate
+    /// probability of coming from parent 2 instead of parent 1.
     pub fn create_offspring(
         &mut self,
         selected_indices: &CudaSlice<u32>,
         crossover_rate: f32,
     ) -> Result<()> {
         if let Some(rng_states) = self.rng_states {
-            // For now, skip crossover and just use selected parents directly
-            // TODO: Implement proper crossover with parent pairing
+            // Allocate temporary buffer for offspring genomes
+            let total_genome_size = self.population_size * self.genome_size;
+            // SAFETY: alloc returns uninitialized memory. The crossover kernel will
+            // write to all elements before we copy back.
+            let offspring_genomes = unsafe { self.device.alloc::<f32>(total_genome_size)? };
+
+            // Launch crossover kernel
+            // SAFETY: All pointers are valid:
+            // - genomes: from CudaSlice allocation in new()
+            // - offspring_genomes: just allocated above
+            // - selected_indices: passed in as CudaSlice
+            // - rng_states: initialized and non-null (checked above)
+            // population_size and genome_size match allocation sizes
+            unsafe {
+                crate::evolution::kernels::launch_uniform_crossover(
+                    *self.genomes.device_ptr() as *const f32,
+                    *offspring_genomes.device_ptr() as *mut f32,
+                    *selected_indices.device_ptr() as *const u32,
+                    self.population_size as u32,
+                    self.genome_size as u32,
+                    crossover_rate,
+                    rng_states,
+                    std::ptr::null_mut(), // stream
+                );
+            }
+
+            // Copy offspring back to main genome buffer
+            // SAFETY: Both slices are valid CudaSlice<f32> of the same size
+            unsafe {
+                self.device.dtod_copy(
+                    &offspring_genomes,
+                    &mut self.genomes,
+                )?;
+            }
 
             // Invalidate fitness for new offspring
             self.invalidate_fitness();
+            self.best_individual_cache = None;
 
             Ok(())
         } else {
             Err(anyhow::anyhow!("RNG states not initialized"))
         }
+    }
+
+    /// Get RNG states pointer for external use (e.g., mutation)
+    pub fn rng_states(&self) -> Option<*mut u8> {
+        self.rng_states
     }
 
     /// Get GPU pointers for kernel access

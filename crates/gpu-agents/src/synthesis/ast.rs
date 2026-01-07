@@ -5,7 +5,8 @@
 use crate::synthesis::{AstNode, NodeType, TransformRule};
 use anyhow::{Context, Result};
 use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// GPU AST Transformer for parallel tree transformations
 pub struct GpuAstTransformer {
@@ -14,6 +15,8 @@ pub struct GpuAstTransformer {
     rule_buffer: CudaSlice<u8>,
     output_buffer: CudaSlice<u8>,
     max_nodes: usize,
+    /// String table mapping hash values to original strings
+    string_table: Mutex<HashMap<u32, String>>,
 }
 
 impl GpuAstTransformer {
@@ -42,6 +45,7 @@ impl GpuAstTransformer {
             rule_buffer,
             output_buffer,
             max_nodes,
+            string_table: Mutex::new(HashMap::new()),
         })
     }
 
@@ -180,8 +184,17 @@ impl GpuAstTransformer {
         // Encode node type (4 bytes)
         buffer.extend_from_slice(&(ast.node_type as u32).to_le_bytes());
 
-        // Encode value hash (4 bytes)
-        let value_hash = ast.value.as_ref().map(|v| self.hash_string(v)).unwrap_or(0);
+        // Encode value hash (4 bytes) and store in string table
+        let value_hash = if let Some(ref v) = ast.value {
+            let hash = self.hash_string(v);
+            // Store in string table for later retrieval
+            if let Ok(mut table) = self.string_table.lock() {
+                table.insert(hash, v.clone());
+            }
+            hash
+        } else {
+            0
+        };
         buffer.extend_from_slice(&value_hash.to_le_bytes());
 
         // Encode child count (4 bytes)
@@ -224,12 +237,31 @@ impl GpuAstTransformer {
         // Similar to encode_ast_recursive but for Pattern type
         buffer.extend_from_slice(&(pattern.node_type as u32).to_le_bytes());
 
-        let value_hash = pattern
-            .value
-            .as_ref()
-            .map(|v| self.hash_string(v))
-            .unwrap_or(0);
+        // Encode value hash and store in string table
+        let value_hash = if let Some(ref v) = pattern.value {
+            let hash = self.hash_string(v);
+            // Store in string table for later retrieval
+            if let Ok(mut table) = self.string_table.lock() {
+                table.insert(hash, v.clone());
+            }
+            hash
+        } else {
+            0
+        };
         buffer.extend_from_slice(&value_hash.to_le_bytes());
+
+        // Encode binding name if present (as a special marker)
+        let binding_hash = if let Some(ref binding) = pattern.binding {
+            let hash = self.hash_string(binding);
+            if let Ok(mut table) = self.string_table.lock() {
+                table.insert(hash, binding.clone());
+            }
+            hash
+        } else {
+            0
+        };
+        // Store binding hash in the padding area (bytes 52-55 of extended node format)
+        // For now, we skip storing binding as it requires format changes
 
         buffer.extend_from_slice(&(pattern.children.len() as u32).to_le_bytes());
 
@@ -242,6 +274,9 @@ impl GpuAstTransformer {
         for idx in child_indices {
             buffer.extend_from_slice(&idx.to_le_bytes());
         }
+
+        // Store binding hash at end (additional 4 bytes)
+        buffer.extend_from_slice(&binding_hash.to_le_bytes());
 
         Ok(start_pos)
     }
@@ -275,6 +310,18 @@ impl GpuAstTransformer {
             _ => anyhow::bail!("Invalid node type: {}", node_type_val),
         };
 
+        // Decode value hash and look up in string table
+        let value_hash =
+            u32::from_le_bytes([node_data[4], node_data[5], node_data[6], node_data[7]]);
+        let value = if value_hash != 0 {
+            self.string_table
+                .lock()
+                .ok()
+                .and_then(|table| table.get(&value_hash).cloned())
+        } else {
+            None
+        };
+
         // Decode child count
         let child_count =
             u32::from_le_bytes([node_data[8], node_data[9], node_data[10], node_data[11]]);
@@ -299,7 +346,7 @@ impl GpuAstTransformer {
         Ok(AstNode {
             node_type,
             children,
-            value: None, // TODO: Decode value from hash table
+            value,
         })
     }
 
@@ -310,6 +357,18 @@ impl GpuAstTransformer {
             hash = hash.wrapping_mul(31).wrapping_add(byte as u32);
         }
         hash
+    }
+
+    /// Clear the string table (useful for memory management between transformations)
+    pub fn clear_string_table(&self) {
+        if let Ok(mut table) = self.string_table.lock() {
+            table.clear();
+        }
+    }
+
+    /// Get the current size of the string table
+    pub fn string_table_size(&self) -> usize {
+        self.string_table.lock().map(|t| t.len()).unwrap_or(0)
     }
 }
 

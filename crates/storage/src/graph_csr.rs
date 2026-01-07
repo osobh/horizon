@@ -1,6 +1,8 @@
 //! Compressed Sparse Row format for efficient GPU graph traversal
 
 use crate::error::StorageError;
+use std::io::{Read, Write};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Compressed Sparse Row format optimized for GPU traversal
@@ -125,6 +127,115 @@ impl GraphCSR {
         }
 
         Ok(false)
+    }
+
+    /// Save CSR to a file
+    pub fn save(&self, path: &Path) -> Result<(), StorageError> {
+        let mut file = std::fs::File::create(path)?;
+
+        // Write header: magic bytes, version, and counts
+        file.write_all(b"CSR1")?; // Magic + version
+        let num_nodes = self.node_count() as u64;
+        let num_edges = self.edge_count() as u64;
+        file.write_all(&num_nodes.to_le_bytes())?;
+        file.write_all(&num_edges.to_le_bytes())?;
+
+        // Write row_offsets
+        for offset in &self.row_offsets {
+            file.write_all(&offset.to_le_bytes())?;
+        }
+
+        // Write col_indices
+        for idx in &self.col_indices {
+            file.write_all(&idx.to_le_bytes())?;
+        }
+
+        // Write edge_types
+        for et in &self.edge_types {
+            file.write_all(&et.to_le_bytes())?;
+        }
+
+        // Write weights
+        for w in &self.weights {
+            file.write_all(&w.to_le_bytes())?;
+        }
+
+        // Write timestamps
+        for ts in &self.timestamps {
+            file.write_all(&ts.to_le_bytes())?;
+        }
+
+        file.sync_all()?;
+        Ok(())
+    }
+
+    /// Load CSR from a file
+    pub fn load(path: &Path) -> Result<Self, StorageError> {
+        let mut file = std::fs::File::open(path)?;
+
+        // Read and verify header
+        let mut magic = [0u8; 4];
+        file.read_exact(&mut magic)?;
+        if &magic != b"CSR1" {
+            return Err(StorageError::InvalidDataFormat {
+                reason: "Invalid CSR file magic".to_string(),
+            });
+        }
+
+        let mut buf8 = [0u8; 8];
+        file.read_exact(&mut buf8)?;
+        let num_nodes = u64::from_le_bytes(buf8) as usize;
+        file.read_exact(&mut buf8)?;
+        let num_edges = u64::from_le_bytes(buf8) as usize;
+
+        // Read row_offsets (num_nodes + 1 entries)
+        let mut row_offsets = Vec::with_capacity(num_nodes + 1);
+        for _ in 0..=num_nodes {
+            file.read_exact(&mut buf8)?;
+            row_offsets.push(u64::from_le_bytes(buf8));
+        }
+
+        // Read col_indices
+        let mut col_indices = Vec::with_capacity(num_edges);
+        for _ in 0..num_edges {
+            file.read_exact(&mut buf8)?;
+            col_indices.push(u64::from_le_bytes(buf8));
+        }
+
+        // Read edge_types
+        let mut buf4 = [0u8; 4];
+        let mut edge_types = Vec::with_capacity(num_edges);
+        for _ in 0..num_edges {
+            file.read_exact(&mut buf4)?;
+            edge_types.push(u32::from_le_bytes(buf4));
+        }
+
+        // Read weights
+        let mut weights = Vec::with_capacity(num_edges);
+        for _ in 0..num_edges {
+            file.read_exact(&mut buf4)?;
+            weights.push(f32::from_le_bytes(buf4));
+        }
+
+        // Read timestamps
+        let mut timestamps = Vec::with_capacity(num_edges);
+        for _ in 0..num_edges {
+            file.read_exact(&mut buf8)?;
+            timestamps.push(u64::from_le_bytes(buf8));
+        }
+
+        Ok(Self {
+            row_offsets,
+            col_indices,
+            edge_types,
+            weights,
+            timestamps,
+        })
+    }
+
+    /// Check if a CSR file exists at the given path
+    pub fn exists(path: &Path) -> bool {
+        path.exists()
     }
 }
 

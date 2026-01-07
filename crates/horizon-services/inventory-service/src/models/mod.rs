@@ -1,4 +1,5 @@
 pub mod asset;
+pub mod conversions;
 pub mod device;
 pub mod enums;
 pub mod history;
@@ -6,6 +7,7 @@ pub mod metrics;
 pub mod reservation;
 
 pub use asset::Asset;
+pub use conversions::NodeInfoBatch;
 pub use device::{
     AvailabilitySchedule, DeviceAsset, DeviceType, NodeTier, UptimeSession, UptimeStats,
 };

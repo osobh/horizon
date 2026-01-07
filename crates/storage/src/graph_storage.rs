@@ -81,20 +81,57 @@ impl GraphStorage {
         let metadata = node_file.metadata().await?;
         let max_nodes = (metadata.len() as usize) / NodeRecord::SIZE;
 
-        // TODO: Load CSR from disk
-        let edge_csr = GraphCSR::new(max_nodes);
+        // Load CSR from disk if it exists, otherwise create new
+        let csr_path = base_path.join("edges/csr.bin");
+        let edge_csr = if GraphCSR::exists(&csr_path) {
+            GraphCSR::load(&csr_path)?
+        } else {
+            GraphCSR::new(max_nodes)
+        };
 
         // Open WAL
         let wal = GraphWAL::new(base_path.join("wal")).await?;
+
+        // Calculate actual node count by scanning the node file for valid entries
+        let actual_node_count = Self::scan_node_count(&node_file_path, max_nodes).await?;
 
         Ok(Self {
             base_path,
             node_file: Arc::new(Mutex::new(node_file)),
             edge_csr: Arc::new(Mutex::new(edge_csr)),
             wal: Arc::new(wal),
-            node_count: Arc::new(Mutex::new(0)), // TODO: Load actual count
+            node_count: Arc::new(Mutex::new(actual_node_count)),
             max_nodes,
         })
+    }
+
+    /// Scan the node file to count valid nodes
+    async fn scan_node_count(path: &std::path::Path, max_nodes: usize) -> Result<usize, StorageError> {
+        use tokio::io::AsyncReadExt;
+
+        let mut file = tokio::fs::File::open(path).await?;
+        let mut highest_valid_id: Option<u64> = None;
+        let mut buffer = [0u8; NodeRecord::SIZE];
+
+        for i in 0..max_nodes {
+            let offset = i * NodeRecord::SIZE;
+            file.seek(tokio::io::SeekFrom::Start(offset as u64)).await?;
+
+            match file.read_exact(&mut buffer).await {
+                Ok(_) => {
+                    // Check if this looks like a valid node (non-zero type_id or flags)
+                    if let Some(record) = NodeRecord::from_bytes(&buffer) {
+                        if record.type_id != 0 || record.flags != 0 || record.edge_count != 0 {
+                            highest_valid_id = Some(record.id.max(highest_valid_id.unwrap_or(0)));
+                        }
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+
+        // Return count as highest_id + 1
+        Ok(highest_valid_id.map(|id| id as usize + 1).unwrap_or(0))
     }
 
     /// Write a node to storage
@@ -301,9 +338,29 @@ impl GraphStorage {
         Ok(())
     }
 
-    /// Force a checkpoint
+    /// Force a checkpoint (saves CSR and flushes WAL)
     pub async fn checkpoint(&self) -> Result<(), StorageError> {
+        // Save the CSR to disk
+        let csr = self.edge_csr.lock().await;
+        let csr_path = self.base_path.join("edges/csr.bin");
+        csr.save(&csr_path)?;
+        drop(csr);
+
+        // Checkpoint WAL
         self.wal.checkpoint().await
+    }
+
+    /// Save the CSR to disk
+    pub async fn save_csr(&self) -> Result<(), StorageError> {
+        let csr = self.edge_csr.lock().await;
+        let csr_path = self.base_path.join("edges/csr.bin");
+        csr.save(&csr_path)
+    }
+
+    /// Get the edge CSR for read-only access
+    pub async fn get_csr(&self) -> Result<GraphCSR, StorageError> {
+        let csr = self.edge_csr.lock().await;
+        Ok(csr.clone())
     }
 }
 

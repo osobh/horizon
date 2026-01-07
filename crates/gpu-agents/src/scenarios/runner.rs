@@ -173,24 +173,163 @@ impl ScenarioRunner {
     /// Run reasoning agent scenario
     fn run_reasoning_scenario(
         &self,
-        _swarm: &mut GpuSwarm,
-        _config: &ScenarioConfig,
-        _metrics: &mut Vec<PerformanceMetric>,
+        swarm: &mut GpuSwarm,
+        config: &ScenarioConfig,
+        metrics: &mut Vec<PerformanceMetric>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // TODO: Implement reasoning scenario execution
-        log::warn!("Reasoning scenario execution not yet implemented");
+        use super::reasoning::ReasoningAgentScenario;
+        use super::config::ReasoningConfig;
+
+        let start_time = Instant::now();
+
+        // Extract reasoning config from scenario type
+        let reasoning_config = match &config.scenario_type {
+            ScenarioType::Reasoning(cfg) => cfg.clone(),
+            _ => return Err("Invalid scenario type for reasoning scenario".into()),
+        };
+
+        // Create reasoning scenario
+        let mut scenario = ReasoningAgentScenario::new(reasoning_config.clone());
+        scenario.initialize_agents(swarm)?;
+
+        let mut step_count = 0;
+        let mut total_decisions = 0u64;
+        let decision_interval = (1.0 / reasoning_config.decision_frequency * 1000.0) as u64;
+
+        // Run simulation
+        while start_time.elapsed() < config.duration {
+            // Simulate decision cycle
+            let cycle_start = Instant::now();
+
+            // Generate prompts for all agents (simulated - actual LLM calls would go here)
+            let agent_states = swarm.get_agent_states()?;
+            let prompts = scenario.generate_prompts(&agent_states);
+
+            // Simulate LLM responses (in production, these would come from actual LLM)
+            let mock_responses: Vec<String> = prompts.iter().map(|_| {
+                // Generate realistic mock response based on agent state
+                format!("Move vx=0.{}, vy=0.{}", step_count % 10, (step_count + 1) % 10)
+            }).collect();
+
+            // Process responses into velocity commands
+            let commands = scenario.process_responses(mock_responses);
+            total_decisions += commands.len() as u64;
+
+            // Update agents
+            scenario.update(swarm)?;
+            step_count += 1;
+
+            // Collect metrics
+            if step_count % 100 == 0 {
+                let elapsed = start_time.elapsed();
+
+                metrics.push(PerformanceMetric {
+                    name: "decisions_per_second".to_string(),
+                    value: total_decisions as f64 / elapsed.as_secs_f64(),
+                    unit: "decisions/s".to_string(),
+                    timestamp: elapsed,
+                });
+
+                metrics.push(PerformanceMetric {
+                    name: "avg_decision_latency_ms".to_string(),
+                    value: cycle_start.elapsed().as_millis() as f64,
+                    unit: "ms".to_string(),
+                    timestamp: elapsed,
+                });
+            }
+
+            // Respect decision frequency
+            std::thread::sleep(std::time::Duration::from_millis(decision_interval.saturating_sub(
+                cycle_start.elapsed().as_millis() as u64
+            )));
+        }
+
+        log::info!(
+            "Reasoning scenario completed: {} steps, {} total decisions",
+            step_count,
+            total_decisions
+        );
+
         Ok(())
     }
 
     /// Run knowledge agent scenario
     fn run_knowledge_scenario(
         &self,
-        _swarm: &mut GpuSwarm,
-        _config: &ScenarioConfig,
-        _metrics: &mut Vec<PerformanceMetric>,
+        swarm: &mut GpuSwarm,
+        config: &ScenarioConfig,
+        metrics: &mut Vec<PerformanceMetric>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // TODO: Implement knowledge scenario execution
-        log::warn!("Knowledge scenario execution not yet implemented");
+        use super::knowledge::KnowledgeAgentScenario;
+
+        let start_time = Instant::now();
+
+        // Extract knowledge config from scenario type
+        let knowledge_config = match &config.scenario_type {
+            ScenarioType::Knowledge(cfg) => cfg.clone(),
+            _ => return Err("Invalid scenario type for knowledge scenario".into()),
+        };
+
+        // Create knowledge scenario
+        let mut scenario = KnowledgeAgentScenario::new(knowledge_config.clone());
+        scenario.initialize_agents(swarm)?;
+
+        let mut step_count = 0;
+        let mut total_knowledge_nodes = 0u64;
+        let mut total_queries = 0u64;
+
+        // Run simulation
+        while start_time.elapsed() < config.duration {
+            // Update knowledge graphs
+            scenario.update(swarm)?;
+            step_count += 1;
+
+            // Simulate knowledge operations
+            let agent_count = swarm.agent_count();
+            for agent_idx in 0..agent_count.min(10) {
+                // Simulate adding knowledge nodes
+                if let Some(graph) = scenario.get_graph(agent_idx) {
+                    total_knowledge_nodes = graph.len() as u64;
+                }
+
+                // Simulate knowledge queries
+                total_queries += 1;
+            }
+
+            // Collect metrics periodically
+            if step_count % 100 == 0 {
+                let elapsed = start_time.elapsed();
+
+                metrics.push(PerformanceMetric {
+                    name: "total_knowledge_nodes".to_string(),
+                    value: scenario.total_nodes() as f64,
+                    unit: "nodes".to_string(),
+                    timestamp: elapsed,
+                });
+
+                metrics.push(PerformanceMetric {
+                    name: "knowledge_queries_per_second".to_string(),
+                    value: total_queries as f64 / elapsed.as_secs_f64(),
+                    unit: "queries/s".to_string(),
+                    timestamp: elapsed,
+                });
+
+                metrics.push(PerformanceMetric {
+                    name: "nodes_per_agent".to_string(),
+                    value: scenario.total_nodes() as f64 / agent_count as f64,
+                    unit: "nodes/agent".to_string(),
+                    timestamp: elapsed,
+                });
+            }
+        }
+
+        log::info!(
+            "Knowledge scenario completed: {} steps, {} total nodes, {} queries",
+            step_count,
+            scenario.total_nodes(),
+            total_queries
+        );
+
         Ok(())
     }
 

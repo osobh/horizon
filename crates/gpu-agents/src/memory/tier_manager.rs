@@ -381,9 +381,184 @@ impl TierManager {
     }
 
     /// Garbage collect unused pages
+    ///
+    /// This performs several cleanup tasks:
+    /// 1. Removes pages with zero access count and no recent access
+    /// 2. Coalesces free memory regions in GPU/CPU allocators
+    /// 3. Cleans up orphaned storage files
+    /// 4. Demotes cold pages to lower tiers
     pub fn garbage_collect(&mut self) -> Result<usize> {
-        // TODO: Implement actual garbage collection
-        Ok(0)
+        let mut collected_count = 0;
+        let now = std::time::Instant::now();
+        let stale_threshold = std::time::Duration::from_secs(300); // 5 minutes
+
+        // Phase 1: Identify and collect stale pages
+        let stale_pages: Vec<PageId> = {
+            let page_table = self.page_table.lock()?;
+            page_table
+                .iter_pages()
+                .filter(|(_, info)| {
+                    // Page is stale if:
+                    // - Has zero access count AND hasn't been accessed in stale_threshold
+                    // - OR is marked as dirty but in a cold tier without recent access
+                    let age = now.duration_since(info.last_access);
+                    (info.access_count == 0 && age > stale_threshold)
+                        || (info.dirty && info.tier > TierLevel::Ssd && age > stale_threshold * 2)
+                })
+                .map(|(id, _)| *id)
+                .collect()
+        };
+
+        // Free stale pages
+        for page_id in stale_pages {
+            if self.free_page(page_id).is_ok() {
+                collected_count += 1;
+            }
+        }
+
+        // Phase 2: Coalesce free memory regions in GPU allocator
+        {
+            let mut gpu_alloc = self.gpu_allocator.lock()?;
+            Self::coalesce_free_list(&mut gpu_alloc.free_list);
+        }
+
+        // Phase 3: Coalesce free memory regions in CPU allocator
+        {
+            let mut cpu_alloc = self.cpu_allocator.lock()?;
+            Self::coalesce_cpu_free_list(&mut cpu_alloc.free_list);
+        }
+
+        // Phase 4: Clean up orphaned storage files
+        collected_count += self.cleanup_orphaned_storage_files()?;
+
+        // Phase 5: Demote cold GPU pages to CPU (if GPU utilization is high)
+        let stats = self.get_statistics();
+        if stats.gpu_utilization_percent > 80.0 {
+            let cold_gpu_pages: Vec<PageId> = {
+                let page_table = self.page_table.lock()?;
+                let mut pages: Vec<_> = page_table
+                    .iter_pages()
+                    .filter(|(_, info)| info.tier == TierLevel::Gpu)
+                    .map(|(id, info)| (*id, info.access_count, info.last_access))
+                    .collect();
+
+                // Sort by access count (ascending) then by last access (oldest first)
+                pages.sort_by(|a, b| {
+                    a.1.cmp(&b.1).then_with(|| b.2.cmp(&a.2))
+                });
+
+                // Take bottom 10% for demotion
+                let demote_count = pages.len() / 10;
+                pages.into_iter().take(demote_count).map(|(id, _, _)| id).collect()
+            };
+
+            for page_id in cold_gpu_pages {
+                if self.migrate_page(page_id, TierLevel::Cpu).is_ok() {
+                    collected_count += 1;
+                }
+            }
+        }
+
+        Ok(collected_count)
+    }
+
+    /// Coalesce adjacent free regions in GPU allocator free list
+    fn coalesce_free_list(free_list: &mut Vec<(u64, usize)>) {
+        if free_list.len() < 2 {
+            return;
+        }
+
+        // Sort by address
+        free_list.sort_by_key(|(addr, _)| *addr);
+
+        let mut i = 0;
+        while i < free_list.len() - 1 {
+            let (addr1, size1) = free_list[i];
+            let (addr2, size2) = free_list[i + 1];
+
+            // Check if regions are adjacent
+            if addr1 + size1 as u64 == addr2 {
+                // Merge regions
+                free_list[i] = (addr1, size1 + size2);
+                free_list.remove(i + 1);
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    /// Coalesce adjacent free regions in CPU allocator free list
+    fn coalesce_cpu_free_list(free_list: &mut Vec<(usize, usize)>) {
+        if free_list.len() < 2 {
+            return;
+        }
+
+        // Sort by offset
+        free_list.sort_by_key(|(offset, _)| *offset);
+
+        let mut i = 0;
+        while i < free_list.len() - 1 {
+            let (offset1, size1) = free_list[i];
+            let (offset2, size2) = free_list[i + 1];
+
+            // Check if regions are adjacent
+            if offset1 + size1 == offset2 {
+                // Merge regions
+                free_list[i] = (offset1, size1 + size2);
+                free_list.remove(i + 1);
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    /// Clean up storage files that don't correspond to any tracked page
+    fn cleanup_orphaned_storage_files(&self) -> Result<usize> {
+        let mut cleaned = 0;
+
+        // Get all tracked page IDs
+        let tracked_pages: std::collections::HashSet<u64> = {
+            let page_table = self.page_table.lock()?;
+            page_table.iter_pages().map(|(id, _)| id.as_u64()).collect()
+        };
+
+        // Check each storage tier
+        for (tier, base_path) in [
+            (TierLevel::Nvme, &self.nvme_path),
+            (TierLevel::Ssd, &self.ssd_path),
+            (TierLevel::Hdd, &self.hdd_path),
+        ] {
+            let pages_dir = base_path.join("pages");
+            if !pages_dir.exists() {
+                continue;
+            }
+
+            if let Ok(entries) = fs::read_dir(&pages_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map(|e| e == "page").unwrap_or(false) {
+                        // Extract page ID from filename
+                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                            if let Ok(page_id) = u64::from_str_radix(stem, 16) {
+                                // Check if this page is tracked
+                                if !tracked_pages.contains(&page_id) {
+                                    // Orphaned file - remove it
+                                    if fs::remove_file(&path).is_ok() {
+                                        cleaned += 1;
+                                        tracing::debug!(
+                                            "Removed orphaned page file: {:?}",
+                                            path
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(cleaned)
     }
 
     /// Get storage paths

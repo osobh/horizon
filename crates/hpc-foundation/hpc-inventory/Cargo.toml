@@ -1,0 +1,44 @@
+[package]
+name = "hpc-inventory"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Shared inventory types and storage for HPC-AI platform"
+
+[dependencies]
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# Async
+async-trait.workspace = true
+tokio.workspace = true
+
+# Date/time
+chrono.workspace = true
+
+# UUID generation
+uuid.workspace = true
+
+# File paths
+dirs = "5.0"
+
+# PostgreSQL support (optional)
+sqlx = { workspace = true, optional = true }
+
+[features]
+default = []
+postgres = ["sqlx"]
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true
