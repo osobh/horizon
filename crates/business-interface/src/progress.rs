@@ -494,6 +494,7 @@ impl ProgressTracker {
                     .total_events
                     .load(std::sync::atomic::Ordering::Relaxed),
             ),
+            _padding: [0u8; 24],
         }
     }
 

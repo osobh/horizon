@@ -255,7 +255,7 @@ impl StatisticsCalculator {
         }
 
         let mut sorted = values.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b)?);
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let q1 = percentile(&sorted, 25.0);
         let q3 = percentile(&sorted, 75.0);

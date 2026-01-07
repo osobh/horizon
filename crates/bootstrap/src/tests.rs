@@ -15,7 +15,7 @@ use crate::{
     monitoring::{AlertCategory, AlertSeverity, BootstrapMonitor},
     population::{AgentStatus, PopulationController},
     safeguards::{BootstrapSafeguards, SafeguardIntervention},
-    BootstrapResult,
+    BootstrapOutput,
 };
 use anyhow::Result;
 use std::collections::HashMap;

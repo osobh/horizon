@@ -558,7 +558,8 @@ impl GpuOptimizer {
     ) -> CostOptimizationResult<GpuAllocation> {
         let allocation_id = Uuid::new_v4();
         let now = Utc::now();
-        let expires_at = now + chrono::Duration::from_std(request.duration)?;
+        let expires_at = now + chrono::Duration::from_std(request.duration)
+            .map_err(|e| CostOptimizationError::Internal(format!("Duration conversion error: {}", e)))?;
 
         let mut memory_per_device = HashMap::new();
         let mut compute_per_device = HashMap::new();

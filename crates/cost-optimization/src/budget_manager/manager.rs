@@ -55,13 +55,14 @@ impl BudgetManager {
             last_updated: Utc::now(),
         };
 
+        let amount = budget.amount;
         self.budgets.insert(budget_id.clone(), budget);
         self.budget_status.insert(budget_id.clone(), status);
 
         let mut metrics = self.metrics.write();
         metrics.total_budgets += 1;
         metrics.active_budgets += 1;
-        metrics.total_allocated += budget.amount;
+        metrics.total_allocated += amount;
 
         info!("Created budget: {}", budget_id);
         Ok(budget_id)

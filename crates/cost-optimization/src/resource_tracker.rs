@@ -638,7 +638,10 @@ impl ResourceTracker {
         retention_period: Duration,
         max_size: usize,
     ) {
-        let cutoff_time = Utc::now() - chrono::Duration::from_std(retention_period)?;
+        let cutoff_time = match chrono::Duration::from_std(retention_period) {
+            Ok(duration) => Utc::now() - duration,
+            Err(_) => return, // Can't convert duration, skip cleanup
+        };
 
         for mut entry in metrics.iter_mut() {
             let metrics = entry.value_mut();

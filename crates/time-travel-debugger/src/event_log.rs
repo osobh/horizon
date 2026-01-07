@@ -356,7 +356,7 @@ impl EventLog {
         );
         stats.insert(
             "event_type_counts".to_string(),
-            serde_json::to_value(event_type_counts)?,
+            serde_json::to_value(event_type_counts).unwrap_or_default(),
         );
 
         if self.config.enable_causality_tracking {

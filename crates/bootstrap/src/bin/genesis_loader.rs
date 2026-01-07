@@ -137,7 +137,9 @@ fn init_logging(level: &str) -> Result<()> {
 async fn load_configuration(config_path: &PathBuf) -> Result<BootstrapConfig> {
     if config_path.exists() {
         info!("Loading configuration from: {}", config_path.display());
-        BootstrapConfig::load_from_file(config_path.to_str()?)
+        let path_str = config_path.to_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid path: contains non-UTF8 characters"))?;
+        BootstrapConfig::load_from_file(path_str)
     } else {
         info!("Configuration file not found, using defaults");
         Ok(BootstrapConfig::default())
@@ -147,6 +149,8 @@ async fn load_configuration(config_path: &PathBuf) -> Result<BootstrapConfig> {
 /// Export default configuration to file
 async fn export_default_config(path: &PathBuf) -> Result<()> {
     let config = BootstrapConfig::default();
-    config.save_to_file(path.to_str()?)?;
+    let path_str = path.to_str()
+        .ok_or_else(|| anyhow::anyhow!("Invalid path: contains non-UTF8 characters"))?;
+    config.save_to_file(path_str)?;
     Ok(())
 }

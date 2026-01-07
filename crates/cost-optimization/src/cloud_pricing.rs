@@ -561,7 +561,7 @@ impl CloudPricingService {
         // Check cache age
         if let Some(timestamp) = self.cache_timestamps.get(&key) {
             if Utc::now() - *timestamp.value()
-                > chrono::Duration::from_std(self.config.cache_duration)?
+                > chrono::Duration::from_std(self.config.cache_duration).ok()?
             {
                 return None; // Cache expired
             }

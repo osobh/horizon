@@ -12,7 +12,7 @@ use crate::{
     dna::AgentDNA,
     population::PopulationController,
     safeguards::BootstrapSafeguards,
-    BootstrapResult,
+    BootstrapOutput,
 };
 use anyhow::Result;
 use std::sync::Arc;
@@ -54,7 +54,7 @@ impl GenesisLoader {
     }
 
     /// Execute the full bootstrap sequence
-    pub async fn bootstrap(&mut self) -> Result<BootstrapResult> {
+    pub async fn bootstrap(&mut self) -> Result<BootstrapOutput> {
         tracing::info!("Starting ExoRust bootstrap sequence");
         self.initialization_time = Some(std::time::Instant::now());
 
@@ -86,7 +86,7 @@ impl GenesisLoader {
             .elapsed();
         tracing::info!("Bootstrap completed in {:?}", elapsed);
 
-        Ok(BootstrapResult {
+        Ok(BootstrapOutput {
             agents_created,
             config: self.config.clone(),
             final_phase: self.phase,

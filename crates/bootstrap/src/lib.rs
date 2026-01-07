@@ -29,9 +29,9 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-/// Bootstrap result containing the initialized agent ecosystem
+/// Bootstrap output containing the initialized agent ecosystem
 #[derive(Debug)]
-pub struct BootstrapResult {
+pub struct BootstrapOutput {
     /// Number of agents successfully created
     pub agents_created: usize,
     /// Bootstrap configuration used

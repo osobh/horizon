@@ -643,6 +643,7 @@ impl BusinessInterface {
                     .avg_processing_time
                     .load(std::sync::atomic::Ordering::Relaxed),
             ),
+            _padding: [0u8; 16],
         }
     }
 

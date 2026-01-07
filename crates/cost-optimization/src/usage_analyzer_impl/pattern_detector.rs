@@ -205,7 +205,7 @@ impl PatternDetector {
 
         // Use median as baseline to reduce impact of outliers
         let mut sorted = utilizations.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b)?);
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let mid = sorted.len() / 2;
         if sorted.len() % 2 == 0 {
