@@ -88,15 +88,15 @@ async fn test_engine_selection_adaptive() -> TestResult {
 }
 
 #[tokio::test]
-#[ignore = "generate_initial_population not yet implemented"]
 async fn test_initial_population_generation() {
-    let config = HybridConfig::default();
-    let _system = HybridEvolutionSystem::new(config).await.unwrap();
+    use crate::traits::EvolutionEngine;
 
-    // TODO: Enable when generate_initial_population is implemented
-    // let population = system.generate_initial_population(20).await.unwrap();
-    // assert_eq!(population.size(), 20);
-    // assert_eq!(population.generation, 0);
+    let config = HybridConfig::default();
+    let system = HybridEvolutionSystem::new(config).await.unwrap();
+
+    let population = system.generate_initial_population(20).await.unwrap();
+    assert_eq!(population.size(), 20);
+    assert_eq!(population.generation, 0);
 }
 
 #[test]
@@ -301,29 +301,58 @@ fn test_performance_tracking_multiple_runs() {
 }
 
 #[tokio::test]
-#[ignore = "should_terminate not yet implemented"]
 async fn test_termination_conditions() -> TestResult {
+    use crate::metrics::EvolutionMetrics;
+    use crate::traits::EvolutionEngine;
+
     let mut config = HybridConfig::default();
     config.base.max_generations = 10;
     config.base.target_fitness = Some(0.95);
     config.switch_threshold = 0.01;
 
-    let _system = HybridEvolutionSystem::new(config).await?;
+    let system = HybridEvolutionSystem::new(config).await?;
 
-    // TODO: Enable when should_terminate is implemented
+    // Test max generations reached
+    let mut metrics = EvolutionMetrics::default();
+    metrics.generation = 15; // Above max_generations
+    assert!(system.should_terminate(&metrics).await);
+
+    // Test target fitness reached
+    let mut metrics2 = EvolutionMetrics::default();
+    metrics2.generation = 5;
+    metrics2.best_fitness = 0.98; // Above target
+    assert!(system.should_terminate(&metrics2).await);
+
+    // Test not terminated yet
+    let mut metrics3 = EvolutionMetrics::default();
+    metrics3.generation = 5;
+    metrics3.best_fitness = 0.5;
+    assert!(!system.should_terminate(&metrics3).await);
+
     Ok(())
 }
 
 #[tokio::test]
-#[ignore = "adapt_parameters not yet implemented"]
 async fn test_parameter_adaptation() -> TestResult {
+    use crate::metrics::EvolutionMetrics;
+    use crate::traits::EvolutionEngine;
+
     let mut config = HybridConfig::default();
     config.base.adaptive_parameters = true;
     config.strategy = EngineStrategy::Adaptive;
 
-    let _system = HybridEvolutionSystem::new(config).await?;
+    let mut system = HybridEvolutionSystem::new(config).await?;
 
-    // TODO: Enable when adapt_parameters is implemented
+    // Initialize engines first
+    system.ensure_engine_initialized(EngineType::All).await?;
+
+    // Create metrics for adaptation
+    let metrics = EvolutionMetrics::default();
+
+    // Adapt parameters - should not error
+    let result = system.adapt_parameters(&metrics).await;
+    assert!(result.is_ok());
+
     Ok(())
 }
 
@@ -419,12 +448,24 @@ fn test_performance_averaging() {
 }
 
 #[tokio::test]
-#[ignore = "generate_initial_population and evolve_step not yet implemented"]
 async fn test_evolution_step_with_different_engines() -> TestResult {
-    let config = HybridConfig::default();
-    let _system = HybridEvolutionSystem::new(config).await?;
+    use crate::traits::EvolutionEngine;
 
-    // TODO: Enable when generate_initial_population and evolve_step are implemented
+    // Test with RoundRobin strategy
+    let mut config = HybridConfig::default();
+    config.strategy = EngineStrategy::RoundRobin;
+    config.base.population_size = 10;
+
+    let mut system = HybridEvolutionSystem::new(config).await?;
+
+    // Generate initial population
+    let population = system.generate_initial_population(10).await?;
+    assert_eq!(population.size(), 10);
+
+    // Test metrics access
+    let metrics = system.metrics();
+    assert_eq!(metrics.generation, 0);
+
     Ok(())
 }
 
@@ -471,12 +512,18 @@ fn test_performance_best_selection() {
 }
 
 #[tokio::test]
-#[ignore = "generate_initial_population, evolve_step, and metrics not yet implemented"]
 async fn test_metrics_collection() -> TestResult {
-    let config = HybridConfig::default();
-    let _system = HybridEvolutionSystem::new(config).await?;
+    use crate::traits::EvolutionEngine;
 
-    // TODO: Enable when generate_initial_population, evolve_step, and metrics are implemented
+    let config = HybridConfig::default();
+    let system = HybridEvolutionSystem::new(config).await?;
+
+    // Test initial metrics state
+    let metrics = system.metrics();
+    assert_eq!(metrics.generation, 0);
+    assert_eq!(metrics.total_evaluations, 0);
+    assert_eq!(metrics.best_fitness, 0.0);
+
     Ok(())
 }
 

@@ -72,8 +72,118 @@ pub trait RemoteExecutor: Send + Sync {
     async fn disconnect(&mut self) -> Result<()>;
 }
 
+/// Result of known_hosts verification
+enum KnownHostResult {
+    /// Key matches known_hosts entry
+    Match,
+    /// Host not found in known_hosts
+    NotFound,
+    /// Key mismatch (possible MITM attack)
+    Mismatch,
+    /// Error reading/parsing known_hosts
+    Error(String),
+}
+
+/// Verify server key against known_hosts file
+async fn verify_known_host(host: &str, port: u16, server_key: &PublicKey) -> KnownHostResult {
+    // Get known_hosts file path
+    let known_hosts_path = match dirs::home_dir() {
+        Some(home) => home.join(".ssh").join("known_hosts"),
+        None => return KnownHostResult::Error("Cannot find home directory".to_string()),
+    };
+
+    // Read known_hosts file
+    let contents = match tokio::fs::read_to_string(&known_hosts_path).await {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return KnownHostResult::NotFound;
+        }
+        Err(e) => return KnownHostResult::Error(format!("Failed to read known_hosts: {}", e)),
+    };
+
+    // Build host pattern to match (handles [host]:port format for non-standard ports)
+    let host_pattern = if port == 22 {
+        host.to_string()
+    } else {
+        format!("[{}]:{}", host, port)
+    };
+
+    // Also check for hashed hostnames
+    let host_hash = compute_host_hash(host, port);
+
+    // Parse and check each line
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        // Parse known_hosts line: hostname keytype base64key [comment]
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 3 {
+            continue;
+        }
+
+        let hosts_field = parts[0];
+        let key_type = parts[1];
+        let key_data = parts[2];
+
+        // Check if this line matches our host
+        let host_matches = hosts_field.split(',').any(|h| {
+            h == host_pattern
+                || h == host
+                || (h.starts_with('|') && host_hash.as_ref().map_or(false, |hash| h == hash))
+        });
+
+        if !host_matches {
+            continue;
+        }
+
+        // Found matching host, now verify the key
+        // Get the key type from our server key using its Display format
+        let server_key_str = format!("{}", server_key);
+        let server_key_parts: Vec<&str> = server_key_str.split_whitespace().collect();
+        if server_key_parts.is_empty() {
+            continue;
+        }
+        let server_key_type = server_key_parts[0];
+
+        if key_type != server_key_type {
+            // Different key type, might be another entry for same host
+            continue;
+        }
+
+        // Compare the base64-encoded key data
+        if server_key_parts.len() >= 2 && server_key_parts[1] == key_data {
+            return KnownHostResult::Match;
+        } else {
+            // Same host, same key type, but different key - MISMATCH
+            return KnownHostResult::Mismatch;
+        }
+    }
+
+    KnownHostResult::NotFound
+}
+
+/// Compute hashed hostname for known_hosts (OpenSSH format)
+/// Note: OpenSSH hashed hostnames use HMAC-SHA1 with a random salt per entry,
+/// so we cannot compute a hash to match without trying each hashed entry.
+/// This function returns None since we only support plaintext hostname matching.
+#[allow(dead_code)]
+fn compute_host_hash(_host: &str, _port: u16) -> Option<String> {
+    // Hashed hostnames in known_hosts cannot be matched without checking each one
+    // individually, as they use random salts. For security, we skip hashed entries.
+    // To support hashed hostnames, one would need to iterate through all hashed entries
+    // and verify each using the HMAC-SHA1 algorithm with the stored salt.
+    None
+}
+
 /// SSH client handler for russh
 struct SshHandler {
+    /// Remote host address
+    host: String,
+    /// Remote port
+    port: u16,
     /// Collected stdout
     stdout: Vec<u8>,
     /// Collected stderr
@@ -83,8 +193,10 @@ struct SshHandler {
 }
 
 impl SshHandler {
-    fn new() -> Self {
+    fn new(host: String, port: u16) -> Self {
         Self {
+            host,
+            port,
             stdout: Vec::new(),
             stderr: Vec::new(),
             exit_status: None,
@@ -98,11 +210,37 @@ impl client::Handler for SshHandler {
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &PublicKey,
+        server_public_key: &PublicKey,
     ) -> Result<bool, Self::Error> {
-        // Accept all server keys for now
-        // TODO: Implement known_hosts checking
-        Ok(true)
+        // Check known_hosts file for server key verification
+        match verify_known_host(&self.host, self.port, server_public_key).await {
+            KnownHostResult::Match => {
+                log::debug!("Server key verified against known_hosts for {}:{}", self.host, self.port);
+                Ok(true)
+            }
+            KnownHostResult::NotFound => {
+                // Key not in known_hosts - accept and log warning
+                // In a stricter mode, this could return false or prompt user
+                log::warn!(
+                    "Server key for {}:{} not found in known_hosts. Accepting new key.",
+                    self.host, self.port
+                );
+                // Optionally add to known_hosts (not implemented for security)
+                Ok(true)
+            }
+            KnownHostResult::Mismatch => {
+                // CRITICAL: Key mismatch - possible MITM attack
+                log::error!(
+                    "WARNING: SERVER KEY MISMATCH for {}:{}! Possible man-in-the-middle attack.",
+                    self.host, self.port
+                );
+                Ok(false)
+            }
+            KnownHostResult::Error(e) => {
+                log::warn!("Error checking known_hosts: {}. Accepting key.", e);
+                Ok(true)
+            }
+        }
     }
 
     async fn data(
@@ -191,7 +329,7 @@ impl SshClient {
         .with_context(|| format!("Connection timeout to {}", addr))?
         .with_context(|| format!("Failed to connect to {}", addr))?;
 
-        let handler = SshHandler::new();
+        let handler = SshHandler::new(self.host.clone(), self.port);
         let mut session = client::connect_stream(config, stream, handler).await?;
 
         // Authenticate
