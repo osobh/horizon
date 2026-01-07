@@ -135,9 +135,16 @@ impl Metal4CommandBuffer {
     where
         F: FnOnce() + Send + 'static,
     {
-        // TODO: Implement when block2 API allows proper MTLCommandBufferHandler creation
-        // The handler signature is: void (^)(id<MTLCommandBuffer>)
-        // For now, users should call wait_until_completed() for synchronous completion
+        // LIMITATION: Async handlers not yet implemented.
+        //
+        // The Objective-C block2 crate does not currently support creating
+        // MTLCommandBufferHandler blocks with the signature: void (^)(id<MTLCommandBuffer>).
+        //
+        // TODO(metal4): Implement when block2 API allows proper MTLCommandBufferHandler creation.
+        // Tracking: https://github.com/example/block2/issues/xxx (placeholder)
+        //
+        // WORKAROUND: Use wait_until_completed() for synchronous completion, or poll
+        // command_buffer.status() for async polling patterns.
     }
 
     /// Add a scheduled handler.
@@ -149,7 +156,10 @@ impl Metal4CommandBuffer {
     where
         F: FnOnce() + Send + 'static,
     {
-        // TODO: Implement when block2 API allows proper MTLCommandBufferHandler creation
+        // LIMITATION: Scheduled handlers not yet implemented.
+        // See add_completion_handler() for details on block2 API constraints.
+        //
+        // TODO(metal4): Implement when block2 API allows proper MTLCommandBufferHandler creation.
     }
 
     /// Get GPU execution time (Metal 4 enhanced).

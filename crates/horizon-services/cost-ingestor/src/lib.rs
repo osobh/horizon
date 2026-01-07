@@ -1,3 +1,5 @@
+//! Cost ingestion service for collecting and normalizing billing data from cloud providers.
+
 pub mod api;
 pub mod config;
 pub mod db;

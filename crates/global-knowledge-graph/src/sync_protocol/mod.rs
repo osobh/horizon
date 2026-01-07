@@ -24,14 +24,13 @@ pub use conflict::{
 pub use consensus::{ConsensusEngine, ConsensusProposal, ConsensusResult, ConsensusVote, Vote};
 pub use gpu::GpuConsensusMetrics;
 pub use metrics::{
-    AggregatedMetrics, ClusterMetrics, ConsensusMetrics, NetworkMetrics, SyncMetrics,
+    AggregatedMetrics, ClusterMetrics, ConsensusMetrics, MetricsCollector, NetworkMetrics,
+    SyncMetrics,
 };
 pub use network::{MessageQueue, SyncMessage};
 pub use protocol::GlobalSyncProtocol;
 pub use state::{ClusterState, ClusterSyncState, KnowledgeCluster};
-pub use types::{KnowledgeOperation, OperationPriority, OperationType, VectorClock};
+pub use types::{KnowledgeOperation, OperationEvidence, OperationPriority, OperationType, VectorClock};
 
-pub use metrics::MetricsCollector;
-pub use protocol::{
-    AnomalySeverity, AnomalyType, OperationEvidence, PerformanceAnomaly, PerformanceReport,
-};
+// Re-export performance types from metrics (used by protocol)
+pub use metrics::{AnomalySeverity, AnomalyType, PerformanceAnomaly, PerformanceReport};

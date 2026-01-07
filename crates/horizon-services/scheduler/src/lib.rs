@@ -1,3 +1,5 @@
+//! GPU workload scheduler service for job submission and tenant management.
+
 pub mod adapters;
 pub mod api;
 pub mod checkpoint;

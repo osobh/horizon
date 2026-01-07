@@ -7,6 +7,7 @@ use hpc_channels::{broadcast, channels, CapacityMessage};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 
 use crate::error::Result;
 use crate::models::{BacktestRequest, BacktestResult, ForecastRequest, ForecastResult};
@@ -32,7 +33,9 @@ impl AppState {
 
     /// Publish a forecast event (non-blocking).
     pub fn publish_forecast_event(&self, event: CapacityMessage) {
-        let _ = self.forecast_events.send(event);
+        if let Err(e) = self.forecast_events.send(event) {
+            warn!(error = ?e, "No subscribers for forecast event");
+        }
     }
 }
 

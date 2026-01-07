@@ -1,3 +1,5 @@
+//! Executive intelligence service for KPI dashboards and strategic cost reporting.
+
 pub mod api;
 pub mod benchmarking;
 pub mod config;

@@ -596,8 +596,12 @@ impl BackupManager {
 
         tokio::spawn(async move {
             while !*shutdown.read() {
-                let mut rx = command_rx.lock().await;
-                if let Some(command) = rx.recv().await {
+                // Cancel-safe: Release lock before processing command
+                let command = {
+                    let mut rx = command_rx.lock().await;
+                    rx.recv().await
+                };
+                if let Some(command) = command {
                     match command {
                         BackupCommand::StartBackup(job_id) => {
                             debug!("Processing backup command for job: {}", job_id);

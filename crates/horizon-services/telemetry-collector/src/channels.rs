@@ -2,6 +2,7 @@
 
 use hpc_channels::{broadcast, channels, TelemetryMessage};
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 
 /// Telemetry event publisher.
 #[derive(Clone)]
@@ -26,17 +27,23 @@ impl TelemetryChannels {
 
     /// Publish a metrics event.
     pub fn publish_metrics(&self, event: TelemetryMessage) {
-        let _ = self.metrics.send(event);
+        if let Err(e) = self.metrics.send(event) {
+            warn!(error = ?e, "No subscribers for metrics event");
+        }
     }
 
     /// Publish an alert event.
     pub fn publish_alert(&self, event: TelemetryMessage) {
-        let _ = self.alerts.send(event);
+        if let Err(e) = self.alerts.send(event) {
+            warn!(error = ?e, "No subscribers for alert event");
+        }
     }
 
     /// Publish a backpressure event.
     pub fn publish_backpressure(&self, event: TelemetryMessage) {
-        let _ = self.backpressure.send(event);
+        if let Err(e) = self.backpressure.send(event) {
+            warn!(error = ?e, "No subscribers for backpressure event");
+        }
     }
 }
 

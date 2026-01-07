@@ -1,3 +1,5 @@
+//! Vendor intelligence service for contract analysis and vendor relationship management.
+
 pub mod analysis;
 pub mod api;
 pub mod config;

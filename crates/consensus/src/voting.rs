@@ -418,26 +418,25 @@ impl VotingRound {
 
     /// Count total stake for votes of given type (parallelized with Rayon)
     fn count_votes_by_type(&self, vote_type: VoteType) -> u64 {
-        // Collect votes into a Vec for parallel iteration
-        let votes: Vec<_> = self.votes.iter().collect();
-
-        // Use Rayon parallel fold/reduce for stake counting
-        votes
-            .par_iter()
+        // Use par_bridge() to avoid intermediate Vec allocation
+        use rayon::iter::ParallelBridge;
+        self.votes
+            .iter()
             .filter(|((_, v_type), _)| *v_type == vote_type)
+            .par_bridge()
             .map(|((validator_id, _), _)| self.validators.get(validator_id).copied().unwrap_or(0))
             .sum()
     }
 
     /// Group commit votes by their value hash (parallelized with Rayon)
     fn group_commit_votes_by_value(&self) -> HashMap<Option<String>, u64> {
-        // Collect votes into a Vec for parallel iteration
-        let votes: Vec<_> = self.votes.iter().collect();
-
-        // Use Rayon parallel fold/reduce for grouping
-        votes
-            .par_iter()
+        // Use par_bridge() to avoid intermediate Vec allocation.
+        // Pre-filter sequentially then parallelize the fold to reduce HashMap allocations.
+        use rayon::iter::ParallelBridge;
+        self.votes
+            .iter()
             .filter(|((_, vote_type), _)| *vote_type == VoteType::Commit)
+            .par_bridge()
             .fold(
                 HashMap::new,
                 |mut acc: HashMap<Option<String>, u64>, ((validator_id, _), vote)| {

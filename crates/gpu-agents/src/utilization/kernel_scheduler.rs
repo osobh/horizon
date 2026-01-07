@@ -1,6 +1,12 @@
 //! Advanced kernel scheduler for optimal GPU utilization
 //!
-//! Implements intelligent kernel scheduling to maximize GPU throughput
+//! Implements intelligent kernel scheduling to maximize GPU throughput.
+//!
+//! **Backend Support:** CUDA only (currently).
+//!
+//! TODO(backends): Add Metal backend support in Phase 2.
+//! The scheduler architecture is backend-agnostic, but the current implementation
+//! uses cudarc for CUDA-specific stream and kernel management.
 
 use crate::utilization::kernel_optimizer::KernelConfig;
 use anyhow::Result;

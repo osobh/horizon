@@ -5,6 +5,7 @@ use axum::{extract::State, Json};
 use hpc_channels::{broadcast, channels, InitiativeMessage};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -29,12 +30,16 @@ impl AppState {
 
     /// Publish a lifecycle event (non-blocking).
     pub fn publish_lifecycle_event(&self, event: InitiativeMessage) {
-        let _ = self.lifecycle_events.send(event);
+        if let Err(e) = self.lifecycle_events.send(event) {
+            warn!(error = ?e, "No subscribers for lifecycle event");
+        }
     }
 
     /// Publish a portfolio event (non-blocking).
     pub fn publish_portfolio_event(&self, event: InitiativeMessage) {
-        let _ = self.portfolio_events.send(event);
+        if let Err(e) = self.portfolio_events.send(event) {
+            warn!(error = ?e, "No subscribers for portfolio event");
+        }
     }
 }
 

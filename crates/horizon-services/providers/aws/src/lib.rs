@@ -1,3 +1,5 @@
+//! AWS cloud provider implementation for GPU capacity management.
+
 pub mod config;
 pub mod ec2;
 pub mod pricing;

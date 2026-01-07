@@ -280,6 +280,9 @@ impl ConsensusProtocol {
 
     /// Handle election message
     async fn handle_election_message(&mut self, message: ElectionMessage) -> ConsensusResult<()> {
+        // TODO(perf): Cache this HashMap in ConsensusProtocol struct and update only when
+        // validators change, instead of rebuilding on every election message.
+        // This clones all ValidatorInfo which is expensive for large validator sets.
         let validators: HashMap<ValidatorId, ValidatorInfo> = self
             .validator
             .active_validators()

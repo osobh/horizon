@@ -1,3 +1,5 @@
+//! Policy governance service for enforcing cost and resource policies.
+
 pub mod api;
 pub mod config;
 pub mod db;

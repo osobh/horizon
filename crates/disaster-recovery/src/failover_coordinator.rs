@@ -683,8 +683,12 @@ impl FailoverCoordinator {
 
         tokio::spawn(async move {
             while !*shutdown.read() {
-                let mut rx = command_rx.lock().await;
-                if let Some(command) = rx.recv().await {
+                // Cancel-safe: Release lock before processing command
+                let command = {
+                    let mut rx = command_rx.lock().await;
+                    rx.recv().await
+                };
+                if let Some(command) = command {
                     match command {
                         FailoverCommand::InitiateFailover(plan_id, trigger) => {
                             info!(

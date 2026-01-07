@@ -29,7 +29,7 @@ pub struct ConsensusVote {
 }
 
 /// Vote types
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Vote {
     Accept,
     Reject,

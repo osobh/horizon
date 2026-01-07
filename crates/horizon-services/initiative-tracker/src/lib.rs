@@ -1,3 +1,5 @@
+//! Initiative tracking service for managing cost optimization projects and their ROI.
+
 pub mod api;
 pub mod config;
 pub mod db;

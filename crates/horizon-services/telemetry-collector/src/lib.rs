@@ -1,3 +1,5 @@
+//! Telemetry collection service for metrics, alerts, and observability data.
+
 pub mod backpressure;
 pub mod cardinality;
 pub mod channels;

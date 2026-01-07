@@ -2,6 +2,7 @@ use hpc_channels::{broadcast, channels, CostMessage};
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 
 use crate::config::ReporterConfig;
 use crate::db::{Repository, ViewManager};
@@ -63,11 +64,15 @@ impl AppState {
 
     /// Publish a report event (non-blocking).
     pub fn publish_report_event(&self, event: CostMessage) {
-        let _ = self.report_events.send(event);
+        if let Err(e) = self.report_events.send(event) {
+            warn!(error = ?e, "No subscribers for report event");
+        }
     }
 
     /// Publish an alert event (non-blocking).
     pub fn publish_alert_event(&self, event: CostMessage) {
-        let _ = self.alert_events.send(event);
+        if let Err(e) = self.alert_events.send(event) {
+            warn!(error = ?e, "No subscribers for cost alert event");
+        }
     }
 }

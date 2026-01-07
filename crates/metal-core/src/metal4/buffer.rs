@@ -83,10 +83,16 @@ impl Metal4Buffer {
 
     /// Mark this buffer for residency in a residency set.
     ///
-    /// This is a no-op until Metal 4 is available.
+    /// **Current Status:** No-op (Metal 3 fallback mode).
+    ///
+    /// In Metal 3, residency is managed automatically by the driver. This method
+    /// is provided for forward compatibility with Metal 4's explicit residency API.
     pub fn mark_for_residency(&self) {
-        // TODO: Implement when Metal 4 APIs are available
-        // Will add this buffer to an MTLResidencySet
+        // FALLBACK: No-op in Metal 3 mode. Residency is automatic.
+        //
+        // TODO(metal4): Implement explicit residency management when Metal 4 APIs
+        // are available. This will add the buffer to an MTLResidencySet for
+        // fine-grained GPU memory management.
     }
 }
 

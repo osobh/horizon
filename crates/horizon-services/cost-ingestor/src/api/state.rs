@@ -3,6 +3,7 @@ use crate::normalize::NormalizedBillingSchema;
 use hpc_channels::{broadcast, channels, CostMessage};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -30,11 +31,15 @@ impl AppState {
 
     /// Publish an ingestion event (non-blocking).
     pub fn publish_ingestion_event(&self, event: CostMessage) {
-        let _ = self.ingestion_events.send(event);
+        if let Err(e) = self.ingestion_events.send(event) {
+            warn!(error = ?e, "No subscribers for ingestion event");
+        }
     }
 
     /// Publish an alert event (non-blocking).
     pub fn publish_alert_event(&self, event: CostMessage) {
-        let _ = self.alert_events.send(event);
+        if let Err(e) = self.alert_events.send(event) {
+            warn!(error = ?e, "No subscribers for alert event");
+        }
     }
 }

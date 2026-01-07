@@ -90,9 +90,17 @@ impl Metal4Tensor {
 
     /// Check if this is a native MTLTensor (Metal 4 only).
     ///
-    /// Returns false until Metal 4 is available.
+    /// **Current Status:** Always returns `false` (Metal 3 fallback mode).
+    ///
+    /// Native MTLTensor requires macOS 15+ with Metal 4 support.
     pub fn is_native_tensor(&self) -> bool {
-        // Will return true when Metal 4 is available and we're using MTLTensor
+        // FALLBACK: Always false until Metal 4 runtime detection is implemented.
+        //
+        // TODO(metal4): Add macOS version check:
+        //   if #available(macOS 15, *) { /* check for MTLTensor support */ }
+        //
+        // When Metal 4 is available, this will return true if the tensor is backed
+        // by a native MTLTensor rather than an MTLBuffer-based emulation.
         false
     }
 

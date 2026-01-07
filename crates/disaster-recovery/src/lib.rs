@@ -61,10 +61,7 @@ pub use recovery_planner::{
 };
 
 // Snapshot management exports
-pub use snapshot_manager::{
-    ConsistencyLevel, Snapshot, SnapshotChain, SnapshotManager, SnapshotManagerConfig,
-    SnapshotMetrics, SnapshotState, SnapshotType,
-};
+pub use snapshot_manager::{Snapshot, SnapshotManager, SnapshotState, SnapshotType};
 
 // Data integrity exports
 pub use data_integrity::{

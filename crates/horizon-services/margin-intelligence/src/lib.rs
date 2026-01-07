@@ -1,3 +1,5 @@
+//! Margin intelligence service for customer profitability analysis and pricing simulation.
+
 pub mod api;
 pub mod calculator;
 pub mod config;

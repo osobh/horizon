@@ -9,6 +9,7 @@ use hpc_channels::{broadcast, channels, GovernorMessage};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
 use tower_http::trace::TraceLayer;
+use tracing::warn;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -42,17 +43,23 @@ impl AppState {
 
     /// Publish a policy lifecycle event (non-blocking).
     pub fn publish_policy_event(&self, event: GovernorMessage) {
-        let _ = self.policy_events.send(event);
+        if let Err(e) = self.policy_events.send(event) {
+            warn!(error = ?e, "No subscribers for policy event");
+        }
     }
 
     /// Publish an evaluation event (non-blocking).
     pub fn publish_evaluation_event(&self, event: GovernorMessage) {
-        let _ = self.evaluation_events.send(event);
+        if let Err(e) = self.evaluation_events.send(event) {
+            warn!(error = ?e, "No subscribers for evaluation event");
+        }
     }
 
     /// Publish an alert event (non-blocking).
     pub fn publish_alert_event(&self, event: GovernorMessage) {
-        let _ = self.alert_events.send(event);
+        if let Err(e) = self.alert_events.send(event) {
+            warn!(error = ?e, "No subscribers for alert event");
+        }
     }
 }
 

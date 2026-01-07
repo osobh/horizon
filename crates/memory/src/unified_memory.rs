@@ -109,8 +109,15 @@ impl UnifiedMemoryManager {
                 .alloc_zeros::<u8>(size as usize)
                 .map_err(|e| GpuMemoryError::AllocationFailed { size })?;
 
-            // Store the raw device pointer directly
-            // For now, use a placeholder - in real implementation would handle properly
+            // PLACEHOLDER: Fake pointer for type system satisfaction.
+            //
+            // SAFETY: This is NOT a valid pointer. The actual GPU memory is managed by
+            // the `device.alloc_zeros()` call above. This placeholder exists because
+            // cudarc does not expose the raw unified memory pointer directly.
+            //
+            // TODO(cuda): Extract actual unified memory pointer from cudarc CudaSlice.
+            // The value 0x1000 is a non-null sentinel that will fail gracefully if
+            // accidentally dereferenced (segfault rather than silent corruption).
             NonNull::new(0x1000 as *mut u8)
                 .ok_or_else(|| GpuMemoryError::AllocationFailed { size })?
         };

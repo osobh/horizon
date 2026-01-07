@@ -120,11 +120,19 @@ fn is_metal4_available() -> bool {
 }
 
 /// Check if CUDA is available.
+///
+/// **Current Status:** Always returns `false` (detection not implemented).
 pub fn is_cuda_available() -> bool {
     #[cfg(feature = "cuda")]
     {
-        // TODO: Implement CUDA detection
-        // Check for CUDA runtime or driver
+        // TODO(cuda): Implement CUDA detection.
+        //
+        // Detection should check:
+        // 1. CUDA driver is installed (libcuda.so / nvcuda.dll)
+        // 2. At least one CUDA-capable GPU is present
+        // 3. Driver version meets minimum requirements
+        //
+        // Use cudarc::driver::CudaDevice::count() when available.
         false
     }
 

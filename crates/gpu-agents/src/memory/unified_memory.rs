@@ -33,8 +33,16 @@ impl<T> UnifiedMemory<T> {
                 .context("Failed to allocate unified memory")?
         };
 
-        // Get raw pointer (placeholder - real implementation would get actual unified pointer)
-        let ptr = NonNull::new(1 as *mut T)?; // Placeholder
+        // PLACEHOLDER: Fake pointer for type system satisfaction.
+        //
+        // SAFETY: This is NOT a valid pointer. The actual GPU memory is managed by
+        // `device_ptr` above. This placeholder exists because unified memory access
+        // patterns differ between CUDA (cuMemAllocManaged) and Metal (MTLBuffer with
+        // storageModeShared).
+        //
+        // TODO(cuda): Implement proper unified memory pointer extraction from cudarc.
+        // The cudarc::driver::CudaSlice should expose its raw pointer for host access.
+        let ptr = NonNull::new(1 as *mut T)?;
 
         Ok(Self {
             device,

@@ -1,3 +1,5 @@
+//! Azure cloud provider implementation for GPU capacity management.
+
 use hpc_provider::{
     Availability, CapacityProvider, HealthStatus, Instance, InstanceState, ProviderError,
     ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas, SpotPrices,

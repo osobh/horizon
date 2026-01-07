@@ -3,6 +3,7 @@ use crate::scheduler::Scheduler;
 use hpc_channels::{broadcast, channels, SchedulerMessage};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 
 /// Application state shared across all handlers
 #[derive(Clone)]
@@ -36,12 +37,15 @@ impl AppState {
 
     /// Publish a job event to subscribers
     pub fn publish_job_event(&self, event: SchedulerMessage) {
-        // Ignore errors - no subscribers is fine
-        let _ = self.job_events.send(event);
+        if let Err(e) = self.job_events.send(event) {
+            warn!(error = ?e, "No subscribers for job event");
+        }
     }
 
     /// Publish a tenant event to subscribers
     pub fn publish_tenant_event(&self, event: SchedulerMessage) {
-        let _ = self.tenant_events.send(event);
+        if let Err(e) = self.tenant_events.send(event) {
+            warn!(error = ?e, "No subscribers for tenant event");
+        }
     }
 }

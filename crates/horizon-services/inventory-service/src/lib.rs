@@ -1,3 +1,5 @@
+//! Inventory service for tracking cloud assets and resource discovery.
+
 pub mod api;
 pub mod config;
 pub mod db;

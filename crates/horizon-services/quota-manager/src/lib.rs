@@ -1,3 +1,5 @@
+//! Quota management service for resource allocation and usage limits.
+
 pub mod api;
 pub mod config;
 pub mod db;

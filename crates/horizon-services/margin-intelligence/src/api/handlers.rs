@@ -12,6 +12,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -52,17 +53,23 @@ impl AppState {
 
     /// Publish an analysis event (non-blocking).
     pub fn publish_analysis_event(&self, event: MarginMessage) {
-        let _ = self.analysis_events.send(event);
+        if let Err(e) = self.analysis_events.send(event) {
+            warn!(error = ?e, "No subscribers for margin analysis event");
+        }
     }
 
     /// Publish an alert event (non-blocking).
     pub fn publish_alert_event(&self, event: MarginMessage) {
-        let _ = self.alert_events.send(event);
+        if let Err(e) = self.alert_events.send(event) {
+            warn!(error = ?e, "No subscribers for margin alert event");
+        }
     }
 
     /// Publish a simulation event (non-blocking).
     pub fn publish_simulation_event(&self, event: MarginMessage) {
-        let _ = self.simulation_events.send(event);
+        if let Err(e) = self.simulation_events.send(event) {
+            warn!(error = ?e, "No subscribers for simulation event");
+        }
     }
 }
 

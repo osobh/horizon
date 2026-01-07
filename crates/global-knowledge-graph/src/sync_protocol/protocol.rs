@@ -55,11 +55,8 @@ pub struct PerformanceMetrics {
     pub byzantine_resilience: f32,
 }
 
-// Re-export types that were in the original file
-pub use crate::sync_protocol::metrics::{
-    AnomalySeverity, AnomalyType, PerformanceAnomaly, PerformanceReport,
-};
-pub use crate::sync_protocol::types::OperationEvidence;
+// Note: AnomalySeverity, AnomalyType, PerformanceAnomaly, PerformanceReport, and OperationEvidence
+// are re-exported from the parent mod.rs module to avoid duplicate exports.
 
 impl GlobalSyncProtocol {
     /// Create a new global synchronization protocol

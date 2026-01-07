@@ -1,3 +1,5 @@
+//! Cost attribution service for tracking and allocating cloud spend to teams and projects.
+
 pub mod api;
 pub mod attribution;
 pub mod config;

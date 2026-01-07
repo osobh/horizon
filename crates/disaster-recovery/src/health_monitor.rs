@@ -613,8 +613,12 @@ impl HealthMonitor {
 
         tokio::spawn(async move {
             while !*shutdown.read() {
-                let mut rx = command_rx.lock().await;
-                if let Some(command) = rx.recv().await {
+                // Cancel-safe: Release lock before processing command
+                let command = {
+                    let mut rx = command_rx.lock().await;
+                    rx.recv().await
+                };
+                if let Some(command) = command {
                     match command {
                         MonitorCommand::HealthCheck(service_id) => {
                             if let Some(service) = services.get(&service_id) {

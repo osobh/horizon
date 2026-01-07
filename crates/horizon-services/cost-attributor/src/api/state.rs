@@ -2,6 +2,7 @@ use crate::{config::Config, db::Repository};
 use hpc_channels::{broadcast, channels, CostMessage};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,6 +25,8 @@ impl AppState {
 
     /// Publish an attribution event (non-blocking).
     pub fn publish_attribution_event(&self, event: CostMessage) {
-        let _ = self.attribution_events.send(event);
+        if let Err(e) = self.attribution_events.send(event) {
+            warn!(error = ?e, "No subscribers for attribution event");
+        }
     }
 }

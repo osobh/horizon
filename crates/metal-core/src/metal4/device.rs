@@ -99,7 +99,12 @@ impl Metal4Device {
     /// Returns 0 if argument tables are not supported.
     pub fn max_argument_table_capacity(&self) -> usize {
         if self.supports_argument_table() {
-            // TODO: Query actual limit when Metal 4 is available
+            // FALLBACK: Returns conservative default until Metal 4 runtime query available.
+            //
+            // TODO(metal4): Query actual device limit via MTLDevice.argumentTableMaxSize
+            // when running on macOS 15+ with Metal 4 support.
+            //
+            // The value 1024 is a safe minimum for Apple Silicon GPUs (M1+).
             1024
         } else {
             0

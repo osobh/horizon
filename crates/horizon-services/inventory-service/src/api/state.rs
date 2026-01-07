@@ -3,6 +3,7 @@
 use hpc_channels::{broadcast, channels, InventoryMessage};
 use sqlx::PgPool;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 
 /// Application state shared across all handlers.
 #[derive(Clone)]
@@ -31,12 +32,15 @@ impl AppState {
 
     /// Publish an asset lifecycle event.
     pub fn publish_asset_event(&self, event: InventoryMessage) {
-        // Ignore errors - no subscribers is fine
-        let _ = self.asset_events.send(event);
+        if let Err(e) = self.asset_events.send(event) {
+            warn!(error = ?e, "No subscribers for asset event");
+        }
     }
 
     /// Publish a discovery event.
     pub fn publish_discovery_event(&self, event: InventoryMessage) {
-        let _ = self.discovery_events.send(event);
+        if let Err(e) = self.discovery_events.send(event) {
+            warn!(error = ?e, "No subscribers for discovery event");
+        }
     }
 }

@@ -1,3 +1,5 @@
+//! MCP (Model Context Protocol) server for the GPU scheduler service.
+
 pub mod server;
 pub mod tools;
 pub mod schema;

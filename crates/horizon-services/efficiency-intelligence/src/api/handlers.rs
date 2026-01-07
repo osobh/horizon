@@ -5,6 +5,7 @@ use axum::{extract::State, Json};
 use hpc_channels::{broadcast, channels, EfficiencyMessage};
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -29,12 +30,16 @@ impl AppState {
 
     /// Publish a detection event (non-blocking).
     pub fn publish_detection_event(&self, event: EfficiencyMessage) {
-        let _ = self.detection_events.send(event);
+        if let Err(e) = self.detection_events.send(event) {
+            warn!(error = ?e, "No subscribers for detection event");
+        }
     }
 
     /// Publish a summary event (non-blocking).
     pub fn publish_summary_event(&self, event: EfficiencyMessage) {
-        let _ = self.summary_events.send(event);
+        if let Err(e) = self.summary_events.send(event) {
+            warn!(error = ?e, "No subscribers for summary event");
+        }
     }
 }
 

@@ -1,3 +1,5 @@
+//! Bare metal provider implementation for on-premises GPU infrastructure.
+
 use hpc_provider::{
     Availability, CapacityProvider, HealthStatus, Instance, InstanceState, ProviderError,
     ProviderResult, ProvisionResult, ProvisionSpec, Quote, QuoteRequest, ServiceQuotas, SpotPrices,

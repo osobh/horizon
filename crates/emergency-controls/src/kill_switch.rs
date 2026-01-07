@@ -216,7 +216,8 @@ impl KillSwitchSystem {
 
         // Set global kill flag
         self.global_kill.store(true, Ordering::SeqCst);
-        self.metrics.global_kills.fetch_add(1, Ordering::Relaxed);
+        // Release: synchronizes with Acquire loads of active_kills
+        self.metrics.global_kills.fetch_add(1, Ordering::Release);
 
         // Kill all agents
         let agent_count = self.agent_kill_switches.len();
@@ -224,9 +225,10 @@ impl KillSwitchSystem {
             entry.value().activated.store(true, Ordering::SeqCst);
         }
 
+        // Release: synchronizes with Acquire load at kill limit check
         self.metrics
             .active_kills
-            .store(agent_count as u64, Ordering::Relaxed);
+            .store(agent_count as u64, Ordering::Release);
 
         // Broadcast event
         let event = KillSwitchEvent {
@@ -260,7 +262,8 @@ impl KillSwitchSystem {
             entry.value().activated.store(false, Ordering::SeqCst);
         }
 
-        self.metrics.active_kills.store(0, Ordering::Relaxed);
+        // Release: synchronizes with Acquire load at kill limit check
+        self.metrics.active_kills.store(0, Ordering::Release);
 
         let event = KillSwitchEvent {
             event_id: Uuid::new_v4().to_string(),
@@ -282,7 +285,8 @@ impl KillSwitchSystem {
         let config = self.config.read().await;
 
         // Check concurrent kill limit
-        let active_kills = self.metrics.active_kills.load(Ordering::Relaxed);
+        // Acquire: synchronizes with Release stores of active_kills
+        let active_kills = self.metrics.active_kills.load(Ordering::Acquire);
         if active_kills >= config.max_concurrent_kills as u64 {
             return Err(EmergencyError::KillSwitchFailed {
                 reason: format!(
@@ -315,8 +319,10 @@ impl KillSwitchSystem {
                 Some(Utc::now() + chrono::Duration::from_std(duration).unwrap());
         }
 
+        // agent_kills: Relaxed is fine (informational counter only)
         self.metrics.agent_kills.fetch_add(1, Ordering::Relaxed);
-        self.metrics.active_kills.fetch_add(1, Ordering::Relaxed);
+        // Release: synchronizes with Acquire load at kill limit check
+        self.metrics.active_kills.fetch_add(1, Ordering::Release);
 
         // Broadcast event
         let event = KillSwitchEvent {
@@ -630,7 +636,8 @@ impl KillSwitchSystem {
             entry.value().activated.store(false, Ordering::SeqCst);
         }
 
-        self.metrics.active_kills.store(0, Ordering::Relaxed);
+        // Release: synchronizes with Acquire load at kill limit check
+        self.metrics.active_kills.store(0, Ordering::Release);
         self.metrics.auto_resets.fetch_add(1, Ordering::Relaxed);
 
         let event = KillSwitchEvent {

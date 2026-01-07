@@ -1,3 +1,5 @@
+//! Cost reporting service for showback, chargeback, and trend analysis.
+
 pub mod api;
 pub mod config;
 pub mod db;

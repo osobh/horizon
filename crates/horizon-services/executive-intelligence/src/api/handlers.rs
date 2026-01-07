@@ -8,6 +8,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -45,22 +46,30 @@ impl AppState {
 
     /// Publish a KPI event (non-blocking).
     pub fn publish_kpi_event(&self, event: ExecutiveMessage) {
-        let _ = self.kpi_events.send(event);
+        if let Err(e) = self.kpi_events.send(event) {
+            warn!(error = ?e, "No subscribers for KPI event");
+        }
     }
 
     /// Publish an initiative event (non-blocking).
     pub fn publish_initiative_event(&self, event: ExecutiveMessage) {
-        let _ = self.initiative_events.send(event);
+        if let Err(e) = self.initiative_events.send(event) {
+            warn!(error = ?e, "No subscribers for initiative event");
+        }
     }
 
     /// Publish an alert event (non-blocking).
     pub fn publish_alert_event(&self, event: ExecutiveMessage) {
-        let _ = self.alert_events.send(event);
+        if let Err(e) = self.alert_events.send(event) {
+            warn!(error = ?e, "No subscribers for alert event");
+        }
     }
 
     /// Publish a report event (non-blocking).
     pub fn publish_report_event(&self, event: ExecutiveMessage) {
-        let _ = self.report_events.send(event);
+        if let Err(e) = self.report_events.send(event) {
+            warn!(error = ?e, "No subscribers for report event");
+        }
     }
 }
 

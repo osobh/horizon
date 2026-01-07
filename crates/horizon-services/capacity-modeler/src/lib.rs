@@ -1,3 +1,5 @@
+//! Capacity modeling service for GPU demand forecasting and resource planning.
+
 pub mod api;
 pub mod config;
 pub mod error;

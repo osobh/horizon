@@ -1,3 +1,5 @@
+//! Efficiency intelligence service for detecting waste and optimizing resource usage.
+
 pub mod analyzer;
 pub mod api;
 pub mod config;

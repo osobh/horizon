@@ -279,8 +279,12 @@ impl RunbookExecutor {
 
         tokio::spawn(async move {
             while !*shutdown.read() {
-                let mut rx = command_rx.lock().await;
-                if let Some(command) = rx.recv().await {
+                // Cancel-safe: Release lock before processing command
+                let command = {
+                    let mut rx = command_rx.lock().await;
+                    rx.recv().await
+                };
+                if let Some(command) = command {
                     match command {
                         ExecutorCommand::ExecuteRunbook(runbook_id, trigger, context) => {
                             if let Ok(_permit) = execution_semaphore.try_acquire() {

@@ -631,8 +631,12 @@ impl ReplicationManager {
 
         tokio::spawn(async move {
             while !*shutdown.read() {
-                let mut rx = command_rx.lock().await;
-                if let Some(command) = rx.recv().await {
+                // Cancel-safe: Release lock before processing command
+                let command = {
+                    let mut rx = command_rx.lock().await;
+                    rx.recv().await
+                };
+                if let Some(command) = command {
                     match command {
                         ReplicationCommand::StartStream(stream_id) => {
                             if let Some(mut stream) = streams.get_mut(&stream_id) {
@@ -654,8 +658,10 @@ impl ReplicationManager {
                         }
                         ReplicationCommand::StopStream(stream_id) => {
                             streams.remove(&stream_id);
-                            metrics.write().active_streams =
-                                metrics.write().active_streams.saturating_sub(1);
+                            {
+                                let mut m = metrics.write();
+                                m.active_streams = m.active_streams.saturating_sub(1);
+                            }
                             info!("Stopped replication stream: {}", stream_id);
                         }
                         ReplicationCommand::ProcessBatch(stream_id, events) => {

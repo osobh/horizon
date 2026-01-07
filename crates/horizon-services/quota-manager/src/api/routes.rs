@@ -4,6 +4,7 @@ use axum::{
 };
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender as BroadcastSender;
+use tracing::warn;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -29,17 +30,23 @@ pub struct AppState {
 impl AppState {
     /// Publish a quota lifecycle event (non-blocking, ignores if no subscribers)
     pub fn publish_quota_event(&self, event: QuotaMessage) {
-        let _ = self.quota_events.send(event);
+        if let Err(e) = self.quota_events.send(event) {
+            warn!(error = ?e, "No subscribers for quota event");
+        }
     }
 
     /// Publish an allocation event (non-blocking, ignores if no subscribers)
     pub fn publish_allocation_event(&self, event: QuotaMessage) {
-        let _ = self.allocation_events.send(event);
+        if let Err(e) = self.allocation_events.send(event) {
+            warn!(error = ?e, "No subscribers for allocation event");
+        }
     }
 
     /// Publish a quota alert event (non-blocking, ignores if no subscribers)
     pub fn publish_alert_event(&self, event: QuotaMessage) {
-        let _ = self.alert_events.send(event);
+        if let Err(e) = self.alert_events.send(event) {
+            warn!(error = ?e, "No subscribers for quota alert event");
+        }
     }
 }
 
