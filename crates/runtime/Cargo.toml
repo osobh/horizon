@@ -21,7 +21,7 @@ uuid.workspace = true
 rand.workspace = true
 
 # HPC Channels integration
-hpc-channels = { path = "../../../02-hpc-channels", optional = true, features = ["rkyv-codec"] }
+hpc-channels = { path = "../../../hpc-channels", optional = true, features = ["rkyv-codec"] }
 
 # Internal dependencies
 stratoswarm-memory = { path = "../memory" }

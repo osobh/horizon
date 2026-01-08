@@ -158,7 +158,7 @@ impl RustgCommands {
                 println!("=====================================");
                 println!();
                 println!("Version:     0.1.0");
-                println!("Location:    00-rust/rustg");
+                println!("Location:    rustg/rustg");
                 println!();
                 println!("Compiler Backend:");
                 println!("  rustc:     {} (detected)", rustc_version());

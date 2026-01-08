@@ -39,22 +39,22 @@ dashmap = "6.1"  # Lock-free concurrent HashMap
 rand = "0.8"  # Random number generation for ephemeral tokens
 
 # Internal crate dependencies (commented out temporarily for testing)
-# hpc-channels = { path = "../../02-hpc-channels", features = ["shared-memory", "rkyv-codec"] }
-# stratoswarm-cluster-mesh = { path = "../../06-stratoswarm/crates/cluster-mesh", optional = true }
-# rtx-distributed = { path = "../../08-rustytorch/crates/training/rtx-distributed", optional = true, default-features = false }
-# warp-core = { path = "../../05-warp/crates/warp-core", optional = true }
-# warp-format = { path = "../../05-warp/crates/warp-format", optional = true }
-# warp-ipc = { path = "../../05-warp/crates/warp-ipc", optional = true }
-# warp-dashboard = { path = "../../05-warp/crates/warp-dashboard", optional = true }
-# vortex-core = { path = "../../09-vortex/crates/vortex-core", optional = true }
+# hpc-channels = { path = "../../hpc-channels", features = ["shared-memory", "rkyv-codec"] }
+# stratoswarm-cluster-mesh = { path = "../../stratoswarm/crates/cluster-mesh", optional = true }
+# rtx-distributed = { path = "../../rustytorch/crates/training/rtx-distributed", optional = true, default-features = false }
+# warp-core = { path = "../../warp/crates/warp-core", optional = true }
+# warp-format = { path = "../../warp/crates/warp-format", optional = true }
+# warp-ipc = { path = "../../warp/crates/warp-ipc", optional = true }
+# warp-dashboard = { path = "../../warp/crates/warp-dashboard", optional = true }
+# vortex-core = { path = "../../vortex/crates/vortex-core", optional = true }
 
 # GPU-accelerated Rust compilation (10x faster)
 # Works on macOS (Metal) and Linux/Windows (CUDA)
-# rustg = { path = "../../00-rust/rustg", optional = true, default-features = false }
+# rustg = { path = "../../rustg/rustg", optional = true, default-features = false }
 
 # SLAI - GPU cluster scheduler with multi-vendor support
 # Includes 'metal' feature for macOS GPU detection
-# slai = { path = "../../04-slai", optional = true }
+# slai = { path = "../../slai", optional = true }
 
 [features]
 # Default: no embedded features (uses mock implementations)

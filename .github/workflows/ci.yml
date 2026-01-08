@@ -26,18 +26,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/hpc-channels
-          path: 02-hpc-channels
+          path: hpc-channels
 
       - name: Checkout warp dependency
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/warp
-          path: 05-warp
+          path: warp
 
       - name: Create symlinks for path dependencies
         run: |
-          ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
-          ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
+          ln -s $GITHUB_WORKSPACE/hpc-channels $GITHUB_WORKSPACE/../hpc-channels
+          ln -s $GITHUB_WORKSPACE/warp $GITHUB_WORKSPACE/../warp
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -88,18 +88,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/hpc-channels
-          path: 02-hpc-channels
+          path: hpc-channels
 
       - name: Checkout warp dependency
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/warp
-          path: 05-warp
+          path: warp
 
       - name: Create symlinks for path dependencies
         run: |
-          ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
-          ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
+          ln -s $GITHUB_WORKSPACE/hpc-channels $GITHUB_WORKSPACE/../hpc-channels
+          ln -s $GITHUB_WORKSPACE/warp $GITHUB_WORKSPACE/../warp
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -126,26 +126,26 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/hpc-channels
-          path: 02-hpc-channels
+          path: hpc-channels
 
       - name: Checkout warp dependency
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/warp
-          path: 05-warp
+          path: warp
 
       - name: Create symlinks for path dependencies (Unix)
         if: runner.os != 'Windows'
         run: |
-          ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
-          ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
+          ln -s $GITHUB_WORKSPACE/hpc-channels $GITHUB_WORKSPACE/../hpc-channels
+          ln -s $GITHUB_WORKSPACE/warp $GITHUB_WORKSPACE/../warp
 
       - name: Create symlinks for path dependencies (Windows)
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          mklink /D "%GITHUB_WORKSPACE%\..\02-hpc-channels" "%GITHUB_WORKSPACE%\02-hpc-channels"
-          mklink /D "%GITHUB_WORKSPACE%\..\05-warp" "%GITHUB_WORKSPACE%\05-warp"
+          mklink /D "%GITHUB_WORKSPACE%\..\hpc-channels" "%GITHUB_WORKSPACE%\hpc-channels"
+          mklink /D "%GITHUB_WORKSPACE%\..\warp" "%GITHUB_WORKSPACE%\warp"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -181,18 +181,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/hpc-channels
-          path: 02-hpc-channels
+          path: hpc-channels
 
       - name: Checkout warp dependency
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/warp
-          path: 05-warp
+          path: warp
 
       - name: Create symlinks for path dependencies
         run: |
-          ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
-          ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
+          ln -s $GITHUB_WORKSPACE/hpc-channels $GITHUB_WORKSPACE/../hpc-channels
+          ln -s $GITHUB_WORKSPACE/warp $GITHUB_WORKSPACE/../warp
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -220,18 +220,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/hpc-channels
-          path: 02-hpc-channels
+          path: hpc-channels
 
       - name: Checkout warp dependency
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/warp
-          path: 05-warp
+          path: warp
 
       - name: Create symlinks for path dependencies
         run: |
-          ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
-          ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
+          ln -s $GITHUB_WORKSPACE/hpc-channels $GITHUB_WORKSPACE/../hpc-channels
+          ln -s $GITHUB_WORKSPACE/warp $GITHUB_WORKSPACE/../warp
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -256,18 +256,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/hpc-channels
-          path: 02-hpc-channels
+          path: hpc-channels
 
       - name: Checkout warp dependency
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/warp
-          path: 05-warp
+          path: warp
 
       - name: Create symlinks for path dependencies
         run: |
-          ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
-          ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
+          ln -s $GITHUB_WORKSPACE/hpc-channels $GITHUB_WORKSPACE/../hpc-channels
+          ln -s $GITHUB_WORKSPACE/warp $GITHUB_WORKSPACE/../warp
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -288,18 +288,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/hpc-channels
-          path: 02-hpc-channels
+          path: hpc-channels
 
       - name: Checkout warp dependency
         uses: actions/checkout@v4
         with:
           repository: rustyhpc/warp
-          path: 05-warp
+          path: warp
 
       - name: Create symlinks for path dependencies
         run: |
-          ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
-          ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
+          ln -s $GITHUB_WORKSPACE/hpc-channels $GITHUB_WORKSPACE/../hpc-channels
+          ln -s $GITHUB_WORKSPACE/warp $GITHUB_WORKSPACE/../warp
 
       - name: Install CUDA
         run: |

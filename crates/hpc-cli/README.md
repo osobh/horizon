@@ -16,7 +16,7 @@ The most powerful unified command-line tool for HPC-AI operators to query, deplo
 ### From Source
 
 ```bash
-cd 01-hpc-cli
+cd hpc-cli
 cargo build --release
 
 # Optional: Add to PATH
@@ -64,19 +64,19 @@ Each HPC-AI project has its own subcommand:
 
 | Command | Project | Description |
 |---------|---------|-------------|
-| `hpc rustg` | 00-rust | GPU-accelerated Rust compiler |
-| `hpc channels` | 02-hpc-channels | IPC and message passing utilities |
-| `hpc parcode` | 03-parcode | Lazy-loading object storage |
-| `hpc rmpi` | 04-rmpi | Rust MPI utilities |
-| `hpc rnccl` | 05-rnccl | GPU collective communication |
-| `hpc slai` | 06-slai | GPU detection and cluster management |
-| `hpc warp` | 07-warp | GPU-accelerated bulk data transfer |
-| `hpc swarm` | 08-stratoswarm | Unified orchestration platform |
-| `hpc spark` | 09-rustyspark | Distributed data processing |
-| `hpc torch` | 10-rustytorch | GPU-accelerated ML training |
-| `hpc vortex` | 11-vortex | Intelligent edge proxy |
-| `hpc nebula` | 12-nebula | Real-time communication |
-| `hpc argus` | 14-argus | Observability platform |
+| `hpc rustg` | rustg | GPU-accelerated Rust compiler |
+| `hpc channels` | hpc-channels | IPC and message passing utilities |
+| `hpc parcode` | parcode | Lazy-loading object storage |
+| `hpc rmpi` | rmpi | Rust MPI utilities |
+| `hpc rnccl` | rnccl | GPU collective communication |
+| `hpc slai` | slai | GPU detection and cluster management |
+| `hpc warp` | warp | GPU-accelerated bulk data transfer |
+| `hpc swarm` | stratoswarm | Unified orchestration platform |
+| `hpc spark` | rustyspark | Distributed data processing |
+| `hpc torch` | rustytorch | GPU-accelerated ML training |
+| `hpc vortex` | vortex | Intelligent edge proxy |
+| `hpc nebula` | nebula | Real-time communication |
+| `hpc argus` | argus | Observability platform |
 
 ### Meta Commands
 

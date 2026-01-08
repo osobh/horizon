@@ -44,7 +44,7 @@ impl ProjectCategory {
 pub struct Project {
     /// Project identifier (e.g., "rnccl", "torch")
     pub id: String,
-    /// Directory name (e.g., "05-rnccl")
+    /// Directory name (e.g., "rnccl")
     pub dir_name: String,
     /// Display name
     pub name: String,
@@ -112,7 +112,7 @@ pub fn get_all_projects() -> Vec<Project> {
         // Core Infrastructure (00-02)
         Project::new(
             "rustg",
-            "00-rust",
+            "rustg",
             "Rustg",
             "GPU-accelerated Rust compiler",
             ProjectCategory::Core,
@@ -120,7 +120,7 @@ pub fn get_all_projects() -> Vec<Project> {
         .non_deployable(),
         Project::new(
             "channels",
-            "02-hpc-channels",
+            "hpc-channels",
             "HPC Channels",
             "Ultra-low latency IPC foundation",
             ProjectCategory::Core,
@@ -129,7 +129,7 @@ pub fn get_all_projects() -> Vec<Project> {
         // Storage & Communication (03-05)
         Project::new(
             "parcode",
-            "03-parcode",
+            "parcode",
             "Parcode",
             "Lazy-loading object storage",
             ProjectCategory::Storage,
@@ -137,7 +137,7 @@ pub fn get_all_projects() -> Vec<Project> {
         .with_dependency("channels"),
         Project::new(
             "rmpi",
-            "04-rmpi",
+            "rmpi",
             "RMPI",
             "Rust MPI utilities",
             ProjectCategory::Storage,
@@ -145,7 +145,7 @@ pub fn get_all_projects() -> Vec<Project> {
         .with_dependency("channels"),
         Project::new(
             "rnccl",
-            "05-rnccl",
+            "rnccl",
             "RNCCL",
             "GPU collective communication",
             ProjectCategory::Storage,
@@ -154,7 +154,7 @@ pub fn get_all_projects() -> Vec<Project> {
         // GPU Management (06)
         Project::new(
             "slai",
-            "06-slai",
+            "slai",
             "SLAI",
             "GPU detection and cluster management",
             ProjectCategory::Gpu,
@@ -164,7 +164,7 @@ pub fn get_all_projects() -> Vec<Project> {
         // Data Transfer & Orchestration (07-08)
         Project::new(
             "warp",
-            "07-warp",
+            "warp",
             "WARP",
             "GPU-accelerated bulk data transfer",
             ProjectCategory::Orchestration,
@@ -172,7 +172,7 @@ pub fn get_all_projects() -> Vec<Project> {
         .with_dependency("channels"),
         Project::new(
             "stratoswarm",
-            "08-stratoswarm",
+            "stratoswarm",
             "StratoSwarm",
             "Unified orchestration platform",
             ProjectCategory::Orchestration,
@@ -182,7 +182,7 @@ pub fn get_all_projects() -> Vec<Project> {
         // Data Processing & ML (09-10)
         Project::new(
             "spark",
-            "09-rustyspark",
+            "rustyspark",
             "RustySpark",
             "Distributed data processing",
             ProjectCategory::DataProcessing,
@@ -190,7 +190,7 @@ pub fn get_all_projects() -> Vec<Project> {
         .with_dependencies(&["rmpi", "warp"]),
         Project::new(
             "torch",
-            "10-rustytorch",
+            "rustytorch",
             "RustyTorch",
             "GPU-accelerated ML training",
             ProjectCategory::DataProcessing,
@@ -199,7 +199,7 @@ pub fn get_all_projects() -> Vec<Project> {
         // Networking (11-12)
         Project::new(
             "vortex",
-            "11-vortex",
+            "vortex",
             "Vortex",
             "Intelligent edge proxy",
             ProjectCategory::Networking,
@@ -208,7 +208,7 @@ pub fn get_all_projects() -> Vec<Project> {
         .with_port(8443),
         Project::new(
             "nebula",
-            "12-nebula",
+            "nebula",
             "Nebula",
             "Real-time communication",
             ProjectCategory::Networking,
@@ -218,7 +218,7 @@ pub fn get_all_projects() -> Vec<Project> {
         // Observability (14)
         Project::new(
             "argus",
-            "14-argus",
+            "argus",
             "Argus",
             "Observability platform",
             ProjectCategory::Observability,

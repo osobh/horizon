@@ -51,7 +51,7 @@
 ### Phase 4: P2P & Collaboration ✓
 
 #### 4.1 Nebula - EphemeralPeerRegistry ✓
-**Location**: `/10-nebula/crates/nebula-core/src/ephemeral.rs`
+**Location**: `/nebula/crates/nebula-core/src/ephemeral.rs`
 - [x] Created `ephemeral.rs` module in nebula-core
 - [x] Implemented EphemeralPeerRegistry with peer lifecycle
 - [x] Added channel-level access control
@@ -62,7 +62,7 @@
 **Status**: Deferred (covered by EphemeralPeerRegistry channel access)
 
 #### 4.3 Warp - EphemeralRelayAuth ✓
-**Location**: `/05-warp/crates/portal-hub/src/ephemeral_auth.rs` (925 lines)
+**Location**: `/warp/crates/portal-hub/src/ephemeral_auth.rs` (925 lines)
 - [x] Created ephemeral_auth.rs in portal-hub
 - [x] Implemented token validation for relay requests
 - [x] Added target-based authorization (who can relay to whom)
@@ -71,7 +71,7 @@
 - [x] Full test coverage (15 tests)
 
 #### 4.4 Horizon - EphemeralBridge (Tauri) ✓
-**Location**: `/06-stratoswarm/src-tauri/src/ephemeral_bridge.rs` (~600 lines)
+**Location**: `/stratoswarm/src-tauri/src/ephemeral_bridge.rs` (~600 lines)
 - [x] Created ephemeral_bridge.rs with EphemeralBridge struct
 - [x] Implemented all Tauri commands (11 commands)
 - [x] Added commands/ephemeral.rs for command module
@@ -83,14 +83,14 @@
 ### Phase 5: Frontend & Polish ✓
 
 #### 5.1 Horizon Frontend - Ephemeral Store ✓
-**Location**: `/06-stratoswarm/web/src/stores/ephemeralStore.ts`
+**Location**: `/stratoswarm/web/src/stores/ephemeralStore.ts`
 - [x] Created ephemeralStore.ts with Zustand
 - [x] Implemented Tauri invoke wrappers
 - [x] Added real-time presence updates via Tauri events
 - [x] Handle connection quality monitoring
 
 #### 5.2 Horizon Frontend - Components ✓
-**Location**: `/06-stratoswarm/web/src/components/ephemeral/`
+**Location**: `/stratoswarm/web/src/components/ephemeral/`
 
 | Component | Status |
 |-----------|--------|
@@ -101,11 +101,11 @@
 
 #### 5.3 Background Workers ✓
 
-**Expiry Worker** (`/06-stratoswarm/crates/horizon-services/quota-manager/src/workers/`):
+**Expiry Worker** (`/stratoswarm/crates/horizon-services/quota-manager/src/workers/`):
 - [x] Created workers module in quota-manager
 - [x] Implemented ExpiryWorker with configurable interval
 
-**Identity Cleanup Worker** (`/06-stratoswarm/crates/hpc-foundation/hpc-ephemeral-identity/src/workers/`):
+**Identity Cleanup Worker** (`/stratoswarm/crates/hpc-foundation/hpc-ephemeral-identity/src/workers/`):
 - [x] Created workers module in hpc-ephemeral-identity
 - [x] Implemented CleanupWorker with configurable interval
 - [x] Added expiry processing for identities, invitations, tokens
@@ -114,7 +114,7 @@
 
 ### Database Migrations ✓
 
-**Location**: `/06-stratoswarm/crates/horizon-services/quota-manager/migrations/`
+**Location**: `/stratoswarm/crates/horizon-services/quota-manager/migrations/`
 - [x] `00002_ephemeral_quotas.up.sql` + down migration
 - [x] `00003_resource_pools.up.sql` + down migration
 - [x] `00004_time_windows.up.sql` + down migration

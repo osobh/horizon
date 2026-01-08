@@ -36,7 +36,7 @@ Horizon is the unified interface for the HPC-AI ecosystem, bringing together:
 Horizon integrates unique capabilities from across the HPC-AI stack that no other platform offers:
 
 ### Synergy 1: GPU-Compiled Notebooks
-**Projects**: 00-rust + 10-horizon + 07-rustytorch
+**Projects**: rustg + horizon + rustytorch
 ```
 User types Rust code → GPU compiler (10x faster) → RTX tensor ops → Output
                          ↓
@@ -48,7 +48,7 @@ User types Rust code → GPU compiler (10x faster) → RTX tensor ops → Output
 - **Unique**: No notebook system compiles on GPU. We achieve instant compilation.
 
 ### Synergy 2: Evolution Dashboard
-**Projects**: 05-stratoswarm (ADAS + DGM + SwarmAgentic)
+**Projects**: stratoswarm (ADAS + DGM + SwarmAgentic)
 ```
 ADAS explores design space → DGM evolves agent code → SwarmAgentic optimizes
         ↓                           ↓                        ↓
@@ -59,7 +59,7 @@ ADAS explores design space → DGM evolves agent code → SwarmAgentic optimizes
 - **Unique**: Three evolution engines working in concert with real-time visualization.
 
 ### Synergy 3: RDMA + ZK Visualization
-**Projects**: 09-nebula (RDMA + ZK Proofs + Mesh)
+**Projects**: nebula (RDMA + ZK Proofs + Mesh)
 ```
 GPU A (Machine 1) ←→ 400Gbps RDMA ←→ GPU B (Machine 2)
                           ↓
@@ -71,7 +71,7 @@ GPU A (Machine 1) ←→ 400Gbps RDMA ←→ GPU B (Machine 2)
 - **Unique**: GPU-direct transfers with cryptographic verification.
 
 ### Synergy 4: GPU Data Pipeline
-**Projects**: 04-warp + 10-horizon + 09-nebula
+**Projects**: warp + horizon + nebula
 ```
 Data arrives → WARP GPU encryption (20GB/s) → GPUDirect to GPU memory
                         ↓                              ↓
@@ -82,7 +82,7 @@ Data arrives → WARP GPU encryption (20GB/s) → GPUDirect to GPU memory
 - **Unique**: End-to-end GPU data path from network to training with 20+ GB/s encryption.
 
 ### Synergy 5: Intelligent Edge Proxy
-**Projects**: 08-vortex + 03-SLAI + 05-stratoswarm
+**Projects**: vortex + slai + stratoswarm
 ```
 HTTP request → Vortex proxy → SLAI Brain routes → Knowledge graph decides
                     ↓                 ↓                    ↓
@@ -93,7 +93,7 @@ HTTP request → Vortex proxy → SLAI Brain routes → Knowledge graph decides
 - **Unique**: AI-driven request routing with GPU failure prediction and preemptive migration.
 
 ### Synergy 6: Tensor Mesh
-**Projects**: 09-nebula RDMA + 02-RMPI + 07-rustytorch
+**Projects**: nebula RDMA + rmpi + rustytorch
 ```
 Distributed GPUs ←→ Type-safe RMPI collectives ←→ RDMA transport
                           ↓
@@ -198,7 +198,7 @@ cargo tauri build --features minimal
 ## Project Structure
 
 ```
-10-horizon/
+horizon/
 ├── Cargo.toml                    # Workspace root
 ├── README.md                     # This file
 ├── src-tauri/                    # Rust backend
@@ -268,12 +268,12 @@ cargo tauri build --features minimal
 
 | Feature | Source Project | Integration Method |
 |---------|---------------|-------------------|
-| Notebook execution | 10-horizon | Built-in notebook environment |
-| Cluster management | 05-stratoswarm | `cluster-mesh` crate (Linux only) |
-| ML training | 07-rustytorch | `rtx-distributed` crate (CUDA) |
-| Data transfer | 04-warp | `warp-core` crate |
-| GPU scheduling | 03-SLAI | `slai` crate + `SlaiBridge` (791 lines) |
-| IPC channels | 01-hpc-channels | Unified message types + MeshSwitchboard |
+| Notebook execution | horizon | Built-in notebook environment |
+| Cluster management | stratoswarm | `cluster-mesh` crate (Linux only) |
+| ML training | rustytorch | `rtx-distributed` crate (CUDA) |
+| Data transfer | warp | `warp-core` crate |
+| GPU scheduling | slai | `slai` crate + `SlaiBridge` (791 lines) |
+| IPC channels | hpc-channels | Unified message types + MeshSwitchboard |
 
 ## Implementation Status
 

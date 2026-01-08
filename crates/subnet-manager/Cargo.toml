@@ -88,12 +88,12 @@ reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 tonic = { version = "0.11", optional = true }
 
 # HPC Platform Integration (optional)
-hpc-channels = { path = "../../../02-hpc-channels", optional = true }
+hpc-channels = { path = "../../../hpc-channels", optional = true }
 
 # NAT Traversal & Connectivity Probing (optional)
 # Note: nebula-traverse has WireGuard deps that conflict with warp-crypto
 # Quality tracking is embedded directly to avoid dependency conflicts
-# nebula-traverse = { path = "../../../10-nebula/crates/nebula-traverse", optional = true }
+# nebula-traverse = { path = "../../../nebula/crates/nebula-traverse", optional = true }
 
 # Linux-specific netlink dependencies for wg-netlink feature
 [target.'cfg(target_os = "linux")'.dependencies]

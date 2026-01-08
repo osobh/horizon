@@ -8,19 +8,19 @@
 //!   hpc --tui                    # Launch TUI dashboard
 //!
 //! Available subcommands:
-//!   rustg     - GPU-accelerated compiler (00-rust)
-//!   channels  - IPC utilities (02-hpc-channels)
-//!   parcode   - Lazy-loading storage (03-parcode)
-//!   rmpi      - Message passing (04-rmpi)
-//!   rnccl     - GPU collective communication (05-rnccl)
-//!   slai      - GPU cluster management (06-slai)
-//!   warp      - GPU-accelerated data transfer (07-warp)
-//!   swarm     - StratoSwarm orchestration (08-stratoswarm)
-//!   spark     - Distributed data processing (09-rustyspark)
-//!   torch     - ML training (10-rustytorch)
-//!   vortex    - Edge proxy (11-vortex)
-//!   nebula    - Real-time communication (12-nebula)
-//!   argus     - Observability platform (14-argus)
+//!   rustg     - GPU-accelerated compiler (rustg)
+//!   channels  - IPC utilities (hpc-channels)
+//!   parcode   - Lazy-loading storage (parcode)
+//!   rmpi      - Message passing (rmpi)
+//!   rnccl     - GPU collective communication (rnccl)
+//!   slai      - GPU cluster management (slai)
+//!   warp      - GPU-accelerated data transfer (warp)
+//!   swarm     - StratoSwarm orchestration (stratoswarm)
+//!   spark     - Distributed data processing (rustyspark)
+//!   torch     - ML training (rustytorch)
+//!   vortex    - Edge proxy (vortex)
+//!   nebula    - Real-time communication (nebula)
+//!   argus     - Observability platform (argus)
 //!   stack     - Stack lifecycle management
 //!   deploy    - Quick project deployment
 //!   inventory - Node inventory management
@@ -184,32 +184,32 @@ fn print_system_info() {
     println!("Components (15 projects):");
     println!();
     println!("  Core Infrastructure:");
-    println!("    00-rust:        (use 'hpc rustg info' for details)");
-    println!("    02-hpc-channels: available");
+    println!("    rustg:        (use 'hpc rustg info' for details)");
+    println!("    hpc-channels: available");
     println!();
     println!("  Storage & Communication:");
-    println!("    03-parcode:     (use 'hpc parcode cache stats' for details)");
-    println!("    04-rmpi:        (use 'hpc rmpi info' for details)");
-    println!("    05-rnccl:       (use 'hpc rnccl info' for details)");
+    println!("    parcode:     (use 'hpc parcode cache stats' for details)");
+    println!("    rmpi:        (use 'hpc rmpi info' for details)");
+    println!("    rnccl:       (use 'hpc rnccl info' for details)");
     println!();
     println!("  GPU Management:");
-    println!("    06-slai:        (use 'hpc slai detect' for details)");
+    println!("    slai:        (use 'hpc slai detect' for details)");
     println!();
     println!("  Data Transfer & Orchestration:");
-    println!("    07-warp:        (use 'hpc warp info' for details)");
-    println!("    08-stratoswarm: (use 'hpc swarm status' for details)");
+    println!("    warp:        (use 'hpc warp info' for details)");
+    println!("    stratoswarm: (use 'hpc swarm status' for details)");
     println!();
     println!("  Data Processing & ML:");
-    println!("    09-rustyspark:  (use 'hpc spark status' for details)");
-    println!("    10-rustytorch:  (use 'hpc torch status' for details)");
+    println!("    rustyspark:  (use 'hpc spark status' for details)");
+    println!("    rustytorch:  (use 'hpc torch status' for details)");
     println!();
     println!("  Networking:");
-    println!("    11-vortex:      (use 'hpc vortex status' for details)");
-    println!("    12-nebula:      (use 'hpc nebula status' for details)");
+    println!("    vortex:      (use 'hpc vortex status' for details)");
+    println!("    nebula:      (use 'hpc nebula status' for details)");
     println!();
     println!("  UI & Observability:");
-    println!("    13-horizon:     (desktop app - not in CLI)");
-    println!("    14-argus:       (use 'hpc argus status' for details)");
+    println!("    horizon:     (desktop app - not in CLI)");
+    println!("    argus:       (use 'hpc argus status' for details)");
     println!();
     println!("CLI version: v{}", env!("CARGO_PKG_VERSION"));
 }

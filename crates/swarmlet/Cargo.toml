@@ -58,10 +58,10 @@ hostname = "0.3"
 toml = { workspace = true }
 
 # HPC Channels integration
-hpc-channels = { path = "../../../02-hpc-channels", optional = true, features = ["rkyv-codec"] }
+hpc-channels = { path = "../../../hpc-channels", optional = true, features = ["rkyv-codec"] }
 
 # Warp format for high-speed artifact transfer (31 GB/s)
-warp-format = { path = "../../../07-warp/crates/warp-format", optional = true }
+warp-format = { path = "../../../warp/crates/warp-format", optional = true }
 blake3 = { version = "1.5", optional = true }
 hex = { version = "0.4", optional = true }
 

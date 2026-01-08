@@ -97,7 +97,7 @@ impl RncclCommands {
                 println!("=====================================================");
                 println!();
                 println!("Version:     0.1.0");
-                println!("Location:    05-rnccl");
+                println!("Location:    rnccl");
                 println!();
                 println!("Algorithms:");
                 println!("  - Ring AllReduce (bidirectional)");

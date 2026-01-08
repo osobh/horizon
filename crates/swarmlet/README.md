@@ -474,12 +474,12 @@ stratoswarm/
 ## 📚 Documentation
 
 ### StratoSwarm Architecture
-- [Kernel Integration](docs/architecture/stratoswarm/02-kernel_integration.md) - Kernel modules design
-- [Container Runtime](docs/architecture/stratoswarm/03-container_runtime.md) - Agent containers
-- [Developer Experience](docs/architecture/stratoswarm/04-devx.md) - .swarm format and tools
-- [Intelligence Features](docs/architecture/stratoswarm/05-intelligence.md) - Self-healing and evolution
-- [Zero-Config](docs/architecture/stratoswarm/06-zero-config.md) - Automatic configuration
-- [Cluster Mesh](docs/architecture/stratoswarm/07-cluster_mesh.md) - Heterogeneous nodes
+- [Kernel Integration](docs/architecture/stratoswarm/kernel_integration.md) - Kernel modules design
+- [Container Runtime](docs/architecture/stratoswarm/container_runtime.md) - Agent containers
+- [Developer Experience](docs/architecture/stratoswarm/devx.md) - .swarm format and tools
+- [Intelligence Features](docs/architecture/stratoswarm/intelligence.md) - Self-healing and evolution
+- [Zero-Config](docs/architecture/stratoswarm/zero-config.md) - Automatic configuration
+- [Cluster Mesh](docs/architecture/stratoswarm/cluster_mesh.md) - Heterogeneous nodes
 
 ### ExoRust Foundation  
 - [System Overview](docs/overview.md) - Core architecture and 5-tier memory

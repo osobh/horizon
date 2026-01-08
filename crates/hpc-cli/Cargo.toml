@@ -72,10 +72,10 @@ uuid.workspace = true
 sysinfo.workspace = true
 
 # Internal crate dependencies (paths updated after RNCCL renumbering)
-# warp-cli = { path = "../07-warp/crates/warp-cli", optional = true }
-# stratoswarm-cli = { path = "../08-stratoswarm/crates/stratoswarm-cli", optional = true }
-# vortex-cli = { path = "../11-vortex/crates/vortex-cli", optional = true }
-# nebula-cli = { path = "../12-nebula/crates/nebula-cli", optional = true }
+# warp-cli = { path = "../warp/crates/warp-cli", optional = true }
+# stratoswarm-cli = { path = "../stratoswarm/crates/stratoswarm-cli", optional = true }
+# vortex-cli = { path = "../vortex/crates/vortex-cli", optional = true }
+# nebula-cli = { path = "../nebula/crates/nebula-cli", optional = true }
 
 # Core libraries (using workspace dependencies)
 hpc-channels.workspace = true
@@ -87,49 +87,49 @@ hpc-inventory = { path = "../hpc-foundation/hpc-inventory" }
 stratoswarm-cli = { path = "../stratoswarm-cli" }
 
 # Storage & Communication
-# parcode = { path = "../03-parcode", optional = true }
-# rmpi = { path = "../04-rmpi", optional = true }
-# rnccl = { path = "../05-rnccl", optional = true }
+# parcode = { path = "../parcode", optional = true }
+# rmpi = { path = "../rmpi", optional = true }
+# rnccl = { path = "../rnccl", optional = true }
 
 # GPU Management
-# slai = { path = "../06-slai", optional = true }
+# slai = { path = "../slai", optional = true }
 
 # Data Processing & ML
-# rustyspark = { path = "../09-rustyspark", optional = true }
-# rustytorch = { path = "../10-rustytorch", optional = true }
+# rustyspark = { path = "../rustyspark", optional = true }
+# rustytorch = { path = "../rustytorch", optional = true }
 
 # Observability
-# argus = { path = "../14-argus", optional = true }
+# argus = { path = "../argus", optional = true }
 
 [features]
 default = []
 
 # Feature-gated integrations (uncomment when crates are ready)
 # Core Infrastructure
-# rustg = []  # GPU-accelerated compiler (00-rust)
+# rustg = []  # GPU-accelerated compiler (rustg)
 
 # Storage & Communication
-# parcode = ["dep:parcode"]    # Lazy-loading storage (03-parcode)
-# rmpi = ["dep:rmpi"]          # Message passing (04-rmpi)
-# rnccl = ["dep:rnccl"]        # GPU collective communication (05-rnccl)
+# parcode = ["dep:parcode"]    # Lazy-loading storage (parcode)
+# rmpi = ["dep:rmpi"]          # Message passing (rmpi)
+# rnccl = ["dep:rnccl"]        # GPU collective communication (rnccl)
 
 # GPU Management
-# slai = ["dep:slai"]          # GPU cluster management (06-slai)
+# slai = ["dep:slai"]          # GPU cluster management (slai)
 
 # Data Transfer & Orchestration
-# warp = ["dep:warp-cli"]      # GPU data transfer (07-warp)
-# stratoswarm = ["dep:stratoswarm-cli"]  # Orchestration (08-stratoswarm)
+# warp = ["dep:warp-cli"]      # GPU data transfer (warp)
+# stratoswarm = ["dep:stratoswarm-cli"]  # Orchestration (stratoswarm)
 
 # Data Processing & ML
-# spark = ["dep:rustyspark"]   # Distributed data processing (09-rustyspark)
-# torch = ["dep:rustytorch"]   # ML training (10-rustytorch)
+# spark = ["dep:rustyspark"]   # Distributed data processing (rustyspark)
+# torch = ["dep:rustytorch"]   # ML training (rustytorch)
 
 # Networking
-# vortex = ["dep:vortex-cli"]  # Edge proxy (11-vortex)
-# nebula = ["dep:nebula-cli"]  # Real-time communication (12-nebula)
+# vortex = ["dep:vortex-cli"]  # Edge proxy (vortex)
+# nebula = ["dep:nebula-cli"]  # Real-time communication (nebula)
 
 # Observability
-# argus = ["dep:argus"]        # Observability platform (14-argus)
+# argus = ["dep:argus"]        # Observability platform (argus)
 
 # Enable all features
 # full = ["rustg", "parcode", "rmpi", "rnccl", "slai", "warp", "stratoswarm", "spark", "torch", "vortex", "nebula", "argus"]

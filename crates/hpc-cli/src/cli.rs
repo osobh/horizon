@@ -57,67 +57,67 @@ pub enum OutputFormat {
 pub enum Commands {
     // === Core Infrastructure (00-02) ===
 
-    /// Rustg - GPU-accelerated Rust compiler (00-rust)
+    /// Rustg - GPU-accelerated Rust compiler (rustg)
     #[command(subcommand)]
     Rustg(RustgCommands),
 
-    /// HPC Channels - IPC and message passing utilities (02-hpc-channels)
+    /// HPC Channels - IPC and message passing utilities (hpc-channels)
     #[command(subcommand)]
     Channels(ChannelsCommands),
 
     // === Storage & Communication (03-05) ===
 
-    /// Parcode - Lazy-loading object storage (03-parcode)
+    /// Parcode - Lazy-loading object storage (parcode)
     #[command(subcommand)]
     Parcode(ParcodeCommands),
 
-    /// RMPI - Rust MPI utilities (04-rmpi)
+    /// RMPI - Rust MPI utilities (rmpi)
     #[command(subcommand)]
     Rmpi(RmpiCommands),
 
-    /// RNCCL - Rust-native GPU collective communication (05-rnccl)
+    /// RNCCL - Rust-native GPU collective communication (rnccl)
     #[command(subcommand)]
     Rnccl(RncclCommands),
 
     // === GPU Management (06) ===
 
-    /// SLAI - GPU detection and cluster management (06-slai)
+    /// SLAI - GPU detection and cluster management (slai)
     #[command(subcommand)]
     Slai(SlaiCommands),
 
     // === Data Transfer & Orchestration (07-08) ===
 
-    /// WARP - GPU-accelerated bulk data transfer (07-warp)
+    /// WARP - GPU-accelerated bulk data transfer (warp)
     #[command(subcommand)]
     Warp(WarpCommands),
 
-    /// StratoSwarm - Unified orchestration platform (08-stratoswarm)
+    /// StratoSwarm - Unified orchestration platform (stratoswarm)
     #[command(subcommand)]
     Swarm(SwarmCommands),
 
     // === Data Processing & ML (09-10) ===
 
-    /// RustySpark - Distributed data processing (09-rustyspark)
+    /// RustySpark - Distributed data processing (rustyspark)
     #[command(subcommand)]
     Spark(SparkCommands),
 
-    /// RustyTorch - GPU-accelerated ML training (10-rustytorch)
+    /// RustyTorch - GPU-accelerated ML training (rustytorch)
     #[command(subcommand)]
     Torch(TorchCommands),
 
     // === Networking (11-12) ===
 
-    /// Vortex - Intelligent edge proxy (11-vortex)
+    /// Vortex - Intelligent edge proxy (vortex)
     #[command(subcommand)]
     Vortex(VortexCommands),
 
-    /// Nebula - Rust-native real-time communication (12-nebula)
+    /// Nebula - Rust-native real-time communication (nebula)
     #[command(subcommand)]
     Nebula(NebulaCommands),
 
     // === Observability (14) ===
 
-    /// Argus - Observability platform (14-argus)
+    /// Argus - Observability platform (argus)
     #[command(subcommand)]
     Argus(ArgusCommands),
 

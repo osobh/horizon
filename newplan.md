@@ -208,16 +208,16 @@
 
 | Project | Integration Status | Notes |
 |---------|-------------------|-------|
-| 00-rust (rustg) | Shared types | Memory bank integration |
-| 02-hpc-channels | Complete | Channel infrastructure |
-| 05-rnccl | Complete | GPU collective communication |
-| 06-slai | Complete | GPU scheduling |
-| 07-warp | Complete | Secure file transfer |
-| 09-rustyspark | Pending | Data processing |
-| 10-rustytorch | In Progress | ML training (Phase 13) |
-| 12-nebula | Complete | Peer registry |
-| 11-vortex | Planned | Stream processing |
-| 13-horizon | Merged | Desktop app |
+| rustg (rustg) | Shared types | Memory bank integration |
+| hpc-channels | Complete | Channel infrastructure |
+| rnccl | Complete | GPU collective communication |
+| slai | Complete | GPU scheduling |
+| warp | Complete | Secure file transfer |
+| rustyspark | Pending | Data processing |
+| rustytorch | In Progress | ML training (Phase 13) |
+| nebula | Complete | Peer registry |
+| vortex | Planned | Stream processing |
+| horizon | Merged | Desktop app |
 
 ---
 
