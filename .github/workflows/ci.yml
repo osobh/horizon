@@ -21,7 +21,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Checkout hpc-channels dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/hpc-channels
+          path: ../02-hpc-channels
+
+      - name: Checkout warp dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/warp
+          path: ../05-warp
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -66,7 +78,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Checkout hpc-channels dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/hpc-channels
+          path: ../02-hpc-channels
+
+      - name: Checkout warp dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/warp
+          path: ../05-warp
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       
@@ -87,7 +111,19 @@ jobs:
         rust: [stable, nightly]
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Checkout hpc-channels dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/hpc-channels
+          path: ../02-hpc-channels
+
+      - name: Checkout warp dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/warp
+          path: ../05-warp
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
@@ -117,7 +153,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Checkout hpc-channels dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/hpc-channels
+          path: ../02-hpc-channels
+
+      - name: Checkout warp dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/warp
+          path: ../05-warp
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       
@@ -139,7 +187,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Checkout hpc-channels dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/hpc-channels
+          path: ../02-hpc-channels
+
+      - name: Checkout warp dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/warp
+          path: ../05-warp
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       
@@ -158,7 +218,19 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Checkout hpc-channels dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/hpc-channels
+          path: ../02-hpc-channels
+
+      - name: Checkout warp dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/warp
+          path: ../05-warp
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       
@@ -173,7 +245,19 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Checkout hpc-channels dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/hpc-channels
+          path: ../02-hpc-channels
+
+      - name: Checkout warp dependency
+        uses: actions/checkout@v4
+        with:
+          repository: rustyhpc/warp
+          path: ../05-warp
+
       - name: Install CUDA
         run: |
           # This assumes CUDA is pre-installed on self-hosted runner

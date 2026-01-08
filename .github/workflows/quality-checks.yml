@@ -23,7 +23,19 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Need full history for comparisons
-    
+
+    - name: Checkout hpc-channels dependency
+      uses: actions/checkout@v4
+      with:
+        repository: rustyhpc/hpc-channels
+        path: ../02-hpc-channels
+
+    - name: Checkout warp dependency
+      uses: actions/checkout@v4
+      with:
+        repository: rustyhpc/warp
+        path: ../05-warp
+
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -195,11 +207,23 @@ jobs:
   test-coverage:
     name: Test Coverage Analysis
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
+    - name: Checkout hpc-channels dependency
+      uses: actions/checkout@v4
+      with:
+        repository: rustyhpc/hpc-channels
+        path: ../02-hpc-channels
+
+    - name: Checkout warp dependency
+      uses: actions/checkout@v4
+      with:
+        repository: rustyhpc/warp
+        path: ../05-warp
+
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
 
@@ -232,11 +256,23 @@ jobs:
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
+    - name: Checkout hpc-channels dependency
+      uses: actions/checkout@v4
+      with:
+        repository: rustyhpc/hpc-channels
+        path: ../02-hpc-channels
+
+    - name: Checkout warp dependency
+      uses: actions/checkout@v4
+      with:
+        repository: rustyhpc/warp
+        path: ../05-warp
+
     - name: Run cargo audit
       run: |
         cargo install cargo-audit
@@ -245,11 +281,23 @@ jobs:
   performance-check:
     name: Performance Regression Check
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
+    - name: Checkout hpc-channels dependency
+      uses: actions/checkout@v4
+      with:
+        repository: rustyhpc/hpc-channels
+        path: ../02-hpc-channels
+
+    - name: Checkout warp dependency
+      uses: actions/checkout@v4
+      with:
+        repository: rustyhpc/warp
+        path: ../05-warp
+
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
 
