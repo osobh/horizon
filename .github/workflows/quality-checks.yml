@@ -17,7 +17,7 @@ jobs:
   quality-enforcement:
     name: Enforce Quality Standards
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -28,13 +28,18 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: rustyhpc/hpc-channels
-        path: ../02-hpc-channels
+        path: 02-hpc-channels
 
     - name: Checkout warp dependency
       uses: actions/checkout@v4
       with:
         repository: rustyhpc/warp
-        path: ../05-warp
+        path: 05-warp
+
+    - name: Create symlinks for path dependencies
+      run: |
+        ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
+        ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -216,13 +221,18 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: rustyhpc/hpc-channels
-        path: ../02-hpc-channels
+        path: 02-hpc-channels
 
     - name: Checkout warp dependency
       uses: actions/checkout@v4
       with:
         repository: rustyhpc/warp
-        path: ../05-warp
+        path: 05-warp
+
+    - name: Create symlinks for path dependencies
+      run: |
+        ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
+        ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -265,13 +275,18 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: rustyhpc/hpc-channels
-        path: ../02-hpc-channels
+        path: 02-hpc-channels
 
     - name: Checkout warp dependency
       uses: actions/checkout@v4
       with:
         repository: rustyhpc/warp
-        path: ../05-warp
+        path: 05-warp
+
+    - name: Create symlinks for path dependencies
+      run: |
+        ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
+        ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
 
     - name: Run cargo audit
       run: |
@@ -290,13 +305,18 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: rustyhpc/hpc-channels
-        path: ../02-hpc-channels
+        path: 02-hpc-channels
 
     - name: Checkout warp dependency
       uses: actions/checkout@v4
       with:
         repository: rustyhpc/warp
-        path: ../05-warp
+        path: 05-warp
+
+    - name: Create symlinks for path dependencies
+      run: |
+        ln -s $GITHUB_WORKSPACE/02-hpc-channels $GITHUB_WORKSPACE/../02-hpc-channels
+        ln -s $GITHUB_WORKSPACE/05-warp $GITHUB_WORKSPACE/../05-warp
 
     - name: Setup Rust toolchain
       uses: dtolnay/rust-toolchain@stable
