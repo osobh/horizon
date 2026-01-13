@@ -3,7 +3,7 @@
 //! Demonstrates GPU utilization optimization without the Send trait issues
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::utilization::{
     gpu_metrics::GpuMetricsCollector, gpu_workload_generator::GpuWorkloadGenerator,
     integrated_optimizer::IntegratedGpuOptimizer,
@@ -20,13 +20,13 @@ async fn main() -> Result<()> {
     println!("🚀 GPU Optimization Test - Simplified Version");
     println!("===========================================\n");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Phase 1: Setup
     println!("📋 Phase 1: Setting up optimization components");
-    let mut workload_generator = GpuWorkloadGenerator::new(device.clone())?;
-    let optimizer = IntegratedGpuOptimizer::new(device.clone()).await?;
-    let metrics_collector = GpuMetricsCollector::new(device.clone());
+    let mut workload_generator = GpuWorkloadGenerator::new(ctx.clone())?;
+    let optimizer = IntegratedGpuOptimizer::new(ctx.clone()).await?;
+    let metrics_collector = GpuMetricsCollector::new(ctx.clone());
 
     println!("  ✓ Components initialized");
 

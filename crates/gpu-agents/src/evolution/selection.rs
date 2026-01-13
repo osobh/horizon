@@ -1,7 +1,7 @@
 //! GPU selection strategies for evolution
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr};
 use std::sync::Arc;
 
 use super::population::{GpuPopulation, PopulationPointers};
@@ -23,7 +23,7 @@ pub enum SelectionMethod {
 
 /// GPU Selection Strategy
 pub struct GpuSelectionStrategy {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     method: SelectionMethod,
     elite_percentage: f32,
     /// Buffer for selected indices
@@ -32,7 +32,7 @@ pub struct GpuSelectionStrategy {
 
 impl GpuSelectionStrategy {
     /// Create new selection strategy
-    pub fn new(device: Arc<CudaDevice>, elite_percentage: f32) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, elite_percentage: f32) -> Result<Self> {
         Ok(Self {
             device,
             method: SelectionMethod::Tournament { size: 3 },
@@ -53,11 +53,15 @@ impl GpuSelectionStrategy {
         selection_size: usize,
     ) -> Result<CudaSlice<u32>> {
         // Allocate selection buffer if needed
-        if self.selected_indices.is_none() || self.selected_indices.as_ref()?.len() < selection_size
-        {
+        let needs_alloc = match &self.selected_indices {
+            None => true,
+            Some(buf) => buf.len() < selection_size,
+        };
+        if needs_alloc {
+            let stream = self.device.default_stream();
             // SAFETY: alloc returns uninitialized memory. selected_indices will be
             // written by selection kernels before any reads.
-            self.selected_indices = Some(unsafe { self.device.alloc::<u32>(selection_size)? });
+            self.selected_indices = Some(unsafe { stream.alloc::<u32>(selection_size)? });
         }
 
         let pointers = population.gpu_pointers();
@@ -69,7 +73,8 @@ impl GpuSelectionStrategy {
         let method = self.method.clone();
 
         // Now we can borrow selected_indices mutably
-        let selected = self.selected_indices.as_mut()?;
+        let selected = self.selected_indices.as_mut()
+            .ok_or_else(|| anyhow::anyhow!("selected_indices not initialized"))?;
 
         match method {
             SelectionMethod::Tournament { size } => {
@@ -104,7 +109,7 @@ impl GpuSelectionStrategy {
 
     /// Tournament selection kernel
     fn tournament_selection_kernel(
-        _device: &Arc<CudaDevice>,
+        device: &Arc<CudaContext>,
         pointers: &PopulationPointers,
         selected: &mut CudaSlice<u32>,
         selection_size: usize,
@@ -115,23 +120,27 @@ impl GpuSelectionStrategy {
         // - selected from CudaSlice allocation
         // - population_size and selection_size match actual array sizes
         // - rng_states is null (kernel handles its own RNG)
-        unsafe {
-            crate::evolution::kernels::launch_tournament_selection(
-                pointers.fitness_scores,
-                *selected.device_ptr() as *mut u32,
-                pointers.population_size as u32,
-                selection_size as u32,
-                tournament_size,
-                std::ptr::null_mut(), // rng_states - TODO: proper RNG state management
-                std::ptr::null_mut(), // stream
-            );
+        {
+            let stream = device.default_stream();
+            let (selected_ptr, _guard) = selected.device_ptr(&stream);
+            unsafe {
+                crate::evolution::kernels::launch_tournament_selection(
+                    pointers.fitness_scores,
+                    selected_ptr as *mut u32,
+                    pointers.population_size as u32,
+                    selection_size as u32,
+                    tournament_size,
+                    std::ptr::null_mut(), // rng_states - TODO: proper RNG state management
+                    std::ptr::null_mut(), // stream
+                );
+            }
         }
         Ok(())
     }
 
     /// Elite selection kernel - preserve best individuals
     fn elite_selection_kernel(
-        _device: &Arc<CudaDevice>,
+        device: &Arc<CudaContext>,
         pointers: &PopulationPointers,
         selected: &mut CudaSlice<u32>,
         elite_count: u32,
@@ -139,21 +148,25 @@ impl GpuSelectionStrategy {
         // SAFETY: All pointers are valid device pointers from PopulationPointers
         // (from GpuPopulation allocation). selected is from CudaSlice allocation.
         // population_size matches actual array size. elite_count <= population_size.
-        unsafe {
-            crate::evolution::kernels::launch_elite_preservation(
-                pointers.fitness_scores,
-                pointers.fitness_valid,
-                *selected.device_ptr() as *mut u32,
-                pointers.population_size as u32,
-                elite_count,
-            );
+        {
+            let stream = device.default_stream();
+            let (selected_ptr, _guard) = selected.device_ptr(&stream);
+            unsafe {
+                crate::evolution::kernels::launch_elite_preservation(
+                    pointers.fitness_scores,
+                    pointers.fitness_valid,
+                    selected_ptr as *mut u32,
+                    pointers.population_size as u32,
+                    elite_count,
+                );
+            }
         }
         Ok(())
     }
 
     /// NSGA-II selection kernel for multi-objective optimization
     fn nsga2_selection_kernel(
-        _device: &Arc<CudaDevice>,
+        device: &Arc<CudaContext>,
         pointers: &PopulationPointers,
         selected: &mut CudaSlice<u32>,
         selection_size: usize,
@@ -162,15 +175,19 @@ impl GpuSelectionStrategy {
         // SAFETY: fitness_scores and selected are valid device pointers.
         // GPUAgent pointer is null (not used in this simplified implementation).
         // population_size and selection_size match actual array sizes.
-        unsafe {
-            crate::ffi::launch_nsga2_selection(
-                std::ptr::null_mut(),                // GPUAgent pointer (not used here)
-                pointers.fitness_scores as *mut f32, // Treat as fitness vectors
-                *selected.device_ptr() as *mut u32,
-                pointers.population_size as u32,
-                1, // num_objectives (simplified for now)
-                selection_size as u32,
-            );
+        {
+            let stream = device.default_stream();
+            let (selected_ptr, _guard) = selected.device_ptr(&stream);
+            unsafe {
+                crate::ffi::launch_nsga2_selection(
+                    std::ptr::null_mut(),                // GPUAgent pointer (not used here)
+                    pointers.fitness_scores as *mut f32, // Treat as fitness vectors
+                    selected_ptr as *mut u32,
+                    pointers.population_size as u32,
+                    1, // num_objectives (simplified for now)
+                    selection_size as u32,
+                );
+            }
         }
         Ok(())
     }
@@ -183,11 +200,15 @@ impl GpuSelectionStrategy {
         methods: &[(SelectionMethod, f32)],
     ) -> Result<CudaSlice<u32>> {
         // Allocate combined selection buffer
-        if self.selected_indices.is_none() || self.selected_indices.as_ref()?.len() < selection_size
-        {
+        let needs_alloc = match &self.selected_indices {
+            None => true,
+            Some(buf) => buf.len() < selection_size,
+        };
+        if needs_alloc {
+            let stream = self.device.default_stream();
             // SAFETY: alloc returns uninitialized memory. selected_indices will be
             // written by selection kernels and dtod_copy before any reads.
-            self.selected_indices = Some(unsafe { self.device.alloc::<u32>(selection_size)? });
+            self.selected_indices = Some(unsafe { stream.alloc::<u32>(selection_size)? });
         }
 
         let mut offset = 0;
@@ -207,13 +228,22 @@ impl GpuSelectionStrategy {
         }
 
         // Now copy all partial selections to the combined buffer
-        let selected = self.selected_indices.as_mut()?;
+        let selected = self.selected_indices.as_mut()
+            .ok_or_else(|| anyhow::anyhow!("selected_indices not initialized"))?;
+        let stream = self.device.default_stream();
         for (offset, partial_selection) in partial_selections {
             let count = partial_selection.len();
-            self.device.dtod_copy(
-                &partial_selection,
-                &mut selected.slice_mut(offset..offset + count),
-            )?;
+            // Copy from partial_selection to selected buffer at offset
+            // Use memcpy_dtod for device-to-device copy
+            let src_ptr = partial_selection.device_ptr(&stream).0;
+            let dst_ptr = selected.device_ptr(&stream).0 + (offset * std::mem::size_of::<u32>()) as u64;
+            unsafe {
+                cudarc::driver::sys::cuMemcpyDtoD_v2(
+                    dst_ptr,
+                    src_ptr,
+                    count * std::mem::size_of::<u32>(),
+                );
+            }
         }
 
         Ok(selected.clone())
@@ -247,22 +277,22 @@ mod tests {
 
     #[test]
     fn test_selection_strategy_creation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let strategy = GpuSelectionStrategy::new(device, 0.1)?;
             assert_eq!(strategy.elite_percentage, 0.1);
         }
+        Ok(())
     }
 
     #[test]
     fn test_elite_percentage_clamping() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
-            let strategy = GpuSelectionStrategy::new(device.clone(), 1.5)?;
+        if let Ok(device) = CudaContext::new(0) {
+            let strategy = GpuSelectionStrategy::new(Arc::clone(&device), 1.5)?;
             assert_eq!(strategy.elite_percentage, 1.0);
 
             let strategy = GpuSelectionStrategy::new(device, -0.5)?;
             assert_eq!(strategy.elite_percentage, 0.0);
         }
+        Ok(())
     }
 }

@@ -4,13 +4,14 @@
 
 use crate::synthesis::{Template, Token};
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream, DevicePtr};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// GPU Template Expander for parallel code generation
 pub struct GpuTemplateExpander {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     template_buffer: CudaSlice<u8>,
     binding_buffer: CudaSlice<u8>,
     output_buffer: CudaSlice<u8>,
@@ -19,23 +20,25 @@ pub struct GpuTemplateExpander {
 
 impl GpuTemplateExpander {
     /// Create a new GPU template expander
-    pub fn new(device: Arc<CudaDevice>, max_output_size: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, max_output_size: usize) -> Result<Self> {
+        let stream = device.default_stream();
         // Allocate GPU buffers
         // SAFETY: alloc returns uninitialized memory. template_buffer will be written
-        // via htod_copy_into in expand_template() before the kernel reads it.
-        let template_buffer = unsafe { device.alloc::<u8>(max_output_size) }
+        // via memcpy_htod in expand_template() before the kernel reads it.
+        let template_buffer = unsafe { stream.alloc::<u8>(max_output_size) }
             .context("Failed to allocate template buffer")?;
         // SAFETY: alloc returns uninitialized memory. binding_buffer will be written
-        // via htod_copy_into in expand_template() before the kernel reads it.
-        let binding_buffer = unsafe { device.alloc::<u8>(max_output_size) }
+        // via memcpy_htod in expand_template() before the kernel reads it.
+        let binding_buffer = unsafe { stream.alloc::<u8>(max_output_size) }
             .context("Failed to allocate binding buffer")?;
         // SAFETY: alloc returns uninitialized memory. output_buffer will be cleared
         // to zeros in expand_template() before the kernel writes results.
-        let output_buffer = unsafe { device.alloc::<u8>(max_output_size) }
+        let output_buffer = unsafe { stream.alloc::<u8>(max_output_size) }
             .context("Failed to allocate output buffer")?;
 
         Ok(Self {
             device,
+            stream,
             template_buffer,
             binding_buffer,
             output_buffer,
@@ -54,38 +57,39 @@ impl GpuTemplateExpander {
         let binding_data = self.encode_bindings(bindings)?;
 
         // Copy to GPU
-        self.device
-            .htod_copy_into(template_data.clone(), &mut self.template_buffer.clone())?;
-        self.device
-            .htod_copy_into(binding_data.clone(), &mut self.binding_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&template_data, &mut self.template_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&binding_data, &mut self.binding_buffer.clone())?;
 
         // Clear output buffer
         let zeros = vec![0u8; self.max_output_size];
-        self.device
-            .htod_copy_into(zeros, &mut self.output_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&zeros, &mut self.output_buffer.clone())?;
 
         // Launch template expansion kernel
         // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
-        // - template_buffer: populated via htod_copy_into above
-        // - binding_buffer: populated via htod_copy_into above
+        // - template_buffer: populated via memcpy_htod above
+        // - binding_buffer: populated via memcpy_htod above
         // - output_buffer: cleared to zeros above, kernel writes expanded result
         // - max_output_size matches the allocation size
         unsafe {
+            let (template_ptr, _guard1) = self.template_buffer.device_ptr(&self.stream);
+            let (binding_ptr, _guard2) = self.binding_buffer.device_ptr(&self.stream);
+            let (output_ptr, _guard3) = self.output_buffer.device_ptr(&self.stream);
             crate::synthesis::launch_expand_templates(
-                *self.template_buffer.device_ptr() as *const u8,
-                *self.binding_buffer.device_ptr() as *const u8,
-                *self.output_buffer.device_ptr() as *mut u8,
+                template_ptr as *const u8,
+                binding_ptr as *const u8,
+                output_ptr as *mut u8,
                 1, // Single template for now
                 self.max_output_size as u32,
             );
         }
 
         // Synchronize and get results
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
 
-        let mut output = vec![0u8; self.max_output_size];
-        self.device
-            .dtoh_sync_copy_into(&self.output_buffer, &mut output)?;
+        let output: Vec<u8> = self.stream.clone_dtoh(&self.output_buffer)?;
 
         // Convert output to string
         let result = self.decode_output(&output)?;

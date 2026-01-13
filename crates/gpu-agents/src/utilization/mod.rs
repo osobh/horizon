@@ -4,7 +4,7 @@
 //! through dynamic workload balancing, kernel optimization, and resource management.
 
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::{CudaContext, CudaStream};
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     Arc,
@@ -94,7 +94,7 @@ pub enum OptimizationStrategy {
 
 /// GPU utilization manager
 pub struct UtilizationManager {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     target_utilization: f32,
     metrics: Arc<RwLock<UtilizationMetrics>>,
     is_monitoring: Arc<AtomicBool>,
@@ -104,7 +104,7 @@ pub struct UtilizationManager {
 
 impl UtilizationManager {
     /// Create new utilization manager
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
         Ok(Self {
             device,
             target_utilization: TARGET_UTILIZATION,
@@ -255,7 +255,7 @@ impl UtilizationManager {
     }
 
     /// Measure actual GPU utilization
-    async fn measure_gpu_utilization(device: &Arc<CudaDevice>) -> f32 {
+    async fn measure_gpu_utilization(device: &Arc<CudaContext>) -> f32 {
         // Try to get real metrics
         let collector = gpu_metrics::GpuMetricsCollector::new(device.clone());
         match collector.collect_metrics().await {

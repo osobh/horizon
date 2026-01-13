@@ -1,7 +1,7 @@
 //! Multi-GPU support for massive agent swarms
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 
 use crate::{GpuAgent, GpuSwarm, GpuSwarmConfig};
@@ -48,7 +48,7 @@ impl MultiGpuConfig {
 pub struct MultiGpuSwarm {
     config: MultiGpuConfig,
     gpu_swarms: Vec<GpuSwarm>,
-    devices: Vec<Arc<CudaDevice>>,
+    contexts: Vec<Arc<CudaContext>>,
     agent_distribution: Vec<usize>,
     total_agents: usize,
     steps_executed: usize,
@@ -58,13 +58,13 @@ pub struct MultiGpuSwarm {
 impl MultiGpuSwarm {
     /// Create a new multi-GPU swarm
     pub fn new(config: MultiGpuConfig) -> Result<Self> {
-        let mut devices = Vec::new();
+        let mut contexts = Vec::new();
         let mut gpu_swarms = Vec::new();
 
         // Initialize each GPU
         for &device_id in &config.gpu_devices {
-            let device = CudaDevice::new(device_id as usize)?;
-            devices.push(device);
+            let ctx = CudaContext::new(device_id as usize)?;
+            contexts.push(ctx);
 
             // Create swarm config for this GPU
             let swarm_config = GpuSwarmConfig {
@@ -77,13 +77,13 @@ impl MultiGpuSwarm {
             gpu_swarms.push(swarm);
         }
 
-        let device_count = devices.len();
+        let context_count = contexts.len();
 
         Ok(Self {
             config,
             gpu_swarms,
-            devices,
-            agent_distribution: vec![0; device_count],
+            contexts,
+            agent_distribution: vec![0; context_count],
             total_agents: 0,
             steps_executed: 0,
             sync_overhead_ms: 0.0,
@@ -92,7 +92,7 @@ impl MultiGpuSwarm {
 
     /// Get number of GPUs in use
     pub fn device_count(&self) -> usize {
-        self.devices.len()
+        self.contexts.len()
     }
 
     /// Initialize agents across all GPUs
@@ -213,7 +213,7 @@ impl MultiGpuSwarm {
 
         // Remove failed GPU
         self.gpu_swarms.remove(failed_gpu_id);
-        self.devices.remove(failed_gpu_id);
+        self.contexts.remove(failed_gpu_id);
         self.agent_distribution.remove(failed_gpu_id);
 
         // Redistribute agents to remaining GPUs
@@ -266,10 +266,10 @@ impl MultiGpuSwarm {
 
     /// Get GPU capabilities
     pub fn get_gpu_capabilities(&self) -> Vec<GpuCapability> {
-        self.devices
+        self.contexts
             .iter()
             .enumerate()
-            .map(|(i, _device)| {
+            .map(|(i, _ctx)| {
                 GpuCapability {
                     device_id: self.config.gpu_devices[i],
                     compute_capability: (8, 9),           // RTX 4090/5090
@@ -284,7 +284,7 @@ impl MultiGpuSwarm {
     pub fn metrics(&self) -> MultiGpuMetrics {
         MultiGpuMetrics {
             total_agents: self.total_agents,
-            gpu_count: self.devices.len(),
+            gpu_count: self.contexts.len(),
             steps_executed: self.steps_executed,
             sync_overhead_ms: self.sync_overhead_ms,
             agent_distribution: self.agent_distribution.clone(),

@@ -4,8 +4,8 @@
 //! optimization recommendations to achieve 90% utilization target.
 
 use super::*;
-use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaStream};
+use anyhow::Result;
+use cudarc::driver::CudaContext;
 use dashmap::DashMap;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -17,7 +17,7 @@ use tokio::task::JoinHandle;
 /// GPU utilization analyzer and optimizer
 pub struct GpuUtilizationAnalyzer {
     config: UtilizationConfig,
-    device: Option<Arc<CudaDevice>>,
+    device: Option<Arc<CudaContext>>,
     is_monitoring: Arc<AtomicBool>,
     monitor_handle: Option<JoinHandle<()>>,
     utilization_history: Arc<Mutex<VecDeque<UtilizationSample>>>,
@@ -42,7 +42,7 @@ impl GpuUtilizationAnalyzer {
     }
 
     /// Initialize with CUDA device
-    pub fn with_device(mut self, device: Arc<CudaDevice>) -> Self {
+    pub fn with_device(mut self, device: Arc<CudaContext>) -> Self {
         self.device = Some(device);
         self
     }
@@ -361,7 +361,7 @@ impl GpuUtilizationAnalyzer {
             .map(|s| s.as_str())
         {
             Some("occupancy") => OptimizationStrategy::IncreaseOccupancy {
-                kernel_name: recommendation.parameters.get("kernel")?.clone(),
+                kernel_name: recommendation.parameters.get("kernel").cloned().unwrap_or_default(),
                 target_occupancy: recommendation
                     .parameters
                     .get("target_occupancy")
@@ -370,7 +370,7 @@ impl GpuUtilizationAnalyzer {
                     / 100.0,
             },
             Some("execution_speed") => OptimizationStrategy::OptimizeKernelSpeed {
-                kernel_name: recommendation.parameters.get("kernel")?.clone(),
+                kernel_name: recommendation.parameters.get("kernel").cloned().unwrap_or_default(),
                 target_time_us: recommendation
                     .parameters
                     .get("target_time_us")
@@ -378,7 +378,7 @@ impl GpuUtilizationAnalyzer {
                     .unwrap_or(1000.0),
             },
             Some("memory_bandwidth") => OptimizationStrategy::OptimizeMemoryAccess {
-                kernel_name: recommendation.parameters.get("kernel")?.clone(),
+                kernel_name: recommendation.parameters.get("kernel").cloned().unwrap_or_default(),
                 target_throughput: recommendation
                     .parameters
                     .get("target_throughput_gbps")
@@ -457,7 +457,7 @@ impl GpuUtilizationAnalyzer {
     async fn monitoring_loop(
         is_monitoring: Arc<AtomicBool>,
         config: UtilizationConfig,
-        device: Option<Arc<CudaDevice>>,
+        device: Option<Arc<CudaContext>>,
         utilization_history: Arc<Mutex<VecDeque<UtilizationSample>>>,
         kernel_stats: Arc<DashMap<String, KernelStats>>,
         optimization_stats: Arc<UtilizationStats>,
@@ -493,7 +493,7 @@ impl GpuUtilizationAnalyzer {
         }
     }
 
-    fn query_gpu_utilization(device: &Option<Arc<CudaDevice>>) -> f32 {
+    fn query_gpu_utilization(device: &Option<Arc<CudaContext>>) -> f32 {
         // In a real implementation, would use NVIDIA ML API
         // For now, simulate based on device activity
         if device.is_some() {
@@ -519,7 +519,7 @@ impl GpuUtilizationAnalyzer {
         kernel_stats.len() as u32
     }
 
-    fn query_memory_utilization(device: &Option<Arc<CudaDevice>>) -> f32 {
+    fn query_memory_utilization(device: &Option<Arc<CudaContext>>) -> f32 {
         // In a real implementation, would query actual memory usage
         if device.is_some() {
             0.65 // Simulate 65% memory utilization

@@ -10,7 +10,7 @@ use crate::system_testing::{
     PerformanceTargets, StressTestLevel, SystemTestConfig, SystemTester,
 };
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 
@@ -258,13 +258,13 @@ mod unit_tests {
 mod integration_tests {
     use super::*;
 
-    async fn setup_test_device() -> Result<Arc<CudaDevice>> {
-        CudaDevice::new(0).map(Arc::new).map_err(Into::into)
+    async fn setup_test_context() -> Result<Arc<CudaContext>> {
+        CudaContext::new(0).map_err(Into::into)
     }
 
     #[tokio::test]
     async fn test_system_tester_creation() -> Result<()> {
-        let device = setup_test_device().await?;
+        let ctx = setup_test_context().await?;
         let config = SystemTestConfig {
             gpu_agent_count: 100,
             cpu_agent_count: 500,
@@ -272,7 +272,7 @@ mod integration_tests {
             ..Default::default()
         };
 
-        let tester = SystemTester::new(device, config.clone());
+        let tester = SystemTester::new(ctx, config.clone());
         let status = tester.get_system_status();
 
         assert!(!status.test_running);
@@ -284,7 +284,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_agent_simulator_creation() -> Result<()> {
-        let device = setup_test_device().await?;
+        let ctx = setup_test_context().await?;
         let config = SimulationConfig {
             gpu_agent_count: 50,
             cpu_agent_count: 200,
@@ -293,7 +293,7 @@ mod integration_tests {
             performance_targets: PerformanceTargets::default(),
         };
 
-        let simulator = AgentSimulator::new(device, config);
+        let simulator = AgentSimulator::new(ctx, config);
 
         // Test that simulator was created successfully
         // In a real test, we would verify internal state
@@ -304,7 +304,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_isolation_validator_creation() -> Result<()> {
-        let device = setup_test_device().await?;
+        let ctx = setup_test_context().await?;
         let config = IsolationConfig {
             cpu_agent_count: 100,
             gpu_agent_count: 50,
@@ -312,7 +312,7 @@ mod integration_tests {
             strict_isolation: true,
         };
 
-        let validator = IsolationValidator::new(device, config);
+        let validator = IsolationValidator::new(ctx, config);
 
         // Test that validator was created successfully
         assert!(true); // Placeholder assertion
@@ -322,7 +322,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_quick_simulation_run() -> Result<()> {
-        let device = setup_test_device().await?;
+        let ctx = setup_test_context().await?;
         let config = SimulationConfig {
             gpu_agent_count: 10, // Very small for quick test
             cpu_agent_count: 20,
@@ -334,7 +334,7 @@ mod integration_tests {
             },
         };
 
-        let mut simulator = AgentSimulator::new(device, config);
+        let mut simulator = AgentSimulator::new(ctx, config);
 
         // Run quick simulation with timeout
         let result = timeout(Duration::from_secs(10), simulator.run_simulation()).await;
@@ -363,7 +363,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_quick_isolation_validation() -> Result<()> {
-        let device = setup_test_device().await?;
+        let ctx = setup_test_context().await?;
         let config = IsolationConfig {
             cpu_agent_count: 10, // Small for quick test
             gpu_agent_count: 5,
@@ -371,7 +371,7 @@ mod integration_tests {
             strict_isolation: false,                     // Non-strict for testing
         };
 
-        let mut validator = IsolationValidator::new(device, config);
+        let mut validator = IsolationValidator::new(ctx, config);
 
         // Run quick validation with timeout
         let result = timeout(Duration::from_secs(10), validator.validate_isolation()).await;
@@ -402,7 +402,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_system_tester_basic_workflow() -> Result<()> {
-        let device = setup_test_device().await?;
+        let ctx = setup_test_context().await?;
         let config = SystemTestConfig {
             gpu_agent_count: 5, // Very small for test
             cpu_agent_count: 10,
@@ -417,7 +417,7 @@ mod integration_tests {
             },
         };
 
-        let mut tester = SystemTester::new(device, config);
+        let mut tester = SystemTester::new(ctx, config);
 
         // Check initial status
         let initial_status = tester.get_system_status();
@@ -435,8 +435,8 @@ mod integration_tests {
 mod benchmark_tests {
     use super::*;
 
-    async fn setup_test_device() -> Result<Arc<CudaDevice>> {
-        CudaDevice::new(0).map(Arc::new).map_err(Into::into)
+    async fn setup_test_context() -> Result<Arc<CudaContext>> {
+        CudaContext::new(0).map_err(Into::into)
     }
 
     #[tokio::test]

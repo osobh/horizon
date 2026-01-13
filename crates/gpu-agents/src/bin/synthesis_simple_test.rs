@@ -1,6 +1,6 @@
 //! Test the simplified synthesis pattern matcher
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::pattern_simple::SimpleGpuPatternMatcher;
 use gpu_agents::synthesis::{AstNode, NodeType, Pattern};
 
@@ -9,11 +9,11 @@ fn main() -> anyhow::Result<()> {
     println!("========================================");
 
     // Initialize CUDA
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     println!("✅ CUDA device initialized");
 
     // Create simple pattern matcher
-    let matcher = SimpleGpuPatternMatcher::new(device)?;
+    let matcher = SimpleGpuPatternMatcher::new(ctx)?;
     println!("✅ Simple pattern matcher created");
 
     // Test: Simple pattern and AST

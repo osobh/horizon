@@ -15,7 +15,7 @@ mod tests {
         // If there are unused imports, they should be removed or used
 
         // Test that we can use all the supposedly imported types
-        if let Ok(device) = cudarc::driver::CudaDevice::new(0) {
+        if let Ok(device) = cudarc::driver::CudaContext::new(0) {
             // This uses CudaDevice (should be used)
             let config = crate::streaming::GpuStreamConfig::default();
 
@@ -37,7 +37,7 @@ mod tests {
         // This test validates that variables in streaming modules are used
         // Unused variables should be prefixed with underscore
 
-        if let Ok(device) = cudarc::driver::CudaDevice::new(0) {
+        if let Ok(device) = cudarc::driver::CudaContext::new(0) {
             let config = crate::streaming::GpuStreamConfig::default();
             let mut processor = crate::streaming::GpuStreamProcessor::new(device, config)?;
 
@@ -61,7 +61,7 @@ mod tests {
     fn test_buffer_idx_usage() -> Result<()> {
         // This test validates that buffer_idx is either used or prefixed with _
 
-        if let Ok(device) = cudarc::driver::CudaDevice::new(0) {
+        if let Ok(device) = cudarc::driver::CudaContext::new(0) {
             let config = crate::streaming::GpuStreamConfig::default();
             let mut pipeline = crate::streaming::GpuStreamPipeline::new(device, config)?;
 
@@ -84,7 +84,7 @@ mod tests {
     fn test_stream_statistics_usage() -> Result<()> {
         // This test validates that StreamStatistics is used or import removed
 
-        if let Ok(device) = cudarc::driver::CudaDevice::new(0) {
+        if let Ok(device) = cudarc::driver::CudaContext::new(0) {
             let config = crate::streaming::GpuStreamConfig::default();
             let processor = crate::streaming::GpuStreamProcessor::new(device, config)?;
 

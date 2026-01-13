@@ -3,15 +3,16 @@
 //! Demonstrates GPU optimization concepts without heavy dependencies
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
-use std::time::{Duration, Instant};
+use cudarc::driver::{CudaContext, DevicePtr};
+use std::time::Instant;
 
 fn main() -> Result<()> {
     println!("🚀 GPU Optimization Demo");
     println!("========================\n");
 
     // Initialize CUDA
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     println!("✅ CUDA device initialized\n");
 
     // Phase 1: Show baseline performance
@@ -24,24 +25,27 @@ fn main() -> Result<()> {
     // Run some GPU work for baseline
     for i in 0..10 {
         // Allocate buffers
-        let pattern_buffer = device.alloc_zeros::<u8>(64 * 64)?;
-        let ast_buffer = device.alloc_zeros::<u8>(1000 * 64)?;
-        let match_buffer = device.alloc_zeros::<u32>(1000 * 2)?;
+        let pattern_buffer = stream.alloc_zeros::<u8>(64 * 64)?;
+        let ast_buffer = stream.alloc_zeros::<u8>(1000 * 64)?;
+        let match_buffer = stream.alloc_zeros::<u32>(1000 * 2)?;
 
         // Launch kernel
         // SAFETY: All buffers are valid device pointers from alloc_zeros.
         // Parameters (64 patterns, 1000 nodes) match allocation sizes.
+        let (pattern_ptr, _pattern_guard) = pattern_buffer.device_ptr(&stream);
+        let (ast_ptr, _ast_guard) = ast_buffer.device_ptr(&stream);
+        let (match_ptr, _match_guard) = match_buffer.device_ptr(&stream);
         unsafe {
             gpu_agents::synthesis::launch_match_patterns_fast(
-                *pattern_buffer.device_ptr() as *const u8,
-                *ast_buffer.device_ptr() as *const u8,
-                *match_buffer.device_ptr() as *mut u32,
+                pattern_ptr as *const u8,
+                ast_ptr as *const u8,
+                match_ptr as *mut u32,
                 64,
                 1000,
             );
         }
 
-        device.synchronize()?;
+        stream.synchronize()?;
         operations += 1;
 
         println!("  Iteration {}: ✓", i + 1);
@@ -64,9 +68,9 @@ fn main() -> Result<()> {
     println!("  - No synchronization between kernels\n");
 
     // Pre-allocate buffers
-    let pattern_buffer = device.alloc_zeros::<u8>(64 * 64)?;
-    let ast_buffer = device.alloc_zeros::<u8>(10000 * 64)?;
-    let match_buffer = device.alloc_zeros::<u32>(10000 * 2)?;
+    let pattern_buffer = stream.alloc_zeros::<u8>(64 * 64)?;
+    let ast_buffer = stream.alloc_zeros::<u8>(10000 * 64)?;
+    let match_buffer = stream.alloc_zeros::<u32>(10000 * 2)?;
 
     let start = Instant::now();
     operations = 0;
@@ -76,12 +80,15 @@ fn main() -> Result<()> {
         // Launch multiple kernels without sync
         // SAFETY: All buffers are valid device pointers from alloc_zeros.
         // Parameters (64 patterns, 10000 nodes) match pre-allocated buffer sizes.
-        for i in 0..20 {
+        for _i in 0..20 {
+            let (pattern_ptr, _pattern_guard) = pattern_buffer.device_ptr(&stream);
+            let (ast_ptr, _ast_guard) = ast_buffer.device_ptr(&stream);
+            let (match_ptr, _match_guard) = match_buffer.device_ptr(&stream);
             unsafe {
                 gpu_agents::synthesis::launch_match_patterns_fast(
-                    *pattern_buffer.device_ptr() as *const u8,
-                    *ast_buffer.device_ptr() as *const u8,
-                    *match_buffer.device_ptr() as *mut u32,
+                    pattern_ptr as *const u8,
+                    ast_ptr as *const u8,
+                    match_ptr as *mut u32,
                     64,
                     10000,
                 );
@@ -90,7 +97,7 @@ fn main() -> Result<()> {
         }
 
         // Sync only after batch
-        device.synchronize()?;
+        stream.synchronize()?;
         println!(
             "  Batch {} complete: {} operations",
             batch + 1,

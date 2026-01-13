@@ -4,7 +4,7 @@
 //! ML-based prediction, cost-benefit analysis, and adaptive strategies.
 
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::CudaContext;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, VecDeque};
@@ -13,7 +13,7 @@ use std::sync::{
     Arc,
 };
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
 pub mod cost_benefit;
 pub mod ml_predictor;
@@ -91,12 +91,12 @@ impl MemoryTier {
 
 // Placeholder TierManager
 pub struct TierManager {
-    device: Arc<CudaDevice>,
+    context: Arc<CudaContext>,
 }
 
 impl TierManager {
-    pub fn new(device: Arc<CudaDevice>, _config: ()) -> Result<Self> {
-        Ok(Self { device })
+    pub fn new(context: Arc<CudaContext>, _config: ()) -> Result<Self> {
+        Ok(Self { context })
     }
 }
 
@@ -276,7 +276,7 @@ impl AdvancedPrefetcher {
             cost_analyzer,
             tier_predictor,
             prefetch_queue,
-            access_history: Arc::new(RwLock::new(HashMap::new())),
+            access_history: Arc::new(DashMap::new()),
             statistics: Arc::new(Mutex::new(PrefetchStatistics::default())),
             active: Arc::new(AtomicBool::new(true)),
         })
@@ -288,8 +288,7 @@ impl AdvancedPrefetcher {
 
         // Update access history
         {
-            let mut history = self.access_history.write().await;
-            let entry = history.entry(page_id).or_insert_with(|| AccessHistory {
+            let mut entry = self.access_history.entry(page_id).or_insert_with(|| AccessHistory {
                 page_id,
                 access_count: 0,
                 last_access: now,
@@ -339,10 +338,9 @@ impl AdvancedPrefetcher {
         // Submit prefetch requests
         for (predicted_page, predicted_tier) in predictions {
             // Cost-benefit analysis
-            let history = self.access_history.read().await;
-            if let Some(page_history) = history.get(&predicted_page) {
+            if let Some(page_history) = self.access_history.get(&predicted_page) {
                 let decision = self.cost_analyzer.should_prefetch(
-                    page_history,
+                    &page_history,
                     current_tier,
                     predicted_tier,
                     4096, // Page size
@@ -351,8 +349,8 @@ impl AdvancedPrefetcher {
                 if decision.approved {
                     let request = PrefetchRequest {
                         page_id: predicted_page,
-                        priority: self.calculate_priority(page_history),
-                        deadline: self.calculate_deadline(page_history),
+                        priority: self.calculate_priority(&page_history),
+                        deadline: self.calculate_deadline(&page_history),
                         size_hint: 4096,
                         pattern_hint: None,
                     };
@@ -422,16 +420,17 @@ impl AdvancedPrefetcher {
             }
             AccessPattern::Temporal => {
                 // Predict based on temporal patterns
-                let history = self.access_history.read().await;
                 let mut predictions = Vec::new();
 
                 // Find pages accessed around the same time
-                for (other_page, other_history) in history.iter() {
-                    if *other_page != page_id {
+                for entry in self.access_history.iter() {
+                    let other_page = *entry.key();
+                    let other_history = entry.value();
+                    if other_page != page_id {
                         let time_diff = other_history.last_access.elapsed();
                         if time_diff < Duration::from_millis(100) {
                             let tier = self.tier_predictor.predict_tier(other_history);
-                            predictions.push((*other_page, tier));
+                            predictions.push((other_page, tier));
                         }
                     }
                 }
@@ -445,12 +444,10 @@ impl AdvancedPrefetcher {
     /// ML-based prediction
     async fn predict_ml_based(&self, page_id: u64) -> Result<Vec<(u64, MemoryTier)>> {
         if let Some(ml_predictor) = &self.ml_predictor {
-            let history = self.access_history.read().await;
-
-            if let Some(page_history) = history.get(&page_id) {
+            if let Some(page_history) = self.access_history.get(&page_id) {
                 let predictor = ml_predictor.lock().await;
                 let predictions =
-                    predictor.predict_next_pages(page_history, self.config.prefetch_degree)?;
+                    predictor.predict_next_pages(&page_history, self.config.prefetch_degree)?;
 
                 Ok(predictions)
             } else {
@@ -642,9 +639,7 @@ impl AdvancedPrefetcher {
             interval.tick().await;
 
             // Collect training data
-            let history = access_history.read().await;
-            let training_data: Vec<_> = history.values().cloned().collect();
-            drop(history);
+            let training_data: Vec<_> = access_history.iter().map(|entry| entry.value().clone()).collect();
 
             // Update model
             let mut predictor = ml_predictor.lock().await;

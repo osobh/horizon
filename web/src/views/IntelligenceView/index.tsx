@@ -1,18 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   TrendingUp,
-  BarChart3,
   Building2,
-  Target,
   RefreshCw,
   AlertTriangle,
   CheckCircle,
-  DollarSign,
   Cpu,
-  XCircle,
   Power,
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Cell } from 'recharts';
 import { useIntelligenceStore, IdleResource, ProfitMargin, VendorUtilization, ExecutiveKPI, IntelligenceAlert } from '../../stores/intelligenceStore';
 
 export default function IntelligenceView() {

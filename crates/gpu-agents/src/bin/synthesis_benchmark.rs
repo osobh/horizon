@@ -3,7 +3,7 @@
 //! Validates the 2.6B pattern matching ops/sec claim
 
 use clap::Parser;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::{
     AstNode, GpuSynthesisModule, NodeType, Pattern, SynthesisTask, Template, Token,
 };
@@ -70,14 +70,15 @@ fn main() -> anyhow::Result<()> {
     println!();
 
     // Initialize CUDA
-    let device = CudaDevice::new(0)?;
-    let gpu_info = get_gpu_info(&device)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
+    let gpu_info = get_gpu_info(&ctx)?;
 
     println!("GPU: {} ({}MB)", gpu_info.name, gpu_info.memory_mb);
     println!();
 
     // Create synthesis module
-    let synthesis = GpuSynthesisModule::new(device.clone(), args.max_nodes)?;
+    let synthesis = GpuSynthesisModule::new(ctx.clone(), args.max_nodes)?;
 
     // Generate test patterns and AST
     let patterns = generate_patterns(args.patterns, &args.complexity);
@@ -94,7 +95,7 @@ fn main() -> anyhow::Result<()> {
         let _ = synthesis.synthesize(&task, &ast)?;
     }
 
-    device.synchronize()?;
+    stream.synchronize()?;
 
     // Benchmark
     println!("Running synthesis benchmark for {}s...", args.duration);
@@ -126,7 +127,7 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    device.synchronize()?;
+    stream.synchronize()?;
     let duration = start.elapsed();
 
     // Calculate results
@@ -273,7 +274,7 @@ fn create_test_template() -> Template {
     }
 }
 
-fn get_gpu_info(_device: &Arc<CudaDevice>) -> anyhow::Result<GpuInfo> {
+fn get_gpu_info(_ctx: &Arc<CudaContext>) -> anyhow::Result<GpuInfo> {
     Ok(GpuInfo {
         name: "NVIDIA GPU".to_string(),
         compute_capability: "8.9".to_string(),

@@ -7,7 +7,7 @@
 //! performance with measurable throughput and latency characteristics.
 
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::{
     ConsensusSynthesisEngine, IntegrationConfig, WorkflowResult,
 };
@@ -69,7 +69,7 @@ async fn run_integration_benchmarks() -> Result<IntegrationBenchmarkResults> {
     println!("================================================");
 
     let config = BenchmarkConfig::default();
-    let device = CudaDevice::new(0).context("Failed to initialize CUDA device")?;
+    let ctx = CudaContext::new(0).context("Failed to initialize CUDA device")?;
 
     // Initialize the integration engine
     let integration_config = IntegrationConfig {
@@ -81,7 +81,7 @@ async fn run_integration_benchmarks() -> Result<IntegrationBenchmarkResults> {
             gpu_agents::consensus_synthesis::integration::ConflictStrategy::HighestVoteWins,
     };
 
-    let mut engine = ConsensusSynthesisEngine::new(device, integration_config)
+    let mut engine = ConsensusSynthesisEngine::new(ctx, integration_config)
         .context("Failed to create consensus synthesis engine")?;
 
     // Initialize cross-crate integration

@@ -120,7 +120,7 @@ impl SelectionStrategy for RouletteSelection {
         let mut selected = Vec::with_capacity(count);
 
         for _ in 0..count {
-            let mut spin = rng.gen::<f64>() * total;
+            let mut spin = rng.r#gen::<f64>() * total;
             let mut idx = 0;
 
             for (i, &fitness) in adjusted.iter().enumerate() {

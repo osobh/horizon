@@ -9,7 +9,7 @@
 
 use super::{adas::*, dgm::*, swarm::*, FitnessObjective};
 use anyhow::{Result, anyhow};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -170,7 +170,7 @@ struct StrategyInstance {
 
 /// Hybrid evolution coordinator
 pub struct HybridCoordinator {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: HybridConfig,
     strategies: Arc<DashMap<String, StrategyInstance>>,
     generation: usize,
@@ -182,7 +182,7 @@ pub struct HybridCoordinator {
 
 impl HybridCoordinator {
     /// Create new hybrid coordinator
-    pub fn new(device: Arc<CudaDevice>, config: HybridConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: HybridConfig) -> Result<Self> {
         Ok(Self {
             device,
             config,

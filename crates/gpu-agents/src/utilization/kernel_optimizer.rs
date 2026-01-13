@@ -2,10 +2,9 @@
 //!
 //! Optimizes kernel launch configurations to maximize GPU utilization.
 
-use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, LaunchConfig};
+use anyhow::Result;
+use cudarc::driver::{CudaContext, LaunchConfig};
 use dashmap::DashMap;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -62,7 +61,7 @@ impl Default for KernelMetrics {
 
 /// Kernel optimizer
 pub struct KernelOptimizer {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     kernel_configs: Arc<DashMap<String, KernelConfig>>,
     kernel_metrics: Arc<DashMap<String, Vec<KernelMetrics>>>,
     optimization_history: Arc<RwLock<Vec<OptimizationResult>>>,
@@ -80,28 +79,26 @@ pub struct OptimizationResult {
 
 impl KernelOptimizer {
     /// Create new kernel optimizer
-    pub fn new(device: Arc<CudaDevice>) -> Self {
+    pub fn new(device: Arc<CudaContext>) -> Self {
         Self {
             device,
-            kernel_configs: Arc::new(RwLock::new(HashMap::new())),
-            kernel_metrics: Arc::new(RwLock::new(HashMap::new())),
+            kernel_configs: Arc::new(DashMap::new()),
+            kernel_metrics: Arc::new(DashMap::new()),
             optimization_history: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
     /// Register kernel with default configuration
     pub async fn register_kernel(&self, name: &str, config: KernelConfig) -> Result<()> {
-        let mut configs = self.kernel_configs.write().await;
-        configs.insert(name.to_string(), config);
+        self.kernel_configs.insert(name.to_string(), config);
         Ok(())
     }
 
     /// Get optimal kernel configuration
     pub async fn get_optimal_config(&self, kernel_name: &str) -> Result<KernelConfig> {
-        let configs = self.kernel_configs.read().await;
-        configs
+        self.kernel_configs
             .get(kernel_name)
-            .copied()
+            .map(|entry| *entry.value())
             .ok_or_else(|| anyhow::anyhow!("Kernel {} not registered", kernel_name))
     }
 
@@ -109,13 +106,12 @@ impl KernelOptimizer {
     pub async fn record_metrics(
         &self,
         kernel_name: &str,
-        config: KernelConfig,
+        _config: KernelConfig,
         metrics: KernelMetrics,
     ) -> Result<()> {
-        let mut all_metrics = self.kernel_metrics.write().await;
-        let kernel_metrics = all_metrics
-            .entry(kernel_name.to_string())
-            .or_insert_with(Vec::new);
+        // Get or create metrics entry
+        let mut entry = self.kernel_metrics.entry(kernel_name.to_string()).or_insert_with(Vec::new);
+        let kernel_metrics = entry.value_mut();
 
         // Keep last 100 measurements
         if kernel_metrics.len() >= 100 {
@@ -126,15 +122,14 @@ impl KernelOptimizer {
 
         // Update configuration if this performed better
         if let Some(best_config) = self.find_best_config(kernel_metrics).await {
-            let mut configs = self.kernel_configs.write().await;
-            configs.insert(kernel_name.to_string(), best_config);
+            self.kernel_configs.insert(kernel_name.to_string(), best_config);
         }
 
         Ok(())
     }
 
     /// Find best configuration from metrics
-    async fn find_best_config(&self, metrics: &[KernelMetrics]) -> Option<KernelConfig> {
+    async fn find_best_config(&self, _metrics: &[KernelMetrics]) -> Option<KernelConfig> {
         // In real implementation, analyze metrics to find best config
         // For now, return None to keep current config
         None
@@ -201,8 +196,7 @@ impl KernelOptimizer {
         }
 
         // Update stored configuration
-        let mut configs = self.kernel_configs.write().await;
-        configs.insert(kernel_name.to_string(), best_config);
+        self.kernel_configs.insert(kernel_name.to_string(), best_config);
 
         Ok(best_config)
     }
@@ -285,14 +279,15 @@ impl KernelOptimizer {
 
     /// Generate optimization report
     pub async fn generate_report(&self) -> String {
-        let configs = self.kernel_configs.read().await;
         let history = self.optimization_history.read().await;
 
         let mut report = String::from("Kernel Optimization Report:\n\n");
 
         // Current configurations
         report.push_str("Current Kernel Configurations:\n");
-        for (name, config) in configs.iter() {
+        for entry in self.kernel_configs.iter() {
+            let name = entry.key();
+            let config = entry.value();
             let occupancy = self.calculate_occupancy(*config);
             report.push_str(&format!(
                 "  {}: block_size={}, grid_size={}, occupancy={:.1}%\n",

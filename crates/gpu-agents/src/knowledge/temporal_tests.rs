@@ -9,12 +9,12 @@
 use super::temporal::*;
 use crate::knowledge::{KnowledgeEdge, KnowledgeNode};
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 
 // Helper to create test device
-fn create_test_device() -> Result<Arc<CudaDevice>> {
-    Ok(CudaDevice::new(0)?)
+fn create_test_device() -> Result<Arc<CudaContext>> {
+    CudaContext::new(0)
 }
 
 // Helper to create test temporal node

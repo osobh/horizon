@@ -1,7 +1,7 @@
 //! GPU streaming pipeline orchestration
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaStream, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaStream};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -9,12 +9,12 @@ use super::{GpuBufferPool, GpuStreamConfig, GpuStreamKernel};
 
 /// GPU streaming pipeline
 pub struct GpuStreamPipeline {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: GpuStreamConfig,
     /// Pipeline stages
     stages: Vec<Box<dyn GpuStreamKernel>>,
     /// CUDA streams for pipelining
-    streams: Vec<CudaStream>,
+    streams: Vec<Arc<CudaStream>>,
     /// Buffer pools for each stage
     buffer_pools: Vec<GpuBufferPool>,
     /// Statistics
@@ -23,11 +23,12 @@ pub struct GpuStreamPipeline {
 
 impl GpuStreamPipeline {
     /// Create new GPU streaming pipeline
-    pub fn new(device: Arc<CudaDevice>, config: GpuStreamConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: GpuStreamConfig) -> Result<Self> {
         // Create CUDA streams
         let mut streams = Vec::with_capacity(config.num_streams);
+        let default_stream = device.default_stream();
         for _ in 0..config.num_streams {
-            streams.push(device.fork_default_stream()?);
+            streams.push(default_stream.fork()?);
         }
 
         Ok(Self {
@@ -60,7 +61,8 @@ impl GpuStreamPipeline {
         let start_time = std::time::Instant::now();
 
         // Upload input to GPU
-        let mut current_buffer = self.device.htod_sync_copy(&input_data)?;
+        let stream = self.device.default_stream();
+        let mut current_buffer = stream.clone_htod(&input_data)?;
 
         // Process through each stage
         for (stage_idx, stage) in self.stages.iter().enumerate() {
@@ -94,7 +96,7 @@ impl GpuStreamPipeline {
         }
 
         // Download result
-        let result = self.device.dtoh_sync_copy(&current_buffer)?;
+        let result = stream.clone_dtoh(&current_buffer)?;
 
         // Update statistics
         self.stats.chunks_processed += 1;
@@ -169,14 +171,14 @@ impl PipelineStatistics {
 
 /// Pipeline builder for fluent API
 pub struct PipelineBuilder {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: GpuStreamConfig,
     stages: Vec<Box<dyn GpuStreamKernel>>,
 }
 
 impl PipelineBuilder {
     /// Create new pipeline builder
-    pub fn new(device: Arc<CudaDevice>) -> Self {
+    pub fn new(device: Arc<CudaContext>) -> Self {
         Self {
             device,
             config: GpuStreamConfig::default(),
@@ -218,7 +220,7 @@ impl MultiStreamPipeline {
     /// Create multi-stream pipeline
     pub fn new(
         num_pipelines: usize,
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
         config: GpuStreamConfig,
     ) -> Result<Self> {
         let mut pipelines = Vec::with_capacity(num_pipelines);
@@ -289,10 +291,8 @@ mod tests {
 
     #[test]
     fn test_pipeline_builder() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
-
-            let pipeline = PipelineBuilder::new(device)
+        if let Ok(ctx) = CudaContext::new(0) {
+            let pipeline = PipelineBuilder::new(ctx)
                 .with_config(GpuStreamConfig {
                     chunk_size: 1024,
                     num_streams: 2,

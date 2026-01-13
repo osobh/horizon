@@ -1,7 +1,7 @@
 //! Test atomic knowledge graph implementation
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::knowledge::{AtomicKnowledgeGraph, ConsistencyLevel};
 use std::sync::Arc;
 
@@ -9,11 +9,11 @@ fn main() -> Result<()> {
     println!("Testing Atomic Knowledge Graph Implementation");
 
     // Initialize CUDA device
-    let mut graph = match CudaDevice::new(0) {
-        Ok(device) => {
+    let mut graph = match CudaContext::new(0) {
+        Ok(ctx) => {
             println!("✓ CUDA device initialized");
             AtomicKnowledgeGraph::new(
-                device, 1000, // max_nodes
+                ctx, 1000, // max_nodes
                 5000, // max_edges
                 128,  // embedding_dim
             )

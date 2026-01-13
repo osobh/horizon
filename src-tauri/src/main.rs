@@ -8,7 +8,10 @@
     windows_subsystem = "windows"
 )]
 
+mod argus_bridge;
 mod cluster_bridge;
+mod hpcci_bridge;
+mod rustyspark_bridge;
 mod commands;
 mod costs_bridge;
 mod data_pipeline_bridge;
@@ -25,6 +28,7 @@ mod settings_bridge;
 mod slai_bridge;
 mod state;
 mod storage_bridge;
+mod stratoswarm_bridge;
 mod tensor_mesh_bridge;
 mod training_bridge;
 
@@ -52,6 +56,10 @@ fn main() {
     let storage = Arc::clone(&app_state.storage);
     let ephemeral = Arc::clone(&app_state.ephemeral);
     let slai = Arc::clone(&app_state.slai);
+    let argus = Arc::clone(&app_state.argus);
+    let hpcci = Arc::clone(&app_state.hpcci);
+    let rustyspark = Arc::clone(&app_state.rustyspark);
+    let stratoswarm = Arc::clone(&app_state.stratoswarm);
 
     // Create metrics collector (updates every 2 seconds)
     let metrics_collector = Arc::new(MetricsCollector::new(2000));
@@ -141,6 +149,50 @@ fn main() {
                     tracing::error!("Failed to initialize SLAI: {}", e);
                 } else {
                     tracing::info!("SLAI bridge initialized successfully");
+                }
+            });
+
+            // Initialize Argus bridge in background
+            let argus_clone = Arc::clone(&argus);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing Argus bridge...");
+                if let Err(e) = argus_clone.initialize().await {
+                    tracing::error!("Failed to initialize Argus: {}", e);
+                } else {
+                    tracing::info!("Argus bridge initialized successfully");
+                }
+            });
+
+            // Initialize HPC-CI bridge in background
+            let hpcci_clone = Arc::clone(&hpcci);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing HPC-CI bridge...");
+                if let Err(e) = hpcci_clone.initialize().await {
+                    tracing::error!("Failed to initialize HPC-CI: {}", e);
+                } else {
+                    tracing::info!("HPC-CI bridge initialized successfully");
+                }
+            });
+
+            // Initialize RustySpark bridge in background
+            let rustyspark_clone = Arc::clone(&rustyspark);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing RustySpark bridge...");
+                if let Err(e) = rustyspark_clone.initialize().await {
+                    tracing::error!("Failed to initialize RustySpark: {}", e);
+                } else {
+                    tracing::info!("RustySpark bridge initialized successfully");
+                }
+            });
+
+            // Initialize StratoSwarm bridge in background
+            let stratoswarm_clone = Arc::clone(&stratoswarm);
+            tauri::async_runtime::spawn(async move {
+                tracing::info!("Initializing StratoSwarm bridge...");
+                if let Err(e) = stratoswarm_clone.initialize().await {
+                    tracing::error!("Failed to initialize StratoSwarm: {}", e);
+                } else {
+                    tracing::info!("StratoSwarm bridge initialized successfully");
                 }
             });
 
@@ -264,6 +316,37 @@ fn main() {
             commands::slai::submit_slai_job,
             commands::slai::cancel_slai_job,
             commands::slai::schedule_slai_next,
+            // Argus commands (observability, metrics, alerts)
+            commands::argus::get_argus_status,
+            commands::argus::set_argus_server_url,
+            commands::argus::query_argus_metrics,
+            commands::argus::query_argus_metrics_range,
+            commands::argus::get_argus_alerts,
+            commands::argus::get_argus_targets,
+            // HPC-CI commands (pipeline management)
+            commands::hpcci::get_hpcci_status,
+            commands::hpcci::set_hpcci_server_url,
+            commands::hpcci::list_hpcci_pipelines,
+            commands::hpcci::get_hpcci_pipeline,
+            commands::hpcci::trigger_hpcci_pipeline,
+            commands::hpcci::cancel_hpcci_pipeline,
+            commands::hpcci::retry_hpcci_pipeline,
+            commands::hpcci::list_hpcci_agents,
+            commands::hpcci::drain_hpcci_agent,
+            commands::hpcci::enable_hpcci_agent,
+            commands::hpcci::get_hpcci_approvals,
+            commands::hpcci::submit_hpcci_approval,
+            commands::hpcci::get_hpcci_dashboard_summary,
+            commands::hpcci::get_hpcci_pipeline_logs,
+            // RustySpark commands (data processing jobs)
+            commands::rustyspark::get_rustyspark_status,
+            commands::rustyspark::set_rustyspark_server_url,
+            commands::rustyspark::get_rustyspark_summary,
+            commands::rustyspark::list_spark_jobs,
+            commands::rustyspark::get_spark_job,
+            commands::rustyspark::get_spark_job_stages,
+            commands::rustyspark::get_spark_stage_tasks,
+            commands::rustyspark::cancel_spark_job,
             // Cost Intelligence commands
             commands::costs::get_cost_summary,
             commands::costs::get_cost_attributions,
@@ -295,6 +378,16 @@ fn main() {
             commands::settings::update_quota,
             commands::settings::delete_quota,
             commands::settings::update_app_settings,
+            // StratoSwarm commands (agent visualization and evolution)
+            commands::stratoswarm::get_stratoswarm_status,
+            commands::stratoswarm::set_stratoswarm_cluster_url,
+            commands::stratoswarm::get_swarm_stats,
+            commands::stratoswarm::list_swarm_agents,
+            commands::stratoswarm::get_swarm_agent,
+            commands::stratoswarm::get_swarm_evolution_events,
+            commands::stratoswarm::get_active_agent_tasks,
+            commands::stratoswarm::trigger_agent_evolution,
+            commands::stratoswarm::simulate_swarm_activity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running horizon");

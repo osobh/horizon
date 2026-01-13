@@ -2,7 +2,7 @@
 //!
 //! RED phase - tests should fail with todo!()
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus::scale::{ScaledConsensus, ScalingConfig};
 use std::sync::Arc;
 
@@ -10,7 +10,7 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Consensus Scaling (RED phase)");
     println!("=====================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create consensus with 1000+ nodes
     println!("\n1. Testing 1000 node consensus creation...");
@@ -19,14 +19,14 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    match ScaledConsensus::new(device.clone(), config) {
+    match ScaledConsensus::new(ctx.clone(), config) {
         Ok(_) => println!("✅ Created consensus for 1000 nodes"),
         Err(e) => println!("❌ Expected todo! error: {}", e),
     }
 
     // Test 2: Test voting with 1000 nodes
     println!("\n2. Testing voting with 1000 nodes...");
-    let mut consensus = ScaledConsensus::new(device.clone(), ScalingConfig::default())?;
+    let mut consensus = ScaledConsensus::new(ctx.clone(), ScalingConfig::default())?;
 
     match consensus.vote_batch(1000, 42) {
         Ok(votes) => println!("✅ Got {} votes", votes),

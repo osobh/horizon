@@ -1,5 +1,5 @@
 //! Generate comprehensive evolution performance report
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
 use std::fs::File;
 use std::io::Write;
@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     println!("===========================================");
 
     // Initialize CUDA device
-    let device = Arc::new(CudaDevice::new(0)?);
+    let ctx = CudaContext::new(0)?;
     println!("✅ CUDA device initialized");
 
     // Test configurations
@@ -39,7 +39,7 @@ fn main() -> anyhow::Result<()> {
                 block_size: 256,
             };
 
-            match benchmark_configuration(&device, config, generations_per_test) {
+            match benchmark_configuration(&ctx, config, generations_per_test) {
                 Ok(metrics) => {
                     println!("✅ {:.2} gens/sec", metrics.generations_per_second);
                     results.push(metrics);
@@ -80,11 +80,11 @@ struct BenchmarkMetrics {
 }
 
 fn benchmark_configuration(
-    device: &Arc<CudaDevice>,
+    ctx: &Arc<CudaContext>,
     config: GpuEvolutionConfig,
     generations: usize,
 ) -> anyhow::Result<BenchmarkMetrics> {
-    let mut engine = GpuEvolutionEngine::new(device.clone(), config.clone())?;
+    let mut engine = GpuEvolutionEngine::new(ctx.clone(), config.clone())?;
 
     // Initialize and evaluate
     engine.initialize_random()?;
@@ -211,7 +211,7 @@ fn generate_report(results: &[BenchmarkMetrics]) -> anyhow::Result<()> {
     writeln!(file, "// Before (incorrect):")?;
     writeln!(
         file,
-        "self.device.dtoh_sync_copy_into(&self.fitness_valid, &mut has_fitness)"
+        "self.stream.clone_dtoh(&self.fitness_valid, &mut has_fitness)"
     )?;
     writeln!(file, "\n// After (correct):")?;
     writeln!(
@@ -220,7 +220,7 @@ fn generate_report(results: &[BenchmarkMetrics]) -> anyhow::Result<()> {
     )?;
     writeln!(
         file,
-        "self.device.dtoh_sync_copy_into(&first_element_slice, &mut has_fitness)"
+        "self.stream.clone_dtoh(&first_element_slice, &mut has_fitness)"
     )?;
     writeln!(file, "```")?;
 

@@ -6,7 +6,7 @@
 use super::*;
 use crate::evolution::kernels::*;
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, DeviceRepr};
+use cudarc::driver::{CudaContext, CudaSlice, DeviceRepr};
 use std::sync::Arc;
 
 // Test kernel launch configurations
@@ -19,30 +19,34 @@ const WARP_SIZE: u32 = 32;
 
 #[test]
 fn test_adas_evaluation_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let population_size = 128;
     let code_size = 256;
 
     // Allocate GPU memory
-    let agents_data = device.alloc_zeros::<u8>(population_size * code_size)?;
-    let performances = device.alloc_zeros::<f32>(population_size)?;
-    let metrics = device.alloc_zeros::<f32>(population_size * 4)?; // 4 metrics per agent
+    let agents_data = stream.alloc_zeros::<u8>(population_size * code_size)?;
+    let performances = stream.alloc_zeros::<f32>(population_size)?;
+    let metrics = stream.alloc_zeros::<f32>(population_size * 4)?; // 4 metrics per agent
 
     // Launch evaluation kernel
     // SAFETY: All pointers are valid device pointers from alloc_zeros calls that
     // remain valid for this scope. population_size and code_size match allocations.
+    let (agents_ptr, _guard1) = agents_data.device_ptr(&stream);
+    let (perf_ptr, _guard2) = performances.device_ptr(&stream);
+    let (metrics_ptr, _guard3) = metrics.device_ptr(&stream);
     unsafe {
         prepare_adas_evaluation(
-            agents_data.as_ptr() as *const std::ffi::c_void,
-            performances.as_mut_ptr() as *mut f32,
-            metrics.as_mut_ptr() as *mut f32,
+            agents_ptr as *const std::ffi::c_void,
+            perf_ptr as *mut f32,
+            metrics_ptr as *mut f32,
             population_size as u32,
             code_size as u32,
         );
     }
 
     // Verify results
-    let performances_host = device.dtoh_sync_copy(&performances)?;
+    let performances_host: Vec<f32> = stream.clone_dtoh(&performances)?;
     assert_eq!(performances_host.len(), population_size);
 
     // All performances should be initialized (even if to 0)
@@ -55,7 +59,8 @@ fn test_adas_evaluation_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_adas_mutation_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let population_size = 64;
     let code_size = 128;
     let mutation_rate = 0.1;
@@ -67,16 +72,18 @@ fn test_adas_mutation_kernel_launch() -> Result<()> {
     }
 
     // Upload to GPU
-    let mut agents_gpu = device.htod_sync_copy(&agents_data)?;
-    let performances = device.alloc_zeros::<f32>(population_size)?;
+    let agents_gpu = stream.clone_htod(&agents_data)?;
+    let performances = stream.alloc_zeros::<f32>(population_size)?;
 
     // Launch mutation kernel
-    // SAFETY: agents_gpu and performances are valid device pointers from htod_sync_copy
+    // SAFETY: agents_gpu and performances are valid device pointers from clone_htod
     // and alloc_zeros. Sizes match the allocation parameters.
+    let (agents_ptr, _guard1) = agents_gpu.device_ptr(&stream);
+    let (perf_ptr, _guard2) = performances.device_ptr(&stream);
     unsafe {
         launch_adas_mutation(
-            agents_gpu.as_mut_ptr() as *mut std::ffi::c_void,
-            performances.as_ptr() as *const f32,
+            agents_ptr as *mut std::ffi::c_void,
+            perf_ptr as *const f32,
             population_size as u32,
             code_size as u32,
             mutation_rate,
@@ -84,7 +91,7 @@ fn test_adas_mutation_kernel_launch() -> Result<()> {
     }
 
     // Download and verify mutations occurred
-    let mutated_agents = device.dtoh_sync_copy(&agents_gpu)?;
+    let mutated_agents: Vec<u8> = stream.clone_dtoh(&agents_gpu)?;
 
     let mut mutations = 0;
     for i in 0..agents_data.len() {
@@ -102,7 +109,8 @@ fn test_adas_mutation_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_adas_crossover_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let population_size = 32;
     let code_size = 64;
 
@@ -116,25 +124,28 @@ fn test_adas_crossover_kernel_launch() -> Result<()> {
     }
 
     // Upload to GPU
-    let parents_gpu = device.htod_sync_copy(&parent_data)?;
-    let mut offspring_gpu = device.alloc_zeros::<u8>(population_size * code_size)?;
-    let parent_indices = device.htod_sync_copy(&(0..population_size as u32).collect::<Vec<_>>())?;
+    let parents_gpu = stream.clone_htod(&parent_data)?;
+    let offspring_gpu = stream.alloc_zeros::<u8>(population_size * code_size)?;
+    let parent_indices = stream.clone_htod(&(0..population_size as u32).collect::<Vec<_>>())?;
 
     // Launch crossover kernel
-    // SAFETY: All device pointers are valid from htod_sync_copy and alloc_zeros.
+    // SAFETY: All device pointers are valid from clone_htod and alloc_zeros.
     // parent_indices contains valid indices within [0, population_size).
+    let (parents_ptr, _guard1) = parents_gpu.device_ptr(&stream);
+    let (offspring_ptr, _guard2) = offspring_gpu.device_ptr(&stream);
+    let (indices_ptr, _guard3) = parent_indices.device_ptr(&stream);
     unsafe {
         launch_adas_crossover(
-            parents_gpu.as_ptr() as *const std::ffi::c_void,
-            offspring_gpu.as_mut_ptr() as *mut std::ffi::c_void,
-            parent_indices.as_ptr() as *const u32,
+            parents_ptr as *const std::ffi::c_void,
+            offspring_ptr as *mut std::ffi::c_void,
+            indices_ptr as *const u32,
             population_size as u32,
             code_size as u32,
         );
     }
 
     // Verify offspring are created
-    let offspring_data = device.dtoh_sync_copy(&offspring_gpu)?;
+    let offspring_data: Vec<u8> = stream.clone_dtoh(&offspring_gpu)?;
 
     // Offspring should have mixed patterns from parents
     let mut unique_patterns = std::collections::HashSet::new();
@@ -153,7 +164,8 @@ fn test_adas_crossover_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_adas_diversity_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let population_size = 128;
     let code_size = 256;
 
@@ -175,23 +187,26 @@ fn test_adas_diversity_kernel_launch() -> Result<()> {
     }
 
     // Upload to GPU
-    let agents_gpu = device.htod_sync_copy(&agents_data)?;
-    let mut diversity_scores = device.alloc_zeros::<f32>(1)?;
+    let agents_gpu = stream.clone_htod(&agents_data)?;
+    let diversity_scores = stream.alloc_zeros::<f32>(1)?;
 
     // Launch diversity kernel
-    // SAFETY: agents_gpu is valid from htod_sync_copy, diversity_scores from alloc_zeros.
+    // SAFETY: agents_gpu is valid from clone_htod, diversity_scores from alloc_zeros.
     // Sizes match the allocation parameters.
+    let (agents_ptr, _guard1) = agents_gpu.device_ptr(&stream);
+    let (div_ptr, _guard2) = diversity_scores.device_ptr(&stream);
     unsafe {
         launch_adas_diversity(
-            agents_gpu.as_ptr() as *const std::ffi::c_void,
-            diversity_scores.as_mut_ptr() as *mut f32,
+            agents_ptr as *const std::ffi::c_void,
+            div_ptr as *mut f32,
             population_size as u32,
             code_size as u32,
         );
     }
 
     // Check diversity score
-    let diversity = device.dtoh_sync_copy(&diversity_scores)?[0];
+    let diversity_vec: Vec<f32> = stream.clone_dtoh(&diversity_scores)?;
+    let diversity = diversity_vec[0];
     assert!(diversity >= 0.0 && diversity <= 1.0);
     assert!(diversity > 0.0, "Population has some diversity");
 
@@ -204,7 +219,8 @@ fn test_adas_diversity_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_dgm_self_modification_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let population_size = 32;
     let code_size = 128;
     let history_size = 10;
@@ -215,20 +231,22 @@ fn test_dgm_self_modification_kernel_launch() -> Result<()> {
         agents_data[i] = (i % 256) as u8;
     }
 
-    let performance_history = vec![0.3, 0.35, 0.4, 0.42, 0.45, 0.48, 0.5, 0.52, 0.51, 0.53];
+    let performance_history = vec![0.3f32, 0.35, 0.4, 0.42, 0.45, 0.48, 0.5, 0.52, 0.51, 0.53];
 
     // Upload to GPU
-    let mut agents_gpu = device.htod_sync_copy(&agents_data)?;
-    let history_gpu = device.htod_sync_copy(&performance_history)?;
+    let agents_gpu = stream.clone_htod(&agents_data)?;
+    let history_gpu = stream.clone_htod(&performance_history)?;
     let modification_rate = 0.2;
 
     // Launch self-modification kernel
-    // SAFETY: agents_gpu and history_gpu are valid from htod_sync_copy.
+    // SAFETY: agents_gpu and history_gpu are valid from clone_htod.
     // history_size matches the length of performance_history.
+    let (agents_ptr, _guard1) = agents_gpu.device_ptr(&stream);
+    let (history_ptr, _guard2) = history_gpu.device_ptr(&stream);
     unsafe {
         launch_dgm_self_modification(
-            agents_gpu.as_mut_ptr() as *mut std::ffi::c_void,
-            history_gpu.as_ptr() as *const f32,
+            agents_ptr as *mut std::ffi::c_void,
+            history_ptr as *const f32,
             population_size as u32,
             code_size as u32,
             history_size as u32,
@@ -237,7 +255,7 @@ fn test_dgm_self_modification_kernel_launch() -> Result<()> {
     }
 
     // Verify modifications
-    let modified_agents = device.dtoh_sync_copy(&agents_gpu)?;
+    let modified_agents: Vec<u8> = stream.clone_dtoh(&agents_gpu)?;
 
     let mut modifications = 0;
     for i in 0..agents_data.len() {
@@ -253,7 +271,8 @@ fn test_dgm_self_modification_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_dgm_benchmark_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let population_size = 64;
     let code_size = 256;
     let num_benchmarks = 5;
@@ -262,16 +281,18 @@ fn test_dgm_benchmark_kernel_launch() -> Result<()> {
     let agents_data = vec![1u8; population_size * code_size];
 
     // Upload to GPU
-    let agents_gpu = device.htod_sync_copy(&agents_data)?;
-    let mut benchmark_scores = device.alloc_zeros::<f32>(population_size)?;
+    let agents_gpu = stream.clone_htod(&agents_data)?;
+    let benchmark_scores = stream.alloc_zeros::<f32>(population_size)?;
 
     // Launch benchmark kernel
-    // SAFETY: agents_gpu is valid from htod_sync_copy, benchmark_scores from alloc_zeros.
+    // SAFETY: agents_gpu is valid from clone_htod, benchmark_scores from alloc_zeros.
     // Output buffer has space for population_size scores.
+    let (agents_ptr, _guard1) = agents_gpu.device_ptr(&stream);
+    let (scores_ptr, _guard2) = benchmark_scores.device_ptr(&stream);
     unsafe {
         launch_dgm_benchmark(
-            agents_gpu.as_ptr() as *const std::ffi::c_void,
-            benchmark_scores.as_mut_ptr() as *mut f32,
+            agents_ptr as *const std::ffi::c_void,
+            scores_ptr as *mut f32,
             population_size as u32,
             code_size as u32,
             num_benchmarks as u32,
@@ -279,7 +300,7 @@ fn test_dgm_benchmark_kernel_launch() -> Result<()> {
     }
 
     // Verify benchmark scores
-    let scores = device.dtoh_sync_copy(&benchmark_scores)?;
+    let scores: Vec<f32> = stream.clone_dtoh(&benchmark_scores)?;
     assert_eq!(scores.len(), population_size);
 
     for &score in &scores {
@@ -294,7 +315,8 @@ fn test_dgm_benchmark_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_dgm_archive_update_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let population_size = 32;
     let archive_size = 10;
     let code_size = 128;
@@ -308,20 +330,24 @@ fn test_dgm_archive_update_kernel_launch() -> Result<()> {
     let agents_data = vec![0u8; population_size * code_size];
 
     // Upload to GPU
-    let agents_gpu = device.htod_sync_copy(&agents_data)?;
-    let performances_gpu = device.htod_sync_copy(&performances)?;
-    let mut archive_gpu = device.alloc_zeros::<u8>(archive_size * code_size)?;
-    let mut archive_scores = device.alloc_zeros::<f32>(archive_size)?;
+    let agents_gpu = stream.clone_htod(&agents_data)?;
+    let performances_gpu = stream.clone_htod(&performances)?;
+    let archive_gpu = stream.alloc_zeros::<u8>(archive_size * code_size)?;
+    let archive_scores = stream.alloc_zeros::<f32>(archive_size)?;
 
     // Launch archive update kernel
-    // SAFETY: All device pointers are valid from htod_sync_copy and alloc_zeros.
+    // SAFETY: All device pointers are valid from clone_htod and alloc_zeros.
     // archive_size < population_size, archive buffers sized for archive_size entries.
+    let (agents_ptr, _guard1) = agents_gpu.device_ptr(&stream);
+    let (perf_ptr, _guard2) = performances_gpu.device_ptr(&stream);
+    let (archive_ptr, _guard3) = archive_gpu.device_ptr(&stream);
+    let (scores_ptr, _guard4) = archive_scores.device_ptr(&stream);
     unsafe {
         launch_dgm_archive_update(
-            agents_gpu.as_ptr() as *const std::ffi::c_void,
-            performances_gpu.as_ptr() as *const f32,
-            archive_gpu.as_mut_ptr() as *mut std::ffi::c_void,
-            archive_scores.as_mut_ptr() as *mut f32,
+            agents_ptr as *const std::ffi::c_void,
+            perf_ptr as *const f32,
+            archive_ptr as *mut std::ffi::c_void,
+            scores_ptr as *mut f32,
             population_size as u32,
             archive_size as u32,
             code_size as u32,
@@ -329,7 +355,7 @@ fn test_dgm_archive_update_kernel_launch() -> Result<()> {
     }
 
     // Verify archive contains best agents
-    let archive_scores_host = device.dtoh_sync_copy(&archive_scores)?;
+    let archive_scores_host: Vec<f32> = stream.clone_dtoh(&archive_scores)?;
 
     // Archive should be sorted by performance (best first)
     for i in 1..archive_scores_host.len() {
@@ -350,13 +376,14 @@ fn test_dgm_archive_update_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_pso_velocity_update_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let num_particles = 128;
     let dimensions = 10;
 
     // Create test data
     let positions = vec![0.5f32; num_particles * dimensions];
-    let mut velocities = vec![0.1f32; num_particles * dimensions];
+    let velocities = vec![0.1f32; num_particles * dimensions];
     let personal_bests = vec![0.6f32; num_particles * dimensions];
     let global_best = vec![0.7f32; dimensions];
 
@@ -366,20 +393,24 @@ fn test_pso_velocity_update_kernel_launch() -> Result<()> {
     let social = 1.49;
 
     // Upload to GPU
-    let positions_gpu = device.htod_sync_copy(&positions)?;
-    let mut velocities_gpu = device.htod_sync_copy(&velocities)?;
-    let personal_bests_gpu = device.htod_sync_copy(&personal_bests)?;
-    let global_best_gpu = device.htod_sync_copy(&global_best)?;
+    let positions_gpu = stream.clone_htod(&positions)?;
+    let velocities_gpu = stream.clone_htod(&velocities)?;
+    let personal_bests_gpu = stream.clone_htod(&personal_bests)?;
+    let global_best_gpu = stream.clone_htod(&global_best)?;
 
     // Launch velocity update kernel
-    // SAFETY: All device pointers from htod_sync_copy are valid. Buffer sizes match
+    // SAFETY: All device pointers from clone_htod are valid. Buffer sizes match
     // num_particles * dimensions for positions/velocities/personal_bests, dimensions for global_best.
+    let (pos_ptr, _guard1) = positions_gpu.device_ptr(&stream);
+    let (vel_ptr, _guard2) = velocities_gpu.device_ptr(&stream);
+    let (pb_ptr, _guard3) = personal_bests_gpu.device_ptr(&stream);
+    let (gb_ptr, _guard4) = global_best_gpu.device_ptr(&stream);
     unsafe {
         launch_pso_velocity_update(
-            positions_gpu.as_ptr() as *const f32,
-            velocities_gpu.as_mut_ptr() as *mut f32,
-            personal_bests_gpu.as_ptr() as *const f32,
-            global_best_gpu.as_ptr() as *const f32,
+            pos_ptr as *const f32,
+            vel_ptr as *mut f32,
+            pb_ptr as *const f32,
+            gb_ptr as *const f32,
             num_particles as u32,
             dimensions as u32,
             inertia,
@@ -389,7 +420,7 @@ fn test_pso_velocity_update_kernel_launch() -> Result<()> {
     }
 
     // Verify velocities updated
-    let updated_velocities = device.dtoh_sync_copy(&velocities_gpu)?;
+    let updated_velocities: Vec<f32> = stream.clone_dtoh(&velocities_gpu)?;
 
     let mut changes = 0;
     for i in 0..velocities.len() {
@@ -405,27 +436,30 @@ fn test_pso_velocity_update_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_pso_position_update_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let num_particles = 64;
     let dimensions = 5;
 
     // Create test data
-    let mut positions = vec![0.0f32; num_particles * dimensions];
+    let positions = vec![0.0f32; num_particles * dimensions];
     let velocities = vec![0.1f32; num_particles * dimensions];
     let bounds_min = -5.0;
     let bounds_max = 5.0;
 
     // Upload to GPU
-    let mut positions_gpu = device.htod_sync_copy(&positions)?;
-    let velocities_gpu = device.htod_sync_copy(&velocities)?;
+    let positions_gpu = stream.clone_htod(&positions)?;
+    let velocities_gpu = stream.clone_htod(&velocities)?;
 
     // Launch position update kernel
-    // SAFETY: positions_gpu and velocities_gpu are valid from htod_sync_copy.
+    // SAFETY: positions_gpu and velocities_gpu are valid from clone_htod.
     // Both buffers have num_particles * dimensions elements.
+    let (pos_ptr, _guard1) = positions_gpu.device_ptr(&stream);
+    let (vel_ptr, _guard2) = velocities_gpu.device_ptr(&stream);
     unsafe {
         launch_pso_position_update(
-            positions_gpu.as_mut_ptr() as *mut f32,
-            velocities_gpu.as_ptr() as *const f32,
+            pos_ptr as *mut f32,
+            vel_ptr as *const f32,
             num_particles as u32,
             dimensions as u32,
             bounds_min,
@@ -434,7 +468,7 @@ fn test_pso_position_update_kernel_launch() -> Result<()> {
     }
 
     // Verify positions updated
-    let updated_positions = device.dtoh_sync_copy(&positions_gpu)?;
+    let updated_positions: Vec<f32> = stream.clone_dtoh(&positions_gpu)?;
 
     for i in 0..positions.len() {
         // Positions should have moved by velocity
@@ -455,7 +489,8 @@ fn test_pso_position_update_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_swarm_fitness_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let num_particles = 96;
     let dimensions = 8;
 
@@ -468,23 +503,25 @@ fn test_swarm_fitness_kernel_launch() -> Result<()> {
     }
 
     // Upload to GPU
-    let positions_gpu = device.htod_sync_copy(&positions)?;
-    let mut fitness_gpu = device.alloc_zeros::<f32>(num_particles)?;
+    let positions_gpu = stream.clone_htod(&positions)?;
+    let fitness_gpu = stream.alloc_zeros::<f32>(num_particles)?;
 
     // Launch fitness evaluation kernel
-    // SAFETY: positions_gpu valid from htod_sync_copy with num_particles*dimensions elements.
+    // SAFETY: positions_gpu valid from clone_htod with num_particles*dimensions elements.
     // fitness_gpu valid from alloc_zeros with num_particles elements.
+    let (pos_ptr, _guard1) = positions_gpu.device_ptr(&stream);
+    let (fit_ptr, _guard2) = fitness_gpu.device_ptr(&stream);
     unsafe {
         launch_swarm_fitness(
-            positions_gpu.as_ptr() as *const f32,
-            fitness_gpu.as_mut_ptr() as *mut f32,
+            pos_ptr as *const f32,
+            fit_ptr as *mut f32,
             num_particles as u32,
             dimensions as u32,
         );
     }
 
     // Verify fitness values
-    let fitness_values = device.dtoh_sync_copy(&fitness_gpu)?;
+    let fitness_values: Vec<f32> = stream.clone_dtoh(&fitness_gpu)?;
 
     for (i, &fitness) in fitness_values.iter().enumerate() {
         assert!(
@@ -508,14 +545,15 @@ fn test_swarm_fitness_kernel_launch() -> Result<()> {
 
 #[test]
 fn test_swarm_communication_kernel_launch() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let num_particles = 50;
     let dimensions = 6;
     let neighborhood_size = 5;
 
     // Create test data
     let positions = vec![0.5f32; num_particles * dimensions];
-    let mut shared_knowledge = vec![0.0f32; num_particles * neighborhood_size];
+    let shared_knowledge = vec![0.0f32; num_particles * neighborhood_size];
 
     // Create neighborhood topology (ring topology for simplicity)
     let mut neighbors = vec![0u32; num_particles * neighborhood_size];
@@ -526,18 +564,21 @@ fn test_swarm_communication_kernel_launch() -> Result<()> {
     }
 
     // Upload to GPU
-    let positions_gpu = device.htod_sync_copy(&positions)?;
-    let mut knowledge_gpu = device.htod_sync_copy(&shared_knowledge)?;
-    let neighbors_gpu = device.htod_sync_copy(&neighbors)?;
+    let positions_gpu = stream.clone_htod(&positions)?;
+    let knowledge_gpu = stream.clone_htod(&shared_knowledge)?;
+    let neighbors_gpu = stream.clone_htod(&neighbors)?;
 
     // Launch communication kernel
-    // SAFETY: All device pointers from htod_sync_copy are valid. neighbors contains
+    // SAFETY: All device pointers from clone_htod are valid. neighbors contains
     // valid particle indices within [0, num_particles). Buffer sizes match parameters.
+    let (pos_ptr, _guard1) = positions_gpu.device_ptr(&stream);
+    let (know_ptr, _guard2) = knowledge_gpu.device_ptr(&stream);
+    let (neigh_ptr, _guard3) = neighbors_gpu.device_ptr(&stream);
     unsafe {
         launch_swarm_communication(
-            positions_gpu.as_ptr() as *const f32,
-            knowledge_gpu.as_mut_ptr() as *mut f32,
-            neighbors_gpu.as_ptr() as *const u32,
+            pos_ptr as *const f32,
+            know_ptr as *mut f32,
+            neigh_ptr as *const u32,
             num_particles as u32,
             dimensions as u32,
             neighborhood_size as u32,
@@ -545,7 +586,7 @@ fn test_swarm_communication_kernel_launch() -> Result<()> {
     }
 
     // Verify knowledge sharing occurred
-    let updated_knowledge = device.dtoh_sync_copy(&knowledge_gpu)?;
+    let updated_knowledge: Vec<f32> = stream.clone_dtoh(&knowledge_gpu)?;
 
     let mut non_zero = 0;
     for &val in &updated_knowledge {
@@ -566,7 +607,8 @@ fn test_swarm_communication_kernel_launch() -> Result<()> {
 #[test]
 #[ignore] // Run with --ignored for performance testing
 fn test_kernel_performance_scaling() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
 
     // Test different population sizes
     let population_sizes = vec![1024, 4096, 16384, 65536];
@@ -578,24 +620,27 @@ fn test_kernel_performance_scaling() -> Result<()> {
 
     for &pop_size in &population_sizes {
         // Allocate memory
-        let agents = device.alloc_zeros::<u8>(pop_size * code_size)?;
-        let performances = device.alloc_zeros::<f32>(pop_size)?;
-        let metrics = device.alloc_zeros::<f32>(pop_size * 4)?;
+        let agents = stream.alloc_zeros::<u8>(pop_size * code_size)?;
+        let performances = stream.alloc_zeros::<f32>(pop_size)?;
+        let metrics = stream.alloc_zeros::<f32>(pop_size * 4)?;
 
         // Time evaluation kernel
         let eval_start = std::time::Instant::now();
         // SAFETY: Device pointers from alloc_zeros are valid for this scope.
         // pop_size and code_size match allocation sizes.
+        let (agents_ptr, _guard1) = agents.device_ptr(&stream);
+        let (perf_ptr, _guard2) = performances.device_ptr(&stream);
+        let (metrics_ptr, _guard3) = metrics.device_ptr(&stream);
         unsafe {
             prepare_adas_evaluation(
-                agents.as_ptr() as *const std::ffi::c_void,
-                performances.as_mut_ptr() as *mut f32,
-                metrics.as_mut_ptr() as *mut f32,
+                agents_ptr as *const std::ffi::c_void,
+                perf_ptr as *mut f32,
+                metrics_ptr as *mut f32,
                 pop_size as u32,
                 code_size as u32,
             );
         }
-        device.synchronize()?;
+        stream.synchronize()?;
         let eval_time = eval_start.elapsed();
 
         // Time mutation kernel
@@ -604,14 +649,14 @@ fn test_kernel_performance_scaling() -> Result<()> {
         // pop_size and code_size match allocation sizes.
         unsafe {
             launch_adas_mutation(
-                agents.as_mut_ptr() as *mut std::ffi::c_void,
-                performances.as_ptr() as *const f32,
+                agents_ptr as *mut std::ffi::c_void,
+                perf_ptr as *const f32,
                 pop_size as u32,
                 code_size as u32,
                 0.05,
             );
         }
-        device.synchronize()?;
+        stream.synchronize()?;
         let mut_time = mut_start.elapsed();
 
         // Calculate throughput (agents per second)
@@ -632,7 +677,8 @@ fn test_kernel_performance_scaling() -> Result<()> {
 
 #[test]
 fn test_kernel_memory_transfer_efficiency() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
     let population_size = 1024;
     let code_size = 512;
 
@@ -641,12 +687,12 @@ fn test_kernel_memory_transfer_efficiency() -> Result<()> {
 
     // Test upload speed
     let upload_start = std::time::Instant::now();
-    let gpu_data = device.htod_sync_copy(&host_data)?;
+    let gpu_data = stream.clone_htod(&host_data)?;
     let upload_time = upload_start.elapsed();
 
     // Test download speed
     let download_start = std::time::Instant::now();
-    let downloaded = device.dtoh_sync_copy(&gpu_data)?;
+    let downloaded: Vec<u8> = stream.clone_dtoh(&gpu_data)?;
     let download_time = download_start.elapsed();
 
     // Calculate bandwidth

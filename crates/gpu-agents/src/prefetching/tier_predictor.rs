@@ -236,7 +236,7 @@ impl AdvancedTierPredictor {
     }
 
     /// Update predictor with access feedback
-    pub fn update_access(&mut self, page_id: u64, tier: MemoryTier, timestamp: Instant) {
+    pub fn update_access(&mut self, page_id: u64, _tier: MemoryTier, timestamp: Instant) {
         self.recency_tracker.update(page_id, timestamp);
         self.working_set_estimator.update(page_id, timestamp);
         self.frequency_analyzer.update(page_id, timestamp);
@@ -376,11 +376,12 @@ impl AccessFrequency {
             return 0.0;
         }
 
-        let duration = self
-            .recent_accesses
-            .back()?
-            .duration_since(*self.recent_accesses.front()?)
-            .as_secs_f64();
+        let (back, front) = match (self.recent_accesses.back(), self.recent_accesses.front()) {
+            (Some(b), Some(f)) => (b, f),
+            _ => return 0.0,
+        };
+
+        let duration = back.duration_since(*front).as_secs_f64();
 
         if duration > 0.0 {
             self.recent_accesses.len() as f64 / duration
@@ -407,7 +408,7 @@ impl RecencyTracker {
     fn update(&mut self, page_id: u64, timestamp: Instant) {
         if self.last_access.len() >= self.capacity && !self.last_access.contains_key(&page_id) {
             // Evict oldest
-            if let Some((&oldest_page, _)) = self.last_access.iter().min_by_key(|(_, &time)| time) {
+            if let Some((&oldest_page, _)) = self.last_access.iter().min_by_key(|(_, time)| *time) {
                 self.last_access.remove(&oldest_page);
             }
         }

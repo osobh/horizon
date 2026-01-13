@@ -25,7 +25,8 @@ impl DebugSession {
             session_id: format!(
                 "session_{}",
                 SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)?
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
                     .as_millis()
             ),
             session_name: session_name.to_string(),

@@ -113,7 +113,7 @@ impl UptimePatternAnalyzer {
         let threshold = (total_sessions as f64 * 0.3) as usize;
         let mut typical_hours: Vec<u8> = hour_counts
             .iter()
-            .filter(|(_, &count)| count >= threshold)
+            .filter(|(_, count)| **count >= threshold)
             .map(|(hour, _)| *hour)
             .collect();
         typical_hours.sort_unstable();

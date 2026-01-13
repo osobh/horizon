@@ -186,7 +186,7 @@ impl StorageBenchmark {
         let metrics = self.metrics.lock().await.clone();
 
         // Get GPU info
-        let gpu_info = if let Ok(_device) = cudarc::driver::CudaDevice::new(0) {
+        let gpu_info = if let Ok(_ctx) = cudarc::driver::CudaContext::new(0) {
             format!("CUDA Device 0")
         } else {
             "No GPU".to_string()
@@ -290,7 +290,7 @@ impl StorageBenchmark {
 
         let mut hot_latencies = Vec::new();
         let mut cold_latencies = Vec::new();
-        let cache_stats_start = self.storage.cache_stats().await?;
+        let cache_stats_start = self.storage.cache_stats();
 
         // Access pattern: 80% hot agents, 20% cold agents
         for _ in 0..self.config.iterations {
@@ -315,7 +315,7 @@ impl StorageBenchmark {
             }
         }
 
-        let cache_stats_end = self.storage.cache_stats().await?;
+        let cache_stats_end = self.storage.cache_stats();
 
         // Update metrics
         let mut metrics = self.metrics.lock().await;
@@ -518,32 +518,32 @@ impl StorageBenchmark {
         let generations = 10;
         let population_size = self.config.agent_count / generations;
 
-        for gen in 0..generations {
+        for generation_idx in 0..generations {
             // Store generation
-            let gen_start = Instant::now();
+            let generation_idx_start = Instant::now();
 
             for i in 0..population_size {
-                let mut agent = self.create_test_agent(&format!("gen{}_{}", gen, i));
-                agent.generation = gen as u64;
+                let mut agent = self.create_test_agent(&format!("generation_idx{}_{}", generation_idx, i));
+                agent.generation = generation_idx as u64;
                 agent.fitness = rand::random::<f64>();
 
                 self.storage.store_agent(&agent.id, &agent).await?;
             }
 
             // Retrieve best agents from previous generation
-            if gen > 0 {
+            if generation_idx > 0 {
                 for i in 0..population_size / 10 {
                     // Top 10% of previous generation
-                    let agent_id = format!("gen{}_{}", gen - 1, i);
+                    let agent_id = format!("generation_idx{}_{}", generation_idx - 1, i);
                     let _ = self.storage.retrieve_agent(&agent_id).await?;
                 }
             }
 
-            let gen_duration = gen_start.elapsed();
+            let generation_idx_duration = generation_idx_start.elapsed();
             println!(
                 "   Generation {} persisted in {:.2}ms",
-                gen,
-                gen_duration.as_secs_f64() * 1000.0
+                generation_idx,
+                generation_idx_duration.as_secs_f64() * 1000.0
             );
         }
 
@@ -574,7 +574,7 @@ impl StorageBenchmark {
         let avg = latencies.iter().sum::<f64>() / latencies.len() as f64;
 
         let mut sorted = latencies.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b)?);
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let p99_idx = (sorted.len() as f64 * 0.99) as usize;
         let p99 = sorted[p99_idx.min(sorted.len() - 1)];
 

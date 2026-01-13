@@ -62,13 +62,13 @@ pub struct ScenarioResult {
 
 /// Integration tester
 pub struct IntegrationTester {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: IntegrationConfig,
 }
 
 impl IntegrationTester {
-    pub fn new(device: Arc<CudaDevice>, config: IntegrationConfig) -> Self {
-        Self { device, config }
+    pub fn new(ctx: Arc<CudaContext>, config: IntegrationConfig) -> Self {
+        Self { ctx, config }
     }
 
     pub async fn run_integration_tests(&mut self) -> Result<IntegrationResults> {

@@ -4,7 +4,7 @@
 
 use crate::synthesis::{AstNode, Match, Pattern};
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, CudaStream};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -50,7 +50,7 @@ impl Default for OptimizedBatchConfig {
 
 /// Optimized batch processor that addresses identified bottlenecks
 pub struct OptimizedBatchProcessor {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: OptimizedBatchConfig,
     streams: Vec<Arc<CudaStream>>,
     persistent_pattern_buffer: Option<CudaSlice<u8>>,
@@ -59,16 +59,17 @@ pub struct OptimizedBatchProcessor {
 }
 
 impl OptimizedBatchProcessor {
-    pub fn new(device: Arc<CudaDevice>, config: OptimizedBatchConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: OptimizedBatchConfig) -> Result<Self> {
+        let default_stream = device.default_stream();
         // Create CUDA streams for parallel processing
         let mut streams = Vec::with_capacity(config.num_streams);
         for _ in 0..config.num_streams {
-            streams.push(Arc::new(device.fork_default_stream()?));
+            streams.push(device.new_stream()?);
         }
 
         // Pre-allocate persistent buffers if enabled
         // SAFETY: alloc returns uninitialized memory. These persistent buffers will be
-        // written via htod_copy in transfer_to_persistent_buffers() or transfer_to_gpu()
+        // written via clone_htod in transfer_to_persistent_buffers() or transfer_to_gpu()
         // before any kernel reads. The buffers are reused across batches for efficiency.
         let (persistent_pattern_buffer, persistent_ast_buffer, persistent_result_buffer) =
             if config.use_persistent_buffers {
@@ -77,9 +78,9 @@ impl OptimizedBatchProcessor {
                 let result_buffer_size = config.optimal_batch_size * 512; // 512B per result
 
                 (
-                    Some(unsafe { device.alloc::<u8>(pattern_buffer_size)? }),
-                    Some(unsafe { device.alloc::<u8>(ast_buffer_size)? }),
-                    Some(unsafe { device.alloc::<u8>(result_buffer_size)? }),
+                    Some(unsafe { default_stream.alloc::<u8>(pattern_buffer_size)? }),
+                    Some(unsafe { default_stream.alloc::<u8>(ast_buffer_size)? }),
+                    Some(unsafe { default_stream.alloc::<u8>(result_buffer_size)? }),
                 )
             } else {
                 (None, None, None)
@@ -228,34 +229,29 @@ impl OptimizedBatchProcessor {
         pattern_data: &[u8],
         ast_data: &[u8],
     ) -> Result<(Arc<CudaSlice<u8>>, Arc<CudaSlice<u8>>)> {
-        let pattern_buffer = self
+        let _pattern_buffer = self
             .persistent_pattern_buffer
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Persistent pattern buffer not available"))?;
-        let ast_buffer = self
+        let _ast_buffer = self
             .persistent_ast_buffer
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Persistent AST buffer not available"))?;
 
+        let stream = self.device.default_stream();
         // Copy data to persistent buffers (asynchronously if enabled)
         if self.config.enable_async_transfers {
             // Use async memcpy for better performance
-            // Use device API for transfers - create new buffers
-            let pattern_gpu = self.device.htod_copy(pattern_data.to_vec())?;
-            let ast_gpu = self.device.htod_copy(ast_data.to_vec())?;
+            // Use stream API for transfers - create new buffers
+            let pattern_gpu = stream.clone_htod(pattern_data)?;
+            let ast_gpu = stream.clone_htod(ast_data)?;
             return Ok((Arc::new(pattern_gpu), Arc::new(ast_gpu)));
         } else {
             // Synchronous transfer - create new buffers
-            let pattern_gpu = self.device.htod_copy(pattern_data.to_vec())?;
-            let ast_gpu = self.device.htod_copy(ast_data.to_vec())?;
+            let pattern_gpu = stream.clone_htod(pattern_data)?;
+            let ast_gpu = stream.clone_htod(ast_data)?;
             return Ok((Arc::new(pattern_gpu), Arc::new(ast_gpu)));
         }
-
-        // Return references to persistent buffers
-        Ok((
-            Arc::new(pattern_buffer.clone()),
-            Arc::new(ast_buffer.clone()),
-        ))
     }
 
     /// Transfer data to GPU using pinned memory for faster transfers
@@ -264,9 +260,10 @@ impl OptimizedBatchProcessor {
         pattern_data: &[u8],
         ast_data: &[u8],
     ) -> Result<(Arc<CudaSlice<u8>>, Arc<CudaSlice<u8>>)> {
+        let stream = self.device.default_stream();
         // Create buffers and transfer data
-        let pattern_buffer = self.device.htod_copy(pattern_data.to_vec())?;
-        let ast_buffer = self.device.htod_copy(ast_data.to_vec())?;
+        let pattern_buffer = stream.clone_htod(pattern_data)?;
+        let ast_buffer = stream.clone_htod(ast_data)?;
 
         Ok((Arc::new(pattern_buffer), Arc::new(ast_buffer)))
     }
@@ -343,15 +340,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_optimized_batch_processor_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = OptimizedBatchConfig::default();
         let processor = OptimizedBatchProcessor::new(device, config);
         assert!(processor.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_binary_serialization() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let processor =
             OptimizedBatchProcessor::new(device, OptimizedBatchConfig::default()).unwrap();
 
@@ -363,11 +361,12 @@ mod tests {
 
         // Binary serialization should be much more compact than JSON
         assert!(data.len() < patterns.len() * 100); // Should be much smaller than JSON
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_batch_processing_performance() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = OptimizedBatchConfig {
             optimal_batch_size: 100,
             use_persistent_buffers: true,
@@ -389,11 +388,12 @@ mod tests {
         assert!(metrics.throughput > 10_000.0); // At least 10K ops/sec
         assert!(metrics.overhead_percentage < 99.0); // Less than 99% overhead
         assert!(metrics.kernel_time.as_micros() < 1000); // Kernel should be fast
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_batch_size_optimization() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let processor =
             OptimizedBatchProcessor::new(device, OptimizedBatchConfig::default()).unwrap();
 
@@ -414,5 +414,6 @@ mod tests {
         let large_batch = &benchmarks[3].1; // batch_size = 200
 
         assert!(large_batch.throughput > small_batch.throughput);
+        Ok(())
     }
 }

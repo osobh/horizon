@@ -2,7 +2,7 @@
 //!
 //! GREEN phase - tests should pass with basic implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::agent_manager::{AgentConfig, LocalAgentManager};
 use std::sync::Arc;
 use std::time::Instant;
@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Single Node with Local Agents (GREEN phase)");
     println!("==================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create agent manager for single node
     println!("\n1. Testing agent manager creation...");
@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut manager = LocalAgentManager::new(device.clone(), config)?;
+    let mut manager = LocalAgentManager::new(ctx.clone(), config)?;
     println!("✅ Created agent manager for single node");
 
     // Test 2: Spawn single agent

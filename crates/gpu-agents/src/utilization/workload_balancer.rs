@@ -3,7 +3,7 @@
 //! Dynamically adjusts workload distribution to maintain optimal GPU utilization.
 
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::{CudaContext, CudaStream};
 use std::collections::VecDeque;
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -62,7 +62,7 @@ pub struct WorkloadStats {
 /// Workload balancer
 pub struct WorkloadBalancer {
     config: WorkloadConfig,
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     work_queue: Arc<Mutex<VecDeque<WorkItem>>>,
     current_batch_size: Arc<AtomicU64>,
     current_iterations: Arc<AtomicU64>,
@@ -72,7 +72,7 @@ pub struct WorkloadBalancer {
 
 impl WorkloadBalancer {
     /// Create new workload balancer
-    pub fn new(device: Arc<CudaDevice>, config: WorkloadConfig) -> Self {
+    pub fn new(device: Arc<CudaContext>, config: WorkloadConfig) -> Self {
         Self {
             device,
             work_queue: Arc::new(Mutex::new(VecDeque::with_capacity(config.queue_capacity))),

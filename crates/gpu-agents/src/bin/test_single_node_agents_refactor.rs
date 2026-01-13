@@ -2,7 +2,7 @@
 //!
 //! REFACTOR phase - optimize implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::agent_manager::{AgentConfig, LocalAgentManager};
 use std::time::{Duration, Instant};
 
@@ -10,7 +10,7 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Single Node with Local Agents (REFACTOR phase)");
     println!("=====================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Optimized agent creation
     println!("\n1. Testing optimized agent creation...");
@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let start = Instant::now();
-    let mut manager = LocalAgentManager::new(device.clone(), config)?;
+    let mut manager = LocalAgentManager::new(ctx.clone(), config)?;
     println!("✅ Created agent manager in {:?}", start.elapsed());
 
     // Test 2: Batch agent spawning performance

@@ -5,13 +5,13 @@
 
 use super::*;
 use anyhow::{anyhow, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 /// Fusion analyzer for identifying kernel fusion opportunities
 pub struct FusionAnalyzer {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: KernelFusionConfig,
     pattern_matcher: PatternMatcher,
     dependency_analyzer: DependencyAnalyzer,
@@ -20,7 +20,7 @@ pub struct FusionAnalyzer {
 
 impl FusionAnalyzer {
     /// Create new fusion analyzer
-    pub fn new(device: Arc<CudaDevice>, config: KernelFusionConfig) -> Self {
+    pub fn new(device: Arc<CudaContext>, config: KernelFusionConfig) -> Self {
         Self {
             device,
             config: config.clone(),
@@ -873,12 +873,13 @@ mod tests {
 
     #[test]
     fn test_fusion_analyzer_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let ctx = CudaContext::new(0)?;
         let config = KernelFusionConfig::default();
-        let analyzer = FusionAnalyzer::new(Arc::new(device), config);
+        let analyzer = FusionAnalyzer::new(ctx, config);
 
         // Analyzer created successfully
         assert!(true);
+        Ok(())
     }
 
     #[test]

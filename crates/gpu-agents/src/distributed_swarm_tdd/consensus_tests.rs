@@ -5,6 +5,7 @@ use crate::consensus_synthesis::integration::ConsensusSynthesisEngine;
 use crate::multi_region::{MaliciousBehavior, MultiRegionConsensusEngine};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
 
 /// TDD Test Suite for Multi-Region Consensus

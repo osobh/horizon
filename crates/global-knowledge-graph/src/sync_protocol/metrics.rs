@@ -139,8 +139,9 @@ impl MetricsCollector for DefaultMetricsCollector {
         anomalies.push(anomaly);
 
         // Keep only last 1000 anomalies
-        if anomalies.len() > 1000 {
-            anomalies.drain(0..anomalies.len() - 1000);
+        let len = anomalies.len();
+        if len > 1000 {
+            anomalies.drain(0..len - 1000);
         }
     }
 

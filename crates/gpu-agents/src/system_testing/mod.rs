@@ -8,7 +8,7 @@
 //! - Performance benchmarking
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -155,17 +155,17 @@ pub struct ResourceUtilization {
 /// Main system testing orchestrator
 pub struct SystemTester {
     config: SystemTestConfig,
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     start_time: Option<Instant>,
     monitoring_enabled: bool,
 }
 
 impl SystemTester {
     /// Create new system tester
-    pub fn new(device: Arc<CudaDevice>, config: SystemTestConfig) -> Self {
+    pub fn new(ctx: Arc<CudaContext>, config: SystemTestConfig) -> Self {
         Self {
             config,
-            device,
+            ctx,
             start_time: None,
             monitoring_enabled: false,
         }
@@ -318,7 +318,7 @@ impl SystemTester {
     /// Run agent simulation testing
     async fn run_agent_simulation(&mut self) -> Result<simulation::SimulationResults> {
         let mut simulator = simulation::AgentSimulator::new(
-            self.device.clone(),
+            self.ctx.clone(),
             simulation::SimulationConfig {
                 gpu_agent_count: self.config.gpu_agent_count,
                 cpu_agent_count: self.config.cpu_agent_count,
@@ -334,7 +334,7 @@ impl SystemTester {
     /// Run resource isolation validation
     async fn run_isolation_validation(&mut self) -> Result<isolation::IsolationResults> {
         let mut validator = isolation::IsolationValidator::new(
-            self.device.clone(),
+            self.ctx.clone(),
             isolation::IsolationConfig {
                 cpu_agent_count: self.config.cpu_agent_count,
                 gpu_agent_count: self.config.gpu_agent_count,
@@ -349,7 +349,7 @@ impl SystemTester {
     /// Run memory tier migration testing
     async fn run_migration_testing(&mut self) -> Result<migration::MigrationResults> {
         let mut tester = migration::MigrationTester::new(
-            self.device.clone(),
+            self.ctx.clone(),
             migration::MigrationConfig {
                 tier_count: 5,
                 test_data_sizes: vec![4096, 65536, 1048576, 16777216], // 4KB to 16MB
@@ -368,7 +368,7 @@ impl SystemTester {
     /// Run full integration testing
     async fn run_integration_testing(&mut self) -> Result<integration::IntegrationResults> {
         let mut tester = integration::IntegrationTester::new(
-            self.device.clone(),
+            self.ctx.clone(),
             integration::IntegrationConfig {
                 test_scenarios: vec![
                     integration::TestScenario::BasicWorkflow,
@@ -389,7 +389,7 @@ impl SystemTester {
     /// Run performance benchmarks
     async fn run_performance_benchmarks(&mut self) -> Result<benchmarks::BenchmarkResults> {
         let mut benchmarker = benchmarks::PerformanceBenchmarker::new(
-            self.device.clone(),
+            self.ctx.clone(),
             benchmarks::BenchmarkConfig {
                 benchmark_suites: vec![
                     benchmarks::BenchmarkSuite::Consensus,

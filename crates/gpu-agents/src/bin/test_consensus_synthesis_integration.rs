@@ -2,7 +2,7 @@
 //!
 //! GREEN phase - tests passing with working implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus::voting::GpuVoting;
 use gpu_agents::consensus_synthesis::integration::{
     ConsensusSynthesisEngine, IntegrationConfig, WorkflowResult,
@@ -17,12 +17,12 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Consensus + Synthesis Integration (GREEN phase)");
     println!("======================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create integrated engine
     println!("\n1. Testing integrated engine creation...");
     let config = IntegrationConfig::default();
-    let engine = ConsensusSynthesisEngine::new(device.clone(), config)?;
+    let engine = ConsensusSynthesisEngine::new(ctx.clone(), config)?;
     println!("✅ Engine created successfully");
 
     // Test 2: Submit synthesis task for consensus

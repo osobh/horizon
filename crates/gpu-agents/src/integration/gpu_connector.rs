@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::GpuAgent;
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::{CudaContext, CudaStream};
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -59,7 +59,7 @@ impl GpuAgentConnector {
     pub async fn start(&mut self) -> Result<()> {
         // Initialize GPU agent if not already done
         if self.gpu_agent.lock().await.is_none() {
-            let device = CudaDevice::new(self.gpu_id)?;
+            let device = CudaContext::new(self.gpu_id)?;
             let gpu_agent = Arc::new(GpuAgent::new(Arc::new(device)));
             *self.gpu_agent.lock().await = Some(gpu_agent);
         }

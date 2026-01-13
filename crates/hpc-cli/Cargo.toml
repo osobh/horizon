@@ -1,8 +1,8 @@
 [package]
 name = "hpc-ai-cli"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.75"
+edition = "2024"
+rust-version = "1.92"
 authors = ["HPC-AI Team"]
 description = "Unified CLI for the HPC-AI platform"
 license = "MIT OR Apache-2.0"

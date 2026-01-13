@@ -4,7 +4,7 @@
 //! integrating with the evolution and evolution-engines crates.
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -214,7 +214,7 @@ impl Default for GpuEvolutionConfig {
 
 /// GPU Evolution Engine
 pub struct GpuEvolutionEngine {
-    _device: Arc<CudaDevice>,
+    _device: Arc<CudaContext>,
     config: GpuEvolutionConfig,
     population: GpuPopulation,
     fitness_evaluator: GpuFitnessEvaluator,
@@ -225,7 +225,7 @@ pub struct GpuEvolutionEngine {
 
 impl GpuEvolutionEngine {
     /// Create new GPU evolution engine
-    pub fn new(device: Arc<CudaDevice>, config: GpuEvolutionConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: GpuEvolutionConfig) -> Result<Self> {
         // Validate config
         if config.population_size % 32 != 0 {
             return Err(anyhow::anyhow!(
@@ -337,8 +337,8 @@ impl GpuEvolutionEngine {
 
     /// Create a new evolution manager with legacy config compatibility (for tests)
     pub fn new_legacy(config: EvolutionConfig) -> Result<Self> {
-        use cudarc::driver::CudaDevice;
-        let device = CudaDevice::new(0)?;
+        use cudarc::driver::CudaContext;
+        let device = CudaContext::new(0)?;
 
         // Convert legacy config to GpuEvolutionConfig
         let gpu_config = GpuEvolutionConfig {
@@ -514,7 +514,7 @@ impl GpuEvolutionEngine {
             }
 
             // Sort distances and take k-nearest (15 from config)
-            distances.sort_by(|a, b| a.partial_cmp(b)?);
+            distances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             let k_nearest = distances.iter().take(15.min(distances.len()));
             let novelty_score = k_nearest.sum::<f32>() / distances.len().min(15) as f32;
 

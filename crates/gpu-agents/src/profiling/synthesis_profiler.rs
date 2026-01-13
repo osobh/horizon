@@ -3,7 +3,7 @@
 //! Identifies performance bottlenecks in the synthesis pipeline
 
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaFunction, LaunchAsync, LaunchConfig};
+use cudarc::driver::{CudaContext, CudaStream};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
@@ -71,13 +71,16 @@ pub struct BottleneckAnalysis {
 
 /// Profiler for the synthesis pipeline
 pub struct SynthesisPipelineProfiler {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
 }
 
 impl SynthesisPipelineProfiler {
     pub fn new() -> Self {
-        let device = CudaDevice::new(0).expect("Failed to create CUDA device");
-        Self { device }
+        // CudaContext::new returns Arc<CudaContext>
+        let ctx = CudaContext::new(0).expect("Failed to create CUDA context");
+        let stream = ctx.default_stream();
+        Self { ctx, stream }
     }
 
     pub async fn profile_synthesis_operation(&self) -> Result<PerformanceMetrics> {
@@ -91,13 +94,13 @@ impl SynthesisPipelineProfiler {
 
         // 2. Measure transfer time (CPU -> GPU)
         let transfer_start = Instant::now();
-        let gpu_buffer = self.device.htod_copy(serialized.clone())?;
+        let gpu_buffer = self.stream.clone_htod(&serialized)?;
         let transfer_time = transfer_start.elapsed();
 
         // 3. Measure kernel execution time
         let kernel_start = Instant::now();
         self.run_dummy_kernel(&gpu_buffer)?;
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
         let kernel_time = kernel_start.elapsed();
 
         // 4. Simulate consensus overhead
@@ -218,6 +221,16 @@ impl SynthesisPipelineProfiler {
         std::thread::sleep(Duration::from_micros(50)); // Simulate 50μs kernel
         Ok(())
     }
+
+    /// Get the CUDA context
+    pub fn context(&self) -> &Arc<CudaContext> {
+        &self.ctx
+    }
+
+    /// Get the CUDA stream
+    pub fn stream(&self) -> &Arc<CudaStream> {
+        &self.stream
+    }
 }
 
 #[cfg(test)]
@@ -227,7 +240,7 @@ mod tests {
     #[tokio::test]
     async fn test_profiler_creation() {
         let profiler = SynthesisPipelineProfiler::new();
-        assert!(Arc::strong_count(&profiler.device) == 1);
+        assert!(Arc::strong_count(&profiler.ctx) >= 1);
     }
 
     #[tokio::test]

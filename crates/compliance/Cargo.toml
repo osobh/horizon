@@ -21,6 +21,9 @@ parking_lot = "0.12"
 sha2 = "0.10"
 base64 = "0.22"
 
+# Shared crates from rustyinfra
+security-common = { workspace = true }
+
 [dev-dependencies]
 tempfile = "3.14"
 criterion = "0.5"

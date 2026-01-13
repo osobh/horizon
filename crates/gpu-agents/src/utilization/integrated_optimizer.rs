@@ -3,7 +3,7 @@
 //! Combines all optimization techniques to achieve 90% GPU utilization
 
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::{CudaContext, CudaStream};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
@@ -18,7 +18,7 @@ use super::{
 
 /// Integrated GPU optimization system
 pub struct IntegratedGpuOptimizer {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Core utilization manager
     utilization_manager: Arc<UtilizationManager>,
     /// Auto-tuning controller
@@ -68,7 +68,7 @@ struct ImprovementRecord {
 
 impl IntegratedGpuOptimizer {
     /// Create new integrated optimizer
-    pub async fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub async fn new(device: Arc<CudaContext>) -> Result<Self> {
         // Initialize components
         let utilization_manager = Arc::new(UtilizationManager::new(Arc::clone(&device))?);
         let auto_tuner = Arc::new(AutoTuningController::new(Arc::clone(&utilization_manager)));
@@ -536,7 +536,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_integrated_optimizer_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let optimizer = IntegratedGpuOptimizer::new(device).await?;
 
         let state = optimizer.state.read().await;
@@ -546,7 +546,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_phase_transitions() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let optimizer = IntegratedGpuOptimizer::new(device).await?;
 
         // Add some improvement history

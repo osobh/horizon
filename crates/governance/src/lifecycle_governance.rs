@@ -14,7 +14,6 @@ use uuid::Uuid;
 use crate::governance_engine::{EvolutionRequest, ResourceQuota};
 use crate::{GovernanceError, Result};
 use stratoswarm_agent_core::agent::AgentId;
-use stratoswarm_evolution_engines::traits::EvolutionStrategy;
 
 /// Lifecycle governor for managing agent lifecycle
 pub struct LifecycleGovernor {

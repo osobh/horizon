@@ -4,7 +4,7 @@
 
 use crate::synthesis::{AstNode, Pattern};
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -47,7 +47,8 @@ impl Default for PinnedMemoryConfig {
 
 /// Manages pinned memory allocations for optimal GPU transfers
 pub struct PinnedMemoryManager {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     config: PinnedMemoryConfig,
     pinned_buffers: HashMap<usize, PinnedBuffer>,
     buffer_pool: Vec<PinnedBuffer>,
@@ -81,9 +82,11 @@ unsafe impl Sync for PinnedBuffer {}
 
 impl PinnedMemoryManager {
     /// Create a new pinned memory manager
-    pub fn new(device: Arc<CudaDevice>, config: PinnedMemoryConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: PinnedMemoryConfig) -> Result<Self> {
+        let stream = device.default_stream();
         let mut manager = Self {
             device,
+            stream,
             config,
             pinned_buffers: HashMap::new(),
             buffer_pool: Vec::new(),
@@ -126,7 +129,7 @@ impl PinnedMemoryManager {
 
         // Optionally allocate corresponding device buffer for zero-copy
         let device_buffer = if self.config.enable_zero_copy {
-            Some(self.device.alloc_zeros::<u8>(size)?)
+            Some(self.stream.alloc_zeros::<u8>(size)?)
         } else {
             None
         };
@@ -199,10 +202,10 @@ impl PinnedMemoryManager {
         // SAFETY: host_ptr is valid for data_size bytes (was just written above).
         // The slice lifetime is temporary and data is immediately copied to Vec.
         let host_data = unsafe { std::slice::from_raw_parts(buffer.host_ptr, data_size).to_vec() };
-        let gpu_buffer = self.device.htod_copy(host_data)?;
+        let gpu_buffer = self.stream.clone_htod(&host_data)?;
 
         // Synchronize to measure actual transfer time
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
         let transfer_time = start.elapsed();
 
         // Return buffer to pool
@@ -241,13 +244,13 @@ impl PinnedMemoryManager {
             std::ptr::copy_nonoverlapping(serialized.as_ptr(), buffer.host_ptr, data_size);
         }
 
-        // Use device API for transfer
+        // Use stream API for transfer
         // SAFETY: host_ptr is valid for data_size bytes (was just written above).
         // The slice lifetime is temporary and data is immediately copied to Vec.
         let host_data = unsafe { std::slice::from_raw_parts(buffer.host_ptr, data_size).to_vec() };
-        let gpu_buffer = self.device.htod_copy(host_data)?;
+        let gpu_buffer = self.stream.clone_htod(&host_data)?;
 
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
         let transfer_time = start.elapsed();
 
         self.return_buffer(buffer_id)?;
@@ -297,8 +300,8 @@ impl PinnedMemoryManager {
         let start = Instant::now();
 
         // Regular allocation and transfer (slower)
-        let gpu_buffer = self.device.htod_copy(serialized.clone())?;
-        self.device.synchronize()?;
+        let _gpu_buffer = self.stream.clone_htod(&serialized)?;
+        self.stream.synchronize()?;
 
         let transfer_time = start.elapsed();
         let throughput_gbps =
@@ -429,7 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pinned_memory_manager_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = PinnedMemoryConfig::default();
         let manager = PinnedMemoryManager::new(device, config);
         assert!(manager.is_ok());
@@ -437,7 +440,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_buffer_allocation_and_return() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = PinnedMemoryConfig::default();
         let mut manager = PinnedMemoryManager::new(device, config)?;
 
@@ -451,7 +454,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pattern_transfer_with_pinned_memory() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = PinnedMemoryConfig::default();
         let mut manager = PinnedMemoryManager::new(device, config)?;
 
@@ -469,7 +472,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ast_transfer_with_pinned_memory() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = PinnedMemoryConfig::default();
         let mut manager = PinnedMemoryManager::new(device, config)?;
 
@@ -486,7 +489,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transfer_method_comparison() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = PinnedMemoryConfig {
             enable_zero_copy: true,
             ..Default::default()
@@ -532,7 +535,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_memory_pool_stats() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = PinnedMemoryConfig::default();
         let mut manager = PinnedMemoryManager::new(device, config)?;
 

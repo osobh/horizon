@@ -1,7 +1,7 @@
 //! GPU-accelerated streaming pipeline
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, CudaStream};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream};
 use std::sync::Arc;
 
 pub mod compression;
@@ -51,7 +51,7 @@ impl Default for GpuStreamConfig {
 
 /// GPU buffer pool for efficient memory management
 pub struct GpuBufferPool {
-    _device: Arc<CudaDevice>,
+    _device: Arc<CudaContext>,
     /// Pool of reusable GPU buffers
     buffers: Vec<CudaSlice<u8>>,
     /// Buffer size
@@ -62,15 +62,16 @@ pub struct GpuBufferPool {
 
 impl GpuBufferPool {
     /// Create new buffer pool
-    pub fn new(device: Arc<CudaDevice>, num_buffers: usize, buffer_size: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, num_buffers: usize, buffer_size: usize) -> Result<Self> {
         let mut buffers = Vec::with_capacity(num_buffers);
         let mut available = Vec::with_capacity(num_buffers);
 
+        let stream = device.default_stream();
         for i in 0..num_buffers {
             // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
             // because the buffer pool manages buffer lifecycle and buffers are written
             // via htod_copy before any kernel reads from them.
-            let buffer = unsafe { device.alloc::<u8>(buffer_size)? };
+            let buffer = unsafe { stream.alloc::<u8>(buffer_size)? };
             buffers.push(buffer);
             available.push(i);
         }
@@ -118,10 +119,10 @@ impl GpuBufferPool {
 
 /// GPU stream processor base
 pub struct GpuStreamProcessor {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     _config: GpuStreamConfig,
     /// CUDA streams for concurrent operations
-    cuda_streams: Vec<CudaStream>,
+    cuda_streams: Vec<Arc<CudaStream>>,
     /// Buffer pool
     buffer_pool: GpuBufferPool,
     /// Statistics
@@ -131,11 +132,12 @@ pub struct GpuStreamProcessor {
 
 impl GpuStreamProcessor {
     /// Create new GPU stream processor
-    pub fn new(device: Arc<CudaDevice>, config: GpuStreamConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: GpuStreamConfig) -> Result<Self> {
         // Create CUDA streams
         let mut cuda_streams = Vec::with_capacity(config.num_streams);
+        let default_stream = device.default_stream();
         for _ in 0..config.num_streams {
-            cuda_streams.push(device.fork_default_stream()?);
+            cuda_streams.push(default_stream.fork()?);
         }
 
         // Create buffer pool
@@ -168,11 +170,12 @@ impl GpuStreamProcessor {
             .ok_or_else(|| anyhow::anyhow!("No available buffers"))?;
 
         // Copy data to GPU
+        let default_stream = self.device.default_stream();
         let gpu_buffer = self
             .buffer_pool
             .get_buffer_mut(buffer_idx)
             .ok_or_else(|| anyhow::anyhow!("Invalid buffer index"))?;
-        self.device.htod_sync_copy_into(data, gpu_buffer)?;
+        default_stream.memcpy_htod(data, gpu_buffer)?;
 
         // Process on GPU (placeholder - actual kernel would go here)
         // Note: Simplified to avoid borrowing issues - actual kernel launch would go here
@@ -182,7 +185,7 @@ impl GpuStreamProcessor {
             .buffer_pool
             .get_buffer_mut(buffer_idx)
             .ok_or_else(|| anyhow::anyhow!("Invalid buffer index"))?;
-        let result: Vec<u8> = self.device.dtoh_sync_copy(gpu_buffer)?;
+        let result: Vec<u8> = default_stream.clone_dtoh(gpu_buffer)?;
 
         // Release buffer
         self.buffer_pool.release(buffer_idx);
@@ -260,15 +263,15 @@ mod tests {
 
     #[test]
     fn test_buffer_pool() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
-            let mut pool = GpuBufferPool::new(device, 4, 1024)?;
+        if let Ok(ctx) = CudaContext::new(0) {
+            let mut pool = GpuBufferPool::new(ctx, 4, 1024)?;
 
             // Acquire all buffers
             let mut acquired = Vec::new();
             for _ in 0..4 {
-                let (idx, _) = pool.acquire()?;
-                acquired.push(idx);
+                if let Some(idx) = pool.acquire() {
+                    acquired.push(idx);
+                }
             }
 
             // Pool should be empty
@@ -280,6 +283,7 @@ mod tests {
             // Should be able to acquire again
             assert!(pool.acquire().is_some());
         }
+        Ok(())
     }
 }
 

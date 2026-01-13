@@ -5,7 +5,7 @@
 
 use super::*;
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -266,8 +266,8 @@ mod unit_tests {
 mod integration_tests {
     use super::*;
 
-    async fn setup_test_device() -> Result<Arc<CudaDevice>> {
-        CudaDevice::new(0).map(Arc::new).map_err(Into::into)
+    async fn setup_test_device() -> Result<Arc<CudaContext>> {
+        CudaContext::new(0).map_err(Into::into)
     }
 
     #[tokio::test]

@@ -4,6 +4,7 @@ use super::shared::*;
 use crate::multi_region::{MaliciousBehavior, MultiRegionConsensusEngine};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio;
 

@@ -56,7 +56,7 @@ hpc-tracing = { path = "../../hpc-foundation/hpc-tracing" }
 hpc-config = { path = "../../hpc-foundation/hpc-config" }
 hpc-auth = { path = "../../hpc-foundation/hpc-auth" }
 hpc-tsdb = { path = "../../hpc-foundation/hpc-tsdb" }
-hpc-channels = { path = "../../../../hpc-channels" }
+hpc-channels.workspace = true
 hpc-inventory = { path = "../../hpc-foundation/hpc-inventory" }
 
 [dev-dependencies]

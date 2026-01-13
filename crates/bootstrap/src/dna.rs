@@ -242,7 +242,7 @@ impl AgentDNA {
 
         // Select random trait to mutate
         let trait_choice = rng.gen_range(0..8);
-        let mutation_type = if rng.gen::<f32>() < 0.8 {
+        let mutation_type = if rng.r#gen::<f32>() < 0.8 {
             MutationType::PointMutation
         } else {
             MutationType::DramaticMutation

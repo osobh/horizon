@@ -5,13 +5,13 @@
 
 use super::*;
 use anyhow::{anyhow, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Fusion compiler for generating optimized kernels
 pub struct FusionCompiler {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: KernelFusionConfig,
     code_generator: CodeGenerator,
     optimizer: KernelOptimizer,
@@ -20,7 +20,7 @@ pub struct FusionCompiler {
 
 impl FusionCompiler {
     /// Create new fusion compiler
-    pub fn new(device: Arc<CudaDevice>, config: KernelFusionConfig) -> Self {
+    pub fn new(device: Arc<CudaContext>, config: KernelFusionConfig) -> Self {
         Self {
             device: Arc::clone(&device),
             config: config.clone(),
@@ -751,11 +751,11 @@ impl KernelOptimizer {
 
 /// PTX compiler
 struct PtxCompiler {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
 }
 
 impl PtxCompiler {
-    fn new(device: Arc<CudaDevice>) -> Self {
+    fn new(device: Arc<CudaContext>) -> Self {
         Self { device }
     }
 
@@ -787,11 +787,12 @@ mod tests {
 
     #[test]
     fn test_workload_analysis() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let ctx = CudaContext::new(0)?;
         let config = KernelFusionConfig::default();
-        let compiler = FusionCompiler::new(Arc::new(device), config);
+        let compiler = FusionCompiler::new(ctx, config);
 
         // Compiler created successfully
         assert!(true);
+        Ok(())
     }
 }

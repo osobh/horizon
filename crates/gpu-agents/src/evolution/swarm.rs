@@ -4,7 +4,7 @@
 //! for fully automated agentic system generation with GPU acceleration.
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -57,7 +57,7 @@ pub struct BehaviorConfig {
 
 /// GPU-accelerated Swarm optimization engine
 pub struct SwarmEngine {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Swarm particles
     particles: Vec<SwarmParticle>,
     /// Global best position
@@ -117,20 +117,21 @@ impl Default for SwarmParams {
 impl SwarmEngine {
     /// Create new swarm optimization engine
     pub fn new(
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
         population_size: usize,
         dimensions: usize,
         params: SwarmParams,
     ) -> Result<Self> {
         // Allocate GPU memory
+        let stream = device.default_stream();
         // SAFETY: alloc returns uninitialized memory. All buffers will be initialized
-        // via htod_copy_into in upload_to_gpu() before any kernel reads from them.
-        let positions = unsafe { device.alloc::<f32>(population_size * dimensions)? };
-        let velocities = unsafe { device.alloc::<f32>(population_size * dimensions)? };
-        let personal_bests = unsafe { device.alloc::<f32>(population_size * dimensions)? };
-        let fitness_scores = unsafe { device.alloc::<f32>(population_size)? };
+        // via memcpy_htod in upload_to_gpu() before any kernel reads from them.
+        let positions = unsafe { stream.alloc::<f32>(population_size * dimensions)? };
+        let velocities = unsafe { stream.alloc::<f32>(population_size * dimensions)? };
+        let personal_bests = unsafe { stream.alloc::<f32>(population_size * dimensions)? };
+        let fitness_scores = unsafe { stream.alloc::<f32>(population_size)? };
         let neighborhood_matrix =
-            unsafe { device.alloc::<u32>(population_size * params.neighborhood_size)? };
+            unsafe { stream.alloc::<u32>(population_size * params.neighborhood_size)? };
 
         Ok(Self {
             device,
@@ -274,16 +275,12 @@ impl SwarmEngine {
         }
 
         // Copy to GPU
-        self.device
-            .htod_copy_into(position_data, &mut self.positions.clone())?;
-        self.device
-            .htod_copy_into(velocity_data, &mut self.velocities.clone())?;
-        self.device
-            .htod_copy_into(personal_best_data, &mut self.personal_bests.clone())?;
-        self.device
-            .htod_copy_into(fitness_data, &mut self.fitness_scores.clone())?;
-        self.device
-            .htod_copy_into(neighborhood_data, &mut self.neighborhood_matrix.clone())?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&position_data, &mut self.positions)?;
+        stream.memcpy_htod(&velocity_data, &mut self.velocities)?;
+        stream.memcpy_htod(&personal_best_data, &mut self.personal_bests)?;
+        stream.memcpy_htod(&fitness_data, &mut self.fitness_scores)?;
+        stream.memcpy_htod(&neighborhood_data, &mut self.neighborhood_matrix)?;
 
         Ok(())
     }
@@ -294,12 +291,10 @@ impl SwarmEngine {
         let mut velocity_data = vec![0f32; self.population_size * self.dimensions];
         let mut fitness_data = vec![0f32; self.population_size];
 
-        self.device
-            .dtoh_sync_copy_into(&self.positions, &mut position_data)?;
-        self.device
-            .dtoh_sync_copy_into(&self.velocities, &mut velocity_data)?;
-        self.device
-            .dtoh_sync_copy_into(&self.fitness_scores, &mut fitness_data)?;
+        let stream = self.device.default_stream();
+        stream.memcpy_dtoh(&self.positions, &mut position_data)?;
+        stream.memcpy_dtoh(&self.velocities, &mut velocity_data)?;
+        stream.memcpy_dtoh(&self.fitness_scores, &mut fitness_data)?;
 
         // Update particles
         for (i, particle) in self.particles.iter_mut().enumerate() {
@@ -343,22 +338,27 @@ impl SwarmEngine {
             .iter()
             .map(|p| p.current_fitness as f32)
             .collect();
-        self.device
-            .htod_copy_into(fitness_data, &mut self.fitness_scores.clone())?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&fitness_data, &mut self.fitness_scores)?;
 
         // Launch GPU fitness computation kernel for validation
         // SAFETY: positions and fitness_scores are valid device pointers from CudaSlice.
         // population_size and dimensions match allocation sizes.
         // target_function is null as a placeholder.
-        unsafe {
-            crate::evolution::kernels::compute_swarm_fitness(
-                *self.positions.device_ptr() as *const f32,
-                *self.fitness_scores.device_ptr() as *mut f32,
-                self.population_size as u32,
-                self.dimensions as u32,
-                std::ptr::null(), // target_function placeholder
-            );
-        }
+        let stream = self.device.default_stream();
+        {
+            let (positions_ptr, _guard1) = self.positions.device_ptr(&stream);
+            let (fitness_ptr, _guard2) = self.fitness_scores.device_ptr(&stream);
+            unsafe {
+                crate::evolution::kernels::compute_swarm_fitness(
+                    positions_ptr as *const f32,
+                    fitness_ptr as *mut f32,
+                    self.population_size as u32,
+                    self.dimensions as u32,
+                    std::ptr::null(), // target_function placeholder
+                );
+            }
+        } // Guards dropped here
 
         // Update personal and global bests
         self.download_from_gpu()?;
@@ -372,11 +372,15 @@ impl SwarmEngine {
         // SAFETY: velocities, positions, personal_bests are valid device pointers.
         // global_best.as_ptr() is a valid host pointer (kernel copies from host).
         // population_size and dimensions match allocation sizes.
+        let stream = self.device.default_stream();
+        let (velocities_ptr, _guard1) = self.velocities.device_ptr(&stream);
+        let (positions_ptr, _guard2) = self.positions.device_ptr(&stream);
+        let (personal_bests_ptr, _guard3) = self.personal_bests.device_ptr(&stream);
         unsafe {
             crate::evolution::kernels::launch_pso_velocity_update(
-                *self.velocities.device_ptr() as *mut f32,
-                *self.positions.device_ptr() as *const f32,
-                *self.personal_bests.device_ptr() as *const f32,
+                velocities_ptr as *mut f32,
+                positions_ptr as *const f32,
+                personal_bests_ptr as *const f32,
                 self.global_best.as_ptr(),
                 self.population_size as u32,
                 self.dimensions as u32,
@@ -394,15 +398,20 @@ impl SwarmEngine {
         // Launch GPU position update kernel
         // SAFETY: positions and velocities are valid device pointers from CudaSlice.
         // population_size and dimensions match allocation sizes.
-        unsafe {
-            crate::evolution::kernels::launch_pso_position_update(
-                *self.positions.device_ptr() as *mut f32,
-                *self.velocities.device_ptr() as *const f32,
-                self.population_size as u32,
-                self.dimensions as u32,
-                self.params.max_velocity,
-            );
-        }
+        let stream = self.device.default_stream();
+        {
+            let (positions_ptr, _guard1) = self.positions.device_ptr(&stream);
+            let (velocities_ptr, _guard2) = self.velocities.device_ptr(&stream);
+            unsafe {
+                crate::evolution::kernels::launch_pso_position_update(
+                    positions_ptr as *mut f32,
+                    velocities_ptr as *const f32,
+                    self.population_size as u32,
+                    self.dimensions as u32,
+                    self.params.max_velocity,
+                );
+            }
+        } // Guards dropped here
 
         // Download updated positions
         self.download_from_gpu()?;
@@ -413,20 +422,24 @@ impl SwarmEngine {
     /// Enable swarm communication
     pub fn swarm_communication(&mut self) -> Result<()> {
         // Launch swarm communication kernel
+        let stream = self.device.default_stream();
         // SAFETY: alloc returns uninitialized memory. shared_knowledge will be
         // written by the communication kernel before any reads.
         let shared_knowledge = unsafe {
-            self.device
+            stream
                 .alloc::<f32>(self.population_size * self.dimensions)?
         };
 
         // SAFETY: positions, shared_knowledge, neighborhood_matrix are valid device pointers.
         // population_size and dimensions match allocation sizes.
+        let (positions_ptr, _guard1) = self.positions.device_ptr(&stream);
+        let (shared_ptr, _guard2) = shared_knowledge.device_ptr(&stream);
+        let (neighborhood_ptr, _guard3) = self.neighborhood_matrix.device_ptr(&stream);
         unsafe {
             crate::evolution::kernels::launch_swarm_communication(
-                *self.positions.device_ptr() as *const f32,
-                *shared_knowledge.device_ptr() as *mut f32,
-                *self.neighborhood_matrix.device_ptr() as *const u32,
+                positions_ptr as *const f32,
+                shared_ptr as *mut f32,
+                neighborhood_ptr as *const u32,
                 self.population_size as u32,
                 self.dimensions as u32,
             );
@@ -482,7 +495,7 @@ impl SwarmEngine {
     pub fn best_particle(&self) -> Option<&SwarmParticle> {
         self.particles
             .iter()
-            .max_by(|a, b| a.current_fitness.partial_cmp(&b.current_fitness)?)
+            .max_by(|a, b| a.current_fitness.partial_cmp(&b.current_fitness).unwrap_or(std::cmp::Ordering::Equal))
     }
 
     /// Get swarm statistics
@@ -616,19 +629,18 @@ mod tests {
 
     #[test]
     fn test_swarm_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let params = SwarmParams::default();
             let engine = SwarmEngine::new(device, 32, 10, params)?;
             assert_eq!(engine.population_size, 32);
             assert_eq!(engine.dimensions, 10);
         }
+        Ok(())
     }
 
     #[test]
     fn test_agent_system_generation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let params = SwarmParams::default();
             let engine = SwarmEngine::new(device, 4, 5, params)?;
 

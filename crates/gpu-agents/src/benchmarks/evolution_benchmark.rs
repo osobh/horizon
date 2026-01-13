@@ -87,8 +87,8 @@ async fn test_evolution_performance(
     let mut swarm = GpuSwarm::new(swarm_config)?;
     swarm.initialize(population_size)?;
 
-    // Get device from swarm
-    let device = swarm.get_device().clone();
+    // Get device context from swarm
+    let device = swarm.get_context().clone();
 
     // Create evolution engine
     let mut evolution_engine = GpuEvolutionEngine::new(device, evolution_config)?;

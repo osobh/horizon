@@ -3,7 +3,7 @@
 //! Provides actual GPU utilization metrics from hardware
 
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::{CudaContext, CudaStream};
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::Nvml;
 use std::collections::VecDeque;
@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 
 /// Real GPU metrics collector using NVML
 pub struct RealGpuMetricsCollector {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     nvml: Arc<Nvml>,
     nvml_device: nvml_wrapper::Device<'static>,
     metrics_history: Arc<Mutex<VecDeque<GpuMetrics>>>,
@@ -48,7 +48,7 @@ pub struct GpuMetrics {
 
 impl RealGpuMetricsCollector {
     /// Create new metrics collector with NVML
-    pub fn new(device: Arc<CudaDevice>, device_index: u32) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, device_index: u32) -> Result<Self> {
         // Initialize NVML
         let nvml = Arc::new(Nvml::init().context("Failed to initialize NVML")?);
 
@@ -280,7 +280,7 @@ pub struct DeviceProperties {
 
 /// GPU performance counters with real measurements
 pub struct RealGpuPerformanceCounters {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     nvml_device: nvml_wrapper::Device<'static>,
     /// Kernel launch counter
     pub kernel_launches: u64,
@@ -295,7 +295,7 @@ pub struct RealGpuPerformanceCounters {
 }
 
 impl RealGpuPerformanceCounters {
-    pub fn new(device: Arc<CudaDevice>, nvml_device: nvml_wrapper::Device<'static>) -> Self {
+    pub fn new(device: Arc<CudaContext>, nvml_device: nvml_wrapper::Device<'static>) -> Self {
         Self {
             device,
             nvml_device,
@@ -375,8 +375,8 @@ mod tests {
     #[tokio::test]
     async fn test_real_metrics_collection() {
         // This test requires a real NVIDIA GPU with NVML support
-        if let Ok(device) = CudaDevice::new(0) {
-            if let Ok(collector) = RealGpuMetricsCollector::new(Arc::new(device), 0) {
+        if let Ok(device) = CudaContext::new(0) {
+            if let Ok(collector) = RealGpuMetricsCollector::new(device, 0) {
                 let metrics = collector.collect_metrics().await?;
 
                 // Verify metrics are in valid ranges
@@ -395,8 +395,8 @@ mod tests {
     #[test]
     fn test_device_properties() {
         // This test requires a real NVIDIA GPU
-        if let Ok(device) = CudaDevice::new(0) {
-            if let Ok(collector) = RealGpuMetricsCollector::new(Arc::new(device), 0) {
+        if let Ok(device) = CudaContext::new(0) {
+            if let Ok(collector) = RealGpuMetricsCollector::new(device, 0) {
                 if let Ok(props) = collector.get_device_properties() {
                     assert!(!props.name.is_empty());
                     assert!(props.compute_capability.0 > 0);

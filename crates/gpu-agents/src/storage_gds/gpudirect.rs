@@ -4,7 +4,7 @@
 //! Falls back to traditional CPU-mediated transfers when GDS is not available.
 
 use anyhow::{Context, Result, anyhow};
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -95,7 +95,7 @@ impl GdsAvailabilityChecker {
 
 /// GPU I/O buffer for GDS operations
 pub struct GpuIoBuffer {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     buffer: CudaSlice<u8>,
     size: usize,
     aligned: bool,
@@ -105,19 +105,19 @@ pub struct GpuIoBuffer {
 impl GpuIoBuffer {
     /// Allocate aligned GPU buffer for I/O
     pub fn allocate(size: usize) -> Result<Self> {
-        let device = CudaDevice::new(0)?;
-        
+        let ctx = CudaContext::new(0)?;
+
         // Ensure alignment
         let aligned_size = (size + 4095) & !4095; // Align to 4KB
-        
+
         // Allocate GPU memory
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+        // SAFETY: CudaContext::alloc returns uninitialized GPU memory. This is safe
         // because the buffer will be populated via GPUDirect Storage I/O operations
         // before any kernel reads from it. The aligned size ensures proper alignment.
-        let buffer = unsafe { device.alloc::<u8>(aligned_size)? };
+        let buffer = unsafe { ctx.alloc::<u8>(aligned_size)? };
 
         Ok(Self {
-            device: Arc::new(device),
+            device: ctx,
             buffer,
             size,
             aligned: true,
@@ -128,7 +128,8 @@ impl GpuIoBuffer {
     /// Allocate buffer with initial data
     pub fn allocate_with_data(data: &[u8]) -> Result<Self> {
         let mut buffer = Self::allocate(data.len())?;
-        buffer.device.htod_copy_into(data.to_vec(), &mut buffer.buffer)?;
+        let stream = buffer.device.default_stream();
+        stream.clone_htod_into(data.to_vec(), &mut buffer.buffer)?;
         Ok(buffer)
     }
 
@@ -136,12 +137,12 @@ impl GpuIoBuffer {
     pub fn allocate_with_fallback(size: usize) -> Result<Self> {
         Self::allocate(size).or_else(|_| {
             // Fallback to regular allocation
-            let device = CudaDevice::new(0)?;
-            // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+            let ctx = CudaContext::new(0)?;
+            // SAFETY: CudaContext::alloc returns uninitialized GPU memory. This is safe
             // because the buffer will be populated via I/O operations before kernel use.
-            let buffer = unsafe { device.alloc::<u8>(size)? };
+            let buffer = unsafe { ctx.alloc::<u8>(size)? };
             Ok(Self {
-                device: Arc::new(device),
+                device: ctx,
                 buffer,
                 size,
                 aligned: false,
@@ -168,7 +169,8 @@ impl GpuIoBuffer {
 
     /// Copy data back to host for verification
     pub fn to_host_vec(&self) -> Result<Vec<u8>> {
-        self.device.dtoh_sync_copy(&self.buffer)
+        let stream = self.device.default_stream();
+        stream.clone_dtoh(&self.buffer)
             .context("Failed to copy GPU buffer to host")
     }
 }
@@ -177,7 +179,7 @@ impl GpuIoBuffer {
 #[derive(Clone)]
 pub struct GpuDirectManager {
     config: GpuDirectConfig,
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     is_initialized: Arc<AtomicBool>,
     io_queues: Arc<Vec<IoQueue>>,
     fallback_enabled: bool,
@@ -188,12 +190,12 @@ impl GpuDirectManager {
     /// Create new GDS manager
     pub fn new(config: GpuDirectConfig) -> Result<Self> {
         let checker = GdsAvailabilityChecker::new();
-        
+
         if !checker.is_available() && !config.enable_fallback {
             return Err(anyhow!("GPUDirect Storage not available and fallback disabled"));
         }
 
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let is_initialized = Arc::new(AtomicBool::new(false));
         
         // Initialize I/O queues
@@ -411,12 +413,13 @@ impl GpuDirectManager {
         // Read to CPU buffer first
         let data = tokio::fs::read(path).await
             .context("Failed to read file")?;
-        
+
         let read_size = size.min(data.len());
-        
+
         // Copy to GPU
-        self.device.htod_copy_into(data[..read_size].to_vec(), &mut buffer.buffer)?;
-        
+        let stream = self.device.default_stream();
+        stream.clone_htod_into(data[..read_size].to_vec(), &mut buffer.buffer)?;
+
         Ok(read_size)
     }
 
@@ -429,13 +432,14 @@ impl GpuDirectManager {
         size: usize,
     ) -> Result<usize> {
         // Copy from GPU to CPU
-        let data = self.device.dtoh_sync_copy(&buffer.buffer)?;
+        let stream = self.device.default_stream();
+        let data = stream.clone_dtoh(&buffer.buffer)?;
         let write_size = size.min(data.len());
-        
+
         // Write to file
         tokio::fs::write(path, &data[..write_size]).await
             .context("Failed to write file")?;
-        
+
         Ok(write_size)
     }
 }

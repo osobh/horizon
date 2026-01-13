@@ -1,7 +1,6 @@
 //! Simple evolution test to validate CUDA fix
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
-use std::sync::Arc;
 
 fn main() -> anyhow::Result<()> {
     println!("🧬 Simple GPU Evolution Test");
@@ -9,7 +8,7 @@ fn main() -> anyhow::Result<()> {
 
     // Initialize CUDA device
     println!("Initializing CUDA device...");
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     println!("✅ CUDA device initialized");
 
     // Create small test configuration
@@ -24,7 +23,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     println!("Creating GPU evolution engine...");
-    let mut engine = GpuEvolutionEngine::new(device, config)?;
+    let mut engine = GpuEvolutionEngine::new(ctx, config)?;
     println!("✅ GPU evolution engine created");
 
     println!("Initializing random population...");
@@ -32,12 +31,12 @@ fn main() -> anyhow::Result<()> {
     println!("✅ Random population initialized");
 
     println!("Running evolution for 5 generations...");
-    for gen in 0..5 {
+    for generation in 0..5 {
         engine.evolve_generation()?;
         let stats = engine.statistics();
         println!(
             "  Gen {}: best={:.4}, avg={:.4}, diversity={:.4}",
-            gen, stats.best_fitness, stats.average_fitness, stats.diversity_index
+            generation, stats.best_fitness, stats.average_fitness, stats.diversity_index
         );
     }
 

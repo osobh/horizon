@@ -1,5 +1,5 @@
 //! Quick evolution performance report
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
 use std::sync::Arc;
 use std::time::Instant;
@@ -9,7 +9,7 @@ fn main() -> anyhow::Result<()> {
     println!("========================================");
 
     // Initialize CUDA device
-    let device = Arc::new(CudaDevice::new(0)?);
+    let ctx = CudaContext::new(0)?;
 
     // Test a few key configurations
     let test_configs = vec![
@@ -35,7 +35,7 @@ fn main() -> anyhow::Result<()> {
             block_size: 256,
         };
 
-        match benchmark_quick(&device, config, 50) {
+        match benchmark_quick(&ctx, config, 50) {
             Ok((gens_per_sec, ms_per_gen)) => {
                 let throughput = (pop_size as f64 * gens_per_sec) / 1_000_000.0;
                 println!(
@@ -60,18 +60,18 @@ fn main() -> anyhow::Result<()> {
     println!("```rust");
     println!("// Use slice to copy only first element:");
     println!("let first_element_slice = self.fitness_valid.slice(0..1);");
-    println!("self.device.dtoh_sync_copy_into(&first_element_slice, &mut has_fitness)");
+    println!("self.stream.clone_dtoh(&first_element_slice, &mut has_fitness)");
     println!("```");
 
     Ok(())
 }
 
 fn benchmark_quick(
-    device: &Arc<CudaDevice>,
+    ctx: &Arc<CudaContext>,
     config: GpuEvolutionConfig,
     generations: usize,
 ) -> anyhow::Result<(f64, f64)> {
-    let mut engine = GpuEvolutionEngine::new(device.clone(), config)?;
+    let mut engine = GpuEvolutionEngine::new(ctx.clone(), config)?;
 
     engine.initialize_random()?;
     engine.evaluate_fitness()?;

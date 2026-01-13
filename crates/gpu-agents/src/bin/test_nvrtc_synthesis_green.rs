@@ -2,7 +2,7 @@
 //!
 //! GREEN phase - comprehensive tests
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::nvrtc::{CompilationOptions, KernelTemplate, NvrtcCompiler};
 use std::time::Instant;
 
@@ -10,11 +10,11 @@ fn main() -> anyhow::Result<()> {
     println!("Testing NVRTC Compilation in Synthesis (GREEN phase)");
     println!("==================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create NVRTC compiler
     println!("\n1. Testing NVRTC compiler creation...");
-    let mut compiler = NvrtcCompiler::new(device.clone())?;
+    let mut compiler = NvrtcCompiler::new(ctx.clone())?;
     println!("✅ Created NVRTC compiler");
 
     // Test 2: Compile simple kernel

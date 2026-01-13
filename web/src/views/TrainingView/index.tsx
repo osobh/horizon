@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Brain,
-  Network,
   Database,
-  BarChart3,
   Play,
   Pause,
   Square,
@@ -15,7 +13,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { useTrainingStore, TrainingJob, TrainingMetrics } from '../../stores/trainingStore';
+import { useTrainingStore, TrainingJob } from '../../stores/trainingStore';
 
 export default function TrainingView() {
   const {

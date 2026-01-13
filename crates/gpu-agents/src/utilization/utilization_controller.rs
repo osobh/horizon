@@ -4,7 +4,7 @@
 //! and maintain 90%+ GPU utilization.
 
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     Arc,
@@ -66,7 +66,7 @@ pub struct ControllerState {
 /// Advanced utilization controller
 pub struct UtilizationController {
     config: ControllerConfig,
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     utilization_manager: Arc<UtilizationManager>,
     workload_balancer: Arc<WorkloadBalancer>,
     kernel_optimizer: Arc<KernelOptimizer>,
@@ -88,7 +88,7 @@ struct OptimizationEvent {
 
 impl UtilizationController {
     /// Create new utilization controller
-    pub async fn new(device: Arc<CudaDevice>, config: ControllerConfig) -> Result<Self> {
+    pub async fn new(device: Arc<CudaContext>, config: ControllerConfig) -> Result<Self> {
         let utilization_manager = Arc::new(UtilizationManager::new(device.clone())?);
         let workload_balancer = Arc::new(WorkloadBalancer::new(
             device.clone(),

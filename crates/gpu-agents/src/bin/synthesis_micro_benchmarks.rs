@@ -3,7 +3,7 @@
 //! Tests individual optimizations to measure their impact
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::batch_processor::{BatchConfig, BatchProcessor};
 use gpu_agents::synthesis::pattern_dynamic::DynamicGpuPatternMatcher;
 use gpu_agents::synthesis::{AstNode, NodeType, Pattern};
@@ -48,13 +48,13 @@ where
 {
     // Warmup
     for _ in 0..3 {
-        op()?;
+        let _ = op();
     }
 
     // Measure
     let start = Instant::now();
     for _ in 0..iterations {
-        op()?;
+        let _ = op();
     }
     let elapsed = start.elapsed();
 
@@ -68,12 +68,12 @@ fn main() -> Result<()> {
     println!("🔬 Synthesis Micro-Benchmarks");
     println!("{}", "=".repeat(60));
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Basic pattern matching (baseline)
     println!("\n1. Basic Pattern Matching (Baseline)");
     {
-        let matcher = DynamicGpuPatternMatcher::new(device.clone())?;
+        let matcher = DynamicGpuPatternMatcher::new(ctx.clone())?;
         let patterns = create_test_patterns(1);
         let asts = create_test_asts(1000, 0);
 
@@ -86,7 +86,7 @@ fn main() -> Result<()> {
     // Test 2: Multiple patterns (batch benefit)
     println!("\n2. Multiple Pattern Batching");
     {
-        let matcher = DynamicGpuPatternMatcher::new(device.clone())?;
+        let matcher = DynamicGpuPatternMatcher::new(ctx.clone())?;
 
         for pattern_count in [1, 10, 32, 100] {
             let patterns = create_test_patterns(pattern_count);
@@ -110,7 +110,7 @@ fn main() -> Result<()> {
                 num_streams,
             };
 
-            let processor = BatchProcessor::new(device.clone(), config)?;
+            let processor = BatchProcessor::new(ctx.clone(), config)?;
             let patterns = create_test_patterns(100);
             let asts = create_test_asts(1000, 0);
 
@@ -125,7 +125,7 @@ fn main() -> Result<()> {
     // Test 4: Memory access patterns
     println!("\n4. Memory Access Patterns");
     {
-        let matcher = DynamicGpuPatternMatcher::new(device.clone())?;
+        let matcher = DynamicGpuPatternMatcher::new(ctx.clone())?;
 
         // Sequential access (best case)
         let patterns_seq = create_test_patterns(32);
@@ -149,7 +149,7 @@ fn main() -> Result<()> {
     // Test 5: AST complexity impact
     println!("\n5. AST Complexity Impact");
     {
-        let matcher = DynamicGpuPatternMatcher::new(device.clone())?;
+        let matcher = DynamicGpuPatternMatcher::new(ctx.clone())?;
         let patterns = create_test_patterns(10);
 
         for complexity in [0, 1, 5, 10] {
@@ -166,7 +166,7 @@ fn main() -> Result<()> {
     // Test 6: Batch size impact
     println!("\n6. Batch Size Impact");
     {
-        let matcher = DynamicGpuPatternMatcher::new(device.clone())?;
+        let matcher = DynamicGpuPatternMatcher::new(ctx.clone())?;
         let patterns = create_test_patterns(10);
 
         for ast_count in [100, 1000, 10000, 50000] {
@@ -187,7 +187,7 @@ fn main() -> Result<()> {
     println!("\n7. Multi-Batch Processing");
     {
         let config = BatchConfig::default();
-        let processor = BatchProcessor::new(device.clone(), config)?;
+        let processor = BatchProcessor::new(ctx.clone(), config)?;
 
         for batch_count in [1, 5, 10, 20] {
             let pattern_batches: Vec<_> =

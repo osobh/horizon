@@ -4,7 +4,7 @@
 
 use super::real_gpu_metrics::{GpuMetrics as RealGpuMetrics, RealGpuMetricsCollector};
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::{CudaContext, CudaStream};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 /// GPU metrics collector that interfaces with CUDA runtime
 pub struct GpuMetricsCollector {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     metrics_history: Arc<Mutex<VecDeque<GpuMetrics>>>,
     collection_interval: Duration,
     /// Real metrics collector if NVML is available
@@ -46,7 +46,7 @@ pub struct GpuMetrics {
 
 impl GpuMetricsCollector {
     /// Create new metrics collector
-    pub fn new(device: Arc<CudaDevice>) -> Self {
+    pub fn new(device: Arc<CudaContext>) -> Self {
         // Try to create real collector with NVML
         let real_collector = match RealGpuMetricsCollector::new(device.clone(), 0) {
             Ok(collector) => {
@@ -260,7 +260,7 @@ impl GpuMetricsCollector {
 
 /// GPU performance counters for detailed analysis
 pub struct GpuPerformanceCounters {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Kernel launch counter
     pub kernel_launches: u64,
     /// Memory transfer counter
@@ -272,7 +272,7 @@ pub struct GpuPerformanceCounters {
 }
 
 impl GpuPerformanceCounters {
-    pub fn new(device: Arc<CudaDevice>) -> Self {
+    pub fn new(device: Arc<CudaContext>) -> Self {
         Self {
             device,
             kernel_launches: 0,
@@ -338,7 +338,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics_collection() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let collector = GpuMetricsCollector::new(device);
 
         let metrics = collector.collect_metrics().await?;
@@ -354,7 +354,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics_history() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let collector = GpuMetricsCollector::new(device);
 
         // Collect multiple samples
@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     fn test_performance_counters() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let mut counters = GpuPerformanceCounters::new(device);
 
         counters.record_kernel_launch(Duration::from_millis(10));

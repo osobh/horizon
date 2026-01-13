@@ -4,9 +4,8 @@
 
 use crate::utilization::kernel_optimizer::KernelConfig;
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaStream, DevicePtr, LaunchAsync, LaunchConfig};
+use cudarc::driver::{CudaContext, CudaStream, DevicePtr};
 use dashmap::DashMap;
-use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use stratoswarm_core::priority_queue::{PrioritySchedulerQueue, SchedulerPriority};
@@ -14,7 +13,7 @@ use tokio::sync::{Mutex, RwLock};
 
 /// Real kernel scheduler using actual CUDA streams
 pub struct RealKernelScheduler {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Real CUDA streams for concurrent execution
     streams: Vec<Arc<CudaStream>>,
     /// Kernel queue organized by priority (branch-prediction-friendly)
@@ -125,14 +124,16 @@ struct SchedulingStats {
 
 impl RealKernelScheduler {
     /// Create new kernel scheduler with real CUDA streams
-    pub fn new(device: Arc<CudaDevice>, config: SchedulerConfig) -> Result<Self> {
-        // Create real CUDA streams
+    pub fn new(device: Arc<CudaContext>, config: SchedulerConfig) -> Result<Self> {
+        // Create real CUDA streams by forking from default stream
+        let default_stream = device.default_stream();
         let mut streams = Vec::with_capacity(config.num_streams);
         for _ in 0..config.num_streams {
-            let stream = device
-                .fork_default_stream()
-                .context("Failed to create CUDA stream")?;
-            streams.push(Arc::new(stream));
+            let stream = default_stream
+                .fork()
+                .map_err(|e| anyhow::anyhow!("Failed to create CUDA stream: {}", e))?;
+            // fork() returns Arc<CudaStream>, so we use it directly
+            streams.push(stream);
         }
 
         let stream_available = vec![true; config.num_streams];
@@ -276,7 +277,7 @@ impl RealKernelScheduler {
         let stream_available = Arc::clone(&self.stream_available);
         let stats = Arc::clone(&self.stats);
         let device = Arc::clone(&self.device);
-        let stream = Arc::clone(&stream);
+        let _stream = Arc::clone(&stream);
 
         tokio::spawn(async move {
             let kernel_start = Instant::now();
@@ -286,9 +287,28 @@ impl RealKernelScheduler {
                 // This is our pre-compiled pattern matching kernel
                 // Get buffer pointers from the scheduler's context (would be passed in real impl)
                 // For now, create dummy buffers to demonstrate the launch
-                let pattern_buffer = device.alloc_zeros::<u8>(32 * 64)?;
-                let ast_buffer = device.alloc_zeros::<u8>(1000 * 64)?;
-                let match_buffer = device.alloc_zeros::<u32>(1000 * 2)?;
+                let default_stream = device.default_stream();
+                let pattern_buffer = match default_stream.alloc_zeros::<u8>(32 * 64) {
+                    Ok(buf) => buf,
+                    Err(e) => {
+                        log::error!("Failed to allocate pattern buffer: {}", e);
+                        return;
+                    }
+                };
+                let ast_buffer = match default_stream.alloc_zeros::<u8>(1000 * 64) {
+                    Ok(buf) => buf,
+                    Err(e) => {
+                        log::error!("Failed to allocate ast buffer: {}", e);
+                        return;
+                    }
+                };
+                let match_buffer = match default_stream.alloc_zeros::<u32>(1000 * 2) {
+                    Ok(buf) => buf,
+                    Err(e) => {
+                        log::error!("Failed to allocate match buffer: {}", e);
+                        return;
+                    }
+                };
 
                 // Launch the actual CUDA kernel
                 // SAFETY: The kernel function is called with valid device pointers obtained
@@ -298,10 +318,13 @@ impl RealKernelScheduler {
                 // - ast_buffer: 1000 nodes * 64 bytes = 64000 bytes
                 // - match_buffer: 1000 nodes * 2 u32s = 8000 bytes
                 unsafe {
+                    let (pattern_ptr, _pattern_guard) = pattern_buffer.device_ptr(&default_stream);
+                    let (ast_ptr, _ast_guard) = ast_buffer.device_ptr(&default_stream);
+                    let (match_ptr, _match_guard) = match_buffer.device_ptr(&default_stream);
                     crate::synthesis::launch_match_patterns_fast(
-                        *pattern_buffer.device_ptr() as *const u8,
-                        *ast_buffer.device_ptr() as *const u8,
-                        *match_buffer.device_ptr() as *mut u32,
+                        pattern_ptr as *const u8,
+                        ast_ptr as *const u8,
+                        match_ptr as *mut u32,
                         32,   // num_patterns
                         1000, // num_nodes
                     );
@@ -315,7 +338,7 @@ impl RealKernelScheduler {
                         e
                     );
                 });
-            } else if let (Some(ptx_code), Some(function_name)) =
+            } else if let (Some(_ptx_code), Some(_function_name)) =
                 (kernel.ptx_code, kernel.function_name)
             {
                 // Handle dynamically compiled PTX kernels
@@ -533,18 +556,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_real_scheduler_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let config = SchedulerConfig::default();
-        let scheduler = RealKernelScheduler::new(Arc::new(device), config)?;
+        let scheduler = RealKernelScheduler::new(device, config)?;
 
         assert_eq!(scheduler.streams.len(), 4);
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_kernel_submission() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let scheduler =
-            RealKernelScheduler::new(Arc::new(device), SchedulerConfig::default()).unwrap();
+            RealKernelScheduler::new(device, SchedulerConfig::default()).unwrap();
 
         let kernel = ScheduledKernel {
             id: 1,
@@ -568,5 +592,6 @@ mod tests {
         let stats = scheduler.get_stats();
         assert_eq!(stats.kernels_scheduled, 1);
         assert_eq!(stats.kernels_completed, 1);
+        Ok(())
     }
 }

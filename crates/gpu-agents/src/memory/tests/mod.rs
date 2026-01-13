@@ -3,7 +3,7 @@
 //! Tests tier management, page migration, and CUDA Unified Memory integration
 
 use super::*;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -32,11 +32,10 @@ fn test_tier_config_creation() {
 // Test tier manager initialization
 #[test]
 fn test_tier_manager_creation() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
-    let device = Arc::new(device);
 
     let config = TierConfig::default();
     let tier_manager = TierManager::new(device, config).expect("Failed to create tier manager");
@@ -60,11 +59,10 @@ fn test_tier_manager_creation() {
 // Test page allocation across tiers
 #[test]
 fn test_page_allocation() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
-    let device = Arc::new(device);
 
     let config = TierConfig::default();
     let mut tier_manager = TierManager::new(device, config).expect("Failed to create tier manager");
@@ -88,20 +86,19 @@ fn test_page_allocation() {
 // Test CUDA Unified Memory wrapper
 #[test]
 fn test_unified_memory() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
-    let device = Arc::new(device);
 
     // Create unified memory allocation
     let size = 1024 * 1024; // 1MB
-    let unified_mem = UnifiedMemory::<u8>::new(Arc::clone(&device), size)
+    let unified_mem = UnifiedMemory::<u8>::new(device, size)
         .expect("Failed to create unified memory");
 
     assert_eq!(unified_mem.size(), size);
     assert!(unified_mem.device_ptr().is_valid());
-    assert!(unified_mem.host_ptr().is_valid());
+    assert!(!unified_mem.host_ptr().is_null());
 
     // Test prefetch to GPU
     unified_mem
@@ -168,11 +165,10 @@ fn test_page_table_lru() {
 // Test page migration between tiers
 #[test]
 fn test_page_migration() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
-    let device = Arc::new(device);
 
     let config = TierConfig::default();
     let mut tier_manager = TierManager::new(device, config).expect("Failed to create tier manager");
@@ -215,11 +211,10 @@ fn test_page_migration() {
 // Test batch page migration
 #[test]
 fn test_batch_migration() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
-    let device = Arc::new(device);
 
     let config = TierConfig::default();
     let mut tier_manager = TierManager::new(device, config).expect("Failed to create tier manager");
@@ -285,11 +280,10 @@ fn test_compression() {
 // Test predictive prefetching
 #[test]
 fn test_predictive_prefetch() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
-    let device = Arc::new(device);
 
     let config = TierConfig::default();
     let mut tier_manager = TierManager::new(device, config).expect("Failed to create tier manager");
@@ -326,11 +320,10 @@ fn test_predictive_prefetch() {
 // Test memory pressure handling
 #[test]
 fn test_memory_pressure() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
-    let device = Arc::new(device);
 
     // Create config with small GPU capacity for testing
     let mut config = TierConfig::default();
@@ -375,11 +368,10 @@ fn test_memory_pressure() {
 // Test tier statistics and monitoring
 #[test]
 fn test_tier_statistics() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
-    let device = Arc::new(device);
 
     let config = TierConfig::default();
     let mut tier_manager = TierManager::new(device, config).expect("Failed to create tier manager");

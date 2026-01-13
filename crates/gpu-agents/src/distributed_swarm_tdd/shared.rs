@@ -8,7 +8,7 @@ use crate::multi_region::{
 use crate::synthesis::{Pattern, SynthesisTask, Template, Token};
 use crate::types::GpuSwarmConfig;
 use anyhow::{anyhow, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -61,14 +61,14 @@ pub struct TestSummary {
 
 /// Base test harness for distributed SwarmAgentic tests
 pub struct DistributedTestHarness {
-    pub device: Arc<CudaDevice>,
+    pub device: Arc<CudaContext>,
     pub test_results: Vec<TestResult>,
 }
 
 impl DistributedTestHarness {
     /// Create new test harness
     pub fn new() -> Result<Self> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
 
         Ok(Self {
             device,
@@ -322,7 +322,7 @@ pub struct ConsensusEngineFactory;
 impl ConsensusEngineFactory {
     /// Create test consensus engine
     pub async fn create_test_consensus_engine(
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
     ) -> Result<ConsensusSynthesisEngine> {
         let swarm_config = GpuSwarmConfig {
             device_id: 0,
@@ -341,7 +341,7 @@ impl ConsensusEngineFactory {
 
     /// Create optimized consensus engine for production testing
     pub async fn create_optimized_consensus_engine(
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
     ) -> Result<ConsensusSynthesisEngine> {
         let swarm_config = GpuSwarmConfig {
             device_id: 0,

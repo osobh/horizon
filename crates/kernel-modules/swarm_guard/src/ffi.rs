@@ -155,7 +155,7 @@ fn copy_str_to_array(s: &str, arr: &mut [c_char]) {
 
 // ==================== External C Functions (Kernel Module) ====================
 
-extern "C" {
+unsafe extern "C" {
     /// Setup mount isolation for an agent
     pub fn swarm_mount_isolation_setup(
         agent_id: u64,
@@ -289,7 +289,7 @@ pub fn pivot_root(agent_id: u64, new_root: &str, old_root: &str) -> MountResult<
 // ==================== End Mount Isolation FFI ====================
 
 /// Initialize SwarmGuard subsystems
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn swarm_guard_init() -> c_int {
     match init() {
         Ok(()) => 0,
@@ -298,13 +298,13 @@ pub extern "C" fn swarm_guard_init() -> c_int {
 }
 
 /// Cleanup SwarmGuard subsystems
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn swarm_guard_cleanup() {
     cleanup();
 }
 
 /// Get status string for /proc/swarm/status
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn swarm_guard_get_status() -> *mut c_char {
     match crate::proc::ProcOps::read(crate::proc::ProcFile::Status, 0, &mut []) {
         Ok(content) => {
@@ -320,7 +320,7 @@ pub extern "C" fn swarm_guard_get_status() -> *mut c_char {
 }
 
 /// Create agent from JSON configuration
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn swarm_guard_create_agent(config: *const c_char) -> c_int {
     if config.is_null() {
         return -22; // -EINVAL

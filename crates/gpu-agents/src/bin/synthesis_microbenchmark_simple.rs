@@ -4,7 +4,7 @@
 //! Target: 2.6B operations/second
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, DevicePtr};
+use cudarc::driver::{CudaContext, DevicePtr};
 use gpu_agents::synthesis::launch_match_patterns_fast;
 use std::sync::Arc;
 use std::time::Instant;
@@ -18,17 +18,17 @@ fn main() -> Result<()> {
     println!("==========================================");
     println!("Target: {:.1} billion ops/sec\n", TARGET_OPS_PER_SEC / 1e9);
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Phase 1: Raw Kernel Performance
     println!("📊 Phase 1: Raw CUDA Kernel Performance");
     println!("--------------------------------------");
-    let raw_ops = benchmark_raw_kernel(device.clone())?;
+    let raw_ops = benchmark_raw_kernel(ctx.clone())?;
 
     // Phase 2: Pattern Matching at Scale
     println!("\n📊 Phase 2: Pattern Matching at Scale");
     println!("------------------------------------");
-    let scale_ops = benchmark_pattern_scale(device.clone())?;
+    let scale_ops = benchmark_pattern_scale(ctx.clone())?;
 
     // Phase 3: Optimization Analysis
     println!("\n📈 Performance Analysis");
@@ -75,61 +75,65 @@ fn main() -> Result<()> {
 }
 
 /// Benchmark raw kernel performance with minimal overhead
-fn benchmark_raw_kernel(device: Arc<CudaDevice>) -> Result<f64> {
+fn benchmark_raw_kernel(ctx: Arc<CudaContext>) -> Result<f64> {
     const NODE_SIZE: usize = 64; // Aligned node size
     const BATCH_SIZE: usize = 10000;
+
+    let stream = ctx.default_stream();
 
     // Allocate aligned buffers
     let pattern_size = NODE_SIZE * 32; // 32 patterns
     let ast_size = NODE_SIZE * BATCH_SIZE; // Large AST forest
 
-    // SAFETY: alloc returns uninitialized memory. pattern_buffer and ast_buffer
-    // will be written via htod_copy_into before any kernel reads.
-    let pattern_buffer = unsafe { device.alloc::<u8>(pattern_size)? };
-    let ast_buffer = unsafe { device.alloc::<u8>(ast_size)? };
-    let match_buffer = device.alloc_zeros::<u32>(BATCH_SIZE * 2)?;
-
     // Initialize with test data
     let pattern_data = vec![0u8; pattern_size];
     let ast_data = vec![0u8; ast_size];
 
-    device.htod_copy_into(pattern_data, &mut pattern_buffer.clone())?;
-    device.htod_copy_into(ast_data, &mut ast_buffer.clone())?;
+    // Allocate and initialize buffers using stream
+    let pattern_buffer = stream.clone_htod(&pattern_data)?;
+    let ast_buffer = stream.clone_htod(&ast_data)?;
+    let match_buffer = stream.alloc_zeros::<u32>(BATCH_SIZE * 2)?;
 
     let warmup_iters = 100;
     let measure_iters = 1000;
 
     // Warmup
     // SAFETY: All pointers are valid device pointers. pattern_buffer and ast_buffer
-    // were initialized via htod_copy_into. Parameters match allocation sizes.
+    // were initialized via clone_htod. Parameters match allocation sizes.
     for _ in 0..warmup_iters {
+        let (pattern_ptr, _pattern_guard) = pattern_buffer.device_ptr(&stream);
+        let (ast_ptr, _ast_guard) = ast_buffer.device_ptr(&stream);
+        let (match_ptr, _match_guard) = match_buffer.device_ptr(&stream);
         unsafe {
             launch_match_patterns_fast(
-                *pattern_buffer.device_ptr() as *const u8,
-                *ast_buffer.device_ptr() as *const u8,
-                *match_buffer.device_ptr() as *mut u32,
+                pattern_ptr as *const u8,
+                ast_ptr as *const u8,
+                match_ptr as *mut u32,
                 32,
                 BATCH_SIZE as u32,
             );
         }
     }
-    device.synchronize()?;
+    stream.synchronize()?;
 
     // Measure
     // SAFETY: Same as warmup - all pointers valid, buffers initialized.
     let start = Instant::now();
     for _ in 0..measure_iters {
+        let (pattern_ptr, _pattern_guard) = pattern_buffer.device_ptr(&stream);
+        let (ast_ptr, _ast_guard) = ast_buffer.device_ptr(&stream);
+        let (match_ptr, _match_guard) = match_buffer.device_ptr(&stream);
         unsafe {
             launch_match_patterns_fast(
-                *pattern_buffer.device_ptr() as *const u8,
-                *ast_buffer.device_ptr() as *const u8,
-                *match_buffer.device_ptr() as *mut u32,
+                pattern_ptr as *const u8,
+                ast_ptr as *const u8,
+                match_ptr as *mut u32,
                 32,
                 BATCH_SIZE as u32,
             );
         }
     }
-    device.synchronize()?;
+    stream.synchronize()?;
     let elapsed = start.elapsed();
 
     let total_ops = (measure_iters * 32 * BATCH_SIZE) as f64;
@@ -145,10 +149,12 @@ fn benchmark_raw_kernel(device: Arc<CudaDevice>) -> Result<f64> {
 }
 
 /// Benchmark pattern matching at scale
-fn benchmark_pattern_scale(device: Arc<CudaDevice>) -> Result<f64> {
+fn benchmark_pattern_scale(ctx: Arc<CudaContext>) -> Result<f64> {
     const NODE_SIZE: usize = 64;
     const MAX_PATTERNS: usize = 1024;
     const MAX_NODES: usize = 100000;
+
+    let stream = ctx.default_stream();
 
     // Test different scales
     let scales = vec![
@@ -170,33 +176,32 @@ fn benchmark_pattern_scale(device: Arc<CudaDevice>) -> Result<f64> {
         let pattern_size = NODE_SIZE * num_patterns;
         let ast_size = NODE_SIZE * num_nodes;
 
-        // SAFETY: alloc returns uninitialized memory. Buffers will be written
-        // via htod_copy_into before kernel execution.
-        let pattern_buffer = unsafe { device.alloc::<u8>(pattern_size)? };
-        let ast_buffer = unsafe { device.alloc::<u8>(ast_size)? };
-        let match_buffer = device.alloc_zeros::<u32>(num_nodes * 2)?;
-
-        // Initialize
+        // Initialize with test data
         let pattern_data = vec![0u8; pattern_size];
         let ast_data = vec![0u8; ast_size];
 
-        device.htod_copy_into(pattern_data, &mut pattern_buffer.clone())?;
-        device.htod_copy_into(ast_data, &mut ast_buffer.clone())?;
+        // Allocate and initialize buffers using stream
+        let pattern_buffer = stream.clone_htod(&pattern_data)?;
+        let ast_buffer = stream.clone_htod(&ast_data)?;
+        let match_buffer = stream.alloc_zeros::<u32>(num_nodes * 2)?;
 
         // Time a single run
         // SAFETY: All pointers are valid device pointers. Buffers were initialized
-        // via htod_copy_into. Parameters match allocation sizes for this scale.
+        // via clone_htod. Parameters match allocation sizes for this scale.
         let start = Instant::now();
+        let (pattern_ptr, _pattern_guard) = pattern_buffer.device_ptr(&stream);
+        let (ast_ptr, _ast_guard) = ast_buffer.device_ptr(&stream);
+        let (match_ptr, _match_guard) = match_buffer.device_ptr(&stream);
         unsafe {
             launch_match_patterns_fast(
-                *pattern_buffer.device_ptr() as *const u8,
-                *ast_buffer.device_ptr() as *const u8,
-                *match_buffer.device_ptr() as *mut u32,
+                pattern_ptr as *const u8,
+                ast_ptr as *const u8,
+                match_ptr as *mut u32,
                 num_patterns as u32,
                 num_nodes as u32,
             );
         }
-        device.synchronize()?;
+        stream.synchronize()?;
         let elapsed = start.elapsed();
 
         let ops = (num_patterns * num_nodes) as f64;

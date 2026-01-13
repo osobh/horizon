@@ -8,14 +8,14 @@ use crate::utilization::real_kernel_scheduler::{
     KernelPriority, RealKernelScheduler, ScheduledKernel, SchedulerConfig,
 };
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 /// GPU workload generator for testing optimization
 pub struct GpuWorkloadGenerator {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     scheduler: Arc<RwLock<RealKernelScheduler>>,
     /// Workload intensity multiplier
     pub intensity: f32,
@@ -29,7 +29,7 @@ pub struct GpuWorkloadGenerator {
 
 impl GpuWorkloadGenerator {
     /// Create new workload generator
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
         let scheduler_config = SchedulerConfig {
             num_streams: 4,
             enable_fusion: true,
@@ -121,27 +121,28 @@ impl GpuWorkloadGenerator {
         const MAX_NODES: usize = 10000;
         const NODE_SIZE: usize = 64;
 
+        let stream = self.device.default_stream();
+
         // Allocate pattern buffer if needed
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
-        // the buffers will be initialized via htod_copy_into before any kernel reads them.
+        // SAFETY: CudaStream::alloc returns uninitialized GPU memory. This is safe because
+        // the buffers will be initialized via memcpy_htod before any kernel reads them.
         if self.pattern_buffer.is_none() {
-            let pattern_buffer = unsafe { self.device.alloc::<u8>(MAX_PATTERNS * NODE_SIZE) }
+            let pattern_buffer = unsafe { stream.alloc::<u8>(MAX_PATTERNS * NODE_SIZE) }
                 .context("Failed to allocate pattern buffer")?;
             self.pattern_buffer = Some(pattern_buffer);
         }
 
         // Allocate AST buffer if needed
-        // SAFETY: Same as above - initialized via htod_copy_into before kernel reads.
+        // SAFETY: Same as above - initialized via memcpy_htod before kernel reads.
         if self.ast_buffer.is_none() {
-            let ast_buffer = unsafe { self.device.alloc::<u8>(MAX_NODES * NODE_SIZE) }
+            let ast_buffer = unsafe { stream.alloc::<u8>(MAX_NODES * NODE_SIZE) }
                 .context("Failed to allocate AST buffer")?;
             self.ast_buffer = Some(ast_buffer);
         }
 
         // Allocate match buffer if needed
         if self.match_buffer.is_none() {
-            let match_buffer = self
-                .device
+            let match_buffer = stream
                 .alloc_zeros::<u32>(MAX_NODES * 2)
                 .context("Failed to allocate match buffer")?;
             self.match_buffer = Some(match_buffer);
@@ -178,9 +179,9 @@ impl GpuWorkloadGenerator {
         // Copy to GPU buffers
         if let (Some(pattern_buf), Some(ast_buf)) = (&mut self.pattern_buffer, &mut self.ast_buffer)
         {
-            self.device
-                .htod_copy_into(pattern_data.clone(), pattern_buf)?;
-            self.device.htod_copy_into(ast_data.clone(), ast_buf)?;
+            let stream = self.device.default_stream();
+            stream.memcpy_htod(&pattern_data, pattern_buf)?;
+            stream.memcpy_htod(&ast_data, ast_buf)?;
         }
 
         // Create kernel with launch function
@@ -375,8 +376,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_workload_generator() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
-        let mut generator = GpuWorkloadGenerator::new(Arc::new(device)).unwrap();
+        let device = CudaContext::new(0)?;
+        let mut generator = GpuWorkloadGenerator::new(device).unwrap();
 
         // Test burst workload
         let stats = generator.generate_burst_workload(10).await?;

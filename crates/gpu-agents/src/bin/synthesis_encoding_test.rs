@@ -1,6 +1,6 @@
 //! Test synthesis encoding to find the issue
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::pattern::GpuPatternMatcher;
 use gpu_agents::synthesis::{AstNode, NodeType, Pattern};
 use std::sync::Arc;
@@ -10,11 +10,11 @@ fn main() -> anyhow::Result<()> {
     println!("==========================");
 
     // Initialize CUDA
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     println!("✅ CUDA device initialized");
 
     // Create pattern matcher
-    let matcher = GpuPatternMatcher::new(device, 100)?;
+    let matcher = GpuPatternMatcher::new(ctx, 100)?;
     println!("✅ Pattern matcher created");
 
     // Test 1: Simple pattern and AST

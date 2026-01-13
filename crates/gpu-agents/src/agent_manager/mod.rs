@@ -3,7 +3,7 @@
 //! Manages 1-10 agents on a single GPU node
 
 use anyhow::{anyhow, Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -74,7 +74,7 @@ pub struct AgentMetrics {
 
 /// Local agent manager for single node
 pub struct LocalAgentManager {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: AgentConfig,
     agents: HashMap<u32, Agent>,
     gpu_memory: Option<CudaSlice<u8>>,
@@ -84,23 +84,24 @@ pub struct LocalAgentManager {
 
 impl LocalAgentManager {
     /// Create a new local agent manager
-    pub fn new(device: Arc<CudaDevice>, config: AgentConfig) -> Result<Self> {
+    pub fn new(ctx: Arc<CudaContext>, config: AgentConfig) -> Result<Self> {
         let total_memory = config.max_agents * config.memory_per_agent;
+        let stream = ctx.default_stream();
 
         // Allocate GPU memory for agents
         // SAFETY: alloc returns uninitialized memory. Agent memory will be initialized
         // when agents are spawned via run_agent_computation().
-        let gpu_memory = unsafe { device.alloc::<u8>(total_memory) }
+        let gpu_memory = unsafe { stream.alloc::<u8>(total_memory) }
             .context("Failed to allocate GPU memory for agents")?;
 
         // Allocate communication buffer
         // SAFETY: alloc returns uninitialized memory. Communication buffer will be
         // written when messages are sent between agents.
-        let comm_buffer = unsafe { device.alloc::<u8>(config.comm_buffer_size) }
+        let comm_buffer = unsafe { stream.alloc::<u8>(config.comm_buffer_size) }
             .context("Failed to allocate communication buffer")?;
 
         Ok(Self {
-            device,
+            ctx,
             config,
             agents: HashMap::new(),
             gpu_memory: Some(gpu_memory),
@@ -284,10 +285,11 @@ mod tests {
 
     #[test]
     fn test_agent_manager_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let ctx = CudaContext::new(0)?;
         let config = AgentConfig::default();
-        let manager = LocalAgentManager::new(Arc::new(device), config);
+        let manager = LocalAgentManager::new(ctx, config);
         // Should panic with todo!
         assert!(manager.is_err() || manager.is_ok());
+        Ok(())
     }
 }

@@ -327,7 +327,7 @@ impl ManagedPopulation {
 
         let mut rng = rand::thread_rng();
         for _ in 0..count {
-            let mut spin = rng.gen::<f64>() * total_fitness;
+            let mut spin = rng.r#gen::<f64>() * total_fitness;
             for agent in &self.agents {
                 spin -= self.get_agent_fitness(agent);
                 if spin <= 0.0 {
@@ -379,13 +379,13 @@ impl ManagedPopulation {
     ) -> EvolutionEngineResult<Vec<EvolvableAgent>> {
         let mut rng = rand::thread_rng();
 
-        let child1_genome = if rng.gen::<f64>() < rate {
+        let child1_genome = if rng.r#gen::<f64>() < rate {
             parent1.genome.clone()
         } else {
             parent2.genome.clone()
         };
 
-        let child2_genome = if rng.gen::<f64>() < rate {
+        let child2_genome = if rng.r#gen::<f64>() < rate {
             parent2.genome.clone()
         } else {
             parent1.genome.clone()
@@ -446,8 +446,8 @@ impl ManagedPopulation {
         let p2_exploration = parent2.genome.behavior.exploration_rate;
         let range = (p2_exploration - p1_exploration).abs() * alpha;
 
-        let child1_exploration = p1_exploration + rng.gen::<f64>() * range * 2.0 - range;
-        let child2_exploration = p2_exploration + rng.gen::<f64>() * range * 2.0 - range;
+        let child1_exploration = p1_exploration + rng.r#gen::<f64>() * range * 2.0 - range;
+        let child2_exploration = p2_exploration + rng.r#gen::<f64>() * range * 2.0 - range;
 
         let mut child1_genome = parent1.genome.clone();
         let mut child2_genome = parent2.genome.clone();

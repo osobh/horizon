@@ -40,7 +40,7 @@ impl VelocityUpdater {
 
         let random_numbers: Vec<f64> = {
             let mut rng = self.rng.write();
-            (0..total_random_needed).map(|_| rng.gen()).collect()
+            (0..total_random_needed).map(|_| rng.r#gen()).collect()
         };
 
         // Build offset map for each particle's random numbers

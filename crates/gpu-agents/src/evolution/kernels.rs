@@ -1,7 +1,7 @@
 //! CUDA kernel declarations for evolution operations
 
 // External CUDA kernel functions
-extern "C" {
+unsafe extern "C" {
     /// Initialize population with random genomes
     pub fn launch_random_init(
         genomes: *mut f32,
@@ -92,6 +92,37 @@ extern "C" {
         elite_indices: *mut u32,
         population_size: u32,
         elite_count: u32,
+    );
+
+    /// Uniform random mutation
+    pub fn launch_uniform_mutation(
+        genomes: *mut f32,
+        rng_states: *mut u8,
+        population_size: u32,
+        genome_size: u32,
+        mutation_rate: f32,
+        stream: *mut u8,
+    );
+
+    /// Gaussian mutation
+    pub fn launch_gaussian_mutation(
+        genomes: *mut f32,
+        rng_states: *mut u8,
+        population_size: u32,
+        genome_size: u32,
+        mutation_rate: f32,
+        sigma: f32,
+        stream: *mut u8,
+    );
+
+    /// Bit flip mutation
+    pub fn launch_bitflip_mutation(
+        genomes: *mut u8,
+        rng_states: *mut u8,
+        population_size: u32,
+        genome_size_bytes: u32,
+        mutation_rate: f32,
+        stream: *mut u8,
     );
 
     // ADAS (Automated Design of Agentic Systems) kernels

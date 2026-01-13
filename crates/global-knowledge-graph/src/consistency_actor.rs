@@ -234,17 +234,19 @@ impl ConsistencyActor {
         region: &str,
         version: u64,
     ) -> GlobalKnowledgeGraphResult<()> {
-        // Update or create vector clock
-        let clock = self
-            .vector_clocks
-            .entry(resource_id.to_string())
-            .or_insert_with(VectorClock::new);
-
-        clock.increment(region);
+        // Update or create vector clock and get a clone for conflict detection
+        let clock_clone = {
+            let clock = self
+                .vector_clocks
+                .entry(resource_id.to_string())
+                .or_insert_with(VectorClock::new);
+            clock.increment(region);
+            clock.clone()
+        };
 
         // Check for conflicts if not eventual consistency
         if self.config.consistency_level != ConsistencyLevel::Eventual {
-            self.detect_conflicts(resource_id, resource_type, region, version, clock.clone())?;
+            self.detect_conflicts(resource_id, resource_type, region, version, clock_clone)?;
         }
 
         Ok(())

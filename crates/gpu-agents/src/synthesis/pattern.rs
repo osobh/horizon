@@ -4,13 +4,14 @@
 
 use crate::synthesis::{AstNode, Match, NodeType, Pattern};
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream, DevicePtr};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// GPU Pattern Matcher for parallel AST matching
 pub struct GpuPatternMatcher {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     pattern_buffer: CudaSlice<u8>,
     ast_buffer: CudaSlice<u8>,
     match_buffer: CudaSlice<u32>,
@@ -19,27 +20,29 @@ pub struct GpuPatternMatcher {
 
 impl GpuPatternMatcher {
     /// Create a new GPU pattern matcher
-    pub fn new(device: Arc<CudaDevice>, max_nodes: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, max_nodes: usize) -> Result<Self> {
+        let stream = device.default_stream();
         // Allocate GPU buffers
         // Each node encoded as: [type(4), value_hash(4), child_count(4), children_indices(4*10)]
         let node_size = 4 + 4 + 4 + 4 * 10; // 52 bytes per node
         let buffer_size = max_nodes * node_size;
 
         // SAFETY: alloc returns uninitialized memory. pattern_buffer will be written via
-        // htod_copy_into in match_pattern() before the kernel reads it.
-        let pattern_buffer = unsafe { device.alloc::<u8>(buffer_size) }
+        // memcpy_htod in match_pattern() before the kernel reads it.
+        let pattern_buffer = unsafe { stream.alloc::<u8>(buffer_size) }
             .context("Failed to allocate pattern buffer")?;
         // SAFETY: alloc returns uninitialized memory. ast_buffer will be written via
-        // htod_copy_into in match_pattern() before the kernel reads it.
+        // memcpy_htod in match_pattern() before the kernel reads it.
         let ast_buffer =
-            unsafe { device.alloc::<u8>(buffer_size) }.context("Failed to allocate AST buffer")?;
+            unsafe { stream.alloc::<u8>(buffer_size) }.context("Failed to allocate AST buffer")?;
         // SAFETY: alloc returns uninitialized memory. match_buffer will be cleared to zeros
         // in match_pattern() before the kernel writes match results.
-        let match_buffer = unsafe { device.alloc::<u32>(max_nodes * 2) } // [node_id, match_flag]
+        let match_buffer = unsafe { stream.alloc::<u32>(max_nodes * 2) } // [node_id, match_flag]
             .context("Failed to allocate match buffer")?;
 
         Ok(Self {
             device,
+            stream,
             pattern_buffer,
             ast_buffer,
             match_buffer,
@@ -57,36 +60,37 @@ impl GpuPatternMatcher {
         let num_ast_nodes = ast_data.len() as u32 / 52; // 52 bytes per node
 
         // Copy to GPU
-        self.device
-            .htod_copy_into(pattern_data, &mut self.pattern_buffer.clone())?;
-        self.device
-            .htod_copy_into(ast_data, &mut self.ast_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&pattern_data, &mut self.pattern_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&ast_data, &mut self.ast_buffer.clone())?;
 
         // Clear match buffer
         let zeros = vec![0u32; self.max_nodes * 2];
-        self.device
-            .htod_copy_into(zeros, &mut self.match_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&zeros, &mut self.match_buffer.clone())?;
         // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
-        // - pattern_buffer: populated via htod_copy_into above
-        // - ast_buffer: populated via htod_copy_into above
+        // - pattern_buffer: populated via memcpy_htod above
+        // - ast_buffer: populated via memcpy_htod above
         // - match_buffer: cleared to zeros above, kernel writes results
         // - num_ast_nodes calculated from actual encoded AST size
         unsafe {
+            let (pattern_ptr, _guard1) = self.pattern_buffer.device_ptr(&self.stream);
+            let (ast_ptr, _guard2) = self.ast_buffer.device_ptr(&self.stream);
+            let (match_ptr, _guard3) = self.match_buffer.device_ptr(&self.stream);
             crate::synthesis::launch_match_patterns(
-                *self.pattern_buffer.device_ptr() as *const u8,
-                *self.ast_buffer.device_ptr() as *const u8,
-                *self.match_buffer.device_ptr() as *mut u32,
+                pattern_ptr as *const u8,
+                ast_ptr as *const u8,
+                match_ptr as *mut u32,
                 1,             // Single pattern for now
                 num_ast_nodes, // Number of AST nodes
             );
         }
 
         // Synchronize and get results
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
 
-        let mut results = vec![0u32; self.max_nodes * 2];
-        self.device
-            .dtoh_sync_copy_into(&self.match_buffer, &mut results)?;
+        let results: Vec<u32> = self.stream.clone_dtoh(&self.match_buffer)?;
 
         // Extract matches and bindings
         let matches = self.extract_matches(&results, pattern, ast)?;

@@ -17,7 +17,7 @@ mod tests;
 mod migration_performance_test;
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -156,7 +156,7 @@ pub struct MemoryMetrics {
 
 /// Main 5-tier memory manager
 pub struct MemoryManager {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     tier_manager: TierManager,
     migration_engine: MigrationEngine,
     metrics: MemoryMetrics,
@@ -164,7 +164,7 @@ pub struct MemoryManager {
 
 impl MemoryManager {
     /// Create new memory manager with default configuration
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
         let config = TierConfig::default();
         let tier_manager = TierManager::new(Arc::clone(&device), config)?;
         let migration_engine = MigrationEngine::new(Arc::clone(&device))?;
@@ -224,7 +224,7 @@ pub struct AgentMemory {
 }
 
 // External CUDA kernel functions
-extern "C" {
+unsafe extern "C" {
     pub fn launch_page_marking(pages: *const u8, marks: *mut u32, num_pages: u32);
 
     pub fn launch_compression_kernel(

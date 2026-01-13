@@ -1,7 +1,7 @@
 //! GPU mutation operations for evolution
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -22,7 +22,7 @@ pub enum MutationStrategy {
 
 /// GPU Mutation Engine
 pub struct GpuMutationEngine {
-    _device: Arc<CudaDevice>,
+    _device: Arc<CudaContext>,
     mutation_rate: f32,
     mutation_strategy: MutationStrategy,
     /// Tracking mutations per second
@@ -33,7 +33,7 @@ pub struct GpuMutationEngine {
 
 impl GpuMutationEngine {
     /// Create new mutation engine
-    pub fn new(device: Arc<CudaDevice>, mutation_rate: f32) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, mutation_rate: f32) -> Result<Self> {
         Ok(Self {
             _device: device,
             mutation_rate,
@@ -217,17 +217,16 @@ mod tests {
 
     #[test]
     fn test_mutation_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let engine = GpuMutationEngine::new(device, 0.01)?;
             assert_eq!(engine.mutation_rate, 0.01);
         }
+        Ok(())
     }
 
     #[test]
     fn test_mutation_rate_clamping() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let mut engine = GpuMutationEngine::new(device, 0.5)?;
 
             engine.set_mutation_rate(1.5);
@@ -236,5 +235,6 @@ mod tests {
             engine.set_mutation_rate(-0.5);
             assert_eq!(engine.mutation_rate, 0.0);
         }
+        Ok(())
     }
 }

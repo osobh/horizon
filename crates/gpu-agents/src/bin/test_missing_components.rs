@@ -2,7 +2,7 @@
 //!
 //! RED phase - identify missing components
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::{ConsensusSynthesisEngine, TemplateRegistry};
 use gpu_agents::synthesis::{NodeType, Pattern};
 
@@ -10,11 +10,11 @@ fn main() -> anyhow::Result<()> {
     println!("Finding and Testing Missing Consensus/Synthesis Components (RED phase)");
     println!("===================================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Consensus-Synthesis engine creation
     println!("\n1. Testing consensus-synthesis engine...");
-    let mut engine = ConsensusSynthesisEngine::new(device.clone())?;
+    let mut engine = ConsensusSynthesisEngine::new(ctx.clone())?;
     println!("✅ Created consensus-synthesis engine");
 
     // Test 2: Initialize voting and synthesis components

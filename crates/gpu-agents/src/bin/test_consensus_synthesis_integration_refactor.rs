@@ -2,7 +2,7 @@
 //!
 //! REFACTOR phase - optimize implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus::voting::GpuVoting;
 use gpu_agents::consensus_synthesis::integration::{
     ConsensusSynthesisEngine, IntegrationConfig, WorkflowResult,
@@ -18,7 +18,7 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Consensus + Synthesis Integration (REFACTOR phase)");
     println!("===========================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Optimized engine configuration
     println!("\n1. Testing optimized engine configuration...");
@@ -29,7 +29,7 @@ fn main() -> anyhow::Result<()> {
         retry_attempts: 2,                          // Fewer retries
         conflict_resolution_strategy: ConflictStrategy::HighestVoteWins,
     };
-    let engine = ConsensusSynthesisEngine::new(device.clone(), config)?;
+    let engine = ConsensusSynthesisEngine::new(ctx.clone(), config)?;
     println!("✅ Optimized engine created with enhanced configuration");
 
     // Test 2: Batch task submission performance
@@ -161,7 +161,7 @@ fn main() -> anyhow::Result<()> {
 
     // Test 7: Memory and performance monitoring
     println!("\n7. Testing memory and performance monitoring...");
-    let statuses = engine.get_task_statuses();
+    let statuses = engine.get_task_statuses()?;
     println!("✅ Tracking {} active tasks", statuses.len());
 
     let completed_count = statuses
@@ -212,7 +212,7 @@ fn main() -> anyhow::Result<()> {
     // Test cleanup
     std::thread::sleep(Duration::from_millis(100));
     engine.cleanup_old_tasks(Duration::from_millis(50));
-    let remaining = engine.get_task_statuses().len();
+    let remaining = engine.get_task_statuses()?.len();
     println!("   After cleanup: {} tasks remaining", remaining);
 
     assert!(

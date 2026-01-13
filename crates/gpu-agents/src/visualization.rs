@@ -288,7 +288,7 @@ impl VisualizationManager {
 
     /// Create a placeholder chart
     fn create_chart_placeholder(&self, output_path: &Path, chart_type: &ChartType) -> Result<()> {
-        let latest_frame = self.frame_history.back()?;
+        let latest_frame = self.frame_history.back().ok_or_else(|| anyhow::anyhow!("No frames available"))?;
         let chart_data = match chart_type {
             ChartType::SwarmDistribution => format!(
                 "Swarm Distribution\nAgents: {}\nAvg Fitness: {:.3}\nDiversity: {:.3}",
@@ -505,7 +505,7 @@ impl VisualizationManager {
             .output_directory
             .join(format!("dashboard_{}.html", timestamp));
 
-        let latest = self.frame_history.back()?;
+        let latest = self.frame_history.back().ok_or_else(|| anyhow::anyhow!("No frames available"))?;
         let html = format!(
             r#"<!DOCTYPE html><html><head><title>Dashboard</title></head><body>
 <h1>Performance Dashboard</h1>
@@ -533,7 +533,7 @@ impl VisualizationManager {
             .output_directory
             .join(format!("multi_dashboard_{}.html", timestamp));
 
-        let latest = self.frame_history.back()?;
+        let latest = self.frame_history.back().ok_or_else(|| anyhow::anyhow!("No frames available"))?;
         let html = format!(
             r#"<!DOCTYPE html><html><head><title>Multi-Chart Dashboard</title></head><body>
 <h1>Multi-Chart Dashboard</h1><div style="display:flex;flex-wrap:wrap;">

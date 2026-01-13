@@ -1,7 +1,6 @@
 //! Debug evolution step by step
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
-use std::sync::Arc;
 
 fn main() -> anyhow::Result<()> {
     println!("🔍 Debug GPU Evolution Step by Step");
@@ -9,7 +8,7 @@ fn main() -> anyhow::Result<()> {
 
     // Initialize CUDA device
     println!("1. Initializing CUDA device...");
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     println!("✅ CUDA device initialized");
 
     // Create test configuration
@@ -27,7 +26,7 @@ fn main() -> anyhow::Result<()> {
 
     // Create evolution engine
     println!("3. Creating GpuEvolutionEngine...");
-    let mut engine = GpuEvolutionEngine::new(device, config)?;
+    let mut engine = GpuEvolutionEngine::new(ctx, config)?;
     println!("✅ GpuEvolutionEngine created");
 
     // Initialize random population

@@ -7,14 +7,14 @@ fn main() -> Result<()> {
     println!("Testing Atomic Knowledge Graph Implementation");
 
     // Test without GPU (if not available)
-    let device_result = cudarc::driver::CudaDevice::new(0);
-    match device_result {
-        Ok(device) => {
+    let ctx_result = cudarc::driver::CudaContext::new(0);
+    match ctx_result {
+        Ok(ctx) => {
             println!("✓ CUDA device available");
 
             // Try to create the graph
             match gpu_agents::knowledge::AtomicKnowledgeGraph::new(
-                device, 1000, // max_nodes
+                ctx, 1000, // max_nodes
                 5000, // max_edges
                 128,  // embedding_dim
             ) {

@@ -174,7 +174,11 @@ impl CostOptimizer {
             let region = regions
                 .iter()
                 .filter(|r| r.gpu_available)
-                .min_by(|a, b| a.latency_ms.partial_cmp(&b.latency_ms)?)
+                .min_by(|a, b| {
+                    a.latency_ms
+                        .partial_cmp(&b.latency_ms)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .unwrap();
 
             best_option = Some(OptimizedInstance {
@@ -220,7 +224,10 @@ impl CostOptimizer {
         }
 
         // Pick the best scoring option
-        let best = candidates.into_iter().max_by(|a, b| a.2.partial_cmp(&b.2)?);
+        let best = candidates.into_iter().max_by(|a, b| {
+            a.2.partial_cmp(&b.2)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         if let Some((region, availability, _)) = best {
             Ok(OptimizedInstance {
@@ -295,7 +302,11 @@ impl CostOptimizer {
         let best_region = regions
             .into_iter()
             .filter(|r| r.gpu_available)
-            .min_by(|a, b| a.latency_ms.partial_cmp(&b.latency_ms)?)
+            .min_by(|a, b| {
+                a.latency_ms
+                    .partial_cmp(&b.latency_ms)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .ok_or_else(|| anyhow::anyhow!("No GPU regions available"))?;
 
         Ok(OptimizedInstance {
@@ -399,7 +410,16 @@ impl CostOptimizer {
 
             if recent_prices.len() >= 2 {
                 let avg_recent = recent_prices.iter().sum::<f64>() / recent_prices.len() as f64;
-                let first = recent_prices.last()?;
+                let first = match recent_prices.last() {
+                    Some(v) => v,
+                    None => {
+                        return CostTrend {
+                            direction: TrendDirection::Unknown,
+                            percentage_change: 0.0,
+                            recommendation: "Insufficient data for trend analysis".to_string(),
+                        }
+                    }
+                };
                 let trend = (avg_recent - first) / first;
 
                 return CostTrend {

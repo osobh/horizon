@@ -47,13 +47,13 @@ pub struct MigrationResults {
 
 /// Memory tier migration tester
 pub struct MigrationTester {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: MigrationConfig,
 }
 
 impl MigrationTester {
-    pub fn new(device: Arc<CudaDevice>, config: MigrationConfig) -> Self {
-        Self { device, config }
+    pub fn new(ctx: Arc<CudaContext>, config: MigrationConfig) -> Self {
+        Self { ctx, config }
     }
 
     pub async fn run_migration_tests(&mut self) -> Result<MigrationResults> {

@@ -4,7 +4,7 @@
 //! using working components and mocking the failing synthesis pipeline
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::{
     ConflictStrategy, ConsensusSynthesisEngine, IntegrationConfig, WorkflowResult,
 };
@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     println!("======================================");
     println!("Demonstrating synthesis + evolution + knowledge-graph integration\n");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Create integration engine
     println!("1. 🔧 Setting up integration engine...");
@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
         conflict_resolution_strategy: ConflictStrategy::HighestVoteWins,
     };
 
-    let mut engine = ConsensusSynthesisEngine::new(device, config)?;
+    let mut engine = ConsensusSynthesisEngine::new(ctx, config)?;
 
     // Initialize cross-crate integration
     println!("   Initializing cross-crate adapters...");

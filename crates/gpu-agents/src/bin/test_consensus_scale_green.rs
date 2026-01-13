@@ -2,7 +2,7 @@
 //!
 //! GREEN phase - tests should pass with basic implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus::scale::{ScaledConsensus, ScalingConfig};
 use std::sync::Arc;
 use std::time::Instant;
@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Consensus Scaling (GREEN phase)");
     println!("======================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create consensus with 1000+ nodes
     println!("\n1. Testing 1000 node consensus creation...");
@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut consensus = ScaledConsensus::new(device.clone(), config)?;
+    let mut consensus = ScaledConsensus::new(ctx.clone(), config)?;
     println!("✅ Created consensus for 1000 nodes");
 
     // Test 2: Test voting with 1000 nodes
@@ -64,7 +64,7 @@ fn main() -> anyhow::Result<()> {
         block_size: 512,
         ..Default::default()
     };
-    let mut large_consensus = ScaledConsensus::new(device, large_config)?;
+    let mut large_consensus = ScaledConsensus::new(ctx, large_config)?;
     let large_votes = large_consensus.vote_batch(5000, 99)?;
     println!(
         "✅ Successfully handled {} nodes with {} votes",

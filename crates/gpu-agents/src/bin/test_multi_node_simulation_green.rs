@@ -2,7 +2,7 @@
 //!
 //! GREEN phase - tests should pass with basic implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::node_simulation::{MultiNodeSimulator, NodeConfig, SimulationConfig};
 use std::sync::Arc;
 use std::time::Instant;
@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Multi-Node Simulation on Single GPU (GREEN phase)");
     println!("======================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create multi-node simulator
     println!("\n1. Testing multi-node simulator creation...");
@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
         communication_buffer_size: 10 * 1024 * 1024, // 10MB
     };
 
-    let mut simulator = MultiNodeSimulator::new(device.clone(), config)?;
+    let mut simulator = MultiNodeSimulator::new(ctx.clone(), config)?;
     println!("✅ Created multi-node simulator");
 
     // Test 2: Simulate multiple nodes

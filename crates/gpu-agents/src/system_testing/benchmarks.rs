@@ -90,13 +90,13 @@ pub struct PerformanceSummary {
 
 /// Performance benchmarker
 pub struct PerformanceBenchmarker {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: BenchmarkConfig,
 }
 
 impl PerformanceBenchmarker {
-    pub fn new(device: Arc<CudaDevice>, config: BenchmarkConfig) -> Self {
-        Self { device, config }
+    pub fn new(ctx: Arc<CudaContext>, config: BenchmarkConfig) -> Self {
+        Self { ctx, config }
     }
 
     pub async fn run_benchmarks(&mut self) -> Result<BenchmarkResults> {

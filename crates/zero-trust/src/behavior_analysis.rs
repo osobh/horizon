@@ -691,7 +691,7 @@ impl BehaviorAnalysisEngineTrait for BehaviorAnalysisEngine {
         profile.baseline.active_hours = hour_counts
             .iter()
             .enumerate()
-            .filter(|(_, &count)| count > 0)
+            .filter(|(_, count)| **count > 0)
             .map(|(hour, _)| hour as u32)
             .collect();
 

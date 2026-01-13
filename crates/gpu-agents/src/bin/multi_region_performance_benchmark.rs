@@ -7,7 +7,7 @@
 //! without requiring external crate dependencies.
 
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::{
     ConsensusSynthesisEngine, IntegrationConfig, WorkflowResult,
 };
@@ -43,7 +43,7 @@ async fn run_multi_region_performance_test() -> Result<MultiRegionPerformanceMet
     println!("🌍 Multi-Region Distributed Consensus Performance Benchmark");
     println!("============================================================");
 
-    let device = CudaDevice::new(0).context("Failed to initialize CUDA device")?;
+    let ctx = CudaContext::new(0).context("Failed to initialize CUDA device")?;
 
     // Configure integration engine for multi-region simulation
     let integration_config = IntegrationConfig {
@@ -55,7 +55,7 @@ async fn run_multi_region_performance_test() -> Result<MultiRegionPerformanceMet
             gpu_agents::consensus_synthesis::integration::ConflictStrategy::HighestVoteWins,
     };
 
-    let engine = ConsensusSynthesisEngine::new(device, integration_config)
+    let engine = ConsensusSynthesisEngine::new(ctx, integration_config)
         .context("Failed to create consensus synthesis engine")?;
 
     // Define regional configurations (simulating global deployment)

@@ -22,6 +22,10 @@ export interface RoutingDecision {
   reason: RoutingReason;
   decision_latency_ms: number;
   timestamp: number;
+  // Extended for view
+  source_ip: string;
+  selected_backend: string;
+  latency_ms: number;
 }
 
 export interface BackendHealth {
@@ -34,6 +38,15 @@ export interface BackendHealth {
   active_jobs: number;
   failure_probability: number;
   last_heartbeat_secs: number;
+  // Extended for view
+  id: string;
+  name: string;
+  address: string;
+  healthy: boolean;
+  response_time_ms: number;
+  success_rate: number;
+  active_connections: number;
+  last_check: string;
 }
 
 export interface EdgeProxyStatus {
@@ -44,6 +57,11 @@ export interface EdgeProxyStatus {
   backend_health: BackendHealth[];
   uptime_seconds: number;
   total_requests: number;
+  // Extended for view
+  healthy: boolean;
+  average_latency_ms: number;
+  cache_hit_rate: number;
+  ddos_blocked: number;
 }
 
 export interface BrainStatus {
@@ -56,6 +74,11 @@ export interface BrainStatus {
   jobs_saved: number;
   model_accuracy_pct: number;
   active_monitors: number;
+  // Extended for view
+  model_version: string;
+  last_trained: string;
+  accuracy: number;
+  failures_prevented: number;
 }
 
 export interface FailurePrediction {
@@ -66,6 +89,10 @@ export interface FailurePrediction {
   primary_factor: string;
   recommended_action: string;
   jobs_at_risk: number;
+  // Extended for view
+  backend_id: string;
+  predicted_issue: string;
+  risk_level: 'low' | 'medium' | 'high';
 }
 
 export interface EdgeProxyBrainStatus {
@@ -74,11 +101,12 @@ export interface EdgeProxyBrainStatus {
   predictions: FailurePrediction[];
 }
 
-interface EdgeProxyState {
+export interface EdgeProxyState {
   status: EdgeProxyBrainStatus | null;
   proxyStatus: EdgeProxyStatus | null;
   brainStatus: BrainStatus | null;
   predictions: FailurePrediction[];
+  failurePredictions: FailurePrediction[]; // Alias for predictions
   backendHealth: BackendHealth[];
   routingDecisions: RoutingDecision[];
   loading: boolean;
@@ -89,16 +117,18 @@ interface EdgeProxyState {
   fetchProxyStatus: () => Promise<void>;
   fetchBrainStatus: () => Promise<void>;
   fetchPredictions: () => Promise<void>;
+  fetchFailurePredictions: () => Promise<void>; // Alias for fetchPredictions
   fetchBackendHealth: () => Promise<void>;
   fetchRoutingDecisions: () => Promise<void>;
   simulateActivity: () => Promise<void>;
 }
 
-export const useEdgeProxyStore = create<EdgeProxyState>((set) => ({
+export const useEdgeProxyStore = create<EdgeProxyState>((set, get) => ({
   status: null,
   proxyStatus: null,
   brainStatus: null,
   predictions: [],
+  failurePredictions: [],
   backendHealth: [],
   routingDecisions: [],
   loading: false,
@@ -113,6 +143,7 @@ export const useEdgeProxyStore = create<EdgeProxyState>((set) => ({
         proxyStatus: status.proxy,
         brainStatus: status.brain,
         predictions: status.predictions,
+        failurePredictions: status.predictions,
         backendHealth: status.proxy.backend_health,
         routingDecisions: status.proxy.routing_decisions,
         loading: false,
@@ -147,10 +178,14 @@ export const useEdgeProxyStore = create<EdgeProxyState>((set) => ({
   fetchPredictions: async () => {
     try {
       const predictions = await invoke<FailurePrediction[]>('get_failure_predictions');
-      set({ predictions });
+      set({ predictions, failurePredictions: predictions });
     } catch (error) {
       set({ error: String(error) });
     }
+  },
+
+  fetchFailurePredictions: async () => {
+    await get().fetchPredictions();
   },
 
   fetchBackendHealth: async () => {

@@ -29,11 +29,21 @@ impl CpuStats {
 }
 
 /// Disk I/O statistics from /proc/diskstats
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct DiskStats {
     read_sectors: u64,
     write_sectors: u64,
     timestamp: Instant,
+}
+
+impl Default for DiskStats {
+    fn default() -> Self {
+        Self {
+            read_sectors: 0,
+            write_sectors: 0,
+            timestamp: Instant::now(),
+        }
+    }
 }
 
 /// Resource monitor for tracking system metrics

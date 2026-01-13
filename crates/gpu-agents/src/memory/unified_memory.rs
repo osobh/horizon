@@ -3,14 +3,14 @@
 //! Provides safe Rust wrapper around CUDA Unified Memory for automatic page migration
 
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, DevicePtr as CudaDevicePtr};
+use cudarc::driver::CudaContext;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::sync::Arc;
 
 /// CUDA Unified Memory allocation
 pub struct UnifiedMemory<T> {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     ptr: NonNull<T>,
     size: usize,
     _phantom: PhantomData<T>,
@@ -18,7 +18,7 @@ pub struct UnifiedMemory<T> {
 
 impl<T> UnifiedMemory<T> {
     /// Create new unified memory allocation
-    pub fn new(device: Arc<CudaDevice>, count: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, count: usize) -> Result<Self> {
         let size_bytes = count * std::mem::size_of::<T>();
 
         // Allocate unified memory using cudarc
@@ -27,8 +27,10 @@ impl<T> UnifiedMemory<T> {
         // SAFETY: alloc returns uninitialized memory. This is a placeholder allocation
         // that would be replaced with cudaMallocManaged in real implementation.
         // The memory will be written before any kernel reads from it.
-        let device_ptr = unsafe {
-            device
+        // cudarc 0.18.1: allocations now go through stream, not context
+        let stream = device.default_stream();
+        let _device_ptr = unsafe {
+            stream
                 .alloc::<u8>(size_bytes)
                 .context("Failed to allocate unified memory")?
         };
@@ -36,13 +38,14 @@ impl<T> UnifiedMemory<T> {
         // PLACEHOLDER: Fake pointer for type system satisfaction.
         //
         // SAFETY: This is NOT a valid pointer. The actual GPU memory is managed by
-        // `device_ptr` above. This placeholder exists because unified memory access
+        // `_device_ptr` above. This placeholder exists because unified memory access
         // patterns differ between CUDA (cuMemAllocManaged) and Metal (MTLBuffer with
         // storageModeShared).
         //
         // TODO(cuda): Implement proper unified memory pointer extraction from cudarc.
         // The cudarc::driver::CudaSlice should expose its raw pointer for host access.
-        let ptr = NonNull::new(1 as *mut T)?;
+        let ptr = NonNull::new(1 as *mut T)
+            .ok_or_else(|| anyhow::anyhow!("Failed to create placeholder pointer"))?;
 
         Ok(Self {
             device,
@@ -106,7 +109,7 @@ impl<T> UnifiedMemory<T> {
     }
 
     /// Advise preferred location
-    pub fn advise_preferred_location(&self, location: MemoryLocation) -> Result<()> {
+    pub fn advise_preferred_location(&self, _location: MemoryLocation) -> Result<()> {
         // In real implementation, would call cudaMemAdvise
         Ok(())
     }
@@ -132,7 +135,7 @@ impl<T> Drop for UnifiedMemory<T> {
 // SAFETY: UnifiedMemory<T> is Send because:
 // 1. The underlying CUDA unified memory is allocated with cudaMallocManaged which
 //    provides coherent access from any thread on any CPU or GPU
-// 2. The `device: Arc<CudaDevice>` is Send and ensures the CUDA context outlives allocations
+// 2. The `device: Arc<CudaContext>` is Send and ensures the CUDA context outlives allocations
 // 3. The `ptr: NonNull<T>` points to thread-safe unified memory managed by CUDA driver
 // 4. `PhantomData<T>` only requires T: Send for the whole struct to be Send
 // 5. Drop is implemented to deallocate memory, which is safe from any thread
@@ -141,7 +144,7 @@ unsafe impl<T: Send> Send for UnifiedMemory<T> {}
 // SAFETY: UnifiedMemory<T> is Sync because:
 // 1. CUDA unified memory provides hardware-level coherency across threads
 // 2. All methods taking `&self` only perform read operations or call thread-safe CUDA APIs
-// 3. The `device: Arc<CudaDevice>` provides synchronized access to CUDA operations
+// 3. The `device: Arc<CudaContext>` provides synchronized access to CUDA operations
 // 4. `PhantomData<T>` only requires T: Sync for the whole struct to be Sync
 // 5. No interior mutability is used - all mutations require &mut self
 unsafe impl<T: Sync> Sync for UnifiedMemory<T> {}
@@ -164,14 +167,14 @@ pub struct MemoryAttributes {
 
 /// Page fault handler for unified memory
 pub struct PageFaultHandler {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     fault_count: u64,
     migration_count: u64,
 }
 
 impl PageFaultHandler {
     /// Create new page fault handler
-    pub fn new(device: Arc<CudaDevice>) -> Self {
+    pub fn new(device: Arc<CudaContext>) -> Self {
         Self {
             device,
             fault_count: 0,
@@ -180,7 +183,7 @@ impl PageFaultHandler {
     }
 
     /// Handle page fault
-    pub fn handle_fault(&mut self, address: u64, is_write: bool) -> Result<()> {
+    pub fn handle_fault(&mut self, _address: u64, _is_write: bool) -> Result<()> {
         self.fault_count += 1;
 
         // In real implementation, would handle actual page fault
@@ -208,7 +211,7 @@ pub struct PageFaultStats {
 
 /// Unified memory pool for efficient allocation
 pub struct UnifiedMemoryPool {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     chunk_size: usize,
     free_chunks: Vec<UnifiedMemoryChunk>,
     allocated_chunks: Vec<UnifiedMemoryChunk>,
@@ -223,7 +226,7 @@ struct UnifiedMemoryChunk {
 
 impl UnifiedMemoryPool {
     /// Create new memory pool
-    pub fn new(device: Arc<CudaDevice>, chunk_size: usize) -> Self {
+    pub fn new(device: Arc<CudaContext>, chunk_size: usize) -> Self {
         Self {
             device,
             chunk_size,
@@ -244,7 +247,8 @@ impl UnifiedMemoryPool {
 
         // Allocate new chunk
         let unified_mem = UnifiedMemory::<u8>::new(Arc::clone(&self.device), self.chunk_size)?;
-        let ptr = NonNull::new(unified_mem.host_ptr())?;
+        let ptr = NonNull::new(unified_mem.host_ptr())
+            .ok_or_else(|| anyhow::anyhow!("Failed to get pointer from unified memory"))?;
 
         // Leak the memory to prevent deallocation
         std::mem::forget(unified_mem);
@@ -303,18 +307,17 @@ mod tests {
 
     #[test]
     fn test_unified_memory_creation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let mem = UnifiedMemory::<f32>::new(device, 1024)?;
             assert_eq!(mem.size(), 1024);
             assert!(mem.is_valid());
         }
+        Ok(())
     }
 
     #[test]
     fn test_memory_pool() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let mut pool = UnifiedMemoryPool::new(device, 1024 * 1024);
 
             let ptr1 = pool.allocate(1024)?;
@@ -324,5 +327,6 @@ mod tests {
 
             pool.free(ptr1)?;
         }
+        Ok(())
     }
 }

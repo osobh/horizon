@@ -10,11 +10,11 @@ use std::time::Duration;
 #[cfg(test)]
 mod utilization_manager_tests {
     use super::*;
-    use cudarc::driver::CudaDevice;
+    use cudarc::driver::CudaContext;
 
     #[test]
     fn test_utilization_manager_creation() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let manager = UtilizationManager::new(device)?;
 
         assert_eq!(manager.target_utilization, TARGET_UTILIZATION);
@@ -25,7 +25,7 @@ mod utilization_manager_tests {
 
     #[tokio::test]
     async fn test_monitoring_start_stop() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let manager = UtilizationManager::new(device)?;
 
         // Start monitoring
@@ -49,7 +49,7 @@ mod utilization_manager_tests {
 
     #[tokio::test]
     async fn test_optimization_strategy() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let manager = UtilizationManager::new(device)?;
 
         // Test different utilization levels
@@ -76,7 +76,7 @@ mod utilization_manager_tests {
 
     #[test]
     fn test_workload_multiplier() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let manager = UtilizationManager::new(device)?;
 
         // Initial multiplier
@@ -97,7 +97,7 @@ mod workload_balancer_tests {
 
     #[tokio::test]
     async fn test_workload_submission() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = WorkloadConfig::default();
         let balancer = WorkloadBalancer::new(device, config);
 
@@ -118,7 +118,7 @@ mod workload_balancer_tests {
 
     #[tokio::test]
     async fn test_batch_retrieval() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = WorkloadConfig::default();
         let balancer = WorkloadBalancer::new(device, config);
 
@@ -137,7 +137,7 @@ mod workload_balancer_tests {
 
     #[test]
     fn test_batch_size_adjustment() {
-        let device = Arc::new(CudaDevice::new(0).unwrap());
+        let device = CudaContext::new(0).unwrap();
         let config = WorkloadConfig::default();
         let balancer = WorkloadBalancer::new(device, config);
 
@@ -154,7 +154,7 @@ mod workload_balancer_tests {
 
     #[test]
     fn test_optimal_batch_estimation() {
-        let device = Arc::new(CudaDevice::new(0).unwrap());
+        let device = CudaContext::new(0).unwrap();
         let config = WorkloadConfig::default();
         let balancer = WorkloadBalancer::new(device, config);
 
@@ -173,7 +173,7 @@ mod kernel_optimizer_tests {
 
     #[tokio::test]
     async fn test_kernel_registration() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let optimizer = KernelOptimizer::new(device);
 
         let config = KernelConfig {
@@ -193,7 +193,7 @@ mod kernel_optimizer_tests {
 
     #[test]
     fn test_occupancy_calculation() {
-        let device = Arc::new(CudaDevice::new(0).unwrap());
+        let device = CudaContext::new(0).unwrap();
         let optimizer = KernelOptimizer::new(device);
 
         let config = KernelConfig {
@@ -210,7 +210,7 @@ mod kernel_optimizer_tests {
 
     #[test]
     fn test_launch_config_suggestion() {
-        let device = Arc::new(CudaDevice::new(0).unwrap());
+        let device = CudaContext::new(0).unwrap();
         let optimizer = KernelOptimizer::new(device);
 
         let launch_config = optimizer.suggest_launch_config(1_000_000, 10);
@@ -241,7 +241,7 @@ mod resource_monitor_tests {
 
     #[tokio::test]
     async fn test_resource_monitoring() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let limits = ResourceLimits::default();
         let monitor = ResourceMonitor::new(device, limits);
 
@@ -266,7 +266,7 @@ mod resource_monitor_tests {
 
     #[tokio::test]
     async fn test_resource_statistics() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let limits = ResourceLimits::default();
         let monitor = ResourceMonitor::new(device, limits);
 
@@ -304,7 +304,7 @@ mod utilization_controller_tests {
 
     #[tokio::test]
     async fn test_controller_creation() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = ControllerConfig::default();
         let controller = UtilizationController::new(device, config).await?;
 
@@ -315,7 +315,7 @@ mod utilization_controller_tests {
 
     #[tokio::test]
     async fn test_controller_start_stop() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = ControllerConfig {
             control_interval: Duration::from_millis(100),
             ..Default::default()
@@ -342,7 +342,7 @@ mod utilization_controller_tests {
 
     #[tokio::test]
     async fn test_optimization_recommendations() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = ControllerConfig::default();
         let controller = UtilizationController::new(device, config).await?;
 
@@ -368,7 +368,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_end_to_end_optimization() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
 
         // Create controller with aggressive optimization
         let config = ControllerConfig {
@@ -376,7 +376,7 @@ mod integration_tests {
             control_interval: Duration::from_millis(100),
             ..Default::default()
         };
-        let controller = UtilizationController::new(device.clone(), config).await?;
+        let controller = UtilizationController::new(Arc::clone(&device), config).await?;
 
         // Start optimization
         controller.start().await?;
@@ -408,7 +408,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_auto_tuning() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let manager = Arc::new(UtilizationManager::new(device)?);
         let auto_tuner = AutoTuningController::new(manager.clone());
 

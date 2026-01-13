@@ -7,20 +7,20 @@
 use core::ffi::{c_char, c_int, c_ulong};
 
 /// Initialize the GPU DMA lock subsystem
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_lock_init() -> c_int {
     // Minimal initialization
     0
 }
 
 /// Cleanup the GPU DMA lock subsystem
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_lock_cleanup() {
     // Minimal cleanup
 }
 
 /// Register a GPU device
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_register_device(
     id: u32,
     _name: *const c_char,
@@ -35,13 +35,13 @@ pub extern "C" fn gpu_dma_register_device(
 }
 
 /// Enable debug mode
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_enable_debug(_enable: c_int) {
     // Set debug flag
 }
 
 /// CUDA allocation hook
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_cuda_alloc_hook(
     agent_id: c_ulong,
     size: c_ulong,
@@ -57,7 +57,7 @@ pub extern "C" fn gpu_dma_cuda_alloc_hook(
 }
 
 /// CUDA free hook
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_cuda_free_hook(alloc_id: c_ulong) -> c_int {
     if alloc_id != 0 {
         0

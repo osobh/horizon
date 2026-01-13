@@ -4,7 +4,7 @@
 
 use crate::synthesis::{AstNode, Match, NodeType, Pattern};
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream, DevicePtr};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -13,12 +13,14 @@ const NODE_SIZE: usize = 64; // Aligned to 64 bytes
 /// Dynamic GPU Pattern Matcher
 #[derive(Clone)]
 pub struct DynamicGpuPatternMatcher {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
 }
 
 impl DynamicGpuPatternMatcher {
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
-        Ok(Self { device })
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
+        let stream = device.default_stream();
+        Ok(Self { device, stream })
     }
 
     /// Match patterns against ASTs with dynamic allocation
@@ -31,25 +33,25 @@ impl DynamicGpuPatternMatcher {
         let node_count = ast_data.len() / NODE_SIZE;
 
         // Allocate exact-size GPU buffers
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
-        // because the memory is immediately initialized via htod_copy_into below.
-        let pattern_buffer = unsafe { self.device.alloc::<u8>(pattern_data.len()) }
+        // SAFETY: CudaStream::alloc returns uninitialized GPU memory. This is safe
+        // because the memory is immediately initialized via memcpy_htod below.
+        let pattern_buffer = unsafe { self.stream.alloc::<u8>(pattern_data.len()) }
             .context("Failed to allocate pattern buffer")?;
 
-        // SAFETY: Same as above - memory is initialized via htod_copy_into below.
-        let ast_buffer = unsafe { self.device.alloc::<u8>(ast_data.len()) }
+        // SAFETY: Same as above - memory is initialized via memcpy_htod below.
+        let ast_buffer = unsafe { self.stream.alloc::<u8>(ast_data.len()) }
             .context("Failed to allocate AST buffer")?;
 
         let match_buffer = self
-            .device
+            .stream
             .alloc_zeros::<u32>(node_count * 2)
             .context("Failed to allocate match buffer")?;
 
         // Copy to GPU
-        self.device
-            .htod_copy_into(pattern_data, &mut pattern_buffer.clone())?;
-        self.device
-            .htod_copy_into(ast_data, &mut ast_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&pattern_data, &mut pattern_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&ast_data, &mut ast_buffer.clone())?;
 
         // Launch kernel
         // SAFETY: All device pointers are valid and correctly sized:
@@ -58,21 +60,22 @@ impl DynamicGpuPatternMatcher {
         // - match_buffer was zero-initialized with node_count * 2 u32s
         // The kernel reads from pattern/ast buffers and writes to match_buffer.
         unsafe {
+            let (pattern_ptr, _guard1) = pattern_buffer.device_ptr(&self.stream);
+            let (ast_ptr, _guard2) = ast_buffer.device_ptr(&self.stream);
+            let (match_ptr, _guard3) = match_buffer.device_ptr(&self.stream);
             crate::synthesis::launch_match_patterns_fast(
-                *pattern_buffer.device_ptr() as *const u8,
-                *ast_buffer.device_ptr() as *const u8,
-                *match_buffer.device_ptr() as *mut u32,
+                pattern_ptr as *const u8,
+                ast_ptr as *const u8,
+                match_ptr as *mut u32,
                 pattern_count as u32,
                 node_count as u32,
             );
         }
 
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
 
         // Get results
-        let mut results = vec![0u32; node_count * 2];
-        self.device
-            .dtoh_sync_copy_into(&match_buffer, &mut results)?;
+        let results: Vec<u32> = self.stream.clone_dtoh(&match_buffer)?;
 
         // Extract matches
         self.extract_matches(&results, patterns.len())

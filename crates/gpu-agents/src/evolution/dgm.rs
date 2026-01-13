@@ -4,9 +4,8 @@
 //! that can modify their own code empirically rather than through formal proofs.
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr};
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use std::sync::Arc;
 
 /// DGM coding agent that can self-modify
@@ -111,7 +110,7 @@ impl DgmArchive {
                 .iter()
                 .cloned()
                 .fold(f64::NEG_INFINITY, f64::max);
-            b_best.partial_cmp(&a_best)?
+            b_best.partial_cmp(&a_best).unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // Keep top half and diverse agents
@@ -141,7 +140,7 @@ impl DgmArchive {
         let best_idx = weights
             .iter()
             .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b)?)
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| i)?;
 
         Some(&self.agents[best_idx])
@@ -214,7 +213,7 @@ impl DgmArchive {
 
 /// DGM GPU-accelerated evolution engine
 pub struct DgmEngine {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Current population of agents
     population: Vec<DgmAgent>,
     /// Archive for open-ended exploration
@@ -238,20 +237,21 @@ pub struct DgmEngine {
 impl DgmEngine {
     /// Create new DGM engine
     pub fn new(
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
         population_size: usize,
         max_code_size: usize,
         archive_size: usize,
     ) -> Result<Self> {
         // Allocate GPU memory
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because:
+        let stream = device.default_stream();
+        // SAFETY: CudaContext::alloc returns uninitialized GPU memory. This is safe because:
         // 1. The memory will be initialized via htod_copy_into in upload_population_to_gpu
         // 2. The data is never read from GPU before being initialized
-        // 3. The CudaDevice handles proper GPU memory management
+        // 3. The CudaContext handles proper GPU memory management
         let total_code_size = population_size * max_code_size;
-        let agent_codes = unsafe { device.alloc::<u8>(total_code_size)? };
-        let benchmark_scores = unsafe { device.alloc::<f32>(population_size)? };
-        let modification_buffer = unsafe { device.alloc::<u8>(total_code_size)? };
+        let agent_codes = unsafe { stream.alloc::<u8>(total_code_size)? };
+        let benchmark_scores = unsafe { stream.alloc::<f32>(population_size)? };
+        let modification_buffer = unsafe { stream.alloc::<u8>(total_code_size)? };
 
         let archive = DgmArchive::new(0.1, archive_size); // 0.1 performance threshold
 
@@ -309,19 +309,17 @@ impl DgmEngine {
                 .fold(f64::NEG_INFINITY, f64::max) as f32;
         }
 
-        self.device
-            .htod_copy_into(code_data, &mut self.agent_codes.clone())?;
-        self.device
-            .htod_copy_into(score_data, &mut self.benchmark_scores.clone())?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&code_data, &mut self.agent_codes)?;
+        stream.memcpy_htod(&score_data, &mut self.benchmark_scores)?;
 
         Ok(())
     }
 
     /// Download population data from GPU
     fn download_population_from_gpu(&mut self) -> Result<()> {
-        let mut score_data = vec![0f32; self.population_size];
-        self.device
-            .dtoh_sync_copy_into(&self.benchmark_scores, &mut score_data)?;
+        let stream = self.device.default_stream();
+        let score_data = stream.clone_dtoh(&self.benchmark_scores)?;
 
         for (i, agent) in self.population.iter_mut().enumerate() {
             if i < score_data.len() && score_data[i] > 0.0 {
@@ -425,7 +423,7 @@ impl DgmEngine {
     }
 
     /// Self-modify agent code using GPU-accelerated operations
-    fn self_modify_agent(&self, parent_code: &str) -> Result<String> {
+    fn self_modify_agent(&mut self, parent_code: &str) -> Result<String> {
         // Prepare data for GPU kernel
         let mut code_buffer = vec![0u8; self.max_code_size];
         let code_bytes = parent_code.as_bytes();
@@ -433,29 +431,32 @@ impl DgmEngine {
         code_buffer[..copy_len].copy_from_slice(&code_bytes[..copy_len]);
 
         // Upload to GPU
-        self.device
-            .htod_copy_into(code_buffer.clone(), &mut self.modification_buffer.clone())?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&code_buffer, &mut self.modification_buffer)?;
 
         // Launch self-modification kernel
         // SAFETY: The kernel function is called with valid device pointers obtained from
         // CudaSlice::device_ptr(). The modification_buffer was allocated with max_code_size
         // bytes, matching the kernel's expected buffer size. The null placeholder for
         // performance_history is handled by the kernel (history_length=0).
-        unsafe {
-            crate::evolution::kernels::launch_dgm_self_modification(
-                *self.modification_buffer.device_ptr() as *const u8,
-                *self.modification_buffer.device_ptr() as *mut u8,
-                std::ptr::null(), // performance_history placeholder
-                self.max_code_size as u32,
-                0,   // history_length
-                0.1, // improvement_threshold
-            );
+        {
+            let stream = self.device.default_stream();
+            let (mod_buf_ptr, _guard) = self.modification_buffer.device_ptr(&stream);
+            unsafe {
+                crate::evolution::kernels::launch_dgm_self_modification(
+                    mod_buf_ptr as *const u8,
+                    mod_buf_ptr as *mut u8,
+                    std::ptr::null(), // performance_history placeholder
+                    self.max_code_size as u32,
+                    0,   // history_length
+                    0.1, // improvement_threshold
+                );
+            }
         }
 
         // Download modified code
-        let mut modified_buffer = vec![0u8; self.max_code_size];
-        self.device
-            .dtoh_sync_copy_into(&self.modification_buffer, &mut modified_buffer)?;
+        let stream = self.device.default_stream();
+        let modified_buffer = stream.clone_dtoh(&self.modification_buffer)?;
 
         // Convert back to string (simplified - would need proper handling)
         let modified_code = String::from_utf8_lossy(&modified_buffer)
@@ -517,14 +518,19 @@ impl DgmEngine {
         // CudaSlice::device_ptr(). agent_codes has population_size * max_code_size bytes,
         // and benchmark_scores has population_size f32 elements. The null benchmark_data
         // is a placeholder that the kernel handles appropriately.
-        unsafe {
-            crate::evolution::kernels::evaluate_dgm_benchmark(
-                *self.agent_codes.device_ptr() as *const u8,
-                *self.benchmark_scores.device_ptr() as *mut f32,
-                agents.len() as u32,
-                self.max_code_size as u32,
-                std::ptr::null(), // benchmark_data placeholder
-            );
+        {
+            let stream = self.device.default_stream();
+            let (codes_ptr, _guard1) = self.agent_codes.device_ptr(&stream);
+            let (scores_ptr, _guard2) = self.benchmark_scores.device_ptr(&stream);
+            unsafe {
+                crate::evolution::kernels::evaluate_dgm_benchmark(
+                    codes_ptr as *const u8,
+                    scores_ptr as *mut f32,
+                    agents.len() as u32,
+                    self.max_code_size as u32,
+                    std::ptr::null(), // benchmark_data placeholder
+                );
+            }
         }
 
         // For now, evaluate on CPU
@@ -559,7 +565,7 @@ impl DgmEngine {
                 .iter()
                 .cloned()
                 .fold(f64::NEG_INFINITY, f64::max);
-            b_best.partial_cmp(&a_best)?
+            b_best.partial_cmp(&a_best).unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // Update population with top performers
@@ -585,7 +591,7 @@ impl DgmEngine {
                 .iter()
                 .cloned()
                 .fold(f64::NEG_INFINITY, f64::max);
-            a_best.partial_cmp(&b_best)?
+            a_best.partial_cmp(&b_best).unwrap_or(std::cmp::Ordering::Equal)
         })
     }
 
@@ -666,11 +672,11 @@ mod tests {
 
     #[test]
     fn test_dgm_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let engine = DgmEngine::new(device, 16, 1024, 100)?;
             assert_eq!(engine.population_size, 16);
             assert_eq!(engine.max_code_size, 1024);
         }
+        Ok(())
     }
 }

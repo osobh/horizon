@@ -1,7 +1,7 @@
 //! GPU-accelerated data transformations
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, CudaStream, DevicePtr, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream, DevicePtr};
 use std::sync::Arc;
 
 use super::GpuStreamKernel;
@@ -25,7 +25,7 @@ pub enum TransformType {
 
 /// GPU data transformer
 pub struct GpuTransformer {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     transform_type: TransformType,
     /// Schema information for structured data
     schema: Option<DataSchema>,
@@ -36,13 +36,14 @@ pub struct GpuTransformer {
 impl GpuTransformer {
     /// Create new GPU transformer
     pub fn new(
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
         transform_type: TransformType,
         buffer_size: usize,
     ) -> Result<Self> {
         // SAFETY: alloc returns uninitialized memory. temp_buffer is used as scratch
         // space by transformation kernels and will be written before read.
-        let temp_buffer = unsafe { device.alloc::<u8>(buffer_size)? };
+        let stream = device.default_stream();
+        let temp_buffer = unsafe { stream.alloc::<u8>(buffer_size)? };
 
         Ok(Self {
             device,
@@ -84,18 +85,22 @@ impl GpuTransformer {
         let state_size = input.len() / 4; // Estimate
                                           // SAFETY: alloc returns uninitialized memory. parser_state is internal scratch
                                           // space that the kernel initializes before use.
-        let parser_state = unsafe { self.device.alloc::<u32>(state_size)? };
+        let default_stream = self.device.default_stream();
+        let parser_state = unsafe { default_stream.alloc::<u32>(state_size)? };
 
         // SAFETY: All pointers are valid device pointers from CudaSlice references.
         // Input/output/parser_state lengths match their allocations. Stream is valid.
+        let (input_ptr, _input_guard) = input.device_ptr(stream);
+        let (output_ptr, _output_guard) = output.device_ptr(stream);
+        let (parser_ptr, _parser_guard) = parser_state.device_ptr(stream);
         unsafe {
             launch_json_parser(
-                *input.device_ptr() as *const u8,
-                *output.device_ptr() as *mut u8,
-                *parser_state.device_ptr() as *mut u32,
+                input_ptr as *const u8,
+                output_ptr as *mut u8,
+                parser_ptr as *mut u32,
                 input.len() as u32,
                 output.len() as u32,
-                stream.stream as *mut _,
+                std::ptr::null_mut(), // Use null for default stream
             );
         }
 
@@ -114,15 +119,17 @@ impl GpuTransformer {
 
         // SAFETY: All pointers are valid device pointers from CudaSlice references.
         // Input/output lengths match their allocations. Stream is valid.
+        let (input_ptr, _input_guard) = input.device_ptr(stream);
+        let (output_ptr, _output_guard) = output.device_ptr(stream);
         unsafe {
             launch_csv_parser(
-                *input.device_ptr() as *const u8,
-                *output.device_ptr() as *mut u8,
+                input_ptr as *const u8,
+                output_ptr as *mut u8,
                 input.len() as u32,
                 output.len() as u32,
                 delimiter,
                 quote,
-                stream.stream as *mut _,
+                std::ptr::null_mut(), // Use null for default stream
             );
         }
 
@@ -141,14 +148,16 @@ impl GpuTransformer {
 
         // SAFETY: All pointers are valid device pointers from CudaSlice references.
         // Input is reinterpreted as f32 array (4 bytes per element). Stream is valid.
+        let (input_ptr, _input_guard) = input.device_ptr(stream);
+        let (output_ptr, _output_guard) = output.device_ptr(stream);
         unsafe {
             launch_normalize(
-                *input.device_ptr() as *const f32,
-                *output.device_ptr() as *mut f32,
+                input_ptr as *const f32,
+                output_ptr as *mut f32,
                 input_floats as u32,
                 0.0, // mean (would be computed)
                 1.0, // stddev (would be computed)
-                stream.stream as *mut _,
+                std::ptr::null_mut(), // Use null for default stream
             );
         }
 
@@ -165,14 +174,16 @@ impl GpuTransformer {
         if let Some(ref schema) = self.schema {
             // SAFETY: All pointers are valid device pointers from CudaSlice references.
             // Schema pointer is valid for the duration of the kernel call. Stream is valid.
+            let (input_ptr, _input_guard) = input.device_ptr(stream);
+            let (output_ptr, _output_guard) = output.device_ptr(stream);
             unsafe {
                 launch_type_converter(
-                    *input.device_ptr() as *const u8,
-                    *output.device_ptr() as *mut u8,
+                    input_ptr as *const u8,
+                    output_ptr as *mut u8,
                     input.len() as u32,
                     output.len() as u32,
                     schema.as_gpu_schema(),
-                    stream.stream as *mut _,
+                    std::ptr::null_mut(), // Use null for default stream
                 );
             }
             Ok(output.len())
@@ -258,12 +269,12 @@ pub enum FieldType {
 /// Batch transformer for processing multiple chunks
 pub struct BatchTransformer {
     transformers: Vec<GpuTransformer>,
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
 }
 
 impl BatchTransformer {
     /// Create new batch transformer
-    pub fn new(device: Arc<CudaDevice>) -> Self {
+    pub fn new(device: Arc<CudaContext>) -> Self {
         Self {
             transformers: Vec::new(),
             device,
@@ -290,7 +301,8 @@ impl BatchTransformer {
                 let output_size = transformer.output_size(input.len());
                 // SAFETY: alloc returns uninitialized memory. Output buffer will be
                 // written by transformer.process() before any subsequent reads.
-                let mut output = unsafe { self.device.alloc::<u8>(output_size)? };
+                let default_stream = self.device.default_stream();
+                let mut output = unsafe { default_stream.alloc::<u8>(output_size)? };
 
                 transformer.process(&input, &mut output, stream)?;
                 new_outputs.push(output);
@@ -304,7 +316,7 @@ impl BatchTransformer {
 }
 
 // External CUDA kernel declarations
-extern "C" {
+unsafe extern "C" {
     fn launch_json_parser(
         input: *const u8,
         output: *mut u8,
@@ -349,15 +361,14 @@ mod tests {
 
     #[test]
     fn test_transformer_names() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
-
-            let json = GpuTransformer::new(device.clone(), TransformType::JsonParse, 1024)?;
+        if let Ok(ctx) = CudaContext::new(0) {
+            let json = GpuTransformer::new(ctx.clone(), TransformType::JsonParse, 1024)?;
             assert_eq!(json.name(), "json_parse");
 
-            let csv = GpuTransformer::new(device, TransformType::CsvParse, 1024)?;
+            let csv = GpuTransformer::new(ctx, TransformType::CsvParse, 1024)?;
             assert_eq!(csv.name(), "csv_parse");
         }
+        Ok(())
     }
 
     #[test]

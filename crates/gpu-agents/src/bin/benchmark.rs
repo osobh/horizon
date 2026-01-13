@@ -339,7 +339,7 @@ fn load_benchmark_config(matches: &ArgMatches) -> Result<BenchmarkConfig> {
     let config = BenchmarkConfig {
         quick_mode: matches.get_flag("quick"),
         stress_mode: matches.get_flag("stress"),
-        _output_directory: PathBuf::from(matches.get_one::<String>("output")?),
+        _output_directory: PathBuf::from(matches.get_one::<String>("output").ok_or_else(|| anyhow::anyhow!("output argument required"))?),
     };
 
     // If config file specified, load it

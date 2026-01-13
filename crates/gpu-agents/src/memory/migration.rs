@@ -5,7 +5,7 @@
 use super::{MigrationPriority, MigrationRequest, MigrationResult, PageId, TierLevel};
 use anyhow::{Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -52,7 +52,7 @@ impl Default for MigrationPolicy {
 
 /// Migration engine for managing page movements
 pub struct MigrationEngine {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     policy: MigrationPolicy,
 
     /// Migration request queue
@@ -71,12 +71,12 @@ pub struct MigrationEngine {
 
 impl MigrationEngine {
     /// Create new migration engine
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
         Self::with_policy(device, MigrationPolicy::default())
     }
 
     /// Create with custom policy
-    pub fn with_policy(device: Arc<CudaDevice>, policy: MigrationPolicy) -> Result<Self> {
+    pub fn with_policy(device: Arc<CudaContext>, policy: MigrationPolicy) -> Result<Self> {
         let (tx, rx) = unbounded();
 
         Ok(Self {
@@ -136,9 +136,13 @@ impl MigrationEngine {
     }
 
     /// Record page access for pattern tracking
-    pub fn record_access(&self, page_id: PageId) -> Result<(), Box<dyn std::error::Error>> {
-        let mut history = self.access_history.lock()?;
+    pub fn record_access(&self, page_id: PageId) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut history = self
+            .access_history
+            .lock()
+            .map_err(|_| "Failed to lock access history")?;
         history.record_access(page_id);
+        Ok(())
     }
 
     /// Predict pages to prefetch based on access patterns
@@ -147,25 +151,37 @@ impl MigrationEngine {
             return Vec::new();
         }
 
-        let history = self.access_history.lock()?;
+        let history = match self.access_history.lock() {
+            Ok(h) => h,
+            Err(_) => return Vec::new(),
+        };
         history.predict_next(accessed_page, self.policy.prefetch_distance)
     }
 
     /// Get pages that should be promoted (hot pages)
     pub fn get_hot_pages(&self, tier: TierLevel) -> Vec<PageId> {
-        let history = self.access_history.lock()?;
+        let history = match self.access_history.lock() {
+            Ok(h) => h,
+            Err(_) => return Vec::new(),
+        };
         history.get_hot_pages(tier, self.policy.hot_threshold)
     }
 
     /// Get pages that should be demoted (cold pages)
     pub fn get_cold_pages(&self, tier: TierLevel) -> Vec<PageId> {
-        let history = self.access_history.lock()?;
+        let history = match self.access_history.lock() {
+            Ok(h) => h,
+            Err(_) => return Vec::new(),
+        };
         history.get_cold_pages(tier, self.policy.cold_threshold)
     }
 
     /// Get migration statistics
     pub fn get_stats(&self) -> MigrationStats {
-        let stats = self.stats.lock()?;
+        let stats = match self.stats.lock() {
+            Ok(s) => s,
+            Err(_) => return MigrationStats::default(),
+        };
         stats.clone()
     }
 
@@ -173,7 +189,7 @@ impl MigrationEngine {
     fn worker_loop(
         receiver: Receiver<MigrationRequest>,
         stats: Arc<Mutex<MigrationStats>>,
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
     ) {
         while let Ok(request) = receiver.recv() {
             let start = StdInstant::now();
@@ -184,21 +200,22 @@ impl MigrationEngine {
             let duration = start.elapsed();
 
             // Update statistics
-            let mut stats = stats.lock()?;
-            if success {
-                stats.successful_migrations += 1;
-                stats.total_migration_time += duration;
-                stats.bytes_migrated += 4096; // Assuming 4KB pages
-            } else {
-                stats.failed_migrations += 1;
-            }
+            if let Ok(mut stats) = stats.lock() {
+                if success {
+                    stats.successful_migrations += 1;
+                    stats.total_migration_time += duration;
+                    stats.bytes_migrated += 4096; // Assuming 4KB pages
+                } else {
+                    stats.failed_migrations += 1;
+                }
 
-            stats.update_rate(duration);
+                stats.update_rate(duration);
+            }
         }
     }
 
     /// Perform actual migration
-    fn perform_migration(request: &MigrationRequest, device: &Arc<CudaDevice>) -> Result<()> {
+    fn perform_migration(request: &MigrationRequest, _device: &Arc<CudaContext>) -> Result<()> {
         // In real implementation, would:
         // 1. Read page from source tier
         // 2. Apply compression if needed
@@ -276,7 +293,7 @@ impl AccessHistory {
         predictions
     }
 
-    fn get_hot_pages(&self, tier: TierLevel, threshold: f64) -> Vec<PageId> {
+    fn get_hot_pages(&self, _tier: TierLevel, threshold: f64) -> Vec<PageId> {
         let mut hot_pages = Vec::new();
 
         for (page_id, times) in &self.access_times {
@@ -285,11 +302,13 @@ impl AccessHistory {
             }
 
             // Calculate access rate
-            let duration = times.back().unwrap().duration_since(*times.front()?);
-            if duration.as_secs() > 0 {
-                let rate = times.len() as f64 / duration.as_secs_f64();
-                if rate > threshold {
-                    hot_pages.push(*page_id);
+            if let Some(front) = times.front() {
+                let duration = times.back().unwrap().duration_since(*front);
+                if duration.as_secs() > 0 {
+                    let rate = times.len() as f64 / duration.as_secs_f64();
+                    if rate > threshold {
+                        hot_pages.push(*page_id);
+                    }
                 }
             }
         }
@@ -297,7 +316,7 @@ impl AccessHistory {
         hot_pages
     }
 
-    fn get_cold_pages(&self, tier: TierLevel, threshold: Duration) -> Vec<PageId> {
+    fn get_cold_pages(&self, _tier: TierLevel, threshold: Duration) -> Vec<PageId> {
         let mut cold_pages = Vec::new();
         let now = StdInstant::now();
 
@@ -387,14 +406,14 @@ mod tests {
 
     #[test]
     fn test_migration_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let engine = MigrationEngine::new(device)?;
 
             let stats = engine.get_stats();
             assert_eq!(stats.successful_migrations, 0);
             assert_eq!(stats.failed_migrations, 0);
         }
+        Ok(())
     }
 
     #[test]
@@ -428,7 +447,7 @@ mod tests {
             deadline: None,
         };
 
-        let batch = optimizer.add(req3)?;
+        let batch = optimizer.add(req3).expect("Failed to add request");
         assert_eq!(batch.len(), 3);
 
         // Test optimization

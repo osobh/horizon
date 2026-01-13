@@ -2,7 +2,7 @@
 //!
 //! RED phase - create failing tests
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::template_ops::{
     CompositeTemplate, TemplateCondition, TemplateEngine, TemplateFunction, TemplateLoop,
     TemplateVariable,
@@ -22,11 +22,11 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Template Operations in Synthesis (RED phase)");
     println!("=================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create template engine
     println!("\n1. Testing template engine creation...");
-    let engine = TemplateEngine::new(device.clone())?;
+    let engine = TemplateEngine::new(ctx.clone())?;
     println!("❌ TemplateEngine created but needs implementation");
 
     // Test 2: Variable substitution

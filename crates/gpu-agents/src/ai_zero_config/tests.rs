@@ -8,7 +8,7 @@
 //! Following strict TDD methodology - these tests WILL FAIL until implementation is complete.
 
 use super::types::*;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::path::PathBuf;
@@ -24,12 +24,12 @@ pub struct AIAssistantZeroConfigIntegration {
     pub classifier: IntentClassifier,
     pub code_analyzer: CodeAnalysisEngine,
     pub orchestrator: SmartDeploymentOrchestrator,
-    pub device: Arc<CudaDevice>,
+    pub device: Arc<CudaContext>,
 }
 
 /// AI Assistant Engine for natural language processing
 pub struct AIAssistantEngine {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     model_loaded: bool,
 }
 
@@ -66,7 +66,7 @@ pub struct SmartDeploymentOrchestrator {
 
 impl AIAssistantZeroConfigIntegration {
     /// Create new AI Assistant + Zero-Config integration
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
         Ok(Self {
             assistant_engine: AIAssistantEngine::new(device.clone())?,
             zero_config: ZeroConfigIntegration::new(),
@@ -145,7 +145,7 @@ impl AIAssistantZeroConfigIntegration {
 }
 
 impl AIAssistantEngine {
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
         Ok(Self {
             device,
             model_loaded: false,
@@ -730,7 +730,7 @@ mod tests {
     /// Test 1: AI Assistant + Zero-Config Integration Creation and Initialization
     #[tokio::test]
     async fn test_ai_assistant_zero_config_integration_creation() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let integration = AIAssistantZeroConfigIntegration::new(device)?;
         
         // Verify all components are initialized
@@ -749,7 +749,7 @@ mod tests {
     /// Test 2: Natural Language Intent Classification
     #[tokio::test]
     async fn test_natural_language_intent_classification() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let integration = AIAssistantZeroConfigIntegration::new(device)?;
         
         let test_cases = vec![
@@ -776,7 +776,7 @@ mod tests {
     /// Test 3: Codebase Analysis and Resource Estimation
     #[tokio::test]
     async fn test_codebase_analysis_and_resource_estimation() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let integration = AIAssistantZeroConfigIntegration::new(device)?;
         
         let test_codebases = vec![
@@ -817,7 +817,7 @@ mod tests {
     /// Test 4: Configuration Generation from Analysis
     #[tokio::test]
     async fn test_configuration_generation_from_analysis() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let integration = AIAssistantZeroConfigIntegration::new(device)?;
         
         // Create test intent and analysis
@@ -886,7 +886,7 @@ mod tests {
     /// Test 5: End-to-End Natural Language Deployment
     #[tokio::test]
     async fn test_end_to_end_natural_language_deployment() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let mut integration = AIAssistantZeroConfigIntegration::new(device)?;
         
         let deployment_requests = vec![
@@ -957,7 +957,7 @@ mod tests {
     /// Test 6: Infrastructure Query and Optimization
     #[tokio::test]
     async fn test_infrastructure_query_and_optimization() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let mut integration = AIAssistantZeroConfigIntegration::new(device)?;
         
         // First deploy a service to optimize
@@ -1006,7 +1006,7 @@ mod tests {
     /// Test 7: Multi-Language Support and Framework Detection
     #[tokio::test]
     async fn test_multi_language_support_and_framework_detection() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let integration = AIAssistantZeroConfigIntegration::new(device)?;
         
         let language_test_cases = vec![
@@ -1055,7 +1055,7 @@ mod tests {
     /// Test 8: Performance Requirements and Auto-Scaling
     #[tokio::test]
     async fn test_performance_requirements_and_auto_scaling() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let mut integration = AIAssistantZeroConfigIntegration::new(device)?;
         
         let high_performance_deployment = integration.process_natural_language_deployment(

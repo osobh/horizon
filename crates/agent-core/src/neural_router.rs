@@ -560,8 +560,8 @@ impl MultiGpuRoutingEngine {
             .gpu_loads
             .iter()
             .enumerate()
-            .filter(|(_, &load)| load > avg_load + rebalancing_threshold)
-            .map(|(i, &load)| (i, load))
+            .filter(|(_, load)| **load > avg_load + rebalancing_threshold)
+            .map(|(i, load)| (i, *load))
             .collect();
 
         // Process each overloaded GPU
@@ -570,7 +570,7 @@ impl MultiGpuRoutingEngine {
             let assignments_to_move: Vec<_> = load_balancer
                 .routing_assignments
                 .iter()
-                .filter(|(_, &gpu_idx)| gpu_idx == overloaded_gpu_idx)
+                .filter(|(_, gpu_idx)| **gpu_idx == overloaded_gpu_idx)
                 .take(5) // Move up to 5 assignments
                 .map(|(agent_id, _)| *agent_id)
                 .collect();

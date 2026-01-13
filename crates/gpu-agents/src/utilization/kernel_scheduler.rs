@@ -10,7 +10,7 @@
 
 use crate::utilization::kernel_optimizer::KernelConfig;
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use dashmap::DashMap;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -20,7 +20,7 @@ use tokio::sync::Mutex;
 
 /// Advanced kernel scheduler for maximizing GPU utilization
 pub struct AdvancedKernelScheduler {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Stream IDs for concurrent execution (in production would use real streams)
     streams: Vec<usize>,
     /// Kernel queue organized by priority (branch-prediction-friendly)
@@ -125,7 +125,7 @@ struct SchedulingStats {
 
 impl AdvancedKernelScheduler {
     /// Create new advanced kernel scheduler
-    pub fn new(device: Arc<CudaDevice>, config: SchedulerConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: SchedulerConfig) -> Result<Self> {
         // Create stream IDs (in production would create real CUDA streams)
         let mut streams = Vec::with_capacity(config.num_streams);
         for i in 0..config.num_streams {
@@ -492,7 +492,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_scheduler_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = SchedulerConfig::default();
         let scheduler = AdvancedKernelScheduler::new(device, config)?;
 
@@ -501,7 +501,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_kernel_submission() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let scheduler = AdvancedKernelScheduler::new(device, SchedulerConfig::default())?;
 
         let kernel = ScheduledKernel {

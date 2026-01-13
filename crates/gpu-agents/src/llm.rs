@@ -72,7 +72,8 @@ pub struct LlmIntegration {
     gpu_model: Option<cudarc::driver::CudaSlice<u8>>,
     rng_states: Option<cudarc::driver::CudaSlice<u8>>,
     workspace: Option<cudarc::driver::CudaSlice<f32>>,
-    device: Arc<cudarc::driver::CudaDevice>,
+    ctx: Arc<cudarc::driver::CudaContext>,
+    stream: Arc<cudarc::driver::CudaStream>,
 }
 
 /// GPU buffers for LLM operations
@@ -93,7 +94,11 @@ struct LlmGpuBuffers {
 
 impl LlmIntegration {
     /// Create new LLM integration
-    pub fn new(config: LlmConfig, device: Arc<cudarc::driver::CudaDevice>) -> Result<Self> {
+    pub fn new(
+        config: LlmConfig,
+        ctx: Arc<cudarc::driver::CudaContext>,
+        stream: Arc<cudarc::driver::CudaStream>,
+    ) -> Result<Self> {
         Ok(Self {
             config,
             model_loaded: false,
@@ -101,7 +106,8 @@ impl LlmIntegration {
             gpu_model: None,
             rng_states: None,
             workspace: None,
-            device,
+            ctx,
+            stream,
         })
     }
 
@@ -112,25 +118,25 @@ impl LlmIntegration {
         // SAFETY: CudaDevice::alloc is unsafe because it allocates uninitialized GPU memory.
         // The returned CudaSlice is valid for the device's lifetime and will be initialized
         // before any kernel reads from it. The size is calculated from valid config values.
-        let embeddings = unsafe { self.device.alloc::<f32>(embedding_size)? };
+        let embeddings = unsafe { self.stream.alloc::<f32>(embedding_size)? };
 
         let attention_size = self.config.batch_size
             * self.config.max_context_length
             * self.config.max_context_length;
         // SAFETY: GPU allocation returns uninitialized memory. The attention buffer will be
         // written by the attention kernel before being read. Size is valid from config.
-        let attention = unsafe { self.device.alloc::<f32>(attention_size)? };
+        let attention = unsafe { self.stream.alloc::<f32>(attention_size)? };
 
         let vocab_size = 32000; // Standard vocab size
         let logits_size = self.config.batch_size * vocab_size;
         // SAFETY: GPU allocation for logits output buffer. Will be written by inference
         // kernel before being read back. Size is product of valid batch_size and vocab_size.
-        let logits = unsafe { self.device.alloc::<f32>(logits_size)? };
+        let logits = unsafe { self.stream.alloc::<f32>(logits_size)? };
 
         let context_size = self.config.batch_size * self.config.max_context_length;
         // SAFETY: GPU allocation for context token IDs. Will be populated via htod_copy
         // before kernel execution. Size is valid from config values.
-        let context = unsafe { self.device.alloc::<u32>(context_size)? };
+        let context = unsafe { self.stream.alloc::<u32>(context_size)? };
 
         self.gpu_buffers = Some(LlmGpuBuffers {
             embeddings,
@@ -146,14 +152,14 @@ impl LlmIntegration {
                         6 * self.config.embedding_dim; // layer norms
                                                        // SAFETY: GPU allocation for model weights. In production, weights would be loaded
                                                        // from disk via htod_copy. Size is calculated from model architecture parameters.
-        let gpu_model = unsafe { self.device.alloc::<u8>(model_size * 4)? }; // 4 bytes per float
+        let gpu_model = unsafe { self.stream.alloc::<u8>(model_size * 4)? }; // 4 bytes per float
         self.gpu_model = Some(gpu_model);
 
         // Allocate RNG states
         let rng_size = self.config.batch_size * 48; // curandState size
                                                     // SAFETY: GPU allocation for curandState structs. Will be initialized by
                                                     // curand_init before use in sampling. Size is batch_size * sizeof(curandState).
-        let rng_states = unsafe { self.device.alloc::<u8>(rng_size)? };
+        let rng_states = unsafe { self.stream.alloc::<u8>(rng_size)? };
         self.rng_states = Some(rng_states);
 
         // Allocate workspace
@@ -161,7 +167,7 @@ impl LlmIntegration {
             self.config.batch_size * self.config.max_context_length * self.config.embedding_dim;
         // SAFETY: GPU scratch workspace for intermediate computations. Written before read
         // within each kernel invocation. Size is calculated from valid config values.
-        let workspace = unsafe { self.device.alloc::<f32>(workspace_size)? };
+        let workspace = unsafe { self.stream.alloc::<f32>(workspace_size)? };
         self.workspace = Some(workspace);
 
         self.model_loaded = true;
@@ -230,35 +236,42 @@ impl LlmIntegration {
 
         // Allocate GPU memory for prompts and responses
         let batch_size = prompts.len() as u32;
-        // SAFETY: GPU allocation for AgentPrompt structs. Will be populated via htod_copy_into
-        // immediately after allocation. Size equals number of agent states to process.
-        let mut gpu_prompts = unsafe {
-            self.device
-                .alloc::<crate::ffi::AgentPrompt>(batch_size as usize)?
-        };
+
+        // Copy prompts to GPU (clone_htod allocates and copies in one step)
+        let gpu_prompts = self.stream.clone_htod(&prompts)?;
+
         // SAFETY: GPU allocation for LlmResponse output structs. Will be written by
         // launch_llm_inference kernel before any read. Size matches prompt batch.
         let gpu_responses = unsafe {
-            self.device
+            self.stream
                 .alloc::<crate::ffi::LlmResponse>(batch_size as usize)?
         };
-
-        // Copy prompts to GPU
-        self.device.htod_copy_into(prompts, &mut gpu_prompts)?;
 
         // Launch LLM inference kernel
         // SAFETY: FFI call to CUDA kernel. All pointers are valid device pointers from
         // CudaSlice allocations that outlive this call. gpu_prompts was populated via
-        // htod_copy_into. gpu_responses will be written by the kernel. gpu_model, rng_states,
+        // clone_htod. gpu_responses will be written by the kernel. gpu_model, rng_states,
         // and workspace were allocated in load_model() and remain valid. batch_size matches
         // the actual allocation sizes.
+        // Note: device_ptr() returns (ptr, guard) tuple in cudarc 0.18.1
+        let gpu_model_ref = self.gpu_model.as_ref().ok_or_else(|| anyhow::anyhow!("GPU model not loaded"))?;
+        let rng_states_ref = self.rng_states.as_ref().ok_or_else(|| anyhow::anyhow!("RNG states not loaded"))?;
+        let workspace_ref = self.workspace.as_ref().ok_or_else(|| anyhow::anyhow!("Workspace not loaded"))?;
+
+        // Get device pointers with guards (cast to mutable pointers where needed for FFI)
+        let (responses_ptr, _responses_guard) = gpu_responses.device_ptr(&self.stream);
+        let (prompts_ptr, _prompts_guard) = gpu_prompts.device_ptr(&self.stream);
+        let (model_ptr, _model_guard) = gpu_model_ref.device_ptr(&self.stream);
+        let (rng_ptr, _rng_guard) = rng_states_ref.device_ptr(&self.stream);
+        let (workspace_ptr, _workspace_guard) = workspace_ref.device_ptr(&self.stream);
+
         unsafe {
             crate::ffi::launch_llm_inference(
-                *gpu_responses.device_ptr() as *mut crate::ffi::LlmResponse,
-                *gpu_prompts.device_ptr() as *const crate::ffi::AgentPrompt,
-                *self.gpu_model.as_ref()?.device_ptr() as *const crate::ffi::LlmModel,
-                *self.rng_states.as_ref()?.device_ptr() as *mut u8,
-                *self.workspace.as_ref()?.device_ptr() as *mut f32,
+                responses_ptr as *mut crate::ffi::LlmResponse,
+                prompts_ptr as *const crate::ffi::AgentPrompt,
+                model_ptr as *const crate::ffi::LlmModel,
+                rng_ptr as *mut u8,
+                workspace_ptr as *mut f32,
                 batch_size,
             );
         }

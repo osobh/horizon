@@ -14,8 +14,7 @@ use stratoswarm_knowledge_graph::{
 };
 
 // Import local types
-use crate::consensus_synthesis::integration::ConsensusSynthesisEngine;
-use crate::synthesis::{Pattern, SynthesisTask, Template};
+use crate::synthesis::SynthesisTask;
 
 /// Adapter for knowledge graph integration with consensus-synthesis
 pub struct KnowledgeGraphAdapter {
@@ -28,12 +27,12 @@ pub struct KnowledgeGraphAdapter {
     /// Cache for frequent queries
     query_cache: HashMap<String, QueryResult>,
     /// GPU device for accelerated operations
-    device: Arc<cudarc::driver::CudaDevice>,
+    device: Arc<cudarc::driver::CudaContext>,
 }
 
 impl KnowledgeGraphAdapter {
     /// Create a new knowledge graph adapter
-    pub async fn new(device: Arc<cudarc::driver::CudaDevice>) -> Result<Self> {
+    pub async fn new(device: Arc<cudarc::driver::CudaContext>) -> Result<Self> {
         // Configure scaled knowledge graph
         let scaling_config = ScalingConfig {
             shard_count: 16,
@@ -147,19 +146,19 @@ impl KnowledgeGraphAdapter {
                     "throughput".to_string(),
                     serde_json::Value::Number(serde_json::Number::from_f64(
                         performance_metrics.throughput,
-                    )?),
+                    ).ok_or_else(|| anyhow::anyhow!("Invalid f64 for throughput"))?),
                 ),
                 (
                     "latency_ms".to_string(),
                     serde_json::Value::Number(serde_json::Number::from_f64(
                         performance_metrics.latency_ms,
-                    )?),
+                    ).ok_or_else(|| anyhow::anyhow!("Invalid f64 for latency_ms"))?),
                 ),
                 (
                     "accuracy".to_string(),
                     serde_json::Value::Number(serde_json::Number::from_f64(
                         performance_metrics.accuracy,
-                    )?),
+                    ).ok_or_else(|| anyhow::anyhow!("Invalid f64 for accuracy"))?),
                 ),
             ]),
         );
@@ -370,7 +369,7 @@ impl KnowledgeGraphAdapter {
                 ),
                 (
                     "success_rate".to_string(),
-                    serde_json::Value::Number(serde_json::Number::from_f64(outcome.success_rate)?),
+                    serde_json::Value::Number(serde_json::Number::from_f64(outcome.success_rate).ok_or_else(|| anyhow::anyhow!("Invalid f64 for success_rate"))?),
                 ),
                 (
                     "voting_strategy".to_string(),
@@ -477,14 +476,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_knowledge_graph_adapter_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let adapter = KnowledgeGraphAdapter::new(device).await;
         assert!(adapter.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_store_synthesis_pattern() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let mut adapter = KnowledgeGraphAdapter::new(device).await?;
 
         let goal = "Create matrix multiplication kernel";
@@ -513,7 +513,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_similar_patterns() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let mut adapter = KnowledgeGraphAdapter::new(device).await?;
 
         let goal = "Optimize parallel reduction";
@@ -523,7 +523,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_consensus_patterns() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let mut adapter = KnowledgeGraphAdapter::new(device).await?;
 
         let context = "GPU kernel selection";
@@ -533,7 +533,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_store_consensus_outcome() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let mut adapter = KnowledgeGraphAdapter::new(device).await?;
 
         let outcome = ConsensusOutcome {
@@ -551,7 +551,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_graph_statistics() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let adapter = KnowledgeGraphAdapter::new(device).await?;
 
         let result = adapter.get_graph_statistics().await;

@@ -1,7 +1,7 @@
 //! Enhanced GPU knowledge graph with CSR format and advanced algorithms
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream, DevicePtr, DeviceSlice};
 use std::sync::Arc;
 
 /// CSR (Compressed Sparse Row) format for GPU graph
@@ -21,7 +21,7 @@ pub struct CsrGraph {
 impl CsrGraph {
     /// Create CSR graph from adjacency list
     pub fn from_adjacency_list(
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
         adjacency_list: &[(u32, Vec<(u32, f32)>)],
         num_nodes: usize,
     ) -> Result<Self> {
@@ -50,9 +50,10 @@ impl CsrGraph {
         let num_edges = column_indices.len();
 
         // Upload to GPU
-        let gpu_row_offsets = device.htod_sync_copy(&row_offsets)?;
-        let gpu_column_indices = device.htod_sync_copy(&column_indices)?;
-        let gpu_edge_weights = device.htod_sync_copy(&edge_weights)?;
+        let stream = device.default_stream();
+        let gpu_row_offsets = stream.clone_htod(&row_offsets)?;
+        let gpu_column_indices = stream.clone_htod(&column_indices)?;
+        let gpu_edge_weights = stream.clone_htod(&edge_weights)?;
 
         Ok(Self {
             row_offsets: gpu_row_offsets,
@@ -64,11 +65,14 @@ impl CsrGraph {
     }
 
     /// Get GPU pointers for kernel access
-    pub fn gpu_pointers(&self) -> CsrGraphPointers {
+    pub fn gpu_pointers(&self, stream: &CudaStream) -> CsrGraphPointers {
+        let (row_offsets_ptr, _row_guard) = self.row_offsets.device_ptr(stream);
+        let (column_indices_ptr, _col_guard) = self.column_indices.device_ptr(stream);
+        let (edge_weights_ptr, _edge_guard) = self.edge_weights.device_ptr(stream);
         CsrGraphPointers {
-            row_offsets: *self.row_offsets.device_ptr() as *const u32,
-            column_indices: *self.column_indices.device_ptr() as *const u32,
-            edge_weights: *self.edge_weights.device_ptr() as *const f32,
+            row_offsets: row_offsets_ptr as *const u32,
+            column_indices: column_indices_ptr as *const u32,
+            edge_weights: edge_weights_ptr as *const f32,
             num_nodes: self.num_nodes as u32,
             num_edges: self.num_edges as u32,
         }
@@ -86,7 +90,7 @@ pub struct CsrGraphPointers {
 
 /// Enhanced GPU knowledge graph with advanced features
 pub struct EnhancedGpuKnowledgeGraph {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Node embeddings (num_nodes * embedding_dim)
     node_embeddings: CudaSlice<f32>,
     /// Node metadata (types, properties)
@@ -104,16 +108,17 @@ pub struct EnhancedGpuKnowledgeGraph {
 
 impl EnhancedGpuKnowledgeGraph {
     /// Create new enhanced knowledge graph
-    pub fn new(device: Arc<CudaDevice>, num_nodes: usize, embedding_dim: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, num_nodes: usize, embedding_dim: usize) -> Result<Self> {
         // Allocate GPU memory
-        let node_embeddings = device.alloc_zeros::<f32>(num_nodes * embedding_dim)?;
-        let node_metadata = device.alloc_zeros::<u32>(num_nodes)?;
+        let stream = device.default_stream();
+        let node_embeddings = stream.alloc_zeros::<f32>(num_nodes * embedding_dim)?;
+        let node_metadata = stream.alloc_zeros::<u32>(num_nodes)?;
 
         // Create empty CSR graph
         let csr_graph = CsrGraph {
-            row_offsets: device.htod_sync_copy(&vec![0u32; num_nodes + 1])?,
-            column_indices: device.htod_sync_copy(&Vec::<u32>::new())?,
-            edge_weights: device.htod_sync_copy(&Vec::<f32>::new())?,
+            row_offsets: stream.clone_htod(&vec![0u32; num_nodes + 1])?,
+            column_indices: stream.clone_htod(&Vec::<u32>::new())?,
+            edge_weights: stream.clone_htod(&Vec::<f32>::new())?,
             num_nodes,
             num_edges: 0,
         };
@@ -174,28 +179,33 @@ impl EnhancedGpuKnowledgeGraph {
     /// Brute force k-nearest neighbors
     fn brute_force_knn(&self, query_embedding: &[f32], k: usize) -> Result<Vec<(u32, f32)>> {
         // Upload query embedding
-        let gpu_query = self.device.htod_sync_copy(query_embedding)?;
+        let stream = self.device.default_stream();
+        let gpu_query = stream.clone_htod(query_embedding)?;
 
         // Allocate results
         let results_size = k.min(self.num_nodes);
         // SAFETY: alloc returns uninitialized memory but we write before reading via the kernel.
         // results_size is bounded by num_nodes which is a valid count from construction.
-        let gpu_indices = unsafe { self.device.alloc::<u32>(results_size)? };
+        let gpu_indices = unsafe { stream.alloc::<u32>(results_size)? };
         // SAFETY: Same rationale - kernel writes all k distances before we read them back.
-        let gpu_distances = unsafe { self.device.alloc::<f32>(results_size)? };
+        let gpu_distances = unsafe { stream.alloc::<f32>(results_size)? };
 
         // Launch KNN kernel
         // SAFETY: All pointers are valid device pointers:
         // - node_embeddings: allocated in new() with size num_nodes * embedding_dim
-        // - gpu_query: just created via htod_sync_copy from valid query_embedding
+        // - gpu_query: just created via clone_htod from valid query_embedding
         // - gpu_indices/gpu_distances: just allocated above with size results_size
         // Parameters num_nodes, embedding_dim, k match allocation sizes.
+        let (embeddings_ptr, _emb_guard) = self.node_embeddings.device_ptr(&stream);
+        let (query_ptr, _query_guard) = gpu_query.device_ptr(&stream);
+        let (indices_ptr, _idx_guard) = gpu_indices.device_ptr(&stream);
+        let (distances_ptr, _dist_guard) = gpu_distances.device_ptr(&stream);
         unsafe {
             launch_tensor_core_knn(
-                *self.node_embeddings.device_ptr() as *const f32,
-                *gpu_query.device_ptr() as *const f32,
-                *gpu_indices.device_ptr() as *mut u32,
-                *gpu_distances.device_ptr() as *mut f32,
+                embeddings_ptr as *const f32,
+                query_ptr as *const f32,
+                indices_ptr as *mut u32,
+                distances_ptr as *mut f32,
                 self.num_nodes as u32,
                 self.embedding_dim as u32,
                 k as u32,
@@ -203,35 +213,36 @@ impl EnhancedGpuKnowledgeGraph {
         }
 
         // Read results
-        let indices: Vec<u32> = self.device.dtoh_sync_copy(&gpu_indices)?;
-        let distances: Vec<f32> = self.device.dtoh_sync_copy(&gpu_distances)?;
+        let indices: Vec<u32> = stream.clone_dtoh(&gpu_indices)?;
+        let distances: Vec<f32> = stream.clone_dtoh(&gpu_distances)?;
 
         Ok(indices.into_iter().zip(distances).collect())
     }
 
     /// Run PageRank algorithm
     pub fn pagerank(&self, iterations: u32, damping: f32) -> Result<Vec<f32>> {
+        let stream = self.device.default_stream();
         // SAFETY: alloc returns uninitialized memory but we immediately initialize
         // via htod_copy_into below before the kernel reads it.
-        let mut gpu_scores = unsafe { self.device.alloc::<f32>(self.num_nodes)? };
+        let mut gpu_scores = unsafe { stream.alloc::<f32>(self.num_nodes)? };
 
         // Initialize scores
         let initial_score = 1.0 / self.num_nodes as f32;
         let initial_scores = vec![initial_score; self.num_nodes];
-        self.device
-            .htod_copy_into(initial_scores, &mut gpu_scores)?;
+        stream.memcpy_htod(&initial_scores, &mut gpu_scores)?;
 
         // Run PageRank iterations
-        let csr_pointers = self.csr_graph.gpu_pointers();
+        let csr_pointers = self.csr_graph.gpu_pointers(&stream);
         // SAFETY: All pointers are valid device pointers:
         // - csr_pointers.row_offsets/column_indices: from CSR graph, valid for graph lifetime
-        // - gpu_scores: allocated above with num_nodes elements, initialized via htod_copy_into
+        // - gpu_scores: allocated above with num_nodes elements, initialized via memcpy_htod
         // - num_nodes matches the actual graph size
+        let (scores_ptr, _scores_guard) = gpu_scores.device_ptr(&stream);
         unsafe {
             launch_pagerank(
                 csr_pointers.row_offsets,
                 csr_pointers.column_indices,
-                *gpu_scores.device_ptr() as *mut f32,
+                scores_ptr as *mut f32,
                 csr_pointers.num_nodes,
                 iterations,
                 damping,
@@ -239,32 +250,35 @@ impl EnhancedGpuKnowledgeGraph {
         }
 
         // Read results
-        Ok(self.device.dtoh_sync_copy(&gpu_scores)?)
+        Ok(stream.clone_dtoh(&gpu_scores)?)
     }
 
     /// Find shortest path using GPU BFS
     pub fn shortest_path(&self, source: u32, target: u32) -> Result<Option<Vec<u32>>> {
+        let stream = self.device.default_stream();
         // SAFETY: alloc returns uninitialized memory but kernel writes path data before we read.
-        let gpu_path = unsafe { self.device.alloc::<u32>(self.num_nodes)? };
+        let gpu_path = unsafe { stream.alloc::<u32>(self.num_nodes)? };
         // SAFETY: alloc returns uninitialized memory but we initialize via htod_copy_into below.
-        let mut gpu_found = unsafe { self.device.alloc::<bool>(1)? };
+        let mut gpu_found = unsafe { stream.alloc::<bool>(1)? };
 
         // Initialize found flag
-        self.device.htod_copy_into(vec![false], &mut gpu_found)?;
+        stream.memcpy_htod(&[false], &mut gpu_found)?;
 
         // Run BFS
-        let csr_pointers = self.csr_graph.gpu_pointers();
+        let csr_pointers = self.csr_graph.gpu_pointers(&stream);
         // SAFETY: All pointers are valid device pointers:
         // - csr_pointers: from CSR graph, valid for graph lifetime
         // - gpu_path: allocated above with num_nodes elements
         // - gpu_found: allocated above, initialized to false
         // - source/target are u32 node IDs, num_nodes bounds them
+        let (path_ptr, _path_guard) = gpu_path.device_ptr(&stream);
+        let (found_ptr, _found_guard) = gpu_found.device_ptr(&stream);
         unsafe {
             launch_gpu_bfs(
                 csr_pointers.row_offsets,
                 csr_pointers.column_indices,
-                *gpu_path.device_ptr() as *mut u32,
-                *gpu_found.device_ptr() as *mut bool,
+                path_ptr as *mut u32,
+                found_ptr as *mut bool,
                 source,
                 target,
                 csr_pointers.num_nodes,
@@ -272,9 +286,9 @@ impl EnhancedGpuKnowledgeGraph {
         }
 
         // Check if path was found
-        let found: Vec<bool> = self.device.dtoh_sync_copy(&gpu_found)?;
+        let found: Vec<bool> = stream.clone_dtoh(&gpu_found)?;
         if found[0] {
-            let path: Vec<u32> = self.device.dtoh_sync_copy(&gpu_path)?;
+            let path: Vec<u32> = stream.clone_dtoh(&gpu_path)?;
             // Extract actual path from BFS result
             Ok(Some(path))
         } else {
@@ -284,38 +298,39 @@ impl EnhancedGpuKnowledgeGraph {
 
     /// Detect communities using parallel label propagation
     pub fn detect_communities(&self) -> Result<Vec<u32>> {
+        let stream = self.device.default_stream();
         // SAFETY: alloc returns uninitialized memory but we immediately initialize
         // via htod_copy_into below before the kernel reads it.
-        let mut gpu_labels = unsafe { self.device.alloc::<u32>(self.num_nodes)? };
+        let mut gpu_labels = unsafe { stream.alloc::<u32>(self.num_nodes)? };
 
         // Initialize labels
         let initial_labels: Vec<u32> = (0..self.num_nodes as u32).collect();
-        self.device
-            .htod_copy_into(initial_labels, &mut gpu_labels)?;
+        stream.memcpy_htod(&initial_labels, &mut gpu_labels)?;
 
         // Run label propagation
-        let csr_pointers = self.csr_graph.gpu_pointers();
+        let csr_pointers = self.csr_graph.gpu_pointers(&stream);
         // SAFETY: All pointers are valid device pointers:
         // - csr_pointers: from CSR graph, valid for graph lifetime
-        // - gpu_labels: allocated above with num_nodes elements, initialized via htod_copy_into
+        // - gpu_labels: allocated above with num_nodes elements, initialized via memcpy_htod
         // - num_nodes matches actual graph size
+        let (labels_ptr, _labels_guard) = gpu_labels.device_ptr(&stream);
         unsafe {
             launch_label_propagation(
                 csr_pointers.row_offsets,
                 csr_pointers.column_indices,
-                *gpu_labels.device_ptr() as *mut u32,
+                labels_ptr as *mut u32,
                 csr_pointers.num_nodes,
                 10, // iterations
             );
         }
 
-        Ok(self.device.dtoh_sync_copy(&gpu_labels)?)
+        Ok(stream.clone_dtoh(&gpu_labels)?)
     }
 }
 
 /// Spatial index for fast nearest neighbor search
 pub struct SpatialIndex {
-    _device: Arc<CudaDevice>,
+    _device: Arc<CudaContext>,
     /// Index structure (implementation-specific)
     _index_data: CudaSlice<u8>,
     _num_nodes: usize,
@@ -325,17 +340,18 @@ pub struct SpatialIndex {
 impl SpatialIndex {
     /// Build spatial index from embeddings
     pub fn build(
-        device: &Arc<CudaDevice>,
+        device: &Arc<CudaContext>,
         _embeddings: &CudaSlice<f32>,
         num_nodes: usize,
         embedding_dim: usize,
     ) -> Result<Self> {
         // Placeholder for actual spatial index construction
         // Could implement IVF, HNSW, or other GPU-friendly index
+        let stream = device.default_stream();
         let index_size = num_nodes * std::mem::size_of::<u32>();
         // SAFETY: alloc returns uninitialized memory. This is a placeholder that will
         // be properly initialized when the actual spatial index algorithm is implemented.
-        let index_data = unsafe { device.alloc::<u8>(index_size)? };
+        let index_data = unsafe { stream.alloc::<u8>(index_size)? };
 
         Ok(Self {
             _device: device.clone(),
@@ -354,7 +370,7 @@ impl SpatialIndex {
 }
 
 // External CUDA kernel declarations
-extern "C" {
+unsafe extern "C" {
     fn launch_tensor_core_knn(
         embeddings: *const f32,
         query: *const f32,
@@ -398,9 +414,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_csr_graph_creation() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+    fn test_csr_graph_creation() -> Result<()> {
+        if let Ok(device) = CudaContext::new(0) {
             let adjacency_list = vec![
                 (0, vec![(1, 1.0), (2, 0.5)]),
                 (1, vec![(2, 0.8)]),
@@ -411,5 +426,6 @@ mod tests {
             assert_eq!(csr.num_nodes, 3);
             assert_eq!(csr.num_edges, 3);
         }
+        Ok(())
     }
 }

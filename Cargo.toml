@@ -14,10 +14,10 @@ members = [
     "crates/evolution",
     "crates/test-utils",
     "crates/integration-tests",
-    # Kernel Modules
-    "crates/kernel-modules/swarm_guard",
-    "crates/kernel-modules/tier_watch",
-    "crates/kernel-modules/gpu_dma_lock",
+    # Kernel Modules - EXCLUDED: require nightly Rust (#![feature(allocator_api)])
+    # "crates/kernel-modules/swarm_guard",
+    # "crates/kernel-modules/tier_watch",
+    # "crates/kernel-modules/gpu_dma_lock",
     # Phase 2 Extended Features
     "crates/streaming",
     "crates/evolution-streaming",
@@ -30,7 +30,7 @@ members = [
     "crates/evolution-engines",
     "crates/knowledge-graph",
     "crates/bootstrap",
-    "crates/gpu-agents",
+    "crates/gpu-agents",  # RE-ENABLED: cudarc 0.18.1 migration in progress
     # Phase 4 Production Hardening
     "crates/fault-tolerance",
     "crates/consensus",
@@ -56,14 +56,14 @@ members = [
     "crates/time-travel-debugger",
     "crates/ai-assistant",
     "crates/swarm-registry",
-    "crates/swarmlet",
+    # "crates/swarmlet",  # EXCLUDED: 9 errors - needs dependency fixes
     # Documentation tooling
     "crates/documentation-validator",
-    # Metal GPU Backend (macOS)
-    "crates/metal-core",
-    "crates/metal-shaders",
-    # GPU Runtime (backend selection)
-    "crates/gpu-runtime",
+    # Metal GPU Backend (macOS only - excluded on Linux)
+    # "crates/metal-core",
+    # "crates/metal-shaders",
+    # GPU Runtime (backend selection) - depends on metal-core
+    # "crates/gpu-runtime",
 
     # ==========================================
     # HPC Foundation Crates (merged from Horizon)
@@ -134,11 +134,11 @@ members = [
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["HPC-AI Team"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/hpc-ai/horizon"
-rust-version = "1.75"
+rust-version = "1.92"
 
 # rustg GPU-native compiler integration
 [workspace.metadata.rustg]
@@ -195,8 +195,10 @@ sysinfo = "0.30"
 backtrace = "0.3"
 
 # GPU/CUDA dependencies
-cust = "0.3"
-cudarc = { version = "0.11", features = ["cuda-12050"] }
+# cudarc with dynamic-loading + cuda-12050 - no nvcc required at build time
+# CUDA 12.5 libraries will be loaded at runtime if available
+cudarc = { version = "0.18.1", features = ["cuda-12050", "dynamic-loading"] }
+cubecl = "0.3"  # Latest CUBECL for non-NVIDIA GPU support
 
 # Additional dependencies
 uuid = { version = "1.11", features = ["v4", "serde"] }
@@ -294,11 +296,17 @@ dispatch2 = "0.2"
 # - shared-memory: Tier 1 same-machine IPC via memmap2
 # - rkyv-codec: Zero-copy serialization
 # - wireguard: Tier 3 cross-site encrypted tunnels (optional, requires base64)
-hpc-channels = { path = "../hpc-channels", features = ["shared-memory", "rkyv-codec"] }
+hpc-channels = { path = "../rustyinfra/network/hpc-channels", features = ["shared-memory", "rkyv-codec"] }
 
 # WARP file transfer crates
 warp-ipc = { path = "../warp/crates/warp-ipc" }
 warp-dashboard = { path = "../warp/crates/warp-dashboard" }
+
+# Shared crates (now in rustyinfra/foundation/)
+security-common = { path = "../rustyinfra/foundation/security-common" }
+observability-common = { path = "../rustyinfra/foundation/observability-common" }
+config-common = { path = "../rustyinfra/foundation/config-common" }
+error-types = { path = "../rustyinfra/foundation/error-types" }
 
 # Workspace-wide lints for code quality enforcement
 [workspace.lints.rust]

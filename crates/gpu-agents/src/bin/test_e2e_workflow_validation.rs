@@ -8,7 +8,7 @@
 //! Following strict TDD methodology - these tests WILL FAIL until implementation is complete.
 
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::{ConsensusSynthesisEngine, IntegrationConfig};
 use gpu_agents::synthesis::{NodeType, Pattern, SynthesisTask, Template, Token};
 use std::sync::Arc;
@@ -41,7 +41,7 @@ pub struct PopulationStats {
 /// End-to-End workflow orchestrator for complete intelligence pipeline
 pub struct E2EWorkflowOrchestrator {
     consensus_engine: ConsensusSynthesisEngine,
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
 }
 
 /// Complete workflow result containing all pipeline outputs
@@ -81,7 +81,7 @@ impl Default for WorkflowConfig {
 
 impl E2EWorkflowOrchestrator {
     /// Create new end-to-end workflow orchestrator
-    pub async fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub async fn new(ctx: Arc<CudaContext>) -> Result<Self> {
         let integration_config = IntegrationConfig {
             max_concurrent_tasks: 100,
             voting_timeout: Duration::from_secs(10),
@@ -92,7 +92,7 @@ impl E2EWorkflowOrchestrator {
         };
 
         let mut consensus_engine =
-            ConsensusSynthesisEngine::new(device.clone(), integration_config)
+            ConsensusSynthesisEngine::new(ctx.clone(), integration_config)
                 .context("Failed to create consensus synthesis engine")?;
 
         // Initialize cross-crate integrations (use existing method)
@@ -103,7 +103,7 @@ impl E2EWorkflowOrchestrator {
 
         Ok(Self {
             consensus_engine,
-            device,
+            ctx,
         })
     }
 
@@ -376,7 +376,7 @@ impl E2EWorkflowOrchestrator {
 #[tokio::test]
 async fn test_e2e_workflow_web_service_creation() {
     // This test will fail because E2EWorkflowOrchestrator doesn't exist yet
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let mut orchestrator = E2EWorkflowOrchestrator::new(device).await.unwrap();
 
     let goal = "Create a simple web server that responds with Hello World on port 3000";
@@ -398,7 +398,7 @@ async fn test_e2e_workflow_web_service_creation() {
 
 #[tokio::test]
 async fn test_e2e_workflow_database_service_creation() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let mut orchestrator = E2EWorkflowOrchestrator::new(device).await.unwrap();
 
     let goal = "Create a database service with PostgreSQL connection pooling";
@@ -414,7 +414,7 @@ async fn test_e2e_workflow_database_service_creation() {
 
 #[tokio::test]
 async fn test_e2e_workflow_with_knowledge_patterns() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let mut orchestrator = E2EWorkflowOrchestrator::new(device).await.unwrap();
 
     let goal = "Create a REST API with authentication";
@@ -436,7 +436,7 @@ async fn test_e2e_workflow_with_knowledge_patterns() {
 
 #[tokio::test]
 async fn test_e2e_workflow_evolution_improvement() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let mut orchestrator = E2EWorkflowOrchestrator::new(device).await.unwrap();
 
     let goal = "Create a high-performance microservice";
@@ -462,7 +462,7 @@ async fn test_e2e_workflow_evolution_improvement() {
 
 #[tokio::test]
 async fn test_e2e_workflow_consensus_failure_handling() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let mut orchestrator = E2EWorkflowOrchestrator::new(device).await.unwrap();
 
     let goal = "Create something impossible or malformed";
@@ -483,7 +483,7 @@ async fn test_e2e_workflow_consensus_failure_handling() {
 
 #[tokio::test]
 async fn test_e2e_workflow_performance_requirements() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let mut orchestrator = E2EWorkflowOrchestrator::new(device).await.unwrap();
 
     let goal = "Create a simple function";
@@ -504,7 +504,7 @@ async fn test_e2e_workflow_performance_requirements() {
 
 #[tokio::test]
 async fn test_e2e_workflow_multiple_goals_batch() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let mut orchestrator = E2EWorkflowOrchestrator::new(device).await.unwrap();
 
     let goals = vec![

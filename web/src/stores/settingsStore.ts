@@ -16,6 +16,8 @@ export interface Policy {
   priority: number;
   created_at: string;
   updated_at: string;
+  // Extended for view
+  policy_type: PolicyType;
 }
 
 export interface PolicyCondition {
@@ -35,6 +37,9 @@ export interface Quota {
   scope_id: string | null;
   reset_period: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'never';
   enabled: boolean;
+  // Extended for view
+  current_usage: number;
+  soft_limit?: number;
 }
 
 export interface AppSettings {
@@ -44,6 +49,10 @@ export interface AppSettings {
   default_cluster: string | null;
   telemetry_enabled: boolean;
   log_level: 'debug' | 'info' | 'warn' | 'error';
+  // Extended for view
+  auto_refresh: boolean;
+  refresh_interval_seconds: number;
+  sound_enabled: boolean;
 }
 
 export interface SettingsSummary {
@@ -52,6 +61,12 @@ export interface SettingsSummary {
   app_settings: AppSettings;
   policy_evaluation_count: number;
   quota_violations_count: number;
+  // Extended for view
+  active_policies: number;
+  total_policies: number;
+  total_quotas: number;
+  theme: 'light' | 'dark' | 'system';
+  auto_refresh: boolean;
 }
 
 interface SettingsState {

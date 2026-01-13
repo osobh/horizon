@@ -2,7 +2,7 @@
 //!
 //! REFACTOR phase - optimize and improve implementation
 
-use cudarc::driver::{CudaDevice, DeviceSlice};
+use cudarc::driver::{CudaContext, DeviceSlice};
 use gpu_agents::synthesis::variable_buffer::{
     BufferConfig, VariableBufferManager, VariableKernelLauncher,
 };
@@ -13,11 +13,11 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Variable Buffer Implementation (REFACTOR phase)");
     println!("====================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Performance benchmarking
     println!("\n1. Testing allocation performance...");
-    let mut manager = VariableBufferManager::new(device.clone(), BufferConfig::default())?;
+    let mut manager = VariableBufferManager::new(ctx.clone(), BufferConfig::default())?;
 
     let start = Instant::now();
     for size in [1024, 4096, 16384, 65536, 262144, 1048576] {
@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
 
     // Test 2: Buffer reuse efficiency
     println!("\n2. Testing buffer reuse...");
-    let mut reuse_manager = VariableBufferManager::new(device.clone(), BufferConfig::default())?;
+    let mut reuse_manager = VariableBufferManager::new(ctx.clone(), BufferConfig::default())?;
 
     // First allocation
     reuse_manager.ensure_capacity(100_000, 200_000, 50_000)?;
@@ -55,7 +55,7 @@ fn main() -> anyhow::Result<()> {
     let mut config = BufferConfig::default();
     config.growth_factor = 2.0; // Double size on each growth
 
-    let mut growth_manager = VariableBufferManager::new(device.clone(), config)?;
+    let mut growth_manager = VariableBufferManager::new(ctx.clone(), config)?;
 
     let sizes = vec![1024, 2048, 4096, 8192];
     for size in sizes {
@@ -65,7 +65,7 @@ fn main() -> anyhow::Result<()> {
 
     // Test 4: Kernel launcher performance
     println!("\n4. Testing kernel launcher performance...");
-    let mut launcher = VariableKernelLauncher::new(device.clone())?;
+    let mut launcher = VariableKernelLauncher::new(ctx.clone())?;
 
     // Create test data with proper encoding
     let pattern_count = 100;
@@ -91,7 +91,7 @@ fn main() -> anyhow::Result<()> {
 
     // Test 5: Memory fragmentation prevention
     println!("\n5. Testing memory fragmentation handling...");
-    let mut frag_manager = VariableBufferManager::new(device.clone(), BufferConfig::default())?;
+    let mut frag_manager = VariableBufferManager::new(ctx.clone(), BufferConfig::default())?;
 
     // Allocate and deallocate in patterns that could cause fragmentation
     for i in 0..5 {

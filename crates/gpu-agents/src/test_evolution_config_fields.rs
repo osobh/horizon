@@ -20,11 +20,11 @@ mod test_evolution_config_fields {
 
     #[test]
     fn test_evolution_manager_new_requires_device() {
-        use cudarc::driver::CudaDevice;
+        use cudarc::driver::CudaContext;
         use std::sync::Arc;
 
         // Test that EvolutionManager::new requires a device argument
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = GpuEvolutionConfig {
             genome_size: 100,
             fitness_objectives: vec![],

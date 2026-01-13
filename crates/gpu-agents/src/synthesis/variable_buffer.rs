@@ -3,12 +3,13 @@
 //! Handles dynamic buffer allocation and resizing for pattern matching
 
 use anyhow::{anyhow, Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream, DevicePtr};
 use std::sync::Arc;
 
 /// Variable-sized buffer manager for GPU operations
 pub struct VariableBufferManager {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     config: BufferConfig,
     /// Current allocated buffers
     pattern_buffer: Option<CudaSlice<u8>>,
@@ -42,9 +43,11 @@ impl Default for BufferConfig {
 
 impl VariableBufferManager {
     /// Create a new variable buffer manager
-    pub fn new(device: Arc<CudaDevice>, config: BufferConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: BufferConfig) -> Result<Self> {
+        let stream = device.default_stream();
         Ok(Self {
             device,
+            stream,
             config,
             pattern_buffer: None,
             ast_buffer: None,
@@ -66,31 +69,31 @@ impl VariableBufferManager {
 
         // Check pattern buffer
         if self.pattern_buffer.is_none()
-            || self.pattern_buffer.as_ref()?.len() < aligned_pattern_size
+            || self.pattern_buffer.as_ref().map(|b| b.len()).unwrap_or(0) < aligned_pattern_size
         {
             // SAFETY: alloc returns uninitialized memory. Buffer will be written
-            // via htod_copy_into before any kernel reads from it.
+            // via memcpy_htod before any kernel reads from it.
             self.pattern_buffer = Some(
-                unsafe { self.device.alloc::<u8>(aligned_pattern_size) }
+                unsafe { self.stream.alloc::<u8>(aligned_pattern_size) }
                     .context("Failed to allocate pattern buffer")?,
             );
         }
 
         // Check AST buffer
-        if self.ast_buffer.is_none() || self.ast_buffer.as_ref()?.len() < aligned_ast_size {
+        if self.ast_buffer.is_none() || self.ast_buffer.as_ref().map(|b| b.len()).unwrap_or(0) < aligned_ast_size {
             // SAFETY: alloc returns uninitialized memory. Buffer will be written
-            // via htod_copy_into before any kernel reads from it.
+            // via memcpy_htod before any kernel reads from it.
             self.ast_buffer = Some(
-                unsafe { self.device.alloc::<u8>(aligned_ast_size) }
+                unsafe { self.stream.alloc::<u8>(aligned_ast_size) }
                     .context("Failed to allocate AST buffer")?,
             );
         }
 
         // Check match buffer (u32 elements)
         let match_elements = aligned_match_size / 4;
-        if self.match_buffer.is_none() || self.match_buffer.as_ref()?.len() < match_elements {
+        if self.match_buffer.is_none() || self.match_buffer.as_ref().map(|b| b.len()).unwrap_or(0) < match_elements {
             self.match_buffer = Some(
-                self.device
+                self.stream
                     .alloc_zeros::<u32>(match_elements)
                     .context("Failed to allocate match buffer")?,
             );
@@ -104,11 +107,11 @@ impl VariableBufferManager {
         let aligned_size = self.align_size(required_size);
 
         // Ensure capacity
-        if self.pattern_buffer.is_none() || self.pattern_buffer.as_ref()?.len() < aligned_size {
+        if self.pattern_buffer.is_none() || self.pattern_buffer.as_ref().map(|b| b.len()).unwrap_or(0) < aligned_size {
             // SAFETY: alloc returns uninitialized memory. Caller must write data
-            // via htod_copy_into before any kernel reads from the buffer.
+            // via memcpy_htod before any kernel reads from the buffer.
             self.pattern_buffer = Some(
-                unsafe { self.device.alloc::<u8>(aligned_size) }
+                unsafe { self.stream.alloc::<u8>(aligned_size) }
                     .context("Failed to allocate pattern buffer")?,
             );
         }
@@ -123,11 +126,11 @@ impl VariableBufferManager {
         let aligned_size = self.align_size(required_size);
 
         // Ensure capacity
-        if self.ast_buffer.is_none() || self.ast_buffer.as_ref()?.len() < aligned_size {
+        if self.ast_buffer.is_none() || self.ast_buffer.as_ref().map(|b| b.len()).unwrap_or(0) < aligned_size {
             // SAFETY: alloc returns uninitialized memory. Caller must write data
-            // via htod_copy_into before any kernel reads from the buffer.
+            // via memcpy_htod before any kernel reads from the buffer.
             self.ast_buffer = Some(
-                unsafe { self.device.alloc::<u8>(aligned_size) }
+                unsafe { self.stream.alloc::<u8>(aligned_size) }
                     .context("Failed to allocate AST buffer")?,
             );
         }
@@ -143,9 +146,9 @@ impl VariableBufferManager {
         let elements = aligned_size / 4;
 
         // Ensure capacity
-        if self.match_buffer.is_none() || self.match_buffer.as_ref()?.len() < elements {
+        if self.match_buffer.is_none() || self.match_buffer.as_ref().map(|b| b.len()).unwrap_or(0) < elements {
             self.match_buffer = Some(
-                self.device
+                self.stream
                     .alloc_zeros::<u32>(elements)
                     .context("Failed to allocate match buffer")?,
             );
@@ -180,17 +183,20 @@ impl VariableBufferManager {
 
 /// Variable-sized kernel launcher
 pub struct VariableKernelLauncher {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     buffer_manager: VariableBufferManager,
 }
 
 impl VariableKernelLauncher {
     /// Create a new kernel launcher
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
+        let stream = device.default_stream();
         let config = BufferConfig::default();
         let buffer_manager = VariableBufferManager::new(device.clone(), config)?;
         Ok(Self {
             device,
+            stream,
             buffer_manager,
         })
     }
@@ -213,14 +219,13 @@ impl VariableKernelLauncher {
         // Copy pattern data
         {
             let pattern_buffer = self.buffer_manager.get_pattern_buffer(patterns.len())?;
-            self.device
-                .htod_copy_into(patterns.to_vec(), pattern_buffer)?;
+            self.stream.memcpy_htod(patterns, pattern_buffer)?;
         }
 
         // Copy AST data
         {
             let ast_buffer = self.buffer_manager.get_ast_buffer(ast_nodes.len())?;
-            self.device.htod_copy_into(ast_nodes.to_vec(), ast_buffer)?;
+            self.stream.memcpy_htod(ast_nodes, ast_buffer)?;
         }
 
         // Clear match buffer
@@ -229,11 +234,16 @@ impl VariableKernelLauncher {
                 .buffer_manager
                 .get_match_buffer((node_count as usize) * 8)?;
             let zeros = vec![0u32; (node_count as usize) * 2];
-            self.device.htod_copy_into(zeros, match_buffer)?;
+            self.stream.memcpy_htod(&zeros, match_buffer)?;
         }
 
         // Launch kernel with proper buffer access
-        let (pattern_ptr, ast_ptr, match_ptr) = {
+        // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
+        // - pattern_ptr: populated via memcpy_htod above
+        // - ast_ptr: populated via memcpy_htod above
+        // - match_ptr: cleared to zeros above, kernel writes match results
+        // - pattern_count and node_count match the input data sizes
+        unsafe {
             let pattern_buffer = self
                 .buffer_manager
                 .pattern_buffer
@@ -250,41 +260,27 @@ impl VariableKernelLauncher {
                 .as_ref()
                 .ok_or_else(|| anyhow!("Match buffer not initialized"))?;
 
-            (
-                *pattern_buffer.device_ptr() as *const u8,
-                *ast_buffer.device_ptr() as *const u8,
-                *match_buffer.device_ptr() as *mut u32,
-            )
-        };
-
-        // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
-        // - pattern_ptr: populated via htod_copy_into above
-        // - ast_ptr: populated via htod_copy_into above
-        // - match_ptr: cleared to zeros above, kernel writes match results
-        // - pattern_count and node_count match the input data sizes
-        unsafe {
+            let (pattern_ptr, _guard1) = pattern_buffer.device_ptr(&self.stream);
+            let (ast_ptr, _guard2) = ast_buffer.device_ptr(&self.stream);
+            let (match_ptr, _guard3) = match_buffer.device_ptr(&self.stream);
             crate::synthesis::launch_match_patterns_fast(
-                pattern_ptr,
-                ast_ptr,
-                match_ptr,
+                pattern_ptr as *const u8,
+                ast_ptr as *const u8,
+                match_ptr as *mut u32,
                 pattern_count,
                 node_count,
             );
         }
 
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
 
         // Get results
-        let mut results = vec![0u32; (node_count as usize) * 2];
-        {
-            let match_buffer = self
-                .buffer_manager
-                .match_buffer
-                .as_ref()
-                .ok_or_else(|| anyhow!("Match buffer not initialized"))?;
-            self.device
-                .dtoh_sync_copy_into(match_buffer, &mut results)?;
-        }
+        let match_buffer = self
+            .buffer_manager
+            .match_buffer
+            .as_ref()
+            .ok_or_else(|| anyhow!("Match buffer not initialized"))?;
+        let results: Vec<u32> = self.stream.clone_dtoh(match_buffer)?;
 
         Ok(results)
     }
@@ -296,46 +292,50 @@ mod tests {
 
     #[test]
     fn test_buffer_manager_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let config = BufferConfig::default();
-        let manager = VariableBufferManager::new(Arc::new(device), config);
+        let manager = VariableBufferManager::new(device, config);
         assert!(manager.is_ok());
+        Ok(())
     }
 
     #[test]
     fn test_buffer_allocation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let mut manager = VariableBufferManager::new(device, BufferConfig::default()).unwrap();
 
         let result = manager.ensure_capacity(1024, 2048, 512);
         // Should panic with todo!
         assert!(result.is_err() || result.is_ok());
+        Ok(())
     }
 
     #[test]
     fn test_buffer_resizing() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let mut manager = VariableBufferManager::new(device, BufferConfig::default()).unwrap();
 
         // Try to get a buffer that requires allocation
         let result = manager.get_pattern_buffer(1024);
         // Should panic with todo!
         assert!(result.is_err() || result.is_ok());
+        Ok(())
     }
 
     #[test]
     fn test_alignment() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let manager = VariableBufferManager::new(device, BufferConfig::default())?;
 
         assert_eq!(manager.align_size(100), 256);
         assert_eq!(manager.align_size(256), 256);
         assert_eq!(manager.align_size(257), 512);
+        Ok(())
     }
 
     #[test]
     fn test_kernel_launcher() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let mut launcher = VariableKernelLauncher::new(device)?;
 
         let patterns = vec![0u8; 1024];
@@ -344,5 +344,6 @@ mod tests {
         let result = launcher.launch_pattern_matching(&patterns, &ast_nodes, 10, 100);
         // Should panic with todo!
         assert!(result.is_err() || result.is_ok());
+        Ok(())
     }
 }

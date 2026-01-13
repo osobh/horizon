@@ -1,5 +1,5 @@
 //! Working evolution benchmark that properly evaluates fitness
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
 use std::sync::Arc;
 use std::time::Instant;
@@ -10,7 +10,7 @@ fn main() -> anyhow::Result<()> {
 
     // Initialize CUDA device
     println!("Initializing CUDA device...");
-    let device = Arc::new(CudaDevice::new(0)?);
+    let ctx = CudaContext::new(0)?;
     println!("✅ CUDA device initialized");
 
     // Test different population sizes
@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
             block_size: 256,
         };
 
-        match test_evolution_performance(&device, config, generations) {
+        match test_evolution_performance(&ctx, config, generations) {
             Ok((gens_per_sec, best_fitness)) => {
                 println!("  ✅ Performance: {:.2} generations/sec", gens_per_sec);
                 println!("  📊 Best fitness: {:.4}", best_fitness);
@@ -48,12 +48,12 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn test_evolution_performance(
-    device: &Arc<CudaDevice>,
+    ctx: &Arc<CudaContext>,
     config: GpuEvolutionConfig,
     generations: usize,
 ) -> anyhow::Result<(f64, f64)> {
     // Create evolution engine
-    let mut engine = GpuEvolutionEngine::new(device.clone(), config)?;
+    let mut engine = GpuEvolutionEngine::new(ctx.clone(), config)?;
 
     // Initialize random population
     engine.initialize_random()?;
@@ -71,11 +71,11 @@ fn test_evolution_performance(
     // Run generations
     let start = Instant::now();
 
-    for gen in 0..generations {
+    for gen_idx in 0..generations {
         engine.evolve_generation()?;
 
         // Log progress every few generations
-        if gen % 5 == 0 || gen == generations - 1 {
+        if gen_idx % 5 == 0 || gen_idx == generations - 1 {
             let stats = engine.statistics();
             println!(
                 "    Gen {}: best={:.4}, avg={:.4}",

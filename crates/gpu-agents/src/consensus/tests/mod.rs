@@ -2,7 +2,7 @@
 //!
 //! Following TDD principles - tests written FIRST before implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -17,7 +17,7 @@ mod voting_tests {
     #[test]
     fn test_gpu_vote_aggregation_basic() {
         // Arrange - TDD RED PHASE: Test will fail as implementation doesn't exist
-        let device = CudaDevice::new(0).expect("Failed to create CUDA device");
+        let device = CudaContext::new(0).expect("Failed to create CUDA context");
         let num_agents = 1000;
         let proposal_id = 42;
 
@@ -46,7 +46,7 @@ mod voting_tests {
     #[test]
     fn test_gpu_vote_aggregation_performance() {
         // Test that consensus is achieved in <100μs as required
-        let device = CudaDevice::new(0).expect("Failed to create CUDA device");
+        let device = CudaContext::new(0).expect("Failed to create CUDA context");
         let num_agents = 10_000;
 
         let mut votes = vec![];
@@ -79,7 +79,7 @@ mod voting_tests {
     #[test]
     fn test_atomic_vote_updates() {
         // Test atomic operations for concurrent vote updates
-        let device = CudaDevice::new(0).expect("Failed to create CUDA device");
+        let device = CudaContext::new(0).expect("Failed to create CUDA context");
         let num_agents = 5000;
         let num_proposals = 10;
 
@@ -117,7 +117,7 @@ mod leader_tests {
 
     #[test]
     fn test_gpu_leader_election() {
-        let device = CudaDevice::new(0).expect("Failed to create CUDA device");
+        let device = CudaContext::new(0).expect("Failed to create CUDA context");
         let num_agents = 100;
 
         let gpu_leader = GpuLeaderElection::new(Arc::clone(&device), num_agents)?;
@@ -138,7 +138,7 @@ mod leader_tests {
 
     #[test]
     fn test_heartbeat_tracking() {
-        let device = CudaDevice::new(0).expect("Failed to create CUDA device");
+        let device = CudaContext::new(0).expect("Failed to create CUDA context");
         let num_agents = 50;
 
         let gpu_leader = GpuLeaderElection::new(Arc::clone(&device), num_agents)?;
@@ -176,7 +176,7 @@ mod persistence_tests {
 
     #[test]
     fn test_nvme_consensus_log() {
-        let device = CudaDevice::new(0).expect("Failed to create CUDA device");
+        let device = CudaContext::new(0).expect("Failed to create CUDA context");
 
         // Use test directory instead of production path
         let test_path = "/tmp/test_gpu_consensus";
@@ -230,7 +230,7 @@ mod multi_gpu_tests {
     #[test]
     fn test_multi_gpu_vote_aggregation() {
         // Skip if only one GPU available
-        let device_count = CudaDevice::count()?;
+        let device_count = CudaContext::device_count()?;
         if device_count < 2 {
             println!(
                 "Skipping multi-GPU test - only {} GPU(s) available",
@@ -274,7 +274,7 @@ mod integration_tests {
 
     #[test]
     fn test_complete_consensus_workflow() {
-        let device = CudaDevice::new(0).expect("Failed to create CUDA device");
+        let device = CudaContext::new(0).expect("Failed to create CUDA context");
         let num_agents = 1000;
 
         // Initialize consensus module

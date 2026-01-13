@@ -121,10 +121,10 @@ impl GpuAgentData {
 
         Self {
             id: id.to_string(),
-            state: (0..256).map(|_| rng.gen()).collect(),
-            memory: (0..128).map(|_| rng.gen()).collect(),
+            state: (0..256).map(|_| rng.r#gen()).collect(),
+            memory: (0..128).map(|_| rng.r#gen()).collect(),
             generation: rng.gen_range(0..100),
-            fitness: rng.gen(),
+            fitness: rng.r#gen(),
             metadata: HashMap::new(),
         }
     }

@@ -3,7 +3,7 @@
 
 use super::migration::*;
 use super::{MigrationPriority, MigrationRequest, PageId, TierLevel};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -14,12 +14,11 @@ mod tests {
     /// Test that memory migration completes within 10ms target
     #[test]
     fn test_memory_migration_under_10ms() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let mut engine = MigrationEngine::new(device).unwrap();
 
             // Start the migration workers
-            engine.start()?;
+            engine.start().unwrap();
 
             // Create a batch of realistic migration requests
             let mut requests = Vec::new();
@@ -65,8 +64,7 @@ mod tests {
     /// Test zero-copy migration optimization
     #[test]
     fn test_zero_copy_migration() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let policy = MigrationPolicy {
                 enable_prefetch: true,
                 prefetch_distance: 32,
@@ -110,8 +108,7 @@ mod tests {
     /// Test predictive prefetching performance
     #[test]
     fn test_prefetch_performance() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let engine = MigrationEngine::new(device).unwrap();
 
             // Record sequential access pattern
@@ -137,8 +134,7 @@ mod tests {
     /// Test hot/cold page detection performance
     #[test]
     fn test_hot_cold_detection_performance() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let engine = MigrationEngine::new(device).unwrap();
 
             // Simulate access patterns

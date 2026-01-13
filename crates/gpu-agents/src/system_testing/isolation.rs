@@ -162,7 +162,7 @@ pub enum ViolationType {
 
 /// Resource isolation validator
 pub struct IsolationValidator {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: IsolationConfig,
     monitoring_active: Arc<AtomicBool>,
     violation_counter: Arc<AtomicU64>,
@@ -200,9 +200,9 @@ impl ResourceMonitor {
 
 impl IsolationValidator {
     /// Create new isolation validator
-    pub fn new(device: Arc<CudaDevice>, config: IsolationConfig) -> Self {
+    pub fn new(ctx: Arc<CudaContext>, config: IsolationConfig) -> Self {
         Self {
-            device,
+            ctx,
             config,
             monitoring_active: Arc::new(AtomicBool::new(false)),
             violation_counter: Arc::new(AtomicU64::new(0)),
@@ -258,7 +258,7 @@ impl IsolationValidator {
         let available_system_memory = self.measure_available_memory()?;
 
         {
-            let mut monitor = self.resource_monitor.lock()?;
+            let mut monitor = self.resource_monitor.lock().map_err(|e| anyhow!("Mutex poisoned: {}", e))?;
             monitor.baseline = SystemResourceBaseline {
                 baseline_gpu_memory,
                 baseline_cpu_memory,
@@ -302,8 +302,7 @@ impl IsolationValidator {
                 let gpu_utilization = Self::measure_gpu_utilization_static().unwrap_or(0.0);
 
                 // Update monitoring data
-                {
-                    let mut monitor = resource_monitor.lock()?;
+                if let Ok(mut monitor) = resource_monitor.lock() {
                     monitor
                         .memory_timeline
                         .push((timestamp, cpu_memory, gpu_memory));
@@ -388,7 +387,7 @@ impl IsolationValidator {
         }
 
         // Check for violations
-        let violations = self.violations.lock()?;
+        let violations = self.violations.lock().map_err(|e| anyhow!("Mutex poisoned: {}", e))?;
         let memory_violations = violations
             .iter()
             .filter(|v| matches!(v.violation_type, ViolationType::CpuAgentGpuMemoryAccess))
@@ -512,7 +511,7 @@ impl IsolationValidator {
         self.monitoring_active.store(false, Ordering::Relaxed);
         sleep(Duration::from_millis(200)).await; // Allow monitoring to stop
 
-        let violations = self.violations.lock()?.clone();
+        let violations = self.violations.lock().map_err(|e| anyhow!("Mutex poisoned: {}", e))?.clone();
         let violation_count = self.violation_counter.load(Ordering::Relaxed);
 
         // Count violation types
@@ -545,7 +544,7 @@ impl IsolationValidator {
 
         // Build monitoring results
         let monitoring_results = {
-            let monitor = self.resource_monitor.lock()?;
+            let monitor = self.resource_monitor.lock().map_err(|e| anyhow!("Mutex poisoned: {}", e))?;
 
             ResourceMonitoringResults {
                 cpu_agent_usage: ResourceUsageTimeline {
@@ -694,8 +693,7 @@ impl IsolationValidator {
             call_stack: None,
         };
 
-        {
-            let mut violations_guard = violations.lock()?;
+        if let Ok(mut violations_guard) = violations.lock() {
             violations_guard.push(violation);
         }
 
@@ -800,8 +798,7 @@ impl IsolationValidator {
             call_stack: None,
         };
 
-        {
-            let mut violations = self.violations.lock()?;
+        if let Ok(mut violations) = self.violations.lock() {
             violations.push(violation);
         }
 

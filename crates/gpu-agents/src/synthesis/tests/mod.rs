@@ -3,14 +3,14 @@
 //! Tests pattern matching, template expansion, and AST transformations on GPU
 
 use super::*;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 
 // Test basic pattern matching on GPU
 #[test]
 fn test_gpu_pattern_matching() {
     // Skip if no GPU available
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
@@ -106,7 +106,7 @@ fn test_gpu_pattern_matching() {
 // Test template expansion on GPU
 #[test]
 fn test_gpu_template_expansion() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
@@ -148,7 +148,7 @@ fn test_gpu_template_expansion() {
 // Test AST transformation on GPU
 #[test]
 fn test_gpu_ast_transformation() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
@@ -243,7 +243,7 @@ fn test_gpu_ast_transformation() {
 // Test parallel pattern matching performance
 #[test]
 fn test_gpu_pattern_matching_performance() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };
@@ -288,7 +288,7 @@ fn test_gpu_pattern_matching_performance() {
 // Test synthesis pipeline integration
 #[test]
 fn test_synthesis_pipeline() {
-    let Ok(device) = CudaDevice::new(0) else {
+    let Ok(device) = CudaContext::new(0) else {
         println!("No GPU available, skipping test");
         return;
     };

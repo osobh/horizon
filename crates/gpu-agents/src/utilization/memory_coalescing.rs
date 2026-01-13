@@ -3,13 +3,13 @@
 //! Optimizes memory access patterns to achieve coalesced memory accesses
 
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, DeviceSlice};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Memory access pattern analyzer and optimizer
 pub struct MemoryCoalescingOptimizer {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Access pattern statistics
     access_patterns: HashMap<String, AccessPattern>,
     /// Optimization suggestions
@@ -60,7 +60,7 @@ pub enum CoalescingOptType {
 
 impl MemoryCoalescingOptimizer {
     /// Create new memory coalescing optimizer
-    pub fn new(device: Arc<CudaDevice>) -> Self {
+    pub fn new(device: Arc<CudaContext>) -> Self {
         Self {
             device,
             access_patterns: HashMap::new(),
@@ -316,11 +316,11 @@ pub struct AccessInfo {
 
 /// Coalescing benchmark utilities
 pub struct CoalescingBenchmark {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
 }
 
 impl CoalescingBenchmark {
-    pub fn new(device: Arc<CudaDevice>) -> Self {
+    pub fn new(device: Arc<CudaContext>) -> Self {
         Self { device }
     }
 
@@ -363,10 +363,11 @@ impl CoalescingBenchmark {
         iterations: usize,
     ) -> Result<std::time::Duration> {
         // Allocate device memory
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
+        // SAFETY: CudaStream::alloc returns uninitialized GPU memory. This is safe because
         // the benchmark synchronizes the device before measuring, and the data content
         // doesn't affect the memory bandwidth measurement (we're timing access patterns).
-        let mut device_data = unsafe { self.device.alloc::<f32>(data_size / 4)? };
+        let stream = self.device.default_stream();
+        let _device_data = unsafe { stream.alloc::<f32>(data_size / 4)? };
 
         let start = std::time::Instant::now();
 
@@ -384,12 +385,13 @@ impl CoalescingBenchmark {
         &self,
         data_size: usize,
         iterations: usize,
-        stride: usize,
+        _stride: usize,
     ) -> Result<std::time::Duration> {
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
+        // SAFETY: CudaStream::alloc returns uninitialized GPU memory. This is safe because
         // the benchmark synchronizes the device before measuring, and the data content
         // doesn't affect the memory bandwidth measurement (we're timing access patterns).
-        let mut device_data = unsafe { self.device.alloc::<f32>(data_size / 4)? };
+        let stream = self.device.default_stream();
+        let _device_data = unsafe { stream.alloc::<f32>(data_size / 4)? };
 
         let start = std::time::Instant::now();
 
@@ -408,10 +410,11 @@ impl CoalescingBenchmark {
         data_size: usize,
         iterations: usize,
     ) -> Result<std::time::Duration> {
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
+        // SAFETY: CudaStream::alloc returns uninitialized GPU memory. This is safe because
         // the benchmark synchronizes the device before measuring, and the data content
         // doesn't affect the memory bandwidth measurement (we're timing access patterns).
-        let mut device_data = unsafe { self.device.alloc::<f32>(data_size / 4)? };
+        let stream = self.device.default_stream();
+        let _device_data = unsafe { stream.alloc::<f32>(data_size / 4)? };
 
         let start = std::time::Instant::now();
 
@@ -445,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_coalescing_analysis() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let mut optimizer = MemoryCoalescingOptimizer::new(device);
 
         // Simulate perfectly coalesced access
@@ -462,7 +465,7 @@ mod tests {
 
     #[test]
     fn test_strided_access_detection() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let mut optimizer = MemoryCoalescingOptimizer::new(device);
 
         // Simulate strided access (AoS pattern)
@@ -487,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_aos_to_soa_transformation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let optimizer = MemoryCoalescingOptimizer::new(device);
 
         let aos_data = vec![

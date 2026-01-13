@@ -5,7 +5,7 @@
 //! is already working and demonstrating real performance metrics.
 
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::{
     ConsensusSynthesisEngine, IntegrationConfig, WorkflowResult,
 };
@@ -51,7 +51,7 @@ async fn run_performance_test() -> Result<PerformanceMetrics> {
     println!("=======================================");
 
     let test_config = TestConfig::default();
-    let device = CudaDevice::new(0).context("Failed to initialize CUDA device")?;
+    let ctx = CudaContext::new(0).context("Failed to initialize CUDA device")?;
 
     // Initialize the integration engine
     let integration_config = IntegrationConfig {
@@ -63,7 +63,7 @@ async fn run_performance_test() -> Result<PerformanceMetrics> {
             gpu_agents::consensus_synthesis::integration::ConflictStrategy::HighestVoteWins,
     };
 
-    let engine = ConsensusSynthesisEngine::new(device, integration_config)
+    let engine = ConsensusSynthesisEngine::new(ctx, integration_config)
         .context("Failed to create consensus synthesis engine")?;
 
     println!("✅ Integration engine initialized");
@@ -308,7 +308,7 @@ async fn run_stress_test() -> Result<()> {
     println!("\n🔥 Stress Test: High Concurrent Load");
     println!("=====================================");
 
-    let device = CudaDevice::new(0).context("Failed to initialize CUDA device")?;
+    let ctx = CudaContext::new(0).context("Failed to initialize CUDA device")?;
 
     let stress_config = IntegrationConfig {
         max_concurrent_tasks: 500,
@@ -319,7 +319,7 @@ async fn run_stress_test() -> Result<()> {
             gpu_agents::consensus_synthesis::integration::ConflictStrategy::HighestVoteWins,
     };
 
-    let engine = ConsensusSynthesisEngine::new(device, stress_config)
+    let engine = ConsensusSynthesisEngine::new(ctx, stress_config)
         .context("Failed to create stress test engine")?;
 
     // Create 200 concurrent tasks

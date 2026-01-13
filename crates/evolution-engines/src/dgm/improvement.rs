@@ -191,7 +191,7 @@ impl GrowthHistory {
         let recent_discoveries = self
             .discoveries
             .iter()
-            .filter(|(gen, _)| *gen >= start_gen)
+            .filter(|(generation, _)| *generation >= start_gen)
             .count();
 
         recent_discoveries as f64 / window.max(1) as f64
@@ -205,7 +205,7 @@ impl GrowthHistory {
         let recent_applications: Vec<_> = self
             .pattern_applications
             .iter()
-            .filter(|(_, _, gen)| *gen >= start_gen)
+            .filter(|(_, _, generation)| *generation >= start_gen)
             .collect();
 
         if recent_applications.is_empty() {

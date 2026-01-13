@@ -2,7 +2,7 @@
 //!
 //! GREEN phase - tests passing with working synthesis/evolution/knowledge-graph integration
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::{ConsensusSynthesisEngine, IntegrationConfig};
 use gpu_agents::synthesis::{
     GpuSynthesisModule, NodeType, Pattern, SynthesisTask, Template, Token,
@@ -35,12 +35,12 @@ async fn main() -> anyhow::Result<()> {
     println!("Testing Cross-Crate Integration (GREEN phase)");
     println!("============================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Basic integration setup
     println!("\n1. Testing basic integration setup...");
     let config = IntegrationConfig::default();
-    let mut engine = ConsensusSynthesisEngine::new(device.clone(), config)?;
+    let mut engine = ConsensusSynthesisEngine::new(ctx.clone(), config)?;
     println!("✅ Integration engine created");
 
     // Initialize cross-crate integration

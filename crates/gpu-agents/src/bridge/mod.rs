@@ -30,23 +30,24 @@ impl GpuCpuBridge {
 
     /// Send message from CPU to GPU
     pub fn send_to_gpu(&self, msg: CpuGpuMessage) -> Result<()> {
-        self.to_gpu.lock()?.push_back(msg);
+        self.to_gpu.lock().map_err(|e| anyhow::anyhow!("Failed to lock mutex: {}", e))?.push_back(msg);
         Ok(())
     }
 
     /// Receive message from GPU
     pub fn receive_from_gpu(&self) -> Option<CpuGpuMessage> {
-        self.from_gpu.lock()?.pop_front()
+        self.from_gpu.lock().ok()?.pop_front()
     }
 
     /// Get pending messages for GPU
     pub fn drain_to_gpu(&self) -> Vec<CpuGpuMessage> {
-        self.to_gpu.lock()?.drain(..).collect()
+        self.to_gpu.lock().ok().map(|mut guard| guard.drain(..).collect()).unwrap_or_default()
     }
 
     /// Push results from GPU
     pub fn push_from_gpu(&self, msgs: Vec<CpuGpuMessage>) {
-        let mut queue = self.from_gpu.lock()?;
-        queue.extend(msgs);
+        if let Ok(mut queue) = self.from_gpu.lock() {
+            queue.extend(msgs);
+        }
     }
 }

@@ -4,12 +4,12 @@
 
 use crate::consensus::Vote;
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr};
 use std::sync::Arc;
 
 /// GPU Voting system for consensus
 pub struct GpuVoting {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     vote_buffer: CudaSlice<Vote>,
     vote_counts_buffer: CudaSlice<u32>,
     max_votes: usize,
@@ -18,15 +18,16 @@ pub struct GpuVoting {
 
 impl GpuVoting {
     /// Create a new GPU voting system
-    pub fn new(device: Arc<CudaDevice>, max_votes: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, max_votes: usize) -> Result<Self> {
         const MAX_OPTIONS: usize = 10; // Support up to 10 voting options
 
-        // Allocate GPU buffers
+        // Allocate GPU buffers using stream (cudarc 0.18 API)
+        let stream = device.default_stream();
         // SAFETY: alloc returns uninitialized memory. The buffer will be written via
-        // htod_copy_into before any kernel reads from it. max_votes is a valid size.
+        // memcpy_htod before any kernel reads from it. max_votes is a valid size.
         let vote_buffer =
-            unsafe { device.alloc::<Vote>(max_votes) }.context("Failed to allocate vote buffer")?;
-        let vote_counts_buffer = device
+            unsafe { stream.alloc::<Vote>(max_votes) }.context("Failed to allocate vote buffer")?;
+        let vote_counts_buffer = stream
             .alloc_zeros::<u32>(MAX_OPTIONS)
             .context("Failed to allocate vote counts buffer")?;
 
@@ -49,37 +50,35 @@ impl GpuVoting {
         }
 
         // Copy votes to GPU
-        self.device
-            .htod_copy_into(votes.to_vec(), &mut self.vote_buffer.clone())?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(votes, &mut self.vote_buffer.clone())?;
 
         // Clear vote counts
         let zeros = vec![0u32; self.max_options];
-        self.device
-            .htod_copy_into(zeros, &mut self.vote_counts_buffer.clone())?;
+        stream.memcpy_htod(&zeros, &mut self.vote_counts_buffer.clone())?;
 
         // Launch aggregation kernel through FFI
         // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
-        // - vote_buffer: populated via htod_copy_into above, size bounds checked
+        // - vote_buffer: populated via memcpy_htod above, size bounds checked
         // - vote_counts_buffer: cleared to zeros above, size is MAX_OPTIONS
         // - num_options checked against max_options, votes.len() checked against max_votes
         unsafe {
-            let votes_ptr = *self.vote_buffer.device_ptr() as *const Vote;
-            let counts_ptr = *self.vote_counts_buffer.device_ptr() as *mut u32;
+            let (votes_ptr, _votes_guard) = self.vote_buffer.device_ptr(&stream);
+            let (counts_ptr, _counts_guard) = self.vote_counts_buffer.device_ptr(&stream);
 
             crate::consensus::launch_aggregate_votes(
-                votes_ptr,
-                counts_ptr,
+                votes_ptr as *const Vote,
+                counts_ptr as *mut u32,
                 votes.len() as u32,
                 num_options as u32,
             );
         }
 
         // Synchronize and copy results back
-        self.device.synchronize()?;
+        stream.synchronize()?;
 
-        let mut results = vec![0u32; num_options];
         let vote_slice = self.vote_counts_buffer.slice(0..num_options);
-        self.device.dtoh_sync_copy_into(&vote_slice, &mut results)?;
+        let results: Vec<u32> = stream.clone_dtoh(&vote_slice)?;
 
         Ok(results)
     }

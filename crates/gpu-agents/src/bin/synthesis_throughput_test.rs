@@ -1,7 +1,7 @@
 //! Synthesis Throughput Test - Measures pattern matching ops/sec
 
 use clap::Parser;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::pattern_dynamic::DynamicGpuPatternMatcher;
 use gpu_agents::synthesis::{AstNode, NodeType, Pattern};
 use std::time::{Duration, Instant};
@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
     println!();
 
     // Initialize CUDA
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     println!("✅ CUDA device initialized");
 
     // Get GPU info
@@ -45,7 +45,7 @@ fn main() -> anyhow::Result<()> {
     println!();
 
     // Create dynamic pattern matcher
-    let matcher = DynamicGpuPatternMatcher::new(device)?;
+    let matcher = DynamicGpuPatternMatcher::new(ctx)?;
     println!("✅ Dynamic pattern matcher created");
 
     // Generate test patterns

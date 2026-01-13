@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test_knowledge_graph_api {
     use crate::knowledge::{GraphQuery, KnowledgeEdge, KnowledgeGraph, KnowledgeNode, QueryResult};
-    use cudarc::driver::CudaDevice;
+    use cudarc::driver::CudaContext;
     use std::sync::Arc;
 
     #[test]
@@ -29,7 +29,7 @@ mod test_knowledge_graph_api {
         assert!(graph.node_count() > 0);
 
         // Test upload_to_gpu method exists
-        let device = Arc::new(CudaDevice::new(0).unwrap());
+        let device = Arc::new(CudaContext::new(0).unwrap());
         let _gpu_graph = graph.upload_to_gpu(device).unwrap();
     }
 

@@ -37,12 +37,12 @@ pub struct EvolutionEngineAdapter {
     /// Metrics tracking
     metrics: EvolutionMetrics,
     /// GPU device for accelerated evolution
-    device: Arc<cudarc::driver::CudaDevice>,
+    device: Arc<cudarc::driver::CudaContext>,
 }
 
 impl EvolutionEngineAdapter {
     /// Create a new evolution engine adapter
-    pub async fn new(device: Arc<cudarc::driver::CudaDevice>) -> Result<Self> {
+    pub async fn new(device: Arc<cudarc::driver::CudaContext>) -> Result<Self> {
         // Initialize ADAS engine
         let mut adas_config = AdasConfig::default();
         adas_config.base.population_size = 100;
@@ -442,9 +442,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_evolution_adapter_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let adapter = EvolutionEngineAdapter::new(device).await;
         assert!(adapter.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
@@ -457,44 +458,48 @@ mod tests {
 
     #[tokio::test]
     async fn test_adas_evolution() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let mut adapter = EvolutionEngineAdapter::new(device).await?;
 
         let result = adapter.evolve_with_adas().await;
         assert!(result.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_dgm_evolution() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let mut adapter = EvolutionEngineAdapter::new(device).await?;
 
         let result = adapter.evolve_with_dgm().await;
         assert!(result.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_swarm_evolution() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let mut adapter = EvolutionEngineAdapter::new(device).await?;
 
         let result = adapter.evolve_with_swarm_agentic().await;
         assert!(result.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_elite_agents_selection() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let adapter = EvolutionEngineAdapter::new(device).await?;
 
         let elite = adapter.get_elite_agents(5).await;
         assert!(elite.is_ok());
         assert_eq!(elite?.len(), 5);
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_population_stats() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = cudarc::driver::CudaContext::new(0)?;
         let adapter = EvolutionEngineAdapter::new(device).await?;
 
         let stats = adapter.get_population_stats().await;

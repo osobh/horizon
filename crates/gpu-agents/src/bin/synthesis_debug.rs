@@ -2,7 +2,7 @@
 //!
 //! Isolates where the synthesis system hangs
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::{
     AstNode, GpuSynthesisModule, NodeType, Pattern, SynthesisTask, Template, Token,
 };
@@ -14,12 +14,12 @@ fn main() -> anyhow::Result<()> {
 
     // Step 1: Create CUDA device
     println!("\n1. Creating CUDA device...");
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     println!("   ✅ Device created");
 
     // Step 2: Create synthesis module with minimal size
     println!("\n2. Creating synthesis module (max_nodes=10)...");
-    let synthesis = match GpuSynthesisModule::new(device.clone(), 10) {
+    let synthesis = match GpuSynthesisModule::new(ctx.clone(), 10) {
         Ok(s) => {
             println!("   ✅ Module created");
             s
@@ -67,7 +67,7 @@ fn main() -> anyhow::Result<()> {
     println!("\n7. Testing pattern matcher initialization...");
     {
         use gpu_agents::synthesis::pattern::GpuPatternMatcher;
-        match GpuPatternMatcher::new(device.clone(), 10) {
+        match GpuPatternMatcher::new(ctx.clone(), 10) {
             Ok(_) => println!("   ✅ Pattern matcher created"),
             Err(e) => println!("   ❌ Pattern matcher failed: {}", e),
         }
@@ -77,7 +77,7 @@ fn main() -> anyhow::Result<()> {
     println!("\n8. Testing template expander initialization...");
     {
         use gpu_agents::synthesis::template::GpuTemplateExpander;
-        match GpuTemplateExpander::new(device.clone(), 10) {
+        match GpuTemplateExpander::new(ctx.clone(), 10) {
             Ok(_) => println!("   ✅ Template expander created"),
             Err(e) => println!("   ❌ Template expander failed: {}", e),
         }
@@ -87,7 +87,7 @@ fn main() -> anyhow::Result<()> {
     println!("\n9. Testing AST transformer initialization...");
     {
         use gpu_agents::synthesis::ast::GpuAstTransformer;
-        match GpuAstTransformer::new(device.clone(), 10) {
+        match GpuAstTransformer::new(ctx.clone(), 10) {
             Ok(_) => println!("   ✅ AST transformer created"),
             Err(e) => println!("   ❌ AST transformer failed: {}", e),
         }

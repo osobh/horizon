@@ -138,7 +138,7 @@ unsafe fn c_strlen(ptr: *const c_char) -> usize {
 }
 
 /// Initialize the GPU DMA lock subsystem
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_lock_init() -> c_int {
     // Initialize all subsystems
     if let Err(_) = allocation::init() {
@@ -170,7 +170,7 @@ pub extern "C" fn gpu_dma_lock_init() -> c_int {
 }
 
 /// Cleanup the GPU DMA lock subsystem
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_lock_cleanup() {
     security::cleanup();
     stats::cleanup();
@@ -181,7 +181,7 @@ pub extern "C" fn gpu_dma_lock_cleanup() {
 }
 
 /// Register a GPU device
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_register_device(
     id: u32,
     name: *const c_char,
@@ -203,14 +203,14 @@ pub extern "C" fn gpu_dma_register_device(
 }
 
 /// Get number of registered devices
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_get_device_count() -> c_int {
     let manager = allocation::get_manager();
     manager.device_count() as c_int
 }
 
 /// Get device information
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_get_device_info(device_id: u32, info: *mut CGpuDeviceInfo) -> c_int {
     if info.is_null() {
         return -1;
@@ -236,7 +236,7 @@ pub extern "C" fn gpu_dma_get_device_info(device_id: u32, info: *mut CGpuDeviceI
 }
 
 /// Create an agent
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_create_agent(agent_id: c_ulong, quota: c_ulong) -> CResult {
     let manager = allocation::get_manager();
     match manager.create_agent(agent_id as u64, quota as usize) {
@@ -246,7 +246,7 @@ pub extern "C" fn gpu_dma_create_agent(agent_id: c_ulong, quota: c_ulong) -> CRe
 }
 
 /// Remove an agent
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_remove_agent(agent_id: c_ulong) -> CResult {
     let manager = allocation::get_manager();
     match manager.remove_agent(agent_id as u64) {
@@ -256,7 +256,7 @@ pub extern "C" fn gpu_dma_remove_agent(agent_id: c_ulong) -> CResult {
 }
 
 /// Allocate GPU memory
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_allocate(agent_id: c_ulong, size: c_ulong, device_id: u32) -> CResult {
     let manager = allocation::get_manager();
     match manager.allocate(agent_id as u64, size as usize, Some(device_id)) {
@@ -266,7 +266,7 @@ pub extern "C" fn gpu_dma_allocate(agent_id: c_ulong, size: c_ulong, device_id: 
 }
 
 /// Deallocate GPU memory
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_deallocate(allocation_id: c_ulong) -> CResult {
     let manager = allocation::get_manager();
     match manager.deallocate(allocation_id as u64) {
@@ -276,7 +276,7 @@ pub extern "C" fn gpu_dma_deallocate(allocation_id: c_ulong) -> CResult {
 }
 
 /// Get allocation information
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_get_allocation_info(
     allocation_id: c_ulong,
     info: *mut CAllocationInfo,
@@ -306,7 +306,7 @@ pub extern "C" fn gpu_dma_get_allocation_info(
 }
 
 /// Grant DMA access
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_grant_access(
     agent_id: c_ulong,
     start_addr: c_ulong,
@@ -328,7 +328,7 @@ pub extern "C" fn gpu_dma_grant_access(
 }
 
 /// Check DMA access
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_check_access(
     agent_id: c_ulong,
     addr: c_ulong,
@@ -350,7 +350,7 @@ pub extern "C" fn gpu_dma_check_access(
 }
 
 /// Revoke DMA access
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_revoke_access(agent_id: c_ulong) -> c_int {
     let manager = dma::get_manager();
     manager.acl.revoke_access(agent_id as u64);
@@ -358,7 +358,7 @@ pub extern "C" fn gpu_dma_revoke_access(agent_id: c_ulong) -> c_int {
 }
 
 /// Create GPU context
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_create_context(agent_id: c_ulong, device_id: u32) -> CResult {
     let manager = context::get_manager();
     match manager.create_context(agent_id as u64, device_id) {
@@ -368,7 +368,7 @@ pub extern "C" fn gpu_dma_create_context(agent_id: c_ulong, device_id: u32) -> C
 }
 
 /// Switch GPU context
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_switch_context(device_id: u32, context_id: c_ulong) -> CResult {
     let manager = context::get_manager();
     match manager.switch_context(device_id, context_id as u64) {
@@ -378,7 +378,7 @@ pub extern "C" fn gpu_dma_switch_context(device_id: u32, context_id: c_ulong) ->
 }
 
 /// Get context information
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_get_context_info(context_id: c_ulong, info: *mut CGpuContext) -> c_int {
     if info.is_null() {
         return -1;
@@ -404,7 +404,7 @@ pub extern "C" fn gpu_dma_get_context_info(context_id: c_ulong, info: *mut CGpuC
 }
 
 /// Get system statistics
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_get_stats(stats_out: *mut CGpuDmaStats) -> c_int {
     if stats_out.is_null() {
         return -1;
@@ -427,19 +427,19 @@ pub extern "C" fn gpu_dma_get_stats(stats_out: *mut CGpuDmaStats) -> c_int {
 }
 
 /// Enable or disable debug mode
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_enable_debug(enable: c_int) {
     stats::enable_debug(enable != 0);
 }
 
 /// Reset statistics
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_reset_stats() {
     stats::reset_stats();
 }
 
 /// Get detailed statistics as string
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_get_detailed_stats(buffer: *mut c_char, buffer_size: c_ulong) -> c_int {
     if buffer.is_null() || buffer_size == 0 {
         return -1;
@@ -464,7 +464,7 @@ pub extern "C" fn gpu_dma_get_detailed_stats(buffer: *mut c_char, buffer_size: c
 }
 
 /// Perform garbage collection
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_force_gc() {
     // Cleanup stale allocations and contexts
     let alloc_manager = allocation::get_manager();
@@ -478,7 +478,7 @@ pub extern "C" fn gpu_dma_force_gc() {
 }
 
 /// Dump internal state
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_dump_state() {
     stats::log_debug("=== Internal State Dump ===");
 
@@ -499,7 +499,7 @@ pub extern "C" fn gpu_dma_dump_state() {
 }
 
 /// Check if module is initialized
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_is_initialized() -> c_int {
     // Check if subsystems are initialized
     let alloc_manager = allocation::get_manager();
@@ -514,7 +514,7 @@ pub extern "C" fn gpu_dma_is_initialized() -> c_int {
 }
 
 /// Get module version
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn gpu_dma_get_version(buffer: *mut c_char, buffer_size: c_ulong) -> c_int {
     if buffer.is_null() || buffer_size == 0 {
         return -1;

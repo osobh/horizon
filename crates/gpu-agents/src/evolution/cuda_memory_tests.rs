@@ -3,7 +3,7 @@
 
 use super::*;
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 
 /// Test CUDA memory allocation for evolution operations
@@ -14,7 +14,7 @@ mod cuda_memory_tests {
     /// Test that we can allocate GPU memory for small populations
     #[tokio::test]
     async fn test_small_population_allocation() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = GpuEvolutionConfig {
             population_size: 32, // Small population
             genome_size: 64,     // Small genome
@@ -35,7 +35,7 @@ mod cuda_memory_tests {
     /// Test that we can initialize random population without assertion failures
     #[tokio::test]
     async fn test_random_initialization() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = GpuEvolutionConfig {
             population_size: 32,
             genome_size: 64,
@@ -58,7 +58,7 @@ mod cuda_memory_tests {
     /// Test that we can run one evolution generation
     #[tokio::test]
     async fn test_single_generation() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = GpuEvolutionConfig {
             population_size: 32,
             genome_size: 64,
@@ -85,7 +85,7 @@ mod cuda_memory_tests {
     /// Test GPU memory scaling - gradually increase population size
     #[tokio::test]
     async fn test_memory_scaling() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
 
         // Test increasing population sizes
         let population_sizes = vec![32, 64, 128, 256, 512];
@@ -115,7 +115,7 @@ mod cuda_memory_tests {
     /// Test consensus latency requirements (<100μs)
     #[tokio::test]
     async fn test_consensus_latency_target() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = GpuEvolutionConfig {
             population_size: 1024, // Larger population for consensus
             genome_size: 32,       // Smaller genome for speed
@@ -147,7 +147,7 @@ mod cuda_memory_tests {
     /// Test synthesis throughput requirements (2.6B ops/sec)
     #[tokio::test]
     async fn test_synthesis_throughput_target() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = GpuEvolutionConfig {
             population_size: 10000, // Large population for throughput
             genome_size: 256,       // Large genome for operations
@@ -189,7 +189,7 @@ mod integration_tests {
     /// Test benchmark scenario that was failing
     #[tokio::test]
     async fn test_benchmark_scenario_10k_256() -> Result<()> {
-        let device = Arc::new(CudaDevice::new(0)?);
+        let device = CudaContext::new(0)?;
         let config = GpuEvolutionConfig {
             population_size: 10000, // Exact scenario that was failing
             genome_size: 256,       // Exact scenario that was failing

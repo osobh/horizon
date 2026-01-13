@@ -3,7 +3,7 @@
 
 use crate::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -51,16 +51,16 @@ pub async fn run_simplified_evolution_benchmark(
     let mut max_generations_per_second: f64 = 0.0;
     let mut results = Vec::new();
 
-    // Initialize CUDA device once
-    let device = Arc::new(CudaDevice::new(0)?);
-    println!("   ✅ CUDA device initialized");
+    // Initialize CUDA context once
+    let ctx = CudaContext::new(0)?;
+    println!("   ✅ CUDA context initialized");
 
     // Test different population sizes
     for &population_size in &population_sizes {
         println!("   Testing population size: {}", population_size);
 
         let result =
-            test_direct_evolution_performance(&device, population_size, generations_per_test)
+            test_direct_evolution_performance(&ctx, population_size, generations_per_test)
                 .await?;
         println!(
             "   ✅ {} agents: {:.1} generations/sec, best_fitness: {:.4}",
@@ -99,7 +99,7 @@ pub async fn run_simplified_evolution_benchmark(
 }
 
 async fn test_direct_evolution_performance(
-    device: &Arc<CudaDevice>,
+    ctx: &Arc<CudaContext>,
     population_size: usize,
     generations: usize,
 ) -> Result<PopulationResult> {
@@ -119,7 +119,7 @@ async fn test_direct_evolution_performance(
     };
 
     // Create evolution engine directly (no GpuSwarm dependency)
-    let mut evolution_engine = GpuEvolutionEngine::new(device.clone(), config)?;
+    let mut evolution_engine = GpuEvolutionEngine::new(ctx.clone(), config)?;
     evolution_engine.initialize_random()?;
 
     // Measure evolution performance
@@ -171,7 +171,7 @@ fn find_linear_scaling_limit(results: &[PopulationResult]) -> usize {
     }
 
     // If we never drop below 50%, return the largest tested size
-    results.last()?.population_size
+    results.last().map(|r| r.population_size).unwrap_or(0)
 }
 
 fn calculate_parallel_efficiency(results: &[PopulationResult]) -> f64 {
@@ -180,7 +180,10 @@ fn calculate_parallel_efficiency(results: &[PopulationResult]) -> f64 {
     }
 
     let baseline = &results[0];
-    let largest = results.last()?;
+    let largest = match results.last() {
+        Some(r) => r,
+        None => return 1.0,
+    };
 
     let theoretical_speedup = largest.population_size as f64 / baseline.population_size as f64;
     let actual_speedup = largest.generations_per_second / baseline.generations_per_second;

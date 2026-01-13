@@ -26,7 +26,7 @@ sha2 = "0.10"
 
 # GPU/CUDA dependencies
 cudarc = { workspace = true, optional = true }
-cust = { workspace = true, optional = true }
+# cust removed - migrated to cudarc 0.18.1
 # nvrtc = { workspace = true, optional = true }  # Temporarily disabled
 dashmap.workspace = true
 wide = "0.7"  # SIMD primitives for vectorized computation
@@ -49,6 +49,6 @@ tokio-test = "0.4"
 
 [features]
 default = ["mock-cuda"]
-cuda = ["cudarc", "cust"]
+cuda = ["cudarc"]
 mock-cuda = []
 

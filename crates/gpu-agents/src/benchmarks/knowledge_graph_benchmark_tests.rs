@@ -9,11 +9,11 @@ use std::sync::Arc;
 mod tests {
     use super::*;
     use anyhow::Result;
-    use cudarc::driver::CudaDevice;
+    use cudarc::driver::CudaContext;
 
     /// Test helper to verify GPU is available
     fn ensure_gpu_available() -> Result<()> {
-        match CudaDevice::new(0) {
+        match CudaContext::new(0) {
             Ok(_) => Ok(()),
             Err(e) => {
                 eprintln!("GPU not available for testing: {}", e);
@@ -127,7 +127,7 @@ mod tests {
         batch_size: usize,
     ) -> Result<KnowledgeGraphPerformance> {
         // Create and populate graph
-        let mut graph = KnowledgeGraph::new();
+        let mut graph = KnowledgeGraph::new(128);
 
         for i in 0..node_count {
             let node = KnowledgeNode {
@@ -140,8 +140,9 @@ mod tests {
         }
 
         // Upload to GPU
-        let device = Arc::new(CudaDevice::new(0)?);
-        let gpu_graph = graph.upload_to_gpu(device)?;
+        let ctx = CudaContext::new(0)?;
+        let stream = ctx.default_stream();
+        let gpu_graph = graph.upload_to_gpu(ctx, stream)?;
 
         // Test batch queries
         let start = Instant::now();
@@ -151,9 +152,10 @@ mod tests {
             let batch_end = (i + batch_size).min(query_count);
             let batch_queries: Vec<_> = (i..batch_end)
                 .map(|j| GraphQuery {
-                    query_type: "similarity".to_string(),
-                    embedding: vec![0.2 * (j as f32 % 5.0); 128],
+                    query_text: "similarity".to_string(),
+                    query_embedding: vec![0.2 * (j as f32 % 5.0); 128],
                     max_results: 10,
+                    threshold: 0.5,
                 })
                 .collect();
 

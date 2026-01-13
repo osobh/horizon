@@ -8,7 +8,7 @@
 //! Following strict TDD methodology - these tests WILL FAIL until implementation is complete.
 
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::ConsensusSynthesisEngine;
 use gpu_agents::evolution::engine_adapter::EvolutionEngineAdapter;
 use gpu_agents::time_travel::evolution_debugger::{
@@ -299,7 +299,7 @@ pub struct ReplayResult {
 #[tokio::test]
 async fn test_evolution_timeline_debugger_creation() {
     // This test will fail because EvolutionTimelineDebugger doesn't exist yet
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let config = DebugSessionConfig::default();
 
     let debugger = EvolutionTimelineDebugger::new(device, config).await?;
@@ -312,7 +312,7 @@ async fn test_evolution_timeline_debugger_creation() {
 
 #[tokio::test]
 async fn test_evolution_state_capture_and_navigation() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let config = DebugSessionConfig::default();
     let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
@@ -355,7 +355,7 @@ async fn test_evolution_state_capture_and_navigation() {
 
 #[tokio::test]
 async fn test_evolution_rollback_functionality() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let config = DebugSessionConfig::default();
     let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
@@ -398,7 +398,7 @@ async fn test_evolution_rollback_functionality() {
 
 #[tokio::test]
 async fn test_genetic_diversity_analysis() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let config = DebugSessionConfig::default();
     let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
@@ -436,7 +436,7 @@ async fn test_genetic_diversity_analysis() {
 
 #[tokio::test]
 async fn test_evolution_pattern_analysis() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let config = DebugSessionConfig::default();
     let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
@@ -478,7 +478,7 @@ async fn test_evolution_pattern_analysis() {
 
 #[tokio::test]
 async fn test_evolution_replay_with_modifications() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let config = DebugSessionConfig::default();
     let mut debugger = EvolutionTimelineDebugger::new(device, config).await?;
 
@@ -533,7 +533,7 @@ async fn test_evolution_replay_with_modifications() {
 
 #[tokio::test]
 async fn test_time_travel_performance_requirements() {
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let config = DebugSessionConfig {
         snapshot_interval: Duration::from_millis(50),
         max_snapshots: 500,

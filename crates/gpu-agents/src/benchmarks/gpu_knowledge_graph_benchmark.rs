@@ -51,15 +51,15 @@ pub struct KnowledgeGraphBenchmarkResults {
 
 /// GPU Knowledge Graph benchmark suite
 pub struct GpuKnowledgeGraphBenchmark {
-    device: Arc<cudarc::driver::CudaDevice>,
+    ctx: Arc<cudarc::driver::CudaContext>,
     config: KnowledgeGraphBenchmarkConfig,
 }
 
 impl GpuKnowledgeGraphBenchmark {
     /// Create new benchmark suite
     pub fn new(device_id: i32, config: KnowledgeGraphBenchmarkConfig) -> Result<Self> {
-        let device = cudarc::driver::CudaDevice::new(device_id as usize)?;
-        Ok(Self { device, config })
+        let ctx = cudarc::driver::CudaContext::new(device_id as usize)?;
+        Ok(Self { ctx, config })
     }
 
     /// Run all benchmarks
@@ -104,7 +104,7 @@ impl GpuKnowledgeGraphBenchmark {
         // Build GPU graph
         let build_start = Instant::now();
         let mut gpu_graph = EnhancedGpuKnowledgeGraph::new(
-            self.device.clone(),
+            self.ctx.clone(),
             node_count,
             self.config.embedding_dim,
         )?;
@@ -112,7 +112,7 @@ impl GpuKnowledgeGraphBenchmark {
         // Convert adjacency list for CSR
         let adjacency_list = self.build_adjacency_list(&cpu_graph);
         let _csr_graph =
-            CsrGraph::from_adjacency_list(self.device.clone(), &adjacency_list, node_count)?;
+            CsrGraph::from_adjacency_list(self.ctx.clone(), &adjacency_list, node_count)?;
 
         // Build spatial index
         gpu_graph.build_spatial_index()?;
@@ -258,7 +258,7 @@ impl GpuKnowledgeGraphBenchmark {
         // Build graph
         let (_cpu_graph, _) = self.generate_random_graph(node_count, avg_edges)?;
         let mut gpu_graph = EnhancedGpuKnowledgeGraph::new(
-            self.device.clone(),
+            self.ctx.clone(),
             node_count,
             self.config.embedding_dim,
         )?;
@@ -306,7 +306,7 @@ impl GpuKnowledgeGraphBenchmark {
 
             let (_cpu_graph, _) = self.generate_random_graph(size, 10.0)?;
             let gpu_graph = EnhancedGpuKnowledgeGraph::new(
-                self.device.clone(),
+                self.ctx.clone(),
                 size,
                 self.config.embedding_dim,
             )?;

@@ -3,7 +3,7 @@
 //! TDD GREEN PHASE: Minimal implementation to make tests pass
 
 use anyhow::{anyhow, Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
@@ -85,8 +85,9 @@ impl DebugSession {
             session_id: format!(
                 "session_{}",
                 SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)?
-                    .as_millis()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0)
             ),
             session_name: session_name.to_string(),
             start_time: SystemTime::now(),
@@ -385,22 +386,22 @@ pub struct EvolutionTimelineDebugger {
     pub navigator: TimeNavigator,
     pub analyzer: StateAnalyzer,
     pub rollback_manager: RollbackManager,
-    pub device: Arc<CudaDevice>,
+    pub ctx: Arc<CudaContext>,
     generation_counter: usize,
 }
 
 impl EvolutionTimelineDebugger {
     /// Create new evolution timeline debugger
-    pub async fn new(device: Arc<CudaDevice>, config: DebugSessionConfig) -> Result<Self> {
+    pub async fn new(ctx: Arc<CudaContext>, config: DebugSessionConfig) -> Result<Self> {
         // Initialize evolution adapter
-        let evolution_adapter = EvolutionEngineAdapter::new(device.clone()).await?;
+        let evolution_adapter = EvolutionEngineAdapter::new(ctx.clone()).await?;
 
         // Initialize consensus engine for integration
         let integration_config =
             crate::consensus_synthesis::integration::IntegrationConfig::default();
         let mut consensus_engine =
             crate::consensus_synthesis::integration::ConsensusSynthesisEngine::new(
-                device.clone(),
+                ctx.clone(),
                 integration_config,
             )?;
 
@@ -416,7 +417,7 @@ impl EvolutionTimelineDebugger {
             navigator: TimeNavigator::new(),
             analyzer: StateAnalyzer::new(),
             rollback_manager: RollbackManager::new(),
-            device,
+            ctx,
             generation_counter: 0,
         })
     }
@@ -603,7 +604,7 @@ impl EvolutionTimelineDebugger {
     ) -> Result<DiversityComparison> {
         let diversities: Vec<f64> = generations
             .iter()
-            .map(|&gen| 0.8 - (gen as f64 * 0.02).min(0.4))
+            .map(|&generation_num| 0.8 - (generation_num as f64 * 0.02).min(0.4))
             .collect();
 
         Ok(DiversityComparison {
@@ -626,9 +627,9 @@ impl EvolutionTimelineDebugger {
         let original_trajectory = vec![0.5, 0.6, 0.65, 0.7, 0.72, 0.75];
         let modified_trajectory = vec![0.5, 0.6, 0.68, 0.74, 0.78, 0.82]; // Improved
 
-        let improvement = ((modified_trajectory.last()? - original_trajectory.last()?)
-            / original_trajectory.last()?)
-            * 100.0;
+        let original_last = original_trajectory.last().ok_or_else(|| anyhow!("Empty original trajectory"))?;
+        let modified_last = modified_trajectory.last().ok_or_else(|| anyhow!("Empty modified trajectory"))?;
+        let improvement = ((modified_last - original_last) / original_last) * 100.0;
 
         let replay_time = start_time.elapsed().as_millis() as f64;
 

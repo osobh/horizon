@@ -31,7 +31,7 @@ impl ProgressWriter {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
         let entry = format!("[{}] {}\n", timestamp, message);
 
-        let mut writer = self.writer.lock()?;
+        let mut writer = self.writer.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
         writer.write_all(entry.as_bytes())?;
         writer.flush()?;
 

@@ -3,7 +3,7 @@
 //! Simulates multiple StratoSwarm nodes on a single GPU for testing
 
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -84,7 +84,7 @@ pub struct SimulationMetrics {
 
 /// Multi-node simulator for single GPU
 pub struct MultiNodeSimulator {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: SimulationConfig,
     nodes: HashMap<u32, SimulatedNode>,
     gpu_memory: Option<CudaSlice<u8>>,
@@ -95,24 +95,25 @@ pub struct MultiNodeSimulator {
 
 impl MultiNodeSimulator {
     /// Create a new multi-node simulator
-    pub fn new(device: Arc<CudaDevice>, config: SimulationConfig) -> Result<Self> {
+    pub fn new(ctx: Arc<CudaContext>, config: SimulationConfig) -> Result<Self> {
         // Calculate total GPU memory needed
         let total_memory = config.max_nodes * config.gpu_memory_per_node;
+        let stream = ctx.default_stream();
 
         // Allocate GPU memory for all nodes
         // SAFETY: alloc returns uninitialized memory. gpu_memory is partitioned
         // among nodes and will be written when nodes perform GPU operations.
-        let gpu_memory = unsafe { device.alloc::<u8>(total_memory) }
+        let gpu_memory = unsafe { stream.alloc::<u8>(total_memory) }
             .map_err(|e| anyhow!("Failed to allocate GPU memory: {}", e))?;
 
         // Allocate communication buffer
         // SAFETY: alloc returns uninitialized memory. comm_buffer will be written
         // when cross-node messages are sent via GPU-accelerated communication.
-        let comm_buffer = unsafe { device.alloc::<u8>(config.communication_buffer_size) }
+        let comm_buffer = unsafe { stream.alloc::<u8>(config.communication_buffer_size) }
             .map_err(|e| anyhow!("Failed to allocate comm buffer: {}", e))?;
 
         Ok(Self {
-            device,
+            ctx,
             config,
             nodes: HashMap::new(),
             gpu_memory: Some(gpu_memory),

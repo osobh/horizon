@@ -6,14 +6,14 @@
 use super::*;
 use crate::gpu_buffer::GpuFloatBuffer;
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaStream, LaunchAsync};
+use cudarc::driver::{CudaContext, CudaStream};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 
 /// Fusion runtime for executing fused kernels
 pub struct FusionRuntime {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: KernelFusionConfig,
     stream_pool: StreamPool,
     profiler: RuntimeProfiler,
@@ -22,7 +22,7 @@ pub struct FusionRuntime {
 
 impl FusionRuntime {
     /// Create new fusion runtime
-    pub fn new(device: Arc<CudaDevice>, config: KernelFusionConfig) -> Self {
+    pub fn new(device: Arc<CudaContext>, config: KernelFusionConfig) -> Self {
         let stream_pool = StreamPool::new(Arc::clone(&device), 8);
         let profiler = RuntimeProfiler::new(config.enable_runtime_analysis);
         let resource_manager = ResourceManager::new(Arc::clone(&device));
@@ -51,11 +51,14 @@ impl FusionRuntime {
         // Validate inputs and outputs
         self.validate_io(kernel, inputs, outputs)?;
 
+        // Get the default stream for context preparation
+        let default_stream = self.device.default_stream();
+
         // Prepare execution context
-        let context = self.prepare_execution_context(kernel, inputs, outputs)?;
+        let context = self.prepare_execution_context(kernel, inputs, outputs, &default_stream)?;
 
         // Get optimal stream for execution
-        let exec_stream: CudaStream;
+        let exec_stream: Arc<CudaStream>;
         let exec_stream_ref = if kernel.launch_config.stream_count > 1 {
             exec_stream = self.stream_pool.get_stream()?;
             &exec_stream
@@ -132,6 +135,7 @@ impl FusionRuntime {
         kernel: &FusedKernel,
         inputs: &[GpuFloatBuffer],
         outputs: &[GpuFloatBuffer],
+        stream: &Arc<CudaStream>,
     ) -> Result<ExecutionContext> {
         // Calculate total elements to process
         let total_elements = inputs.iter().map(|input| input.len()).max().unwrap_or(0);
@@ -141,20 +145,15 @@ impl FusionRuntime {
 
         // Add input pointers
         for input in inputs {
-            // Use the device_ptr method from GpuBuffer
-            // SAFETY: device_ptr() returns the raw GPU device pointer from the GpuBuffer.
-            // The pointer is valid as long as the GpuBuffer exists, which is guaranteed
-            // by the borrow of `inputs` for the lifetime of this function.
-            let ptr = unsafe { input.device_ptr() as u64 };
+            // Use the device_ptr_raw method from GpuBuffer which returns (u64, SyncOnDrop)
+            let (ptr, _guard) = input.device_ptr_raw(stream);
             kernel_args.push(KernelArg::DevicePointer(ptr));
         }
 
         // Add output pointers
         for output in outputs {
-            // Use the device_ptr method from GpuBuffer
-            // SAFETY: Same as above - device_ptr() is valid for the lifetime of the
-            // output GpuBuffer borrow. The pointer is passed to the kernel for writing.
-            let ptr = unsafe { output.device_ptr() as u64 };
+            // Use the device_ptr_raw method from GpuBuffer which returns (u64, SyncOnDrop)
+            let (ptr, _guard) = output.device_ptr_raw(stream);
             kernel_args.push(KernelArg::DevicePointer(ptr));
         }
 
@@ -322,18 +321,18 @@ struct ExecutionMetrics {
 
 /// Stream pool for managing CUDA streams
 struct StreamPool {
-    device: Arc<CudaDevice>,
-    streams: VecDeque<CudaStream>,
+    device: Arc<CudaContext>,
+    streams: VecDeque<Arc<CudaStream>>,
     max_streams: usize,
 }
 
 impl StreamPool {
-    fn new(device: Arc<CudaDevice>, max_streams: usize) -> Self {
+    fn new(device: Arc<CudaContext>, max_streams: usize) -> Self {
         let mut streams = VecDeque::new();
 
         // Pre-create streams
         for _ in 0..max_streams {
-            if let Ok(stream) = device.fork_default_stream() {
+            if let Ok(stream) = device.default_stream().fork() {
                 streams.push_back(stream);
             }
         }
@@ -346,10 +345,11 @@ impl StreamPool {
     }
 
     /// Get an available stream
-    fn get_stream(&self) -> Result<CudaStream> {
+    fn get_stream(&self) -> Result<Arc<CudaStream>> {
         // In practice, would implement proper stream recycling
         self.device
-            .fork_default_stream()
+            .default_stream()
+            .fork()
             .map_err(|e| anyhow!("Failed to create stream: {}", e))
     }
 }
@@ -376,8 +376,9 @@ impl RuntimeProfiler {
             return;
         }
 
-        let mut active = self.active_kernels.lock()?;
-        active.insert(kernel_id.to_string(), Instant::now());
+        if let Ok(mut active) = self.active_kernels.lock() {
+            active.insert(kernel_id.to_string(), Instant::now());
+        }
     }
 
     /// End profiling and record results
@@ -390,7 +391,7 @@ impl RuntimeProfiler {
             });
         }
 
-        let mut active = self.active_kernels.lock()?;
+        let mut active = self.active_kernels.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
         let start_time = active
             .remove(kernel_id)
             .ok_or_else(|| anyhow!("Kernel {} not found in active profiling", kernel_id))?;
@@ -402,7 +403,7 @@ impl RuntimeProfiler {
         };
 
         // Store in history
-        let mut history = self.profile_history.lock()?;
+        let mut history = self.profile_history.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
         history
             .entry(kernel_id.to_string())
             .or_insert_with(Vec::new)
@@ -422,12 +423,12 @@ struct ProfileData {
 
 /// Resource manager for GPU resources
 struct ResourceManager {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     memory_pool: MemoryPool,
 }
 
 impl ResourceManager {
-    fn new(device: Arc<CudaDevice>) -> Self {
+    fn new(device: Arc<CudaContext>) -> Self {
         let memory_pool = MemoryPool::new(Arc::clone(&device));
         Self {
             device,
@@ -448,12 +449,12 @@ impl ResourceManager {
 
 /// Memory pool for temporary allocations
 struct MemoryPool {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     free_buffers: std::sync::Mutex<Vec<GpuFloatBuffer>>,
 }
 
 impl MemoryPool {
-    fn new(device: Arc<CudaDevice>) -> Self {
+    fn new(device: Arc<CudaContext>) -> Self {
         Self {
             device,
             free_buffers: std::sync::Mutex::new(Vec::new()),
@@ -465,7 +466,7 @@ impl MemoryPool {
         let mut buffers = Vec::new();
 
         // Check pool first
-        let mut free = self.free_buffers.lock()?;
+        let mut free = self.free_buffers.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
         while buffers.len() < 1 && !free.is_empty() {
             if let Some(buffer) = free.pop() {
                 if buffer.len() >= size {
@@ -477,7 +478,7 @@ impl MemoryPool {
 
         // Allocate new buffers if needed
         while buffers.len() < 1 {
-            let buffer = GpuFloatBuffer::new_zeros(&self.device, size)?;
+            let buffer = GpuFloatBuffer::new_zeros(&self.device.default_stream(), size)?;
             buffers.push(buffer);
         }
 
@@ -489,12 +490,13 @@ impl MemoryPool {
         &self,
         buffers: Vec<GpuFloatBuffer>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut free = self.free_buffers.lock()?;
+        let mut free = self.free_buffers.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
         for buffer in buffers {
             if buffer.len() > 0 {
                 free.push(buffer);
             }
         }
+        Ok(())
     }
 }
 
@@ -504,11 +506,12 @@ mod tests {
 
     #[test]
     fn test_stream_pool() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
-        let pool = StreamPool::new(Arc::new(device), 4);
+        let ctx = CudaContext::new(0)?;
+        let pool = StreamPool::new(ctx, 4);
 
         // Should have pre-created streams
         assert!(pool.streams.len() <= pool.max_streams);
+        Ok(())
     }
 
     #[test]

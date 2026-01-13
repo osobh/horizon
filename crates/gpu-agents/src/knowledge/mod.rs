@@ -1,7 +1,7 @@
 //! GPU-accelerated knowledge graph module
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream, DeviceSlice};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -138,8 +138,12 @@ impl KnowledgeGraph {
     }
 
     /// Upload the graph to GPU
-    pub fn upload_to_gpu(&self, device: Arc<CudaDevice>) -> Result<GpuKnowledgeGraph> {
-        let mut gpu_graph = GpuKnowledgeGraph::new(device);
+    pub fn upload_to_gpu(
+        &self,
+        ctx: Arc<CudaContext>,
+        stream: Arc<CudaStream>,
+    ) -> Result<GpuKnowledgeGraph> {
+        let mut gpu_graph = GpuKnowledgeGraph::new(ctx, stream);
 
         // In a real implementation, we would serialize nodes and edges to GPU memory
         // For now, just track counts
@@ -153,7 +157,8 @@ impl KnowledgeGraph {
 /// GPU-accelerated knowledge graph
 #[derive(Debug)]
 pub struct GpuKnowledgeGraph {
-    _device: Arc<cudarc::driver::CudaDevice>,
+    _ctx: Arc<cudarc::driver::CudaContext>,
+    _stream: Arc<cudarc::driver::CudaStream>,
     nodes: Option<CudaSlice<u8>>,
     edges: Option<CudaSlice<u8>>,
     node_count: usize,
@@ -161,9 +166,10 @@ pub struct GpuKnowledgeGraph {
 }
 
 impl GpuKnowledgeGraph {
-    pub fn new(device: Arc<cudarc::driver::CudaDevice>) -> Self {
+    pub fn new(ctx: Arc<cudarc::driver::CudaContext>, stream: Arc<cudarc::driver::CudaStream>) -> Self {
         Self {
-            _device: device,
+            _ctx: ctx,
+            _stream: stream,
             nodes: None,
             edges: None,
             node_count: 0,

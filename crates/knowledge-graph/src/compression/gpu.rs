@@ -1,21 +1,31 @@
 //! GPU-accelerated compression kernels and utilities
+//!
+//! Uses cudarc 0.18+ CudaContext API for GPU operations.
 
 use crate::KnowledgeGraphResult;
-use cudarc::driver::{CudaDevice, CudaFunction};
+use cudarc::driver::{CudaContext, CudaFunction, CudaStream};
 use std::sync::Arc;
 
 /// GPU compression kernel manager
+///
+/// Uses cudarc 0.18 CudaContext + CudaStream pattern for GPU operations.
 pub struct GpuCompressionKernels {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     compression_kernel: Option<CudaFunction>,
     decompression_kernel: Option<CudaFunction>,
 }
 
 impl GpuCompressionKernels {
     /// Create new GPU kernel manager
-    pub fn new(device: Arc<CudaDevice>) -> KnowledgeGraphResult<Self> {
+    ///
+    /// # Arguments
+    /// * `ctx` - CUDA context from `CudaContext::new(device_ordinal)`
+    pub fn new(ctx: Arc<CudaContext>) -> KnowledgeGraphResult<Self> {
+        let stream = ctx.default_stream();
         Ok(Self {
-            device,
+            ctx,
+            stream,
             compression_kernel: None,
             decompression_kernel: None,
         })
@@ -38,30 +48,50 @@ impl GpuCompressionKernels {
         // Placeholder GPU decompression
         Ok(data.to_vec())
     }
+
+    /// Get the CUDA context
+    pub fn context(&self) -> &Arc<CudaContext> {
+        &self.ctx
+    }
+
+    /// Get the CUDA stream
+    pub fn stream(&self) -> &Arc<CudaStream> {
+        &self.stream
+    }
 }
 
 /// GPU memory pool for compression operations
+///
+/// Uses cudarc 0.18 CudaContext + CudaStream pattern for memory operations.
 pub struct GpuMemoryPool {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     allocated_buffers: Vec<cudarc::driver::CudaSlice<u8>>,
     free_buffers: Vec<cudarc::driver::CudaSlice<u8>>,
 }
 
 impl GpuMemoryPool {
     /// Create new GPU memory pool
+    ///
+    /// # Arguments
+    /// * `ctx` - CUDA context from `CudaContext::new(device_ordinal)`
+    /// * `initial_buffers` - Number of buffers to pre-allocate
+    /// * `buffer_size` - Size of each buffer in bytes
     pub fn new(
-        device: Arc<CudaDevice>,
+        ctx: Arc<CudaContext>,
         initial_buffers: usize,
         buffer_size: usize,
     ) -> KnowledgeGraphResult<Self> {
+        let stream = ctx.default_stream();
         let mut free_buffers = Vec::new();
         for _ in 0..initial_buffers {
-            let buffer = device.alloc_zeros::<u8>(buffer_size)?;
+            let buffer = stream.alloc_zeros::<u8>(buffer_size)?;
             free_buffers.push(buffer);
         }
 
         Ok(Self {
-            device,
+            ctx,
+            stream,
             allocated_buffers: Vec::new(),
             free_buffers,
         })
@@ -75,5 +105,15 @@ impl GpuMemoryPool {
     /// Return a buffer to the pool
     pub fn deallocate(&mut self, buffer: cudarc::driver::CudaSlice<u8>) {
         self.free_buffers.push(buffer);
+    }
+
+    /// Get the CUDA context
+    pub fn context(&self) -> &Arc<CudaContext> {
+        &self.ctx
+    }
+
+    /// Get the CUDA stream
+    pub fn stream(&self) -> &Arc<CudaStream> {
+        &self.stream
     }
 }

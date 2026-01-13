@@ -93,7 +93,7 @@ pub enum PolicyCondition {
 }
 
 /// Comparison operators
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ComparisonOperator {
     Equal,
     NotEqual,
@@ -127,12 +127,22 @@ struct ConflictResolver {
 }
 
 /// Strategies for resolving policy conflicts
-#[derive(Debug, Clone)]
 enum ConflictResolutionStrategy {
     PriorityBased,
     MostRestrictive,
     MostPermissive,
-    Custom(Box<dyn Fn(&Policy, &Policy) -> &Policy + Send + Sync>),
+    Custom(Box<dyn Fn(&Policy, &Policy) -> Policy + Send + Sync>),
+}
+
+impl std::fmt::Debug for ConflictResolutionStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::PriorityBased => write!(f, "PriorityBased"),
+            Self::MostRestrictive => write!(f, "MostRestrictive"),
+            Self::MostPermissive => write!(f, "MostPermissive"),
+            Self::Custom(_) => write!(f, "Custom(<fn>)"),
+        }
+    }
 }
 
 impl PolicyManager {
@@ -355,7 +365,7 @@ impl PolicyManager {
     }
 
     /// Validate and resolve conflicts between policies
-    pub async fn resolve_conflicts(&self, policies: Vec<&Policy>) -> Result<Vec<&Policy>> {
+    pub async fn resolve_conflicts<'a>(&self, policies: Vec<&'a Policy>) -> Result<Vec<&'a Policy>> {
         if policies.len() <= 1 {
             return Ok(policies);
         }

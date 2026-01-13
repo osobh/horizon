@@ -9,13 +9,13 @@
 use super::hybrid::*;
 use super::{adas::*, dgm::*, swarm::*};
 use crate::evolution::{GpuEvolutionConfig, FitnessObjective};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use anyhow::Result;
 
 // Helper to create test device
-fn create_test_device() -> Result<Arc<CudaDevice>> {
-    Ok(CudaDevice::new(0)?)
+fn create_test_device() -> Result<Arc<CudaContext>> {
+    Ok(CudaContext::new(0)?)
 }
 
 // Helper to create test config

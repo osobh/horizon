@@ -4,7 +4,7 @@ mod tests {
     use crate::gpudirect::*;
     use crate::storage::{GpuAgentData, GpuAgentStorage, GpuStorageConfig};
     use anyhow::Result;
-    use cudarc::driver::CudaDevice;
+    use cudarc::driver::CudaContext;
     use std::path::PathBuf;
     use std::sync::Arc;
     use tempfile::TempDir;

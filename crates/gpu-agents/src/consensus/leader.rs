@@ -3,12 +3,12 @@
 //! Implements deterministic leader election with heartbeat tracking on GPU
 
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice};
 use std::sync::Arc;
 
 /// GPU Leader Election system
 pub struct GpuLeaderElection {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     heartbeat_buffer: CudaSlice<u64>,
     leader_state_buffer: CudaSlice<u32>,
     num_agents: usize,
@@ -16,14 +16,15 @@ pub struct GpuLeaderElection {
 
 impl GpuLeaderElection {
     /// Create a new GPU leader election system
-    pub fn new(device: Arc<CudaDevice>, num_agents: usize) -> Result<Self> {
-        // Allocate GPU buffers
-        let heartbeat_buffer = device
+    pub fn new(device: Arc<CudaContext>, num_agents: usize) -> Result<Self> {
+        // Allocate GPU buffers using stream (cudarc 0.18 API)
+        let stream = device.default_stream();
+        let heartbeat_buffer = stream
             .alloc_zeros::<u64>(num_agents)
             .context("Failed to allocate heartbeat buffer")?;
 
         // Leader state: [current_leader_id, round, last_update_time]
-        let leader_state_buffer = device
+        let leader_state_buffer = stream
             .alloc_zeros::<u32>(3)
             .context("Failed to allocate leader state buffer")?;
 
@@ -43,8 +44,8 @@ impl GpuLeaderElection {
 
         // Update leader state on GPU
         let state = vec![leader_id, round, 0];
-        self.device
-            .htod_copy_into(state, &mut self.leader_state_buffer.clone())?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&state, &mut self.leader_state_buffer.clone())?;
 
         Ok(leader_id)
     }
@@ -60,18 +61,17 @@ impl GpuLeaderElection {
         }
 
         // Copy heartbeats to GPU
-        self.device
-            .htod_copy_into(heartbeats.to_vec(), &mut self.heartbeat_buffer.clone())?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(heartbeats, &mut self.heartbeat_buffer.clone())?;
 
         Ok(())
     }
 
     /// Check leader health and elect new leader if current one failed
     pub fn check_leader_health(&self, current_leader: u32, timeout_threshold: u64) -> Result<u32> {
-        // Get heartbeats from GPU
-        let mut heartbeats = vec![0u64; self.num_agents];
-        self.device
-            .dtoh_sync_copy_into(&self.heartbeat_buffer, &mut heartbeats)?;
+        // Get heartbeats from GPU (cudarc 0.18 API: clone_dtoh returns Vec)
+        let stream = self.device.default_stream();
+        let heartbeats: Vec<u64> = stream.clone_dtoh(&self.heartbeat_buffer)?;
 
         // Check if current leader is healthy
         let leader_heartbeat = heartbeats[current_leader as usize];
@@ -89,14 +89,11 @@ impl GpuLeaderElection {
                 }
             }
 
-            // Update leader state
-            let mut state = vec![0u32; 3];
-            self.device
-                .dtoh_sync_copy_into(&self.leader_state_buffer, &mut state)?;
+            // Update leader state (cudarc 0.18 API: clone_dtoh returns Vec)
+            let mut state: Vec<u32> = stream.clone_dtoh(&self.leader_state_buffer)?;
             state[0] = new_leader;
             state[2] = (max_heartbeat & 0xFFFFFFFF) as u32; // Store lower 32 bits
-            self.device
-                .htod_copy_into(state, &mut self.leader_state_buffer.clone())?;
+            stream.memcpy_htod(&state, &mut self.leader_state_buffer.clone())?;
 
             Ok(new_leader)
         } else {
@@ -106,9 +103,9 @@ impl GpuLeaderElection {
 
     /// Get current leader state
     pub fn get_leader_state(&self) -> Result<(u32, u32, u32)> {
-        let mut state = vec![0u32; 3];
-        self.device
-            .dtoh_sync_copy_into(&self.leader_state_buffer, &mut state)?;
+        // cudarc 0.18 API: clone_dtoh returns Vec
+        let stream = self.device.default_stream();
+        let state: Vec<u32> = stream.clone_dtoh(&self.leader_state_buffer)?;
         Ok((state[0], state[1], state[2]))
     }
 }

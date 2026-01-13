@@ -17,14 +17,14 @@ fn test_cuda_device_creation() -> Result<()> {
         return Ok(());
     }
 
-    // Test that device creation doesn't double-wrap Arc
-    let device = cudarc::driver::CudaDevice::new(0)?;
+    // Test that device creation returns Arc<CudaContext> directly
+    let device = cudarc::driver::CudaContext::new(0)?;
 
     // Verify device properties
-    assert_eq!(device.id(), 0);
+    assert_eq!(device.ordinal(), 0);
 
-    // Test that we can wrap in Arc if needed
-    let _arc_device: Arc<cudarc::driver::CudaDevice> = Arc::new(device);
+    // Device is already Arc<CudaContext>, no double-wrapping needed
+    let _arc_device: Arc<cudarc::driver::CudaContext> = device;
 
     Ok(())
 }
@@ -41,15 +41,16 @@ fn test_cudarc_trait_availability() -> Result<()> {
     // Following cuda.md: Import required traits explicitly
     use cudarc::driver::{DevicePtr, DeviceSlice};
 
-    let device = cudarc::driver::CudaDevice::new(0)?;
+    let ctx = cudarc::driver::CudaContext::new(0)?;
+    let stream = ctx.default_stream();
 
     // Test that we can allocate memory and use traits
     let data = vec![1u32, 2, 3, 4];
-    let gpu_slice = device.htod_copy(data)?;
+    let gpu_slice = stream.clone_htod(data)?;
 
     // These methods should be available via traits
     let _len = gpu_slice.len(); // DeviceSlice trait
-    let _ptr = gpu_slice.device_ptr(); // DevicePtr trait
+    let _ptr = gpu_slice.device_ptr(); // DevicePtr trait returns u64
 
     Ok(())
 }
@@ -65,14 +66,15 @@ fn test_gpu_memory_operations() -> Result<()> {
 
     use cudarc::driver::{DevicePtr, DeviceSlice};
 
-    let device = cudarc::driver::CudaDevice::new(0)?;
+    let ctx = cudarc::driver::CudaContext::new(0)?;
+    let stream = ctx.default_stream();
 
     // Test allocation and copy operations
     let host_data = vec![0u8; 1024];
-    let gpu_buffer = device.htod_copy(host_data.clone())?;
+    let gpu_buffer = stream.clone_htod(host_data.clone())?;
 
     // Test synchronous copy back
-    let result: Vec<u8> = device.dtoh_sync_copy(&gpu_buffer)?;
+    let result: Vec<u8> = stream.clone_dtoh(&gpu_buffer)?;
     assert_eq!(result.len(), host_data.len());
 
     Ok(())
@@ -87,19 +89,19 @@ fn test_benchmark_device_patterns() -> Result<()> {
         return Ok(());
     }
 
-    // Following our benchmark pattern - device should NOT be double-wrapped
-    let device = cudarc::driver::CudaDevice::new(0)?;
+    // Following our benchmark pattern - CudaContext::new returns Arc directly
+    let device = cudarc::driver::CudaContext::new(0)?;
 
     // Verify this is the correct type for our structs
     struct TestBenchmark {
-        device: Arc<cudarc::driver::CudaDevice>,
+        device: Arc<cudarc::driver::CudaContext>,
     }
 
     let benchmark = TestBenchmark {
-        device: Arc::new(device),
+        device, // Already Arc<CudaContext>, no wrapping needed
     };
 
-    assert_eq!(benchmark.device.id(), 0);
+    assert_eq!(benchmark.device.ordinal(), 0);
 
     Ok(())
 }
@@ -107,5 +109,5 @@ fn test_benchmark_device_patterns() -> Result<()> {
 /// Helper function to check CUDA availability
 /// Following cuda.md: Always validate GPU environment before tests
 fn cuda_is_available() -> bool {
-    cudarc::driver::CudaDevice::new(0).is_ok()
+    cudarc::driver::CudaContext::new(0).is_ok()
 }

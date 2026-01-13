@@ -8,7 +8,7 @@ use std::time::Instant;
 
 // External crates
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::{CudaContext, CudaStream};
 
 // Local modules
 use crate::knowledge::{GraphQuery, KnowledgeEdge, KnowledgeGraph, KnowledgeNode};
@@ -130,10 +130,10 @@ async fn test_knowledge_graph_performance(node_count: usize) -> Result<Knowledge
     // Upload graph to GPU for accelerated operations
     let gpu_upload_start = Instant::now();
 
-    // Create CUDA device for GPU operations
-    let device = CudaDevice::new(0)?;
-    // Try passing device directly without Arc wrapper
-    let gpu_graph = cpu_graph.upload_to_gpu(device)?;
+    // Create CUDA context and stream for GPU operations
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
+    let gpu_graph = cpu_graph.upload_to_gpu(ctx, stream)?;
     let gpu_upload_duration = gpu_upload_start.elapsed();
 
     println!(
@@ -304,7 +304,7 @@ mod tests {
     #[tokio::test]
     async fn test_quick_mode_benchmark() {
         // Skip if no GPU available
-        if CudaDevice::new(0).is_err() {
+        if CudaContext::new(0).is_err() {
             eprintln!("Skipping GPU test - no CUDA device available");
             return;
         }

@@ -252,7 +252,7 @@ impl AdvancedPatternRecognizer {
     pub fn get_dominant_pattern(&self) -> Option<(AccessPattern, f64)> {
         self.patterns
             .iter()
-            .max_by(|a, b| a.1.partial_cmp(b.1)?)
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(p, c)| (p.clone(), *c))
     }
 
@@ -415,7 +415,7 @@ impl CorrelationAnalyzer {
                 .map(|(&page, &corr)| (page, corr))
                 .collect();
 
-            sorted_correlations.sort_by(|a, b| b.1.partial_cmp(&a.1)?);
+            sorted_correlations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
             // Take top predictions
             for (page, correlation) in sorted_correlations.into_iter().take(count) {
@@ -483,7 +483,7 @@ impl MarkovPredictor {
                 .filter(|(_, prob)| *prob >= confidence_threshold)
                 .collect();
 
-            predictions.sort_by(|a, b| b.1.partial_cmp(&a.1)?);
+            predictions.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
             predictions
         } else {
             Vec::new()

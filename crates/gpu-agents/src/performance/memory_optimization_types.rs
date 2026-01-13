@@ -75,7 +75,7 @@ impl AccessPatternTracker {
         }
 
         // Sort by access frequency/recency
-        hot_regions.sort_by(|a, b| b.access_frequency.partial_cmp(&a.access_frequency)?);
+        hot_regions.sort_by(|a, b| b.access_frequency.partial_cmp(&a.access_frequency).unwrap_or(std::cmp::Ordering::Equal));
         cold_regions.sort_by(|a, b| a.last_access.cmp(&b.last_access));
 
         AccessPatternAnalysis {

@@ -6,7 +6,7 @@
 use super::*;
 use crate::streaming::huffman::*;
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -347,8 +347,8 @@ mod integration_tests {
         Ok(())
     }
 
-    async fn setup_test_device() -> Result<Arc<CudaDevice>> {
-        CudaDevice::new(0).map(Arc::new).map_err(Into::into)
+    async fn setup_test_device() -> Result<Arc<CudaContext>> {
+        CudaContext::new(0).map_err(Into::into)
     }
 }
 
@@ -524,8 +524,8 @@ mod benchmark_tests {
         Ok(())
     }
 
-    async fn setup_test_device() -> Result<Arc<CudaDevice>> {
-        CudaDevice::new(0).map(Arc::new).map_err(Into::into)
+    async fn setup_test_device() -> Result<Arc<CudaContext>> {
+        CudaContext::new(0).map_err(Into::into)
     }
 }
 

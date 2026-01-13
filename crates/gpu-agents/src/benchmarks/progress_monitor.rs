@@ -160,7 +160,7 @@ impl ProgressMonitor {
 
 impl Default for ProgressMonitor {
     fn default() -> Self {
-        Self::new()?
+        Self::new().expect("Failed to create default ProgressMonitor")
     }
 }
 

@@ -127,22 +127,22 @@ async fn main() -> Result<()> {
 
     let test_patterns = create_test_patterns(5000);
 
-    println!("  Production (compressed):  ", end = "");
+    print!("  Production (compressed):  ");
     let start = Instant::now();
     let prod_data = production_serializer.serialize_patterns(&test_patterns)?;
     println!("{:?} ({} bytes)", start.elapsed(), prod_data.len());
 
-    println!("  Development (uncompressed):", end = "");
+    print!("  Development (uncompressed):");
     let start = Instant::now();
     let dev_data = development_serializer.serialize_patterns(&test_patterns)?;
     println!("{:?} ({} bytes)", start.elapsed(), dev_data.len());
 
-    println!("  Optimized large data:     ", end = "");
+    print!("  Optimized large data:     ");
     let start = Instant::now();
     let large_data = optimized_large.serialize_patterns(&test_patterns)?;
     println!("{:?} ({} bytes)", start.elapsed(), large_data.len());
 
-    println!("  Optimized latency:        ", end = "");
+    print!("  Optimized latency:        ");
     let start = Instant::now();
     let latency_data = optimized_latency.serialize_patterns(&test_patterns)?;
     println!("{:?} ({} bytes)", start.elapsed(), latency_data.len());

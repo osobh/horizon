@@ -2,7 +2,7 @@
 
 use crate::{GpuSwarm, GpuSwarmConfig, LlmConfig, LlmIntegration};
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::{CudaContext, CudaStream};
 use std::time::Instant;
 
 /// Run LLM benchmarks with real GPU acceleration
@@ -98,9 +98,9 @@ async fn test_llm_performance(
     swarm.initialize(agent_count)?;
 
     // Initialize LLM integration
-    let device = CudaDevice::new(0)?;
-    // CudaDevice::new might already return Arc<CudaDevice>
-    let _llm = LlmIntegration::new(llm_config, device)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
+    let _llm = LlmIntegration::new(llm_config, ctx, stream)?;
 
     // Run inference test - simulate LLM inference with swarm steps
     let start = Instant::now();

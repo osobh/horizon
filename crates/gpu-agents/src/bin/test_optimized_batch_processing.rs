@@ -3,7 +3,7 @@
 //! GREEN Phase validation of batch processing optimizations
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::{AstNode, NodeType, Pattern};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -183,7 +183,7 @@ async fn main() -> Result<()> {
     println!("🚀 Testing Optimized Batch Processing Implementation");
     println!("=====================================================\n");
 
-    let device = Arc::new(CudaDevice::new(0)?);
+    let _device = CudaContext::new(0)?;
     println!("✅ GPU Device initialized successfully\n");
 
     // Test with different scale scenarios

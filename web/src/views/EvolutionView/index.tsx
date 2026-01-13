@@ -8,12 +8,11 @@ import {
   RefreshCw,
   Play,
   TrendingUp,
-  Activity,
   Target,
   Users,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
-import { useEvolutionStore, AdasMetrics, DgmMetrics, SwarmMetrics, EvolutionEvent } from '../../stores/evolutionStore';
+import { useEvolutionStore, EvolutionEvent } from '../../stores/evolutionStore';
 
 export default function EvolutionView() {
   const {

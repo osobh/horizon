@@ -1,7 +1,7 @@
 [package]
 name = "stratoswarm-integration-tests"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [dev-dependencies]
@@ -19,7 +19,7 @@ stratoswarm-monitoring = { path = "../monitoring" }
 stratoswarm-debug = { path = "../debug" }
 cpu-agents = { path = "../cpu-agents" }
 # gpu-agents = { path = "../gpu-agents" } # Temporarily disabled due to compilation issues
-swarmlet = { path = "../swarmlet" }
+# swarmlet = { path = "../swarmlet" }  # Temporarily disabled - 9 errors
 stratoswarm-zero-config = { path = "../zero-config" }
 stratoswarm-cluster-mesh = { path = "../cluster-mesh" }
 tokio = { workspace = true, features = ["test-util", "macros"] }

@@ -155,7 +155,7 @@ impl GovernanceEngine {
         let coordination_manager = Arc::new(CoordinationManager::new());
         let compliance_integration = Arc::new(ComplianceIntegration::new(config.strict_compliance));
         let monitor = Arc::new(GovernanceMonitor::new());
-        let kill_switch = Arc::new(KillSwitch::new());
+        let kill_switch = Arc::new(KillSwitchSystem::new(Default::default()));
 
         Ok(Self {
             config: Arc::new(RwLock::new(config)),
@@ -235,11 +235,14 @@ impl GovernanceEngine {
             .ok_or_else(|| GovernanceError::InternalError("Agent not found".to_string()))?;
 
         // Check emergency override
-        if self.kill_switch.is_activated() {
+        if self.kill_switch.is_global_kill_active() {
             return Ok(GovernanceDecision::Denied(
                 "Emergency kill switch activated".to_string(),
             ));
         }
+
+        // Capture decision type for logging before match consumes it
+        let decision_type_str = format!("{:?}", decision_type);
 
         // Evaluate based on decision type
         let decision = match decision_type {
@@ -265,7 +268,7 @@ impl GovernanceEngine {
             "governance_decision",
             &format!("{:?}", decision),
             serde_json::json!({
-                "decision_type": format!("{:?}", decision_type),
+                "decision_type": decision_type_str,
                 "timestamp": Utc::now().to_rfc3339()
             }),
         );
@@ -280,7 +283,8 @@ impl GovernanceEngine {
         request: ResourceRequest,
     ) -> Result<GovernanceDecision> {
         // Check against quota
-        let agent_state = self.active_agents.get(agent_id)?;
+        let agent_state = self.active_agents.get(agent_id)
+            .ok_or_else(|| GovernanceError::InternalError(format!("Agent not found: {:?}", agent_id)))?;
 
         if request.memory_mb > agent_state.resource_quota.max_memory_mb {
             return Ok(GovernanceDecision::Denied(
@@ -322,7 +326,8 @@ impl GovernanceEngine {
         request: EvolutionRequest,
     ) -> Result<GovernanceDecision> {
         // Check lifecycle state
-        let agent_state = self.active_agents.get(agent_id)?;
+        let agent_state = self.active_agents.get(agent_id)
+            .ok_or_else(|| GovernanceError::InternalError(format!("Agent not found: {:?}", agent_id)))?;
         if agent_state.lifecycle_phase != LifecyclePhase::Active {
             return Ok(GovernanceDecision::Denied(
                 "Agent not in active phase".to_string(),
@@ -458,8 +463,9 @@ impl GovernanceEngine {
             // Trigger emergency response if configured
             if self.config.read().emergency_override_enabled {
                 self.kill_switch
-                    .activate("Critical policy violation")
-                    .await?;
+                    .activate_global_kill("Critical policy violation")
+                    .await
+                    .map_err(|e| GovernanceError::InternalError(format!("Kill switch activation failed: {}", e)))?;
             }
         }
 
@@ -481,7 +487,7 @@ impl GovernanceEngine {
     }
 
     /// Get governance metrics
-    pub async fn get_metrics(&self) -> GovernanceMetrics {
+    pub async fn get_metrics(&self) -> crate::monitoring_governance::GovernanceMetrics {
         self.monitor
             .collect_metrics(&self.active_agents, &self.audit_log.read())
             .await
@@ -527,7 +533,7 @@ pub enum DecisionType {
 }
 
 /// Resource allocation request
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ResourceRequest {
     pub memory_mb: u64,
     pub cpu_cores: f32,
@@ -1022,7 +1028,7 @@ mod tests {
         engine.record_violation(&agent_id, violation).await?;
 
         // Kill switch should not be activated
-        assert!(!engine.kill_switch.is_activated());
+        assert!(!engine.kill_switch.is_global_kill_active());
     }
 
     #[test]

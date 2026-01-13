@@ -3,7 +3,7 @@
 //! Enables dynamic kernel generation and compilation for pattern matching
 
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -19,7 +19,7 @@ pub struct CompiledKernel {
 
 /// NVRTC compiler for synthesis kernels
 pub struct NvrtcCompiler {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     kernel_cache: HashMap<String, CompiledKernel>,
     compile_times: Vec<(String, f64)>,
 }
@@ -75,7 +75,7 @@ impl CompilationOptions {
 
 impl NvrtcCompiler {
     /// Create new NVRTC compiler
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
         Ok(Self {
             device,
             kernel_cache: HashMap::new(),
@@ -355,7 +355,7 @@ pub struct KernelGenerator {
 }
 
 impl KernelGenerator {
-    pub fn new(device: &CudaDevice) -> Result<Self> {
+    pub fn new(device: &CudaContext) -> Result<Self> {
         // Get device properties
         let capability = (7, 0); // Default to Volta, would query in real impl
         let block_size = 256;

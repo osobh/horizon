@@ -3,7 +3,7 @@
 //! Testing specific integration points with detailed diagnostics
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::{ConsensusSynthesisEngine, IntegrationConfig};
 use std::time::Duration;
 
@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
     println!("🔬 Focused Cross-Crate Integration Test");
     println!("======================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create integration engine
     println!("\n1. Creating integration engine...");
@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
             gpu_agents::consensus_synthesis::integration::ConflictStrategy::HighestVoteWins,
     };
 
-    let mut engine = ConsensusSynthesisEngine::new(device, config)?;
+    let mut engine = ConsensusSynthesisEngine::new(ctx, config)?;
     println!("✅ Integration engine created successfully");
 
     // Test 2: Initialize cross-crate adapters

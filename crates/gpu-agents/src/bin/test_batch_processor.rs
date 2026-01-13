@@ -1,6 +1,6 @@
 //! Test batch processor implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::batch_processor::{BatchConfig, BatchProcessor};
 use gpu_agents::synthesis::{AstNode, NodeType, Pattern};
 
@@ -9,9 +9,9 @@ fn main() -> anyhow::Result<()> {
     println!("======================");
 
     // Test 1: Create processor
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     let config = BatchConfig::default();
-    let processor = BatchProcessor::new(device, config)?;
+    let processor = BatchProcessor::new(ctx, config)?;
     println!("✅ Processor created");
 
     // Test 2: Try single batch (should panic with todo!)

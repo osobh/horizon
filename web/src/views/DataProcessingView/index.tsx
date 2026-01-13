@@ -1,23 +1,21 @@
 import { useEffect, useState } from 'react';
 import {
   Database,
-  Code,
   Radio,
   CheckCircle,
   RefreshCw,
-  Play,
-  Pause,
-  Square,
   Activity,
   Layers,
   Zap,
+  Flame,
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useDataPipelineStore, PipelineStage, PipelineJob } from '../../stores/dataPipelineStore';
+import { JobsTable, JobDetail, SummaryCards } from '../../components/rustyspark';
+import { useRustySparkStore, SparkJob } from '../../stores/rustysparkStore';
 
 export default function DataProcessingView() {
   const {
-    status,
     stats,
     stages,
     jobs,
@@ -30,7 +28,9 @@ export default function DataProcessingView() {
     simulateActivity,
   } = useDataPipelineStore();
 
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'pipelines' | 'stages' | 'jobs'>('overview');
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'pipelines' | 'stages' | 'jobs' | 'spark'>('overview');
+  const [selectedSparkJob, setSelectedSparkJob] = useState<SparkJob | null>(null);
+  const sparkStore = useRustySparkStore();
 
   useEffect(() => {
     fetchStatus();
@@ -89,18 +89,35 @@ export default function DataProcessingView() {
       {/* Tabs */}
       <div className="border-b border-slate-700 px-6">
         <div className="flex gap-4">
-          {['overview', 'pipelines', 'stages', 'jobs'].map((tab) => (
+          {['overview', 'pipelines', 'stages', 'jobs', 'spark'].map((tab) => (
             <button
               key={tab}
-              onClick={() => setSelectedTab(tab as any)}
+              onClick={() => {
+                setSelectedTab(tab as any);
+                if (tab === 'spark') {
+                  setSelectedSparkJob(null);
+                }
+              }}
               className={`py-3 px-4 border-b-2 transition-colors capitalize ${
                 selectedTab === tab ? 'border-orange-400 text-orange-400' : 'border-transparent text-slate-400 hover:text-white'
               }`}
             >
-              {tab}
+              {tab === 'spark' ? (
+                <span className="flex items-center gap-1">
+                  <Flame className="w-4 h-4" />
+                  Spark Jobs
+                </span>
+              ) : (
+                tab
+              )}
               {tab === 'jobs' && jobs.filter(j => j.status === 'running').length > 0 && (
                 <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
                   {jobs.filter(j => j.status === 'running').length}
+                </span>
+              )}
+              {tab === 'spark' && sparkStore.summary && sparkStore.summary.running_jobs > 0 && (
+                <span className="ml-2 bg-cyan-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {sparkStore.summary.running_jobs}
                 </span>
               )}
             </button>
@@ -203,6 +220,22 @@ export default function DataProcessingView() {
               <div className="p-8 text-center text-slate-500 bg-slate-800 rounded-lg border border-slate-700">
                 No pipeline jobs found
               </div>
+            )}
+          </div>
+        )}
+
+        {selectedTab === 'spark' && (
+          <div className="space-y-6">
+            {selectedSparkJob ? (
+              <JobDetail
+                job={selectedSparkJob}
+                onBack={() => setSelectedSparkJob(null)}
+              />
+            ) : (
+              <>
+                <SummaryCards />
+                <JobsTable onSelectJob={setSelectedSparkJob} />
+              </>
             )}
           </div>
         )}

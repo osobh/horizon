@@ -97,7 +97,7 @@ impl NetworkStreamSource {
     /// Create TCP stream
     async fn create_tcp_stream(
         &self,
-    ) -> Result<impl Stream<Item = Result<StreamChunk, StreamingError>>, StreamingError> {
+    ) -> Result<impl Stream<Item = Result<StreamChunk, StreamingError>> + Send + 'static, StreamingError> {
         let stream = TcpStream::connect(self.address).await.map_err(|e| {
             StreamingError::IoError(format!("Failed to connect to TCP {}: {}", self.address, e))
         })?;
@@ -156,7 +156,7 @@ impl NetworkStreamSource {
     /// Create UDP stream
     async fn create_udp_stream(
         &self,
-    ) -> Result<impl Stream<Item = Result<StreamChunk, StreamingError>>, StreamingError> {
+    ) -> Result<impl Stream<Item = Result<StreamChunk, StreamingError>> + Send + 'static, StreamingError> {
         let socket = UdpSocket::bind("0.0.0.0:0")
             .await
             .map_err(|e| StreamingError::IoError(format!("Failed to bind UDP socket: {e}")))?;

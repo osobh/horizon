@@ -5,20 +5,20 @@
 mod tests {
     use std::sync::Arc;
     use anyhow::{Context, Result};
-    use cudarc::driver::CudaDevice;
+    use cudarc::driver::CudaContext;
     use crate::knowledge::{KnowledgeGraph, KnowledgeNode};
-    
+
     #[test]
     fn test_exact_benchmark_pattern() -> Result<()> {
         // Skip if no GPU
-        if CudaDevice::new(0).is_err() {
+        if CudaContext::new(0).is_err() {
             println!("Skipping - no GPU");
             return Ok(());
         }
-        
+
         // Create CPU knowledge graph exactly as in benchmark
-        let mut cpu_graph = KnowledgeGraph::new();
-        
+        let mut cpu_graph = KnowledgeGraph::new(128);
+
         // Add one node exactly as in benchmark
         let node = KnowledgeNode {
             id: 0,
@@ -27,34 +27,33 @@ mod tests {
             embedding: vec![0.0; 128],
         };
         cpu_graph.add_node(node);
-        
-        // Exactly as in benchmark lines 129-132
-        let cuda_device = CudaDevice::new(0)?;
-        let device_arc = Arc::new(cuda_device);
-        
-        let gpu_graph = cpu_graph.upload_to_gpu(device_arc)?;
-        
+
+        // In 0.18.1, CudaContext::new returns Arc<CudaContext>
+        let ctx = CudaContext::new(0)?;
+        let stream = ctx.default_stream();
+
+        let _gpu_graph = cpu_graph.upload_to_gpu(ctx, stream)?;
+
         // If we get here, it worked
         println!("Successfully uploaded to GPU");
         Ok(())
     }
-    
+
     #[test]
     fn test_type_annotations() {
         // Skip if no GPU
-        if CudaDevice::new(0).is_err() {
+        if CudaContext::new(0).is_err() {
             return;
         }
-        
+
         // Test with explicit type annotations
-        let cuda_device: CudaDevice = CudaDevice::new(0)?;
-        let device_arc: Arc<CudaDevice> = Arc::new(cuda_device);
-        
+        let ctx: Arc<CudaContext> = CudaContext::new(0).unwrap();
+
         // Verify the type
-        fn check_type(device: Arc<CudaDevice>) {
-            println!("Type is correct: Arc<CudaDevice>");
+        fn check_type(ctx: Arc<CudaContext>) {
+            println!("Type is correct: Arc<CudaContext>");
         }
-        
-        check_type(device_arc);
+
+        check_type(ctx);
     }
 }

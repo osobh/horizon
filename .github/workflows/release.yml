@@ -65,7 +65,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-crates:
-    name: Publish to crates.io
+    name: Publish to Kellnr
     runs-on: ubuntu-latest
     needs: build-release
     steps:
@@ -74,29 +74,28 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Login to crates.io
-        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
-
       - name: Publish crates in dependency order
+        env:
+          CARGO_REGISTRIES_KELLNR_TOKEN: ${{ secrets.KELLNR_TOKEN }}
         run: |
           # Publish in dependency order
           # Core crates first
           for crate in cuda memory storage net; do
-            echo "Publishing $crate..."
-            (cd crates/$crate && cargo publish --allow-dirty) || true
+            echo "Publishing $crate to Kellnr..."
+            (cd crates/$crate && cargo publish --registry kellnr --allow-dirty) || true
             sleep 10
           done
 
           # Then dependent crates
           for crate in runtime streaming debug; do
-            echo "Publishing $crate..."
-            (cd crates/$crate && cargo publish --allow-dirty) || true
+            echo "Publishing $crate to Kellnr..."
+            (cd crates/$crate && cargo publish --registry kellnr --allow-dirty) || true
             sleep 10
           done
 
           # Finally high-level crates
           for crate in consensus agent-core gpu-agents; do
-            echo "Publishing $crate..."
-            (cd crates/$crate && cargo publish --allow-dirty) || true
+            echo "Publishing $crate to Kellnr..."
+            (cd crates/$crate && cargo publish --registry kellnr --allow-dirty) || true
             sleep 10
           done

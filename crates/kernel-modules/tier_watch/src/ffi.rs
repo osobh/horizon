@@ -79,7 +79,7 @@ pub struct CTierStats {
 }
 
 /// Initialize tier watch module
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_init() -> c_int {
     match crate::init() {
         Ok(()) => 0,
@@ -88,13 +88,13 @@ pub extern "C" fn tier_watch_init() -> c_int {
 }
 
 /// Cleanup tier watch module
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_cleanup() {
     crate::cleanup();
 }
 
 /// Handle page fault from kernel
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_handle_fault(
     vaddr: c_ulong,
     pfn: c_ulong,
@@ -114,7 +114,7 @@ pub extern "C" fn tier_watch_handle_fault(
 }
 
 /// Get tier statistics
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_get_stats(tier: CTier, stats: *mut CTierStats) -> c_int {
     if stats.is_null() {
         return -1;
@@ -163,7 +163,7 @@ pub extern "C" fn tier_watch_get_stats(tier: CTier, stats: *mut CTierStats) -> c
 }
 
 /// Check memory pressure
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_check_pressure(
     tiers_out: *mut CTier,
     pressures_out: *mut c_uint,
@@ -190,13 +190,13 @@ pub extern "C" fn tier_watch_check_pressure(
 }
 
 /// Enable/disable migration detector
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_set_detector_enabled(enabled: c_int) {
     crate::migration::set_detector_enabled(enabled != 0);
 }
 
 /// Get NUMA node for CPU
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_get_numa_node(cpu_id: c_uint) -> c_int {
     match crate::numa::get_node_for_cpu(cpu_id as u32) {
         Some(node) => node as c_int,
@@ -205,7 +205,7 @@ pub extern "C" fn tier_watch_get_numa_node(cpu_id: c_uint) -> c_int {
 }
 
 /// Record NUMA access
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_record_numa_access(cpu_id: c_uint, pfn: c_ulong) {
     crate::numa::record_numa_access(cpu_id as u32, pfn as u64);
 }
@@ -220,7 +220,7 @@ pub struct CPerformanceMetrics {
     pub memory_overhead_bytes: c_ulong,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_get_performance(metrics: *mut CPerformanceMetrics) -> c_int {
     if metrics.is_null() {
         return -1;
@@ -241,7 +241,7 @@ pub extern "C" fn tier_watch_get_performance(metrics: *mut CPerformanceMetrics) 
 }
 
 /// Generate statistics report
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_generate_report(buffer: *mut c_char, buffer_size: c_ulong) -> c_long {
     if buffer.is_null() || buffer_size == 0 {
         return -1;
@@ -263,17 +263,17 @@ pub extern "C" fn tier_watch_generate_report(buffer: *mut c_char, buffer_size: c
 }
 
 /// Module version information
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static TIER_WATCH_VERSION_MAJOR: c_uint = 1;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static TIER_WATCH_VERSION_MINOR: c_uint = 0;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static TIER_WATCH_VERSION_PATCH: c_uint = 0;
 
 /// Get version string
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn tier_watch_get_version() -> *const c_char {
     b"tier_watch 1.0.0\0".as_ptr() as *const c_char
 }

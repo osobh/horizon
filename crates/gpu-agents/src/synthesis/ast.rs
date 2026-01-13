@@ -4,13 +4,14 @@
 
 use crate::synthesis::{AstNode, NodeType, TransformRule};
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream, DevicePtr};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 /// GPU AST Transformer for parallel tree transformations
 pub struct GpuAstTransformer {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     ast_buffer: CudaSlice<u8>,
     rule_buffer: CudaSlice<u8>,
     output_buffer: CudaSlice<u8>,
@@ -21,26 +22,28 @@ pub struct GpuAstTransformer {
 
 impl GpuAstTransformer {
     /// Create a new GPU AST transformer
-    pub fn new(device: Arc<CudaDevice>, max_nodes: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, max_nodes: usize) -> Result<Self> {
+        let stream = device.default_stream();
         // Allocate GPU buffers
         let node_size = 4 + 4 + 4 + 4 * 10; // type + value_hash + child_count + children
         let buffer_size = max_nodes * node_size;
 
         // SAFETY: alloc returns uninitialized memory. ast_buffer will be written
-        // via htod_copy_into in transform_ast() before the kernel reads it.
+        // via memcpy_htod in transform_ast() before the kernel reads it.
         let ast_buffer =
-            unsafe { device.alloc::<u8>(buffer_size) }.context("Failed to allocate AST buffer")?;
+            unsafe { stream.alloc::<u8>(buffer_size) }.context("Failed to allocate AST buffer")?;
         // SAFETY: alloc returns uninitialized memory. rule_buffer will be written
-        // via htod_copy_into in transform_ast() before the kernel reads it.
+        // via memcpy_htod in transform_ast() before the kernel reads it.
         let rule_buffer =
-            unsafe { device.alloc::<u8>(buffer_size) }.context("Failed to allocate rule buffer")?;
+            unsafe { stream.alloc::<u8>(buffer_size) }.context("Failed to allocate rule buffer")?;
         // SAFETY: alloc returns uninitialized memory. output_buffer will be cleared
         // to zeros in transform_ast() before the kernel writes transformed nodes.
-        let output_buffer = unsafe { device.alloc::<u8>(buffer_size) }
+        let output_buffer = unsafe { stream.alloc::<u8>(buffer_size) }
             .context("Failed to allocate output buffer")?;
 
         Ok(Self {
             device,
+            stream,
             ast_buffer,
             rule_buffer,
             output_buffer,
@@ -56,38 +59,39 @@ impl GpuAstTransformer {
         let rule_data = self.encode_rule(rule)?;
 
         // Copy to GPU
-        self.device
-            .htod_copy_into(ast_data.clone(), &mut self.ast_buffer.clone())?;
-        self.device
-            .htod_copy_into(rule_data.clone(), &mut self.rule_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&ast_data, &mut self.ast_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&rule_data, &mut self.rule_buffer.clone())?;
 
         // Clear output buffer
         let zeros = vec![0u8; self.max_nodes * 40];
-        self.device
-            .htod_copy_into(zeros, &mut self.output_buffer.clone())?;
+        self.stream
+            .memcpy_htod(&zeros, &mut self.output_buffer.clone())?;
 
         // Launch transformation kernel
         // SAFETY: All pointers are valid device pointers from CudaSlice allocations:
-        // - ast_buffer: populated via htod_copy_into above
-        // - rule_buffer: populated via htod_copy_into above
+        // - ast_buffer: populated via memcpy_htod above
+        // - rule_buffer: populated via memcpy_htod above
         // - output_buffer: cleared to zeros above, kernel writes transformed result
         // - num_nodes calculated from actual encoded AST size
         unsafe {
+            let (ast_ptr, _guard1) = self.ast_buffer.device_ptr(&self.stream);
+            let (rule_ptr, _guard2) = self.rule_buffer.device_ptr(&self.stream);
+            let (output_ptr, _guard3) = self.output_buffer.device_ptr(&self.stream);
             crate::synthesis::launch_transform_ast(
-                *self.ast_buffer.device_ptr() as *const u8,
-                *self.rule_buffer.device_ptr() as *const u8,
-                *self.output_buffer.device_ptr() as *mut u8,
+                ast_ptr as *const u8,
+                rule_ptr as *const u8,
+                output_ptr as *mut u8,
                 (ast_data.len() / 40) as u32, // Number of nodes
                 1,                            // Single rule for now
             );
         }
 
         // Synchronize and get results
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
 
-        let mut output = vec![0u8; self.max_nodes * 40];
-        self.device
-            .dtoh_sync_copy_into(&self.output_buffer, &mut output)?;
+        let output: Vec<u8> = self.stream.clone_dtoh(&self.output_buffer)?;
 
         // Decode transformed AST
         let result = self.decode_ast(&output)?;
@@ -250,19 +254,6 @@ impl GpuAstTransformer {
         };
         buffer.extend_from_slice(&value_hash.to_le_bytes());
 
-        // Encode binding name if present (as a special marker)
-        let binding_hash = if let Some(ref binding) = pattern.binding {
-            let hash = self.hash_string(binding);
-            if let Ok(mut table) = self.string_table.lock() {
-                table.insert(hash, binding.clone());
-            }
-            hash
-        } else {
-            0
-        };
-        // Store binding hash in the padding area (bytes 52-55 of extended node format)
-        // For now, we skip storing binding as it requires format changes
-
         buffer.extend_from_slice(&(pattern.children.len() as u32).to_le_bytes());
 
         let mut child_indices = vec![0u32; 10];
@@ -274,9 +265,6 @@ impl GpuAstTransformer {
         for idx in child_indices {
             buffer.extend_from_slice(&idx.to_le_bytes());
         }
-
-        // Store binding hash at end (additional 4 bytes)
-        buffer.extend_from_slice(&binding_hash.to_le_bytes());
 
         Ok(start_pos)
     }

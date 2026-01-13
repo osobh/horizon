@@ -1,5 +1,5 @@
 //! Trace individual statistics method calls
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
 
 fn main() -> anyhow::Result<()> {
@@ -7,7 +7,7 @@ fn main() -> anyhow::Result<()> {
     println!("============================");
 
     // Initialize CUDA device
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Small test config
     let config = GpuEvolutionConfig {
@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
         block_size: 32,
     };
 
-    let mut engine = GpuEvolutionEngine::new(device, config)?;
+    let mut engine = GpuEvolutionEngine::new(ctx, config)?;
     engine.initialize_random()?;
 
     // Now let's trace each statistics component

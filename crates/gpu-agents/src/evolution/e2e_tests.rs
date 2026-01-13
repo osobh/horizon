@@ -9,7 +9,7 @@
 use super::*;
 use crate::evolution::{adas::*, dgm::*, swarm::*, GpuEvolutionConfig, GpuEvolutionEngine};
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 
 // =============================================================================
@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 #[tokio::test]
 async fn test_e2e_adas_meta_learning_workflow() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
     let mut adas = AdasPopulation::new(device, 64, 512)?;
 
     // Initialize population
@@ -67,7 +67,7 @@ async fn test_e2e_adas_meta_learning_workflow() -> Result<()> {
 
 #[tokio::test]
 async fn test_e2e_dgm_self_improvement_workflow() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
     let mut dgm = DgmEngine::new(device, 32, 256, 10)?;
 
     // Initialize with baseline agents
@@ -125,7 +125,7 @@ async fn test_e2e_dgm_self_improvement_workflow() -> Result<()> {
 
 #[tokio::test]
 async fn test_e2e_swarm_optimization_workflow() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
     let params = SwarmParams {
         inertia_weight: 0.7,
         cognitive_weight: 1.5,
@@ -185,7 +185,7 @@ async fn test_e2e_swarm_optimization_workflow() -> Result<()> {
 
 #[tokio::test]
 async fn test_e2e_hybrid_algorithm_workflow() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
 
     // Create all three algorithms
     let mut adas = AdasPopulation::new(device.clone(), 32, 256)?;
@@ -242,7 +242,7 @@ async fn test_e2e_hybrid_algorithm_workflow() -> Result<()> {
 
 #[tokio::test]
 async fn test_e2e_resource_management_workflow() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
 
     // Track initial GPU memory
     let initial_memory = get_gpu_memory_usage(&device)?;
@@ -291,7 +291,7 @@ async fn test_e2e_resource_management_workflow() -> Result<()> {
 
 #[tokio::test]
 async fn test_e2e_fault_tolerance_workflow() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
     let mut adas = AdasPopulation::new(device, 64, 256)?;
 
     // Initialize and run some generations
@@ -308,7 +308,7 @@ async fn test_e2e_fault_tolerance_workflow() -> Result<()> {
     drop(adas);
 
     // Restore from checkpoint
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
     let mut adas_restored = AdasPopulation::restore(device, checkpoint)?;
 
     // Verify restoration
@@ -334,7 +334,7 @@ async fn test_e2e_fault_tolerance_workflow() -> Result<()> {
 
 #[tokio::test]
 async fn test_e2e_function_optimization() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
 
     // Optimize Rastrigin function (challenging multimodal problem)
     let dimensions = 10;
@@ -403,7 +403,7 @@ async fn test_e2e_function_optimization() -> Result<()> {
 #[tokio::test]
 #[ignore] // Run with --ignored for performance testing
 async fn test_e2e_scalability_workflow() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
 
     // Test with increasing population sizes
     let population_sizes = vec![1024, 4096, 16384, 65536];
@@ -460,7 +460,7 @@ async fn test_e2e_scalability_workflow() -> Result<()> {
 }
 
 // Helper function to get GPU memory usage
-fn get_gpu_memory_usage(device: &CudaDevice) -> Result<usize> {
+fn get_gpu_memory_usage(device: &CudaContext) -> Result<usize> {
     // This would use CUDA API to get actual memory usage
     // For now, return placeholder
     Ok(0)
@@ -472,7 +472,7 @@ fn get_gpu_memory_usage(device: &CudaDevice) -> Result<usize> {
 
 #[tokio::test]
 async fn test_e2e_continuous_evolution_workflow() -> Result<()> {
-    let device = CudaDevice::new(0)?;
+    let device = CudaContext::new(0)?;
     let checkpoint_interval = 25;
     let total_generations = 100;
 

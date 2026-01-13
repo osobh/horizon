@@ -4,7 +4,7 @@
 
 use crate::consensus::ConsensusState;
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice};
 use memmap2::{MmapMut, MmapOptions};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 /// GPU Consensus Persistence using NVMe storage
 pub struct GpuConsensusPersistence {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     log_path: PathBuf,
     log_size: usize,
     state_buffer: CudaSlice<ConsensusState>,
@@ -21,16 +21,17 @@ pub struct GpuConsensusPersistence {
 
 impl GpuConsensusPersistence {
     /// Create a new persistence system
-    pub fn new(device: Arc<CudaDevice>, base_path: &str, log_size: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, base_path: &str, log_size: usize) -> Result<Self> {
         // Create directory if it doesn't exist
         fs::create_dir_all(base_path).context("Failed to create consensus log directory")?;
 
         let log_path = Path::new(base_path).join("consensus.log");
 
-        // Allocate GPU buffer for state
+        // Allocate GPU buffer for state using stream (cudarc 0.18 API)
+        let stream = device.default_stream();
         // SAFETY: alloc returns uninitialized memory. The buffer holds a single ConsensusState
-        // which will be written via htod_copy_into before any reads.
-        let state_buffer = unsafe { device.alloc::<ConsensusState>(1) }
+        // which will be written via memcpy_htod before any reads.
+        let state_buffer = unsafe { stream.alloc::<ConsensusState>(1) }
             .context("Failed to allocate state buffer")?;
 
         // Create or open log file
@@ -67,8 +68,8 @@ impl GpuConsensusPersistence {
     /// Checkpoint current consensus state to NVMe
     pub fn checkpoint_state(&mut self, state: &ConsensusState) -> Result<()> {
         // Copy state to GPU
-        self.device
-            .htod_copy_into(vec![*state], &mut self.state_buffer.clone())?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&[*state], &mut self.state_buffer.clone())?;
 
         // Write to memory-mapped file
         // Note: In production, we'd need proper synchronization here
@@ -92,8 +93,8 @@ impl GpuConsensusPersistence {
                 let state = unsafe { std::ptr::read(mmap.as_ptr() as *const ConsensusState) };
 
                 // Also update GPU buffer
-                self.device
-                    .htod_copy_into(vec![state], &mut self.state_buffer.clone())?;
+                let stream = self.device.default_stream();
+                stream.memcpy_htod(&[state], &mut self.state_buffer.clone())?;
 
                 Ok(state)
             } else {

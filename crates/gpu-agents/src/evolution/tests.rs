@@ -6,12 +6,12 @@
 use super::*;
 use crate::evolution::{adas::*, dgm::*, swarm::*};
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 
 // Test utilities
-fn create_test_device() -> Result<Arc<CudaDevice>> {
-    Ok(Arc::new(CudaDevice::new(0)?))
+fn create_test_device() -> Result<Arc<CudaContext>> {
+    Ok(CudaContext::new(0)?)
 }
 
 fn create_test_embedding(size: usize) -> Vec<f32> {

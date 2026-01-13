@@ -94,7 +94,7 @@ impl Default for GlobalSyncConfig {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            bind_address: "127.0.0.1:8080".parse()?,
+            bind_address: "127.0.0.1:8080".parse().expect("valid default address"),
             peer_addresses: vec![],
             connection_timeout: Duration::from_secs(5),
             heartbeat_interval: Duration::from_secs(1),

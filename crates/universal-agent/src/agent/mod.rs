@@ -242,7 +242,7 @@ impl UniversalAgent {
         };
 
         // Execute workflow steps based on workflow_id pattern
-        let workflow_result = match workflow_id.as_ref() {
+        let workflow_result = match workflow_id {
             id if id.contains("analysis") => {
                 format!(
                     "Workflow Analysis (gen {})\n\nRequest: {}\nParameters: {}\n\nAnalysis Steps:\n\

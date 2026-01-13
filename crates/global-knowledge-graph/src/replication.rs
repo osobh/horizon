@@ -379,11 +379,17 @@ impl ReplicationManager {
     /// Replicate edge change
     pub async fn replicate_edge(&self, edge: Edge) -> GlobalKnowledgeGraphResult<()> {
         let event = ReplicationEvent::EdgeChange(edge);
-        self.enqueue_event(
-            self.config.regional_priorities.keys().next()?.clone(),
-            event,
-        )
-        .await
+        let region = self
+            .config
+            .regional_priorities
+            .keys()
+            .next()
+            .ok_or_else(|| GlobalKnowledgeGraphError::ReplicationFailed {
+                region: "unknown".to_string(),
+                reason: "No regions configured".to_string(),
+            })?
+            .clone();
+        self.enqueue_event(region, event).await
     }
 
     /// Replicate edge deletion

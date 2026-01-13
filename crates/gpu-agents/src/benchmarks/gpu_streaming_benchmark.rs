@@ -62,15 +62,15 @@ pub struct StreamingBenchmarkResults {
 
 /// GPU Streaming benchmark suite
 pub struct GpuStreamingBenchmark {
-    device: Arc<cudarc::driver::CudaDevice>,
+    ctx: Arc<cudarc::driver::CudaContext>,
     config: StreamingBenchmarkConfig,
 }
 
 impl GpuStreamingBenchmark {
     /// Create new benchmark suite
     pub fn new(device_id: i32, config: StreamingBenchmarkConfig) -> Result<Self> {
-        let device = cudarc::driver::CudaDevice::new(device_id as usize)?;
-        Ok(Self { device, config })
+        let ctx = cudarc::driver::CudaContext::new(device_id as usize)?;
+        Ok(Self { ctx, config })
     }
 
     /// Run all benchmarks
@@ -124,11 +124,11 @@ impl GpuStreamingBenchmark {
         };
 
         // Create pipeline
-        let mut pipeline = GpuStreamPipeline::new(self.device.clone(), config.clone())?;
+        let mut pipeline = GpuStreamPipeline::new(self.ctx.clone(), config.clone())?;
 
         // Add compression stage
         let compressor = Box::new(GpuCompressor::new(
-            self.device.clone(),
+            self.ctx.clone(),
             CompressionAlgorithm::Lz4,
             chunk_size,
         )?);
@@ -194,7 +194,7 @@ impl GpuStreamingBenchmark {
             if offset < size && rng.gen_bool(0.3) {
                 let random_len = rng.gen_range(1..100).min(size - offset);
                 for i in 0..random_len {
-                    data[offset + i] = rng.gen();
+                    data[offset + i] = rng.r#gen();
                 }
                 offset += random_len;
             }
@@ -220,10 +220,10 @@ impl GpuStreamingBenchmark {
                 ..Default::default()
             };
 
-            let mut pipeline = PipelineBuilder::new(self.device.clone())
+            let mut pipeline = PipelineBuilder::new(self.ctx.clone())
                 .with_config(config)
                 .add_stage(Box::new(GpuCompressor::new(
-                    self.device.clone(),
+                    self.ctx.clone(),
                     algorithm,
                     chunk_size,
                 )?))
@@ -285,10 +285,10 @@ impl GpuStreamingBenchmark {
                 ..Default::default()
             };
 
-            let mut pipeline = PipelineBuilder::new(self.device.clone())
+            let mut pipeline = PipelineBuilder::new(self.ctx.clone())
                 .with_config(config)
                 .add_stage(Box::new(GpuTransformer::new(
-                    self.device.clone(),
+                    self.ctx.clone(),
                     transform_type,
                     test_data.len() * 2,
                 )?))
@@ -328,15 +328,15 @@ impl GpuStreamingBenchmark {
             };
 
             // Create multi-stage pipeline
-            let mut pipeline = PipelineBuilder::new(self.device.clone())
+            let mut pipeline = PipelineBuilder::new(self.ctx.clone())
                 .with_config(config)
                 .add_stage(Box::new(GpuTransformer::new(
-                    self.device.clone(),
+                    self.ctx.clone(),
                     TransformType::Normalize,
                     chunk_size,
                 )?))
                 .add_stage(Box::new(GpuCompressor::new(
-                    self.device.clone(),
+                    self.ctx.clone(),
                     CompressionAlgorithm::Lz4,
                     chunk_size,
                 )?))

@@ -8,7 +8,7 @@
 
 use super::{KnowledgeEdge, KnowledgeNode};
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, DeviceSlice};
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -134,7 +134,7 @@ struct GpuReasoningData {
 
 /// Reasoning engine for multi-hop queries
 pub struct ReasoningEngine {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     facts: Arc<Mutex<Vec<LogicalFact>>>,
     rules: Arc<Mutex<Vec<InferenceRule>>>,
     fact_index: Arc<DashMap<u32, Vec<usize>>>, // Subject -> fact indices
@@ -144,7 +144,7 @@ pub struct ReasoningEngine {
 
 impl ReasoningEngine {
     /// Create new reasoning engine
-    pub fn new(device: Arc<CudaDevice>, max_facts: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, max_facts: usize) -> Result<Self> {
         Ok(Self {
             device,
             facts: Arc::new(Mutex::new(Vec::new())),
@@ -157,7 +157,7 @@ impl ReasoningEngine {
 
     /// Add inference rule
     pub fn add_rule(&mut self, rule: InferenceRule) -> Result<()> {
-        let mut rules = self.rules.lock()?;
+        let mut rules = self.rules.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         rules.push(rule);
         rules.sort_by_key(|r| std::cmp::Reverse(r.priority));
         Ok(())
@@ -165,7 +165,7 @@ impl ReasoningEngine {
 
     /// Add logical fact
     pub fn add_fact(&mut self, fact: LogicalFact) -> Result<()> {
-        let mut facts = self.facts.lock()?;
+        let mut facts = self.facts.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         let fact_idx = facts.len();
 
         self.fact_index
@@ -179,12 +179,12 @@ impl ReasoningEngine {
 
     /// Get rule count
     pub fn rule_count(&self) -> usize {
-        self.rules.lock()?.len()
+        self.rules.lock().map(|r| r.len()).unwrap_or(0)
     }
 
     /// Get fact count
     pub fn fact_count(&self) -> usize {
-        self.facts.lock()?.len()
+        self.facts.lock().map(|f| f.len()).unwrap_or(0)
     }
 
     /// Perform reasoning
@@ -229,7 +229,7 @@ impl ReasoningEngine {
         let explanation_chains = Vec::new();
 
         // Get direct facts
-        let facts = self.facts.lock()?;
+        let facts = self.facts.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         if let Some(indices) = self.fact_index.get(&entity_id) {
             for &idx in indices.value() {
@@ -242,7 +242,7 @@ impl ReasoningEngine {
 
         if include_inferred {
             // Apply inference rules
-            let rules = self.rules.lock()?;
+            let rules = self.rules.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
             // Find parent classes
             let parent_chain = self.find_parent_chain(entity_id, max_hops)?;
@@ -301,7 +301,7 @@ impl ReasoningEngine {
         include_inferred: bool,
     ) -> Result<ReasoningResult> {
         let mut conclusions = Vec::new();
-        let facts = self.facts.lock()?;
+        let facts = self.facts.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         if let Some(indices) = self.fact_index.get(&entity_id) {
             for &idx in indices.value() {
@@ -314,7 +314,7 @@ impl ReasoningEngine {
 
         if include_inferred {
             // Apply analogical reasoning
-            let rules = self.rules.lock()?;
+            let rules = self.rules.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
             for rule in rules.iter() {
                 if let RulePattern::Analogy {
                     source_domain: _,
@@ -373,7 +373,7 @@ impl ReasoningEngine {
         min_confidence: f32,
     ) -> Result<ReasoningResult> {
         let mut conclusions = Vec::new();
-        let facts = self.facts.lock()?;
+        let facts = self.facts.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         // Check direct relation
         if let Some(indices) = self.fact_index.get(&subject_id) {
@@ -386,7 +386,7 @@ impl ReasoningEngine {
         }
 
         // Apply transitive rules
-        let rules = self.rules.lock()?;
+        let rules = self.rules.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         for rule in rules.iter() {
             if let RulePattern::Transitive { relation_type } = &rule.pattern {
                 if relation_type == predicate {
@@ -448,7 +448,7 @@ impl ReasoningEngine {
         queue.push_back((entity_id, 1.0, 0));
         visited.insert(entity_id);
 
-        let facts = self.facts.lock()?;
+        let facts = self.facts.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         while let Some((current, confidence, depth)) = queue.pop_front() {
             if depth >= max_hops {
@@ -489,7 +489,7 @@ impl ReasoningEngine {
         queue.push_back((start, vec![], 0));
         visited.insert(start);
 
-        let facts = self.facts.lock()?;
+        let facts = self.facts.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         while let Some((current, path, depth)) = queue.pop_front() {
             if current == end {
@@ -547,8 +547,8 @@ impl ReasoningEngine {
     /// Find contradictions in knowledge base
     pub fn find_contradictions(&self) -> Result<Vec<Contradiction>> {
         let mut contradictions = Vec::new();
-        let facts = self.facts.lock()?;
-        let rules = self.rules.lock()?;
+        let facts = self.facts.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
+        let rules = self.rules.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         // Check contradiction rules
         for rule in rules.iter() {
@@ -607,7 +607,7 @@ impl ReasoningEngine {
 
     /// Sync to GPU for accelerated reasoning
     pub fn sync_to_gpu(&mut self) -> Result<()> {
-        let facts = self.facts.lock()?;
+        let facts = self.facts.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         let mut subjects = Vec::new();
         let mut predicates = Vec::new();
@@ -628,12 +628,13 @@ impl ReasoningEngine {
         }
 
         // Upload to GPU
+        let stream = self.device.default_stream();
         let gpu_data = GpuReasoningData {
-            fact_subjects: self.device.htod_sync_copy(&subjects)?,
-            fact_predicates: self.device.htod_sync_copy(&predicates)?,
-            fact_objects: self.device.htod_sync_copy(&objects)?,
-            fact_confidences: self.device.htod_sync_copy(&confidences)?,
-            rule_patterns: self.device.alloc_zeros(1)?, // Placeholder
+            fact_subjects: stream.clone_htod(&subjects)?,
+            fact_predicates: stream.clone_htod(&predicates)?,
+            fact_objects: stream.clone_htod(&objects)?,
+            fact_confidences: stream.clone_htod(&confidences)?,
+            rule_patterns: stream.alloc_zeros(1)?, // Placeholder
         };
 
         self.gpu_data = Some(gpu_data);

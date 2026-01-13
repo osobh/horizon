@@ -3,7 +3,7 @@
 //! Demonstrates achieving 90% GPU utilization using real CUDA kernels
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, DevicePtr};
+use cudarc::driver::{CudaContext, DevicePtr};
 use gpu_agents::utilization::{
     gpu_workload_generator::GpuWorkloadGenerator,
     integrated_optimizer::IntegratedGpuOptimizer,
@@ -25,7 +25,8 @@ async fn main() -> Result<()> {
     println!("===========================================");
     println!("Testing GPU utilization optimization with actual CUDA kernels\n");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
 
     // Initialize NVML for real metrics
     let nvml = nvml_wrapper::Nvml::init()?;
@@ -36,11 +37,11 @@ async fn main() -> Result<()> {
     println!("--------------------------------------------");
 
     // Create workload generator
-    let mut workload_generator = GpuWorkloadGenerator::new(device.clone())?;
+    let mut workload_generator = GpuWorkloadGenerator::new(ctx.clone())?;
     println!("  ✓ GPU workload generator created");
 
     // Create NVRTC launcher
-    let nvrtc_launcher = Arc::new(NvrtcKernelLauncher::new(device.clone())?);
+    let nvrtc_launcher = Arc::new(NvrtcKernelLauncher::new(ctx.clone())?);
     println!("  ✓ NVRTC kernel launcher created");
 
     // Create kernel builder
@@ -48,11 +49,11 @@ async fn main() -> Result<()> {
     println!("  ✓ Optimized kernel builder created");
 
     // Create metrics collector
-    let metrics_collector = RealGpuMetricsCollector::new(device.clone(), 100)?;
+    let metrics_collector = RealGpuMetricsCollector::new(ctx.clone(), 100)?;
     println!("  ✓ Real GPU metrics collector created");
 
     // Create integrated optimizer
-    let optimizer = IntegratedGpuOptimizer::new(device.clone()).await?;
+    let optimizer = IntegratedGpuOptimizer::new(ctx.clone()).await?;
     println!("  ✓ Integrated GPU optimizer created");
 
     // Phase 2: Compile optimized kernels
@@ -147,16 +148,16 @@ async fn main() -> Result<()> {
                     let current_util = metrics.compute_utilization;
 
                     // Adjust workload intensity based on utilization
-                    let mut gen = workload_gen_clone.write().await;
+                    let mut generator = workload_gen_clone.write().await;
                     if current_util < 0.85 {
                         // Increase intensity
-                        let new_intensity = (gen.intensity * 1.2).min(3.0);
-                        gen.set_intensity(new_intensity);
+                        let new_intensity = (generator.intensity * 1.2).min(3.0);
+                        generator.set_intensity(new_intensity);
                         println!("  📈 Increased workload intensity to {:.1}x", new_intensity);
                     } else if current_util > 0.95 {
                         // Decrease slightly to avoid overload
-                        let new_intensity = (gen.intensity * 0.95).max(0.5);
-                        gen.set_intensity(new_intensity);
+                        let new_intensity = (generator.intensity * 0.95).max(0.5);
+                        generator.set_intensity(new_intensity);
                         println!("  📉 Decreased workload intensity to {:.1}x", new_intensity);
                     }
                 }
@@ -266,27 +267,30 @@ async fn main() -> Result<()> {
         let kernel_name = kernel_builder.build_pattern_matcher(complexity).await?;
 
         // Allocate test buffers
-        let pattern_buffer = device.alloc_zeros::<u8>(64 * 64)?;
-        let ast_buffer = device.alloc_zeros::<u8>(10000 * 64)?;
-        let match_buffer = device.alloc_zeros::<u32>(10000 * 2)?;
+        let pattern_buffer = stream.alloc_zeros::<u8>(64 * 64)?;
+        let ast_buffer = stream.alloc_zeros::<u8>(10000 * 64)?;
+        let match_buffer = stream.alloc_zeros::<u32>(10000 * 2)?;
 
         let start = Instant::now();
 
         // Launch kernel multiple times
         for _ in 0..100 {
+            let (pattern_ptr, _pattern_guard) = pattern_buffer.device_ptr(&stream);
+            let (ast_ptr, _ast_guard) = ast_buffer.device_ptr(&stream);
+            let (match_ptr, _match_guard) = match_buffer.device_ptr(&stream);
             nvrtc_launcher
                 .launch_pattern_matcher(
                     &kernel_name,
-                    *pattern_buffer.device_ptr() as *const u8,
-                    *ast_buffer.device_ptr() as *const u8,
-                    *match_buffer.device_ptr() as *mut u32,
+                    pattern_ptr as *const u8,
+                    ast_ptr as *const u8,
+                    match_ptr as *mut u32,
                     64,
                     10000,
                 )
                 .await?;
         }
 
-        device.synchronize()?;
+        stream.synchronize()?;
         let elapsed = start.elapsed();
 
         println!(

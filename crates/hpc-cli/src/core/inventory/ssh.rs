@@ -140,8 +140,8 @@ async fn verify_known_host(host: &str, port: u16, server_key: &PublicKey) -> Kno
         }
 
         // Found matching host, now verify the key
-        // Get the key type from our server key using its Display format
-        let server_key_str = format!("{}", server_key);
+        // Get the key type from our server key using Debug format (PublicKey doesn't impl Display)
+        let server_key_str = format!("{:?}", server_key);
         let server_key_parts: Vec<&str> = server_key_str.split_whitespace().collect();
         if server_key_parts.is_empty() {
             continue;
@@ -215,13 +215,13 @@ impl client::Handler for SshHandler {
         // Check known_hosts file for server key verification
         match verify_known_host(&self.host, self.port, server_public_key).await {
             KnownHostResult::Match => {
-                log::debug!("Server key verified against known_hosts for {}:{}", self.host, self.port);
+                tracing::debug!("Server key verified against known_hosts for {}:{}", self.host, self.port);
                 Ok(true)
             }
             KnownHostResult::NotFound => {
                 // Key not in known_hosts - accept and log warning
                 // In a stricter mode, this could return false or prompt user
-                log::warn!(
+                tracing::warn!(
                     "Server key for {}:{} not found in known_hosts. Accepting new key.",
                     self.host, self.port
                 );
@@ -230,14 +230,14 @@ impl client::Handler for SshHandler {
             }
             KnownHostResult::Mismatch => {
                 // CRITICAL: Key mismatch - possible MITM attack
-                log::error!(
+                tracing::error!(
                     "WARNING: SERVER KEY MISMATCH for {}:{}! Possible man-in-the-middle attack.",
                     self.host, self.port
                 );
                 Ok(false)
             }
             KnownHostResult::Error(e) => {
-                log::warn!("Error checking known_hosts: {}. Accepting key.", e);
+                tracing::warn!("Error checking known_hosts: {}. Accepting key.", e);
                 Ok(true)
             }
         }

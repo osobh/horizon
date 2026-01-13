@@ -231,7 +231,12 @@ impl GraphManager {
         // Find node across regions
         let (region, node_index) = self.find_node_location(node_id)?;
 
-        let graph_lock = self.graphs.get(&region)?;
+        let graph_lock = self.graphs.get(&region).ok_or_else(|| {
+            GlobalKnowledgeGraphError::RegionUnavailable {
+                region: region.clone(),
+                reason: "Graph not found".to_string(),
+            }
+        })?;
         let mut graph = graph_lock.write();
 
         let node = graph.node_weight_mut(node_index).ok_or_else(|| {
@@ -266,7 +271,12 @@ impl GraphManager {
     pub async fn delete_node(&self, node_id: &str) -> GlobalKnowledgeGraphResult<()> {
         let (region, node_index) = self.find_node_location(node_id)?;
 
-        let graph_lock = self.graphs.get(&region)?;
+        let graph_lock = self.graphs.get(&region).ok_or_else(|| {
+            GlobalKnowledgeGraphError::RegionUnavailable {
+                region: region.clone(),
+                reason: "Graph not found".to_string(),
+            }
+        })?;
         let mut graph = graph_lock.write();
 
         graph.remove_node(node_index);
@@ -334,7 +344,12 @@ impl GraphManager {
         let (source_region, source_index) = self.find_node_location(source)?;
         let (_, target_index) = self.find_node_location(target)?;
 
-        let graph_lock = self.graphs.get(&source_region)?;
+        let graph_lock = self.graphs.get(&source_region).ok_or_else(|| {
+            GlobalKnowledgeGraphError::RegionUnavailable {
+                region: source_region.clone(),
+                reason: "Graph not found".to_string(),
+            }
+        })?;
         let mut graph = graph_lock.write();
 
         // Find and remove edge
@@ -369,7 +384,12 @@ impl GraphManager {
         options: TraversalOptions,
     ) -> GlobalKnowledgeGraphResult<Vec<Node>> {
         let (region, start_index) = self.find_node_location(start_node_id)?;
-        let graph_lock = self.graphs.get(&region)?;
+        let graph_lock = self.graphs.get(&region).ok_or_else(|| {
+            GlobalKnowledgeGraphError::RegionUnavailable {
+                region: region.clone(),
+                reason: "Graph not found".to_string(),
+            }
+        })?;
         let graph = graph_lock.read();
 
         let mut visited = HashSet::new();

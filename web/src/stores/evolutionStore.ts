@@ -21,6 +21,11 @@ export interface AdasMetrics extends EvolutionMetrics {
   best_design_score: number;
   current_design: string;
   architecture_complexity: number;
+  // Extended for view
+  architectures_explored: number;
+  best_architecture_score: number;
+  search_space_coverage: number;
+  mutations_applied: number;
 }
 
 export interface DgmMetrics extends EvolutionMetrics {
@@ -29,6 +34,14 @@ export interface DgmMetrics extends EvolutionMetrics {
   improvement_capability: number;
   growth_patterns: string[];
   recommendations: string[];
+  // Extended for view
+  total_generations: number;
+  mutation_rate: number;
+  crossover_rate: number;
+  selection_pressure: number;
+  diversity_index: number;
+  population_size: number;
+  elite_count: number;
 }
 
 export interface SwarmMetrics extends EvolutionMetrics {
@@ -37,6 +50,12 @@ export interface SwarmMetrics extends EvolutionMetrics {
   global_best_fitness: number;
   velocity_diversity: number;
   cluster_nodes: number;
+  // Extended for view
+  active_agents: number;
+  tasks_completed: number;
+  coordination_score: number;
+  average_response_ms: number;
+  communication_overhead: number;
 }
 
 export interface EvolutionEvent {
@@ -45,6 +64,9 @@ export interface EvolutionEvent {
   event_type: EventType;
   description: string;
   metrics_delta: Record<string, number> | null;
+  // Extended for view
+  id: string;
+  generation: number;
 }
 
 export interface EngineStatus {
@@ -59,6 +81,11 @@ export interface EvolutionStatus {
   dgm: EngineStatus;
   swarm: EngineStatus;
   recent_events: EvolutionEvent[];
+  // Extended for view
+  active: boolean;
+  current_generation: number;
+  best_fitness: number;
+  population_size: number;
 }
 
 interface EvolutionState {

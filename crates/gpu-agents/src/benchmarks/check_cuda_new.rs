@@ -1,16 +1,17 @@
-//! Check what CudaDevice::new actually returns
+//! Check what CudaContext::new actually returns
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn check_cuda_device_new_signature() {
-        // Let's see if we can NOT wrap in Arc
-        use cudarc::driver::CudaDevice;
-        
-        if let Ok(device) = CudaDevice::new(0) {
-            // If CudaDevice::new returns Arc<CudaDevice>, this won't compile
-            let device_ref: &CudaDevice = &device;
-            println!("Got reference to CudaDevice: {:p}", device_ref);
+    fn check_cuda_context_new_signature() {
+        // In 0.18.1, CudaContext::new returns Arc<CudaContext>
+        use cudarc::driver::CudaContext;
+        use std::sync::Arc;
+
+        if let Ok(ctx) = CudaContext::new(0) {
+            // CudaContext::new returns Arc<CudaContext> directly
+            let ctx_arc: Arc<CudaContext> = ctx;
+            println!("Got Arc<CudaContext>: {:p}", &*ctx_arc);
         }
     }
 }

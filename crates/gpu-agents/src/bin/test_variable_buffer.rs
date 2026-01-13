@@ -2,7 +2,7 @@
 //!
 //! RED phase - tests should fail with todo!()
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::variable_buffer::{
     BufferConfig, VariableBufferManager, VariableKernelLauncher,
 };
@@ -12,11 +12,11 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Variable Buffer Implementation (RED phase)");
     println!("=================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Buffer allocation
     println!("\n1. Testing buffer allocation...");
-    let mut manager = VariableBufferManager::new(device.clone(), BufferConfig::default())?;
+    let mut manager = VariableBufferManager::new(ctx.clone(), BufferConfig::default())?;
 
     match manager.ensure_capacity(1024, 2048, 512) {
         Ok(_) => println!("✅ Buffer allocation succeeded"),
@@ -32,7 +32,7 @@ fn main() -> anyhow::Result<()> {
 
     // Test 3: Kernel launching
     println!("\n3. Testing kernel launching...");
-    let mut launcher = VariableKernelLauncher::new(device)?;
+    let mut launcher = VariableKernelLauncher::new(ctx.clone())?;
 
     let patterns = vec![0u8; 1024];
     let ast_nodes = vec![0u8; 2048];

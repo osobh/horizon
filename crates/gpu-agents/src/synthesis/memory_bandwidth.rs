@@ -3,7 +3,7 @@
 //! Measures actual memory bandwidth utilization during pattern matching
 
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::{CudaContext, CudaStream, CudaSlice};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -57,14 +57,16 @@ pub struct DeviceInfo {
 
 /// Memory bandwidth profiler for GPU operations
 pub struct BandwidthProfiler {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     config: BandwidthConfig,
 }
 
 impl BandwidthProfiler {
     /// Create a new bandwidth profiler
-    pub fn new(device: Arc<CudaDevice>, config: BandwidthConfig) -> Result<Self> {
-        Ok(Self { device, config })
+    pub fn new(device: Arc<CudaContext>, config: BandwidthConfig) -> Result<Self> {
+        let stream = device.default_stream();
+        Ok(Self { device, stream, config })
     }
 
     /// Get device properties and theoretical bandwidth
@@ -137,30 +139,28 @@ impl BandwidthProfiler {
         direction: MemoryDirection,
     ) -> Result<BandwidthMetrics> {
         // Allocate buffers
-        let mut host_buffer = vec![0u8; size_bytes];
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+        let host_buffer = vec![0u8; size_bytes];
+        // SAFETY: CudaStream::alloc returns uninitialized GPU memory. This is safe
         // for bandwidth measurement because we either:
         // - Copy host data to device (H2D), initializing the memory
         // - Don't read from uninitialized memory (D2H reads after H2D warmup)
-        let mut device_buffer = unsafe { self.device.alloc::<u8>(size_bytes) }
+        let mut device_buffer = unsafe { self.stream.alloc::<u8>(size_bytes) }
             .context("Failed to allocate device buffer")?;
 
         // Warmup
         for _ in 0..self.config.warmup_iterations {
             match direction {
                 MemoryDirection::HostToDevice => {
-                    self.device
-                        .htod_copy_into(host_buffer.clone(), &mut device_buffer)?;
+                    self.stream.memcpy_htod(&host_buffer, &mut device_buffer)?;
                 }
                 MemoryDirection::DeviceToHost => {
-                    self.device
-                        .dtoh_sync_copy_into(&device_buffer, &mut host_buffer)?;
+                    let _: Vec<u8> = self.stream.clone_dtoh(&device_buffer)?;
                 }
                 MemoryDirection::DeviceToDevice => {
                     // SAFETY: Destination buffer doesn't need initialization as
-                    // dtod_copy will write the entire buffer from source.
-                    let mut device_buffer2 = unsafe { self.device.alloc::<u8>(size_bytes) }?;
-                    self.device.dtod_copy(&device_buffer, &mut device_buffer2)?;
+                    // memcpy_dtod will write the entire buffer from source.
+                    let mut device_buffer2 = unsafe { self.stream.alloc::<u8>(size_bytes) }?;
+                    self.stream.memcpy_dtod(&device_buffer, &mut device_buffer2)?;
                 }
             }
         }
@@ -170,22 +170,20 @@ impl BandwidthProfiler {
         for _ in 0..self.config.iterations {
             match direction {
                 MemoryDirection::HostToDevice => {
-                    self.device
-                        .htod_copy_into(host_buffer.clone(), &mut device_buffer)?;
+                    self.stream.memcpy_htod(&host_buffer, &mut device_buffer)?;
                 }
                 MemoryDirection::DeviceToHost => {
-                    self.device
-                        .dtoh_sync_copy_into(&device_buffer, &mut host_buffer)?;
+                    let _: Vec<u8> = self.stream.clone_dtoh(&device_buffer)?;
                 }
                 MemoryDirection::DeviceToDevice => {
                     // SAFETY: Destination buffer doesn't need initialization as
-                    // dtod_copy will write the entire buffer from source.
-                    let mut device_buffer2 = unsafe { self.device.alloc::<u8>(size_bytes) }?;
-                    self.device.dtod_copy(&device_buffer, &mut device_buffer2)?;
+                    // memcpy_dtod will write the entire buffer from source.
+                    let mut device_buffer2 = unsafe { self.stream.alloc::<u8>(size_bytes) }?;
+                    self.stream.memcpy_dtod(&device_buffer, &mut device_buffer2)?;
                 }
             }
         }
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
         let elapsed = start.elapsed();
 
         // Calculate bandwidth
@@ -254,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_bandwidth_profiler_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let config = BandwidthConfig::default();
         let profiler = BandwidthProfiler::new(device, config);
         assert!(profiler.is_ok());
@@ -262,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_pattern_matching_bandwidth() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let profiler = BandwidthProfiler::new(device, BandwidthConfig::default())?;
 
         let data_size = 1024 * 1024; // 1MB
@@ -274,7 +272,7 @@ mod tests {
 
     #[test]
     fn test_memory_copy_bandwidth() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let profiler = BandwidthProfiler::new(device, BandwidthConfig::default())?;
 
         let size = 10 * 1024 * 1024; // 10MB
@@ -286,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_access_pattern_profiling() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let profiler = BandwidthProfiler::new(device, BandwidthConfig::default())?;
 
         let result = profiler.profile_access_patterns(|| Ok(()));

@@ -3,7 +3,7 @@
 //! Monitors GPU resources including memory, compute, and power consumption.
 
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use dashmap::DashMap;
 use std::collections::VecDeque;
 use std::sync::{
@@ -86,7 +86,7 @@ pub enum AlertSeverity {
 
 /// Resource monitor
 pub struct ResourceMonitor {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     limits: ResourceLimits,
     measurements: Arc<DashMap<ResourceType, VecDeque<ResourceMeasurement>>>,
     alerts: Arc<RwLock<VecDeque<ResourceAlert>>>,
@@ -96,7 +96,7 @@ pub struct ResourceMonitor {
 
 impl ResourceMonitor {
     /// Create new resource monitor
-    pub fn new(device: Arc<CudaDevice>, limits: ResourceLimits) -> Self {
+    pub fn new(device: Arc<CudaContext>, limits: ResourceLimits) -> Self {
         let measurements = DashMap::new();
         for resource_type in &[
             ResourceType::Compute,
@@ -169,7 +169,7 @@ impl ResourceMonitor {
     }
 
     /// Measure current resources (simulated)
-    async fn measure_resources(device: &Arc<CudaDevice>) -> Vec<ResourceMeasurement> {
+    async fn measure_resources(device: &Arc<CudaContext>) -> Vec<ResourceMeasurement> {
         let mut measurements = Vec::new();
         let now = Instant::now();
 

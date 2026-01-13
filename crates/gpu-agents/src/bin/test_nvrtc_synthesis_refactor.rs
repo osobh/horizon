@@ -2,7 +2,7 @@
 //!
 //! REFACTOR phase - optimize compilation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::nvrtc::{
     CompilationOptions, KernelGenerator, KernelTemplate, NvrtcCompiler,
 };
@@ -13,11 +13,11 @@ fn main() -> anyhow::Result<()> {
     println!("Testing NVRTC Compilation in Synthesis (REFACTOR phase)");
     println!("=====================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Batch compilation optimization
     println!("\n1. Testing batch compilation optimization...");
-    let mut compiler = NvrtcCompiler::new(device.clone())?;
+    let mut compiler = NvrtcCompiler::new(ctx.clone())?;
 
     // Prepare multiple kernels
     let kernel_sources = vec![
@@ -91,7 +91,7 @@ fn main() -> anyhow::Result<()> {
 
     // Test 3: Optimized kernel generation
     println!("\n3. Testing optimized kernel generation...");
-    let generator = KernelGenerator::new(&device)?;
+    let generator = KernelGenerator::new(&ctx)?;
 
     let optimization_levels = vec![
         (8, 64, true, "Small pattern, shared memory"),
@@ -114,7 +114,7 @@ fn main() -> anyhow::Result<()> {
 
     // Test 5: Parallel compilation simulation
     println!("\n5. Testing parallel compilation (simulated)...");
-    let parallel_results = test_parallel_compilation(&device)?;
+    let parallel_results = test_parallel_compilation(&ctx)?;
     println!("✅ Parallel speedup: {:.2}x", parallel_results);
 
     // Test 6: Memory-optimized kernels
@@ -190,13 +190,13 @@ fn test_template_specialization(compiler: &mut NvrtcCompiler) -> anyhow::Result<
     Ok(count)
 }
 
-fn test_parallel_compilation(device: &Arc<CudaDevice>) -> anyhow::Result<f64> {
+fn test_parallel_compilation(ctx: &Arc<CudaContext>) -> anyhow::Result<f64> {
     // Simulate parallel compilation by timing sequential vs "parallel"
     let kernel_count = 8;
 
     // Sequential compilation
     let start_seq = Instant::now();
-    let mut seq_compiler = NvrtcCompiler::new(device.clone())?;
+    let mut seq_compiler = NvrtcCompiler::new(ctx.clone())?;
     for i in 0..kernel_count {
         let kernel = format!(
             r#"extern "C" __global__ void seq_kernel_{}(float* data) {{
@@ -211,7 +211,7 @@ fn test_parallel_compilation(device: &Arc<CudaDevice>) -> anyhow::Result<f64> {
 
     // "Parallel" compilation (simulated with pre-compilation)
     let start_par = Instant::now();
-    let mut par_compiler = NvrtcCompiler::new(device.clone())?;
+    let mut par_compiler = NvrtcCompiler::new(ctx.clone())?;
 
     // In real implementation, this would use thread pool
     for i in 0..kernel_count {

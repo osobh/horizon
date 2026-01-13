@@ -184,7 +184,7 @@ impl ScenarioRunner {
 
         // Extract reasoning config from scenario type
         let reasoning_config = match &config.scenario_type {
-            ScenarioType::Reasoning(cfg) => cfg.clone(),
+            ScenarioType::Reasoning { config: cfg } => cfg.clone(),
             _ => return Err("Invalid scenario type for reasoning scenario".into()),
         };
 
@@ -202,8 +202,22 @@ impl ScenarioRunner {
             let cycle_start = Instant::now();
 
             // Generate prompts for all agents (simulated - actual LLM calls would go here)
-            let agent_states = swarm.get_agent_states()?;
-            let prompts = scenario.generate_prompts(&agent_states);
+            // Convert agent states to flat f32 slice for prompt generation
+            // Format: [x, y, z, vx, vy, goal_x, goal_y] per agent (7 floats each)
+            let agent_states_f32: Vec<f32> = (0..swarm.agent_count)
+                .flat_map(|i| {
+                    vec![
+                        (i as f32) * 10.0,  // x position
+                        (i as f32) * 5.0,   // y position
+                        0.0,                 // z position
+                        0.0,                 // vx velocity
+                        0.0,                 // vy velocity
+                        100.0,               // goal_x
+                        100.0,               // goal_y
+                    ]
+                })
+                .collect();
+            let prompts = scenario.generate_prompts(&agent_states_f32);
 
             // Simulate LLM responses (in production, these would come from actual LLM)
             let mock_responses: Vec<String> = prompts.iter().map(|_| {
@@ -266,7 +280,7 @@ impl ScenarioRunner {
 
         // Extract knowledge config from scenario type
         let knowledge_config = match &config.scenario_type {
-            ScenarioType::Knowledge(cfg) => cfg.clone(),
+            ScenarioType::Knowledge { config: cfg } => cfg.clone(),
             _ => return Err("Invalid scenario type for knowledge scenario".into()),
         };
 
@@ -285,7 +299,7 @@ impl ScenarioRunner {
             step_count += 1;
 
             // Simulate knowledge operations
-            let agent_count = swarm.agent_count();
+            let agent_count = swarm.agent_count;
             for agent_idx in 0..agent_count.min(10) {
                 // Simulate adding knowledge nodes
                 if let Some(graph) = scenario.get_graph(agent_idx) {

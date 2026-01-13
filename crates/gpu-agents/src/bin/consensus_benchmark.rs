@@ -4,7 +4,7 @@
 //! and Byzantine fault scenarios.
 
 use clap::Parser;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus::{GpuConsensusModule, Proposal, Vote};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -80,14 +80,15 @@ fn main() -> anyhow::Result<()> {
     println!();
 
     // Initialize CUDA
-    let device = CudaDevice::new(0)?;
-    let gpu_info = get_gpu_info(&device)?;
+    let ctx = CudaContext::new(0)?;
+    let stream = ctx.default_stream();
+    let gpu_info = get_gpu_info(&ctx)?;
 
     println!("GPU: {} ({}MB)", gpu_info.name, gpu_info.memory_mb);
     println!();
 
     // Create consensus module
-    let mut consensus = GpuConsensusModule::new(device.clone(), args.agents)?;
+    let mut consensus = GpuConsensusModule::new(ctx.clone(), args.agents)?;
 
     // Generate test votes
     let votes = generate_votes(args.agents, args.byzantine_percent);
@@ -107,7 +108,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Synchronize after warmup
-    device.synchronize()?;
+    stream.synchronize()?;
 
     // Benchmark
     println!("Running {} benchmark iterations...", args.iterations);
@@ -127,7 +128,7 @@ fn main() -> anyhow::Result<()> {
         // Time the consensus operation
         let start = Instant::now();
         let _result = consensus.run_consensus_round(proposal, &votes)?;
-        device.synchronize()?; // Ensure GPU operations complete
+        stream.synchronize()?; // Ensure GPU operations complete
         let duration = start.elapsed();
 
         let latency_us = duration.as_secs_f64() * 1_000_000.0;
@@ -222,7 +223,7 @@ fn generate_votes(num_agents: usize, byzantine_percent: u8) -> Vec<Vote> {
 
 fn calculate_statistics(latencies: &[f64]) -> LatencyStats {
     let mut sorted = latencies.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b)?);
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     let n = sorted.len();
     let min = sorted[0];
@@ -254,7 +255,7 @@ fn calculate_statistics(latencies: &[f64]) -> LatencyStats {
     }
 }
 
-fn get_gpu_info(_device: &Arc<CudaDevice>) -> anyhow::Result<GpuInfo> {
+fn get_gpu_info(_ctx: &Arc<CudaContext>) -> anyhow::Result<GpuInfo> {
     // Get device properties
     // Note: This is simplified - in production you'd use cuDeviceGetAttribute
     Ok(GpuInfo {

@@ -5,7 +5,7 @@
 
 use super::string_ops::*;
 use super::*;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -186,10 +186,9 @@ mod unit_tests {
 
     #[test]
     fn test_pack_unpack_strings() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let processor = GpuStringProcessor::new(device, config).unwrap();
+            let processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec![
                 "Hello".to_string(),
@@ -217,10 +216,9 @@ mod unit_tests {
 
     #[test]
     fn test_pack_unpack_empty_strings() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let processor = GpuStringProcessor::new(device, config).unwrap();
+            let processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec!["".to_string(), "NotEmpty".to_string(), "".to_string()];
 
@@ -238,10 +236,9 @@ mod unit_tests {
 
     #[test]
     fn test_pack_unpack_unicode_strings() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let processor = GpuStringProcessor::new(device, config).unwrap();
+            let processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec![
                 "Hello 🌍".to_string(),
@@ -274,11 +271,10 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_gpu_string_processor_creation() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
 
-            let result = GpuStringProcessor::new(device, config);
+            let result = GpuStringProcessor::new(ctx, config);
             assert!(result.is_ok());
 
             let processor = result?;
@@ -289,10 +285,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_batch_to_uppercase() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec!["hello".to_string(), "world".to_string(), "gpu".to_string()];
 
@@ -311,10 +306,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_batch_to_lowercase() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec!["HELLO".to_string(), "WORLD".to_string(), "GPU".to_string()];
 
@@ -330,10 +324,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_batch_reverse() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec!["hello".to_string(), "world".to_string(), "gpu".to_string()];
 
@@ -349,10 +342,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_batch_pattern_match() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec![
                 "hello world".to_string(),
@@ -378,10 +370,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_batch_replace() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec![
                 "hello world".to_string(),
@@ -407,10 +398,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_batch_filter() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec![
                 "short".to_string(),
@@ -438,10 +428,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_batch_transform() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec![
                 "  hello  ".to_string(),
@@ -471,10 +460,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_batch_sort() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec![
                 "zebra".to_string(),
@@ -504,10 +492,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_empty_batch() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings: Vec<String> = vec![];
 
@@ -523,13 +510,12 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_batch_size_limit() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig {
                 batch_size: 2, // Small batch size for testing
                 ..Default::default()
             };
-            let mut processor = GpuStringProcessor::new(device, config)?;
+            let mut processor = GpuStringProcessor::new(ctx, config)?;
 
             let test_strings = vec![
                 "one".to_string(),
@@ -549,13 +535,12 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_string_length_limit() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig {
                 max_string_length: 10, // Small max length for testing
                 ..Default::default()
             };
-            let mut processor = GpuStringProcessor::new(device, config)?;
+            let mut processor = GpuStringProcessor::new(ctx, config)?;
 
             let test_strings = vec![
                 "short".to_string(),
@@ -574,10 +559,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_statistics_update() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec!["hello".to_string(), "world".to_string()];
 
@@ -600,10 +584,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_pattern_cache() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec!["test pattern".to_string(), "another test".to_string()];
 
@@ -636,10 +619,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_clear_pattern_cache() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec!["test pattern".to_string()];
 
@@ -673,11 +655,10 @@ mod high_level_tests {
 
     #[tokio::test]
     async fn test_string_stream_processor_creation() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
 
-            let result = StringStreamProcessor::new(device, config);
+            let result = StringStreamProcessor::new(ctx, config);
             assert!(result.is_ok());
 
             let processor = result?;
@@ -688,10 +669,9 @@ mod high_level_tests {
 
     #[tokio::test]
     async fn test_string_stream_processor_uppercase() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = StringStreamProcessor::new(device, config).unwrap();
+            let mut processor = StringStreamProcessor::new(ctx, config).unwrap();
 
             let test_strings = vec!["hello".to_string(), "world".to_string(), "gpu".to_string()];
 
@@ -707,10 +687,9 @@ mod high_level_tests {
 
     #[tokio::test]
     async fn test_cpu_fallback() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = StringStreamProcessor::new(device, config).unwrap();
+            let mut processor = StringStreamProcessor::new(ctx, config).unwrap();
 
             // Disable GPU acceleration to force CPU fallback
             processor.set_gpu_acceleration(false);
@@ -731,10 +710,9 @@ mod high_level_tests {
 
     #[tokio::test]
     async fn test_cpu_fallback_lowercase() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = StringStreamProcessor::new(device, config).unwrap();
+            let mut processor = StringStreamProcessor::new(ctx, config).unwrap();
 
             processor.set_gpu_acceleration(false);
 
@@ -753,10 +731,9 @@ mod high_level_tests {
 
     #[tokio::test]
     async fn test_cpu_fallback_reverse() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = StringStreamProcessor::new(device, config).unwrap();
+            let mut processor = StringStreamProcessor::new(ctx, config).unwrap();
 
             processor.set_gpu_acceleration(false);
 
@@ -775,10 +752,9 @@ mod high_level_tests {
 
     #[tokio::test]
     async fn test_cpu_fallback_pattern_match() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = StringStreamProcessor::new(device, config).unwrap();
+            let mut processor = StringStreamProcessor::new(ctx, config).unwrap();
 
             processor.set_gpu_acceleration(false);
 
@@ -806,10 +782,9 @@ mod high_level_tests {
 
     #[tokio::test]
     async fn test_cpu_fallback_replace() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = StringStreamProcessor::new(device, config).unwrap();
+            let mut processor = StringStreamProcessor::new(ctx, config).unwrap();
 
             processor.set_gpu_acceleration(false);
 
@@ -845,10 +820,9 @@ mod benchmark_tests {
 
     #[tokio::test]
     async fn benchmark_batch_processing_performance() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             // Create large batch of strings
             let batch_size = 1000;
@@ -880,10 +854,9 @@ mod benchmark_tests {
 
     #[tokio::test]
     async fn benchmark_pattern_matching_performance() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let batch_size = 500;
             let test_strings: Vec<String> = (0..batch_size)
@@ -923,10 +896,9 @@ mod benchmark_tests {
 
     #[tokio::test]
     async fn benchmark_multiple_operations() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let mut processor = GpuStringProcessor::new(device, config).unwrap();
+            let mut processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let test_strings: Vec<String> =
                 (0..100).map(|i| format!("test string {}", i)).collect();
@@ -968,13 +940,12 @@ mod benchmark_tests {
 
     #[tokio::test]
     async fn benchmark_large_string_processing() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig {
                 max_string_length: 10000, // Allow larger strings
                 ..Default::default()
             };
-            let mut processor = GpuStringProcessor::new(device, config)?;
+            let mut processor = GpuStringProcessor::new(ctx, config)?;
 
             // Create strings of varying sizes
             let test_strings: Vec<String> = vec![
@@ -1007,13 +978,12 @@ mod benchmark_tests {
 
     #[tokio::test]
     async fn benchmark_concurrent_streams() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig {
                 num_streams: 8, // More streams for concurrency
                 ..Default::default()
             };
-            let mut processor = GpuStringProcessor::new(device, config)?;
+            let mut processor = GpuStringProcessor::new(ctx, config)?;
 
             let test_strings: Vec<String> =
                 (0..200).map(|i| format!("concurrent test {}", i)).collect();
@@ -1056,10 +1026,9 @@ mod error_tests {
 
     #[tokio::test]
     async fn test_invalid_utf8_handling() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let processor = GpuStringProcessor::new(device, config).unwrap();
+            let processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             // Create invalid UTF-8 data
             let invalid_data = vec![0xFF, 0xFE, 0xFD]; // Invalid UTF-8 sequence
@@ -1081,10 +1050,9 @@ mod error_tests {
 
     #[tokio::test]
     async fn test_insufficient_data_handling() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let processor = GpuStringProcessor::new(device, config).unwrap();
+            let processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             // Test insufficient data for count
             let result = processor.unpack_strings(&[0x01, 0x02], 1);
@@ -1115,10 +1083,9 @@ mod error_tests {
 
     #[tokio::test]
     async fn test_count_mismatch_handling() {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(ctx) = CudaContext::new(0) {
             let config = StringProcessorConfig::default();
-            let processor = GpuStringProcessor::new(device, config).unwrap();
+            let processor = GpuStringProcessor::new(ctx, config).unwrap();
 
             let result = processor.unpack_strings(
                 &[

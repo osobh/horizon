@@ -6,7 +6,7 @@
 use super::*;
 use crate::memory::{MemoryTier, PageInfo, TierManager};
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -167,11 +167,11 @@ mod integration_tests {
     use super::*;
 
     async fn setup_test_prefetcher() -> Result<Arc<AdvancedPrefetcher>> {
-        let device = CudaDevice::new(0)?;
+        let context = CudaContext::new(0)?; // Returns Arc<CudaContext>
         let config = PrefetchConfig::default();
 
         // Mock tier manager for testing
-        let tier_manager = Arc::new(TierManager::new(Arc::new(device), Default::default())?);
+        let tier_manager = Arc::new(TierManager::new(context, Default::default())?);
 
         Ok(Arc::new(AdvancedPrefetcher::new(tier_manager, config)?))
     }
@@ -240,8 +240,8 @@ mod integration_tests {
         let mut config = PrefetchConfig::default();
         config.strategy = PrefetchStrategy::Adaptive;
 
-        let device = CudaDevice::new(0)?;
-        let tier_manager = Arc::new(TierManager::new(Arc::new(device), Default::default())?);
+        let context = CudaContext::new(0)?; // Returns Arc<CudaContext>
+        let tier_manager = Arc::new(TierManager::new(context, Default::default())?);
         let prefetcher = Arc::new(AdvancedPrefetcher::new(tier_manager, config)?);
 
         // Start with sequential pattern
@@ -330,8 +330,8 @@ mod integration_tests {
         let mut config = PrefetchConfig::default();
         config.max_prefetch_size = 1024 * 1024; // 1MB limit
 
-        let device = CudaDevice::new(0)?;
-        let tier_manager = Arc::new(TierManager::new(Arc::new(device), Default::default())?);
+        let context = CudaContext::new(0)?; // Returns Arc<CudaContext>
+        let tier_manager = Arc::new(TierManager::new(context, Default::default())?);
         let prefetcher = Arc::new(AdvancedPrefetcher::new(tier_manager, config)?);
 
         // Submit many prefetch requests
@@ -491,8 +491,8 @@ mod ml_predictor_tests {
     }
 
     #[test]
-    fn test_online_learning() {
-        let mut predictor = MLPredictor::new(MLPredictorConfig::default());
+    fn test_online_learning() -> Result<()> {
+        let mut predictor = MLPredictor::new(MLPredictorConfig::default())?;
 
         // Generate training data
         let mut training_data = Vec::new();
@@ -516,8 +516,8 @@ mod ml_predictor_tests {
         }
 
         // Train model
-        let loss = predictor.update_model(&training_data);
-        assert!(loss.is_ok());
+        let loss = predictor.update_model(&training_data)?;
+        assert!(loss >= 0.0);
 
         // Test predictions
         let test_history = AccessHistory {
@@ -529,6 +529,8 @@ mod ml_predictor_tests {
 
         let prediction = predictor.predict(&test_history);
         assert!(matches!(prediction, MemoryTier::GPU | MemoryTier::CPU));
+
+        Ok(())
     }
 }
 

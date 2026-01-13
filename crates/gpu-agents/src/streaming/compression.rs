@@ -1,7 +1,7 @@
 //! GPU-accelerated compression algorithms
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, CudaStream, DevicePtr, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream, DevicePtr};
 use std::sync::Arc;
 
 use super::GpuStreamKernel;
@@ -21,7 +21,7 @@ pub enum CompressionAlgorithm {
 
 /// GPU compressor
 pub struct GpuCompressor {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     algorithm: CompressionAlgorithm,
     /// Compression dictionary (if applicable)
     dictionary: Option<CudaSlice<u8>>,
@@ -32,13 +32,14 @@ pub struct GpuCompressor {
 impl GpuCompressor {
     /// Create new GPU compressor
     pub fn new(
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
         algorithm: CompressionAlgorithm,
         buffer_size: usize,
     ) -> Result<Self> {
         // SAFETY: alloc returns uninitialized memory. temp_buffer is used as scratch
         // space by compression kernels and will be written before read.
-        let temp_buffer = unsafe { device.alloc::<u8>(buffer_size)? };
+        let stream = device.default_stream();
+        let temp_buffer = unsafe { stream.alloc::<u8>(buffer_size)? };
 
         Ok(Self {
             device,
@@ -50,7 +51,8 @@ impl GpuCompressor {
 
     /// Set compression dictionary
     pub fn set_dictionary(&mut self, dictionary: &[u8]) -> Result<()> {
-        let gpu_dict = self.device.htod_sync_copy(dictionary)?;
+        let stream = self.device.default_stream();
+        let gpu_dict = stream.clone_htod(dictionary)?;
         self.dictionary = Some(gpu_dict);
         Ok(())
     }
@@ -80,13 +82,15 @@ impl GpuCompressor {
         // Launch LZ4 compression kernel
         // SAFETY: All pointers are valid device pointers from CudaSlice references.
         // Input/output lengths match their allocation sizes. Stream is valid.
+        let (input_ptr, _input_guard) = input.device_ptr(stream);
+        let (output_ptr, _output_guard) = output.device_ptr(stream);
         unsafe {
             launch_lz4_compress(
-                *input.device_ptr() as *const u8,
-                *output.device_ptr() as *mut u8,
+                input_ptr as *const u8,
+                output_ptr as *mut u8,
                 input.len() as u32,
                 output.len() as u32,
-                stream.stream as *mut _,
+                std::ptr::null_mut(), // Use null for default stream
             );
         }
 
@@ -103,13 +107,15 @@ impl GpuCompressor {
     ) -> Result<usize> {
         // SAFETY: All pointers are valid device pointers from CudaSlice references.
         // Input/output lengths match their allocation sizes. Stream is valid.
+        let (input_ptr, _input_guard) = input.device_ptr(stream);
+        let (output_ptr, _output_guard) = output.device_ptr(stream);
         unsafe {
             launch_rle_compress(
-                *input.device_ptr() as *const u8,
-                *output.device_ptr() as *mut u8,
+                input_ptr as *const u8,
+                output_ptr as *mut u8,
                 input.len() as u32,
                 output.len() as u32,
-                stream.stream as *mut _,
+                std::ptr::null_mut(), // Use null for default stream
             );
         }
         Ok(input.len() / 3) // Placeholder
@@ -124,13 +130,15 @@ impl GpuCompressor {
     ) -> Result<usize> {
         // SAFETY: All pointers are valid device pointers from CudaSlice references.
         // Input/output lengths match their allocation sizes. Stream is valid.
+        let (input_ptr, _input_guard) = input.device_ptr(stream);
+        let (output_ptr, _output_guard) = output.device_ptr(stream);
         unsafe {
             launch_delta_compress(
-                *input.device_ptr() as *const u8,
-                *output.device_ptr() as *mut u8,
+                input_ptr as *const u8,
+                output_ptr as *mut u8,
                 input.len() as u32,
                 output.len() as u32,
-                stream.stream as *mut _,
+                std::ptr::null_mut(), // Use null for default stream
             );
         }
         Ok(input.len() * 3 / 4) // Placeholder
@@ -147,15 +155,18 @@ impl GpuCompressor {
             // SAFETY: All pointers are valid device pointers from CudaSlice references.
             // Input/output/dict lengths match their allocation sizes. Stream is valid.
             // Dictionary was set via set_dictionary() which copies to GPU.
+            let (input_ptr, _input_guard) = input.device_ptr(stream);
+            let (output_ptr, _output_guard) = output.device_ptr(stream);
+            let (dict_ptr, _dict_guard) = dict.device_ptr(stream);
             unsafe {
                 launch_dictionary_compress(
-                    *input.device_ptr() as *const u8,
-                    *output.device_ptr() as *mut u8,
-                    *dict.device_ptr() as *const u8,
+                    input_ptr as *const u8,
+                    output_ptr as *mut u8,
+                    dict_ptr as *const u8,
                     input.len() as u32,
                     output.len() as u32,
                     dict.len() as u32,
-                    stream.stream as *mut _,
+                    std::ptr::null_mut(), // Use null for default stream
                 );
             }
             Ok(input.len() / 4) // Placeholder
@@ -198,14 +209,14 @@ impl GpuStreamKernel for GpuCompressor {
 
 /// GPU decompressor
 pub struct GpuDecompressor {
-    _device: Arc<CudaDevice>,
+    _device: Arc<CudaContext>,
     algorithm: CompressionAlgorithm,
     _dictionary: Option<CudaSlice<u8>>,
 }
 
 impl GpuDecompressor {
     /// Create new GPU decompressor
-    pub fn new(device: Arc<CudaDevice>, algorithm: CompressionAlgorithm) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, algorithm: CompressionAlgorithm) -> Result<Self> {
         Ok(Self {
             _device: device,
             algorithm,
@@ -226,13 +237,15 @@ impl GpuDecompressor {
                 // SAFETY: All pointers are valid device pointers from CudaSlice references.
                 // compressed_size is passed from caller who knows the actual compressed data size.
                 // Output length matches allocation. Stream is valid.
+                let (input_ptr, _input_guard) = input.device_ptr(stream);
+                let (output_ptr, _output_guard) = output.device_ptr(stream);
                 unsafe {
                     launch_lz4_decompress(
-                        *input.device_ptr() as *const u8,
-                        *output.device_ptr() as *mut u8,
+                        input_ptr as *const u8,
+                        output_ptr as *mut u8,
                         compressed_size as u32,
                         output.len() as u32,
-                        stream.stream as *mut _,
+                        std::ptr::null_mut(), // Use null for default stream
                     );
                 }
                 Ok(output.len()) // Placeholder
@@ -246,7 +259,7 @@ impl GpuDecompressor {
 }
 
 // External CUDA kernel declarations
-extern "C" {
+unsafe extern "C" {
     fn launch_lz4_compress(
         input: *const u8,
         output: *mut u8,
@@ -296,14 +309,13 @@ mod tests {
 
     #[test]
     fn test_compression_algorithm_names() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
-
-            let lz4 = GpuCompressor::new(device.clone(), CompressionAlgorithm::Lz4, 1024)?;
+        if let Ok(ctx) = CudaContext::new(0) {
+            let lz4 = GpuCompressor::new(ctx.clone(), CompressionAlgorithm::Lz4, 1024)?;
             assert_eq!(lz4.name(), "lz4_compress");
 
-            let rle = GpuCompressor::new(device.clone(), CompressionAlgorithm::Rle, 1024)?;
+            let rle = GpuCompressor::new(ctx.clone(), CompressionAlgorithm::Rle, 1024)?;
             assert_eq!(rle.name(), "rle_compress");
         }
+        Ok(())
     }
 }

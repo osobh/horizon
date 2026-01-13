@@ -1,7 +1,6 @@
 //! Debug trace to find exact hang location
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
-use std::sync::Arc;
 
 fn main() -> anyhow::Result<()> {
     println!("🧬 Evolution Debug Trace");
@@ -9,7 +8,7 @@ fn main() -> anyhow::Result<()> {
 
     // Initialize CUDA device
     println!("1. Creating CUDA device...");
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     println!("   ✅ Device created");
 
     // Small test config
@@ -24,7 +23,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     println!("2. Creating evolution engine...");
-    let mut engine = GpuEvolutionEngine::new(device, config)?;
+    let mut engine = GpuEvolutionEngine::new(ctx, config)?;
     println!("   ✅ Engine created");
 
     println!("3. Initializing random population...");

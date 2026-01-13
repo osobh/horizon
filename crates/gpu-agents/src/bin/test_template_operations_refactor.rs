@@ -2,7 +2,7 @@
 //!
 //! REFACTOR phase - optimize template operations
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::nvrtc::{KernelTemplate, NvrtcCompiler};
 use gpu_agents::synthesis::template_ops::{
     register_builtin_functions, CompositeTemplate, TemplateCondition, TemplateEngine,
@@ -25,11 +25,11 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Template Operations in Synthesis (REFACTOR phase)");
     println!("========================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Optimized variable substitution
     println!("\n1. Testing optimized variable substitution...");
-    let engine = TemplateEngine::new(device.clone())?;
+    let engine = TemplateEngine::new(ctx.clone())?;
 
     // Benchmark single substitution
     let template = "Hello {{name}}, welcome to {{project}} v{{version}}!";
@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
 
     // Test 2: Cached template compilation
     println!("\n2. Testing cached template compilation...");
-    let mut compiler = NvrtcCompiler::new(device.clone())?;
+    let mut compiler = NvrtcCompiler::new(ctx.clone())?;
 
     // Generate template expansion kernel
     let kernel_template = KernelTemplate::new("template_expand");
@@ -204,10 +204,13 @@ Items:
     let pool_sizes = vec![1024, 4096, 16384, 65536];
     let mut memory_pools = Vec::new();
 
+    // Get stream for allocation
+    let stream = ctx.default_stream();
+
     // SAFETY: alloc returns uninitialized memory. These are test allocations
     // for memory pooling demonstration; no reads are performed on the content.
     for &size in &pool_sizes {
-        let buffer = unsafe { device.alloc::<u8>(size) };
+        let buffer = unsafe { stream.alloc::<u8>(size) };
         if let Ok(buf) = buffer {
             memory_pools.push((size, buf));
             println!("   Allocated {}KB pool", size / 1024);

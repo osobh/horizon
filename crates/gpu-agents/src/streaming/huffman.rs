@@ -5,27 +5,28 @@
 
 use super::*;
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, CudaStream};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
 
 /// GPU Huffman processor for batch compression operations
 pub struct GpuHuffmanProcessor {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: HuffmanConfig,
-    cuda_streams: Vec<CudaStream>,
+    cuda_streams: Vec<Arc<CudaStream>>,
     buffer_pool: GpuBufferPool,
     statistics: HuffmanStatistics,
 }
 
 impl GpuHuffmanProcessor {
     /// Create new GPU Huffman processor
-    pub fn new(device: Arc<CudaDevice>, config: HuffmanConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: HuffmanConfig) -> Result<Self> {
         // Create CUDA streams for parallel processing
         let mut cuda_streams = Vec::with_capacity(config.num_streams);
+        let default_stream = device.default_stream();
         for _ in 0..config.num_streams {
-            cuda_streams.push(device.fork_default_stream()?);
+            cuda_streams.push(default_stream.fork()?);
         }
 
         // Create buffer pool for compression operations
@@ -133,7 +134,7 @@ impl GpuHuffmanProcessor {
     async fn encode_gpu(&mut self, data: &[u8]) -> Result<HuffmanEncoded> {
         // Get CUDA stream for this operation
         let stream_idx = self.statistics.encode_operations as usize % self.cuda_streams.len();
-        let stream = &self.cuda_streams[stream_idx];
+        let _stream = &self.cuda_streams[stream_idx];
 
         // Build Huffman tree on CPU (complex algorithm, better on CPU)
         let mut codec = HuffmanCodec::new(self.config.clone())?;
@@ -150,12 +151,13 @@ impl GpuHuffmanProcessor {
             .ok_or_else(|| anyhow!("No output buffer available"))?;
 
         // Copy data to GPU
+        let default_stream = self.device.default_stream();
         {
             let input_buffer = self
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            self.device.htod_sync_copy_into(data, input_buffer)?;
+            default_stream.memcpy_htod(data, input_buffer)?;
         }
 
         // Simulate GPU kernel for encoding
@@ -164,15 +166,14 @@ impl GpuHuffmanProcessor {
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            let input_data: Vec<u8> = self.device.dtoh_sync_copy(input_buffer)?;
+            let input_data: Vec<u8> = default_stream.clone_dtoh(input_buffer)?;
 
             let output_buffer = self
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
             // For now, just copy input to output
-            self.device
-                .htod_sync_copy_into(&input_data, output_buffer)?;
+            default_stream.memcpy_htod(&input_data, output_buffer)?;
         }
 
         // Wait for completion
@@ -184,7 +185,7 @@ impl GpuHuffmanProcessor {
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device.dtoh_sync_copy(output_buffer)?
+            default_stream.clone_dtoh(output_buffer)?
         };
 
         // Release buffers
@@ -203,7 +204,7 @@ impl GpuHuffmanProcessor {
     /// GPU-accelerated decoding
     async fn decode_gpu(&mut self, encoded: &HuffmanEncoded) -> Result<Vec<u8>> {
         let stream_idx = self.statistics.decode_operations as usize % self.cuda_streams.len();
-        let stream = &self.cuda_streams[stream_idx];
+        let _stream = &self.cuda_streams[stream_idx];
 
         let input_idx = self
             .buffer_pool
@@ -215,13 +216,13 @@ impl GpuHuffmanProcessor {
             .ok_or_else(|| anyhow!("No output buffer available"))?;
 
         // Copy encoded data to GPU
+        let default_stream = self.device.default_stream();
         {
             let input_buffer = self
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&encoded.data, input_buffer)?;
+            default_stream.memcpy_htod(&encoded.data, input_buffer)?;
         }
 
         // Simulate GPU kernel for decoding
@@ -230,15 +231,14 @@ impl GpuHuffmanProcessor {
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            let input_data: Vec<u8> = self.device.dtoh_sync_copy(input_buffer)?;
+            let input_data: Vec<u8> = default_stream.clone_dtoh(input_buffer)?;
 
             let output_buffer = self
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
             // For now, just copy input to output
-            self.device
-                .htod_sync_copy_into(&input_data, output_buffer)?;
+            default_stream.memcpy_htod(&input_data, output_buffer)?;
         }
 
         self.device.synchronize()?;
@@ -249,7 +249,7 @@ impl GpuHuffmanProcessor {
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device.dtoh_sync_copy(output_buffer)?
+            default_stream.clone_dtoh(output_buffer)?
         };
 
         self.buffer_pool.release(input_idx);
@@ -290,7 +290,7 @@ impl GpuHuffmanProcessor {
     }
 
     fn launch_huffman_encode_kernel_static(
-        _device: &Arc<CudaDevice>,
+        _device: &Arc<CudaContext>,
         input: &CudaSlice<u8>,
         output: &mut CudaSlice<u8>,
         data_length: usize,
@@ -323,7 +323,7 @@ impl GpuHuffmanProcessor {
     }
 
     fn launch_huffman_decode_kernel_static(
-        _device: &Arc<CudaDevice>,
+        _device: &Arc<CudaContext>,
         input: &CudaSlice<u8>,
         output: &mut CudaSlice<u8>,
         original_length: usize,
@@ -369,7 +369,7 @@ impl HuffmanCodec {
 
         // Special case: single character
         if heap.len() == 1 {
-            let node = heap.pop()?.0;
+            let node = heap.pop().ok_or_else(|| anyhow!("Empty heap"))?.0;
             let root = HuffmanNode {
                 frequency: node.frequency,
                 byte: None,
@@ -381,8 +381,8 @@ impl HuffmanCodec {
 
         // Build tree by combining nodes
         while heap.len() > 1 {
-            let left = Box::new(heap.pop()?.0);
-            let right = Box::new(heap.pop()?.0);
+            let left = Box::new(heap.pop().ok_or_else(|| anyhow!("Empty heap"))?.0);
+            let right = Box::new(heap.pop().ok_or_else(|| anyhow!("Empty heap"))?.0);
 
             let combined = HuffmanNode {
                 frequency: left.frequency + right.frequency,
@@ -394,7 +394,7 @@ impl HuffmanCodec {
             heap.push(Reverse(combined));
         }
 
-        let root = heap.pop()?.0;
+        let root = heap.pop().ok_or_else(|| anyhow!("Empty heap"))?.0;
         Ok(self.build_code_table(root))
     }
 
@@ -465,7 +465,7 @@ impl HuffmanCodec {
         }
 
         let mut decoded = Vec::new();
-        let mut current_node = tree.root.as_ref()?;
+        let mut current_node = tree.root.as_ref().ok_or_else(|| anyhow!("No root node"))?;
 
         for &byte in encoded_data {
             for bit_pos in (0..8).rev() {
@@ -488,7 +488,7 @@ impl HuffmanCodec {
                 // If we've reached a leaf node
                 if let Some(decoded_byte) = current_node.byte {
                     decoded.push(decoded_byte);
-                    current_node = tree.root.as_ref()?;
+                    current_node = tree.root.as_ref().ok_or_else(|| anyhow!("No root node"))?;
 
                     // Stop if we've decoded enough bytes
                     if decoded.len() >= tree.original_length {
@@ -713,7 +713,7 @@ pub struct HuffmanStreamProcessor {
 
 impl HuffmanStreamProcessor {
     /// Create new Huffman stream processor
-    pub fn new(device: Arc<CudaDevice>, config: HuffmanConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: HuffmanConfig) -> Result<Self> {
         let gpu_processor = GpuHuffmanProcessor::new(device, config)?;
 
         Ok(Self {

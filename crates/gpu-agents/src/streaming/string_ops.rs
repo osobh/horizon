@@ -5,15 +5,15 @@
 
 use super::*;
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, CudaStream};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// GPU string processor for batch text operations
 pub struct GpuStringProcessor {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: StringProcessorConfig,
-    cuda_streams: Vec<CudaStream>,
+    cuda_streams: Vec<Arc<CudaStream>>,
     buffer_pool: GpuBufferPool,
     pattern_cache: HashMap<String, u32>,
     statistics: StringProcessorStats,
@@ -21,11 +21,12 @@ pub struct GpuStringProcessor {
 
 impl GpuStringProcessor {
     /// Create new GPU string processor
-    pub fn new(device: Arc<CudaDevice>, config: StringProcessorConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: StringProcessorConfig) -> Result<Self> {
         // Create CUDA streams for parallel processing
         let mut cuda_streams = Vec::with_capacity(config.num_streams);
+        let default_stream = device.default_stream();
         for _ in 0..config.num_streams {
-            cuda_streams.push(device.fork_default_stream()?);
+            cuda_streams.push(default_stream.fork()?);
         }
 
         // Create buffer pool for string operations
@@ -123,18 +124,18 @@ impl GpuStringProcessor {
 
         // Copy packed data to GPU and launch kernel
         // Note: We work around the borrow checker by doing operations sequentially
+        let default_stream = self.device.default_stream();
         {
             let input_buffer = self
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&packed_data, input_buffer)?;
+            default_stream.memcpy_htod(&packed_data, input_buffer)?;
         }
 
         // Simulate kernel launch - in real implementation, would use actual CUDA kernels
         // For now, just copy input to output as a placeholder
-        let device = self.device.clone();
+        let _device = self.device.clone();
 
         // Simulate GPU operation by copying input to output
         // In real implementation, GPU kernel would process the data
@@ -143,14 +144,13 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            let input_data: Vec<u8> = self.device.dtoh_sync_copy(input_buffer)?;
+            let input_data: Vec<u8> = default_stream.clone_dtoh(input_buffer)?;
 
             let output_buffer = self
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&input_data, output_buffer)?;
+            default_stream.memcpy_htod(&input_data, output_buffer)?;
         }
 
         // Wait for completion
@@ -162,7 +162,7 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device.dtoh_sync_copy(output_buffer)?
+            default_stream.clone_dtoh(output_buffer)?
         };
         let results = self.unpack_strings(&result_data, inputs.len())?;
 
@@ -177,7 +177,7 @@ impl GpuStringProcessor {
     async fn batch_to_lowercase(&mut self, inputs: &[String]) -> Result<Vec<String>> {
         // Similar implementation to uppercase but with lowercase kernel
         let stream_idx = self.statistics.operations_processed as usize % self.cuda_streams.len();
-        let stream = &self.cuda_streams[stream_idx];
+        let _stream = &self.cuda_streams[stream_idx];
 
         // Pack strings before acquiring buffers
         let packed_data = self.pack_strings(inputs)?;
@@ -192,13 +192,13 @@ impl GpuStringProcessor {
             .ok_or_else(|| anyhow!("No output buffer available"))?;
 
         // Copy data to GPU
+        let default_stream = self.device.default_stream();
         {
             let input_buffer = self
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&packed_data, input_buffer)?;
+            default_stream.memcpy_htod(&packed_data, input_buffer)?;
         }
 
         // Simulate GPU operation
@@ -207,14 +207,13 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            let input_data: Vec<u8> = self.device.dtoh_sync_copy(input_buffer)?;
+            let input_data: Vec<u8> = default_stream.clone_dtoh(input_buffer)?;
 
             let output_buffer = self
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&input_data, output_buffer)?;
+            default_stream.memcpy_htod(&input_data, output_buffer)?;
         }
 
         self.device.synchronize()?;
@@ -224,7 +223,7 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device.dtoh_sync_copy(output_buffer)?
+            default_stream.clone_dtoh(output_buffer)?
         };
         let results = self.unpack_strings(&result_data, inputs.len())?;
 
@@ -237,7 +236,7 @@ impl GpuStringProcessor {
     /// Reverse batch of strings
     async fn batch_reverse(&mut self, inputs: &[String]) -> Result<Vec<String>> {
         let stream_idx = self.statistics.operations_processed as usize % self.cuda_streams.len();
-        let stream = &self.cuda_streams[stream_idx];
+        let _stream = &self.cuda_streams[stream_idx];
 
         // Pack strings before acquiring buffers
         let packed_data = self.pack_strings(inputs)?;
@@ -252,13 +251,13 @@ impl GpuStringProcessor {
             .ok_or_else(|| anyhow!("No output buffer available"))?;
 
         // Copy data to GPU
+        let default_stream = self.device.default_stream();
         {
             let input_buffer = self
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&packed_data, input_buffer)?;
+            default_stream.memcpy_htod(&packed_data, input_buffer)?;
         }
 
         // Simulate GPU operation
@@ -267,14 +266,13 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            let input_data: Vec<u8> = self.device.dtoh_sync_copy(input_buffer)?;
+            let input_data: Vec<u8> = default_stream.clone_dtoh(input_buffer)?;
 
             let output_buffer = self
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&input_data, output_buffer)?;
+            default_stream.memcpy_htod(&input_data, output_buffer)?;
         }
 
         self.device.synchronize()?;
@@ -284,7 +282,7 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device.dtoh_sync_copy(output_buffer)?
+            default_stream.clone_dtoh(output_buffer)?
         };
         let results = self.unpack_strings(&result_data, inputs.len())?;
 
@@ -301,10 +299,10 @@ impl GpuStringProcessor {
         pattern: &str,
     ) -> Result<Vec<String>> {
         // Cache pattern for repeated use
-        let pattern_id = self.cache_pattern(pattern);
+        let _pattern_id = self.cache_pattern(pattern);
 
         let stream_idx = self.statistics.operations_processed as usize % self.cuda_streams.len();
-        let stream = &self.cuda_streams[stream_idx];
+        let _stream = &self.cuda_streams[stream_idx];
 
         // Pack strings before acquiring buffers
         let packed_data = self.pack_strings(inputs)?;
@@ -319,13 +317,13 @@ impl GpuStringProcessor {
             .ok_or_else(|| anyhow!("No output buffer available"))?;
 
         // Copy data to GPU
+        let default_stream = self.device.default_stream();
         {
             let input_buffer = self
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&packed_data, input_buffer)?;
+            default_stream.memcpy_htod(&packed_data, input_buffer)?;
         }
 
         // Simulate GPU operation
@@ -334,14 +332,13 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            let input_data: Vec<u8> = self.device.dtoh_sync_copy(input_buffer)?;
+            let input_data: Vec<u8> = default_stream.clone_dtoh(input_buffer)?;
 
             let output_buffer = self
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&input_data, output_buffer)?;
+            default_stream.memcpy_htod(&input_data, output_buffer)?;
         }
 
         self.device.synchronize()?;
@@ -351,7 +348,7 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device.dtoh_sync_copy(output_buffer)?
+            default_stream.clone_dtoh(output_buffer)?
         };
         let results = self.unpack_match_results(&result_data, inputs)?;
 
@@ -368,11 +365,11 @@ impl GpuStringProcessor {
         from: &str,
         to: &str,
     ) -> Result<Vec<String>> {
-        let from_id = self.cache_pattern(from);
-        let to_id = self.cache_pattern(to);
+        let _from_id = self.cache_pattern(from);
+        let _to_id = self.cache_pattern(to);
 
         let stream_idx = self.statistics.operations_processed as usize % self.cuda_streams.len();
-        let stream = &self.cuda_streams[stream_idx];
+        let _stream = &self.cuda_streams[stream_idx];
 
         // Pack strings before acquiring buffers
         let packed_data = self.pack_strings(inputs)?;
@@ -387,13 +384,13 @@ impl GpuStringProcessor {
             .ok_or_else(|| anyhow!("No output buffer available"))?;
 
         // Copy data to GPU
+        let default_stream = self.device.default_stream();
         {
             let input_buffer = self
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&packed_data, input_buffer)?;
+            default_stream.memcpy_htod(&packed_data, input_buffer)?;
         }
 
         // Simulate GPU operation
@@ -402,14 +399,13 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(input_idx)
                 .ok_or_else(|| anyhow!("Invalid input buffer index"))?;
-            let input_data: Vec<u8> = self.device.dtoh_sync_copy(input_buffer)?;
+            let input_data: Vec<u8> = default_stream.clone_dtoh(input_buffer)?;
 
             let output_buffer = self
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device
-                .htod_sync_copy_into(&input_data, output_buffer)?;
+            default_stream.memcpy_htod(&input_data, output_buffer)?;
         }
 
         self.device.synchronize()?;
@@ -419,7 +415,7 @@ impl GpuStringProcessor {
                 .buffer_pool
                 .get_buffer_mut(output_idx)
                 .ok_or_else(|| anyhow!("Invalid output buffer index"))?;
-            self.device.dtoh_sync_copy(output_buffer)?
+            default_stream.clone_dtoh(output_buffer)?
         };
         let results = self.unpack_strings(&result_data, inputs.len())?;
 
@@ -625,7 +621,7 @@ impl GpuStringProcessor {
     }
 
     fn launch_uppercase_kernel_static(
-        _device: &Arc<CudaDevice>,
+        _device: &Arc<CudaContext>,
         input: &CudaSlice<u8>,
         output: &mut CudaSlice<u8>,
         string_count: usize,
@@ -648,7 +644,7 @@ impl GpuStringProcessor {
     }
 
     fn launch_lowercase_kernel_static(
-        _device: &Arc<CudaDevice>,
+        _device: &Arc<CudaContext>,
         input: &CudaSlice<u8>,
         output: &mut CudaSlice<u8>,
         string_count: usize,
@@ -669,7 +665,7 @@ impl GpuStringProcessor {
     }
 
     fn launch_reverse_kernel_static(
-        _device: &Arc<CudaDevice>,
+        _device: &Arc<CudaContext>,
         input: &CudaSlice<u8>,
         output: &mut CudaSlice<u8>,
         string_count: usize,
@@ -698,7 +694,7 @@ impl GpuStringProcessor {
     }
 
     fn launch_pattern_match_kernel_static(
-        _device: &Arc<CudaDevice>,
+        _device: &Arc<CudaContext>,
         input: &CudaSlice<u8>,
         output: &mut CudaSlice<u8>,
         string_count: usize,
@@ -730,7 +726,7 @@ impl GpuStringProcessor {
     }
 
     fn launch_replace_kernel_static(
-        _device: &Arc<CudaDevice>,
+        _device: &Arc<CudaContext>,
         input: &CudaSlice<u8>,
         output: &mut CudaSlice<u8>,
         string_count: usize,
@@ -872,7 +868,7 @@ pub struct StringStreamProcessor {
 
 impl StringStreamProcessor {
     /// Create new string stream processor
-    pub fn new(device: Arc<CudaDevice>, config: StringProcessorConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: StringProcessorConfig) -> Result<Self> {
         let gpu_processor = GpuStringProcessor::new(device, config)?;
 
         Ok(Self {

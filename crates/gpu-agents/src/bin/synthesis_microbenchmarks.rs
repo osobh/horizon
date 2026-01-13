@@ -4,7 +4,7 @@
 //! Target: 2.6B operations/second
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, DevicePtr};
+use cudarc::driver::{CudaContext, DevicePtr};
 use gpu_agents::synthesis::{
     ast::GpuAstTransformer, pattern::GpuPatternMatcher, pattern_dynamic::DynamicGpuPatternMatcher,
     pattern_simple::SimpleGpuPatternMatcher, template::GpuTemplateExpander, AstNode, NodeType,
@@ -33,19 +33,19 @@ fn main() -> Result<()> {
     println!("============================");
     println!("Target: {:.1} billion ops/sec\n", TARGET_OPS_PER_SEC / 1e9);
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     let mut results = BenchmarkResults::default();
 
     // Phase 1: Kernel Launch Overhead
     println!("📊 Phase 1: Measuring Kernel Launch Overhead");
     println!("-------------------------------------------");
-    results.kernel_launch_overhead = measure_kernel_launch_overhead(&device)?;
+    results.kernel_launch_overhead = measure_kernel_launch_overhead(&ctx)?;
 
     // Phase 2: Memory Transfer Bandwidth
     println!("\n📊 Phase 2: Memory Transfer Bandwidth");
     println!("------------------------------------");
-    results.memory_transfer_bandwidth = measure_memory_bandwidth(&device)?;
+    results.memory_transfer_bandwidth = measure_memory_bandwidth(&ctx)?;
 
     // Phase 3: Pattern Matching Benchmarks
     println!("\n📊 Phase 3: Pattern Matching Performance");
@@ -53,25 +53,25 @@ fn main() -> Result<()> {
 
     // Basic pattern matcher
     println!("\n  Testing basic pattern matcher...");
-    results.pattern_matching_basic = benchmark_basic_pattern_matcher(device.clone())?;
+    results.pattern_matching_basic = benchmark_basic_pattern_matcher(ctx.clone())?;
 
     // Simple pattern matcher
     println!("\n  Testing simple pattern matcher...");
-    results.pattern_matching_simple = benchmark_simple_pattern_matcher(device.clone())?;
+    results.pattern_matching_simple = benchmark_simple_pattern_matcher(ctx.clone())?;
 
     // Dynamic pattern matcher
     println!("\n  Testing dynamic pattern matcher...");
-    results.pattern_matching_dynamic = benchmark_dynamic_pattern_matcher(device.clone())?;
+    results.pattern_matching_dynamic = benchmark_dynamic_pattern_matcher(ctx.clone())?;
 
     // Phase 4: Template Expansion
     println!("\n📊 Phase 4: Template Expansion Performance");
     println!("----------------------------------------");
-    results.template_expansion = benchmark_template_expansion(device.clone())?;
+    results.template_expansion = benchmark_template_expansion(ctx.clone())?;
 
     // Phase 5: AST Transformation
     println!("\n📊 Phase 5: AST Transformation Performance");
     println!("-----------------------------------------");
-    results.ast_transformation = benchmark_ast_transformation(device.clone())?;
+    results.ast_transformation = benchmark_ast_transformation(ctx.clone())?;
 
     // Phase 6: Results Summary
     print_results_summary(&results);
@@ -83,29 +83,32 @@ fn main() -> Result<()> {
 }
 
 /// Measure kernel launch overhead
-fn measure_kernel_launch_overhead(device: &Arc<CudaDevice>) -> Result<f64> {
+fn measure_kernel_launch_overhead(ctx: &Arc<CudaContext>) -> Result<f64> {
     const NUM_LAUNCHES: u32 = 10000;
 
+    let stream = ctx.default_stream();
+
     // Allocate minimal buffers
-    let buffer = device.alloc_zeros::<u8>(64)?;
+    let buffer = stream.alloc_zeros::<u8>(64)?;
 
     let start = Instant::now();
 
     // SAFETY: buffer is a valid device pointer from alloc_zeros.
     // Using minimal parameters (1 pattern, 1 node) to measure launch overhead.
     for _ in 0..NUM_LAUNCHES {
+        let (ptr, _guard) = buffer.device_ptr(&stream);
         unsafe {
             gpu_agents::synthesis::launch_match_patterns_fast(
-                *buffer.device_ptr() as *const u8,
-                *buffer.device_ptr() as *const u8,
-                *buffer.device_ptr() as *mut u32,
+                ptr as *const u8,
+                ptr as *const u8,
+                ptr as *mut u32,
                 1,
                 1,
             );
         }
     }
 
-    device.synchronize()?;
+    stream.synchronize()?;
 
     let elapsed = start.elapsed();
     let overhead_us = elapsed.as_micros() as f64 / NUM_LAUNCHES as f64;
@@ -117,31 +120,30 @@ fn measure_kernel_launch_overhead(device: &Arc<CudaDevice>) -> Result<f64> {
 }
 
 /// Measure memory transfer bandwidth
-fn measure_memory_bandwidth(device: &Arc<CudaDevice>) -> Result<f64> {
+fn measure_memory_bandwidth(ctx: &Arc<CudaContext>) -> Result<f64> {
     const BUFFER_SIZE: usize = 256 * 1024 * 1024; // 256 MB
     const NUM_TRANSFERS: u32 = 100;
 
+    let stream = ctx.default_stream();
     let host_buffer = vec![0u8; BUFFER_SIZE];
-    // SAFETY: alloc returns uninitialized memory. device_buffer will be written
-    // via htod_copy_into before any kernel reads; this is a bandwidth benchmark.
-    let device_buffer = unsafe { device.alloc::<u8>(BUFFER_SIZE)? };
+    // Allocate device buffer using stream
+    let mut device_buffer = stream.alloc_zeros::<u8>(BUFFER_SIZE)?;
 
     // Host to Device
     let start = Instant::now();
     for _ in 0..NUM_TRANSFERS {
-        device.htod_copy_into(host_buffer.clone(), &mut device_buffer.clone())?;
+        device_buffer = stream.clone_htod(&host_buffer)?;
     }
-    device.synchronize()?;
+    stream.synchronize()?;
     let htod_time = start.elapsed();
 
     let htod_bandwidth =
         (BUFFER_SIZE as f64 * NUM_TRANSFERS as f64) / htod_time.as_secs_f64() / 1e9;
 
     // Device to Host
-    let mut host_result = vec![0u8; BUFFER_SIZE];
     let start = Instant::now();
     for _ in 0..NUM_TRANSFERS {
-        device.dtoh_sync_copy_into(&device_buffer, &mut host_result)?;
+        let _host_result: Vec<u8> = stream.clone_dtoh(&device_buffer)?;
     }
     let dtoh_time = start.elapsed();
 
@@ -155,8 +157,8 @@ fn measure_memory_bandwidth(device: &Arc<CudaDevice>) -> Result<f64> {
 }
 
 /// Benchmark basic pattern matcher
-fn benchmark_basic_pattern_matcher(device: Arc<CudaDevice>) -> Result<f64> {
-    let matcher = GpuPatternMatcher::new(device, 10000)?;
+fn benchmark_basic_pattern_matcher(ctx: Arc<CudaContext>) -> Result<f64> {
+    let matcher = GpuPatternMatcher::new(ctx, 10000)?;
 
     // Create test patterns and ASTs
     let patterns = create_test_patterns(64);
@@ -184,8 +186,8 @@ fn benchmark_basic_pattern_matcher(device: Arc<CudaDevice>) -> Result<f64> {
 }
 
 /// Benchmark simple pattern matcher
-fn benchmark_simple_pattern_matcher(device: Arc<CudaDevice>) -> Result<f64> {
-    let matcher = SimpleGpuPatternMatcher::new(device)?;
+fn benchmark_simple_pattern_matcher(ctx: Arc<CudaContext>) -> Result<f64> {
+    let matcher = SimpleGpuPatternMatcher::new(ctx)?;
 
     let patterns = create_test_patterns(32);
     let asts = create_test_asts(5000);
@@ -214,8 +216,8 @@ fn benchmark_simple_pattern_matcher(device: Arc<CudaDevice>) -> Result<f64> {
 }
 
 /// Benchmark dynamic pattern matcher
-fn benchmark_dynamic_pattern_matcher(device: Arc<CudaDevice>) -> Result<f64> {
-    let matcher = DynamicGpuPatternMatcher::new(device)?;
+fn benchmark_dynamic_pattern_matcher(ctx: Arc<CudaContext>) -> Result<f64> {
+    let matcher = DynamicGpuPatternMatcher::new(ctx)?;
 
     let patterns = create_test_patterns(32);
     let asts = create_test_asts(5000);
@@ -240,8 +242,8 @@ fn benchmark_dynamic_pattern_matcher(device: Arc<CudaDevice>) -> Result<f64> {
 }
 
 /// Benchmark template expansion
-fn benchmark_template_expansion(device: Arc<CudaDevice>) -> Result<f64> {
-    let expander = GpuTemplateExpander::new(device, 10000)?;
+fn benchmark_template_expansion(ctx: Arc<CudaContext>) -> Result<f64> {
+    let expander = GpuTemplateExpander::new(ctx, 10000)?;
 
     let templates = create_test_templates(100);
     let bindings = std::collections::HashMap::from([
@@ -270,8 +272,8 @@ fn benchmark_template_expansion(device: Arc<CudaDevice>) -> Result<f64> {
 }
 
 /// Benchmark AST transformation
-fn benchmark_ast_transformation(device: Arc<CudaDevice>) -> Result<f64> {
-    let transformer = GpuAstTransformer::new(device, 10000)?;
+fn benchmark_ast_transformation(ctx: Arc<CudaContext>) -> Result<f64> {
+    let transformer = GpuAstTransformer::new(ctx, 10000)?;
 
     let asts = create_test_asts(1000);
     let rules = create_test_transform_rules(10);

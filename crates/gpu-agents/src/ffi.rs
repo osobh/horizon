@@ -54,11 +54,7 @@ unsafe impl bytemuck::Zeroable for AgentPrompt {}
 // SAFETY: AgentPrompt has a stable C ABI layout (#[repr(C)]) and contains only
 // types that are safe to pass across the FFI boundary to CUDA kernels.
 // The pointer cast preserves the memory layout expected by the CUDA kernel.
-unsafe impl cudarc::driver::DeviceRepr for AgentPrompt {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+unsafe impl cudarc::driver::DeviceRepr for AgentPrompt {}
 
 /// LLM inference result (matches CUDA LLMResponse)
 #[repr(C)]
@@ -80,11 +76,7 @@ unsafe impl bytemuck::Zeroable for LlmResponse {}
 
 // SAFETY: LlmResponse has a stable C ABI layout (#[repr(C)]) and contains only
 // types safe to pass across the FFI boundary. The pointer cast preserves memory layout.
-unsafe impl cudarc::driver::DeviceRepr for LlmResponse {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+unsafe impl cudarc::driver::DeviceRepr for LlmResponse {}
 
 /// GPU knowledge node structure (matches CUDA GPUKnowledgeNode)
 #[repr(C)]
@@ -106,11 +98,7 @@ unsafe impl bytemuck::Zeroable for GPUKnowledgeNode {}
 
 // SAFETY: GPUKnowledgeNode has a stable C ABI layout (#[repr(C)]) matching the CUDA
 // GPUKnowledgeNode struct. The pointer cast preserves the expected memory layout.
-unsafe impl cudarc::driver::DeviceRepr for GPUKnowledgeNode {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+unsafe impl cudarc::driver::DeviceRepr for GPUKnowledgeNode {}
 
 /// GPU adjacency list entry (matches CUDA GPUAdjacencyEntry)
 #[repr(C)]
@@ -129,11 +117,7 @@ unsafe impl bytemuck::Zeroable for GPUAdjacencyEntry {}
 
 // SAFETY: GPUAdjacencyEntry has a stable C ABI layout (#[repr(C)]) matching the CUDA
 // GPUAdjacencyEntry struct. The pointer cast preserves the expected memory layout.
-unsafe impl cudarc::driver::DeviceRepr for GPUAdjacencyEntry {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+unsafe impl cudarc::driver::DeviceRepr for GPUAdjacencyEntry {}
 
 /// Knowledge graph query structure (matches CUDA GPUGraphQuery)
 #[repr(C)]
@@ -153,11 +137,7 @@ unsafe impl bytemuck::Zeroable for GPUGraphQuery {}
 
 // SAFETY: GPUGraphQuery has a stable C ABI layout (#[repr(C)]) matching the CUDA
 // GPUGraphQuery struct. The pointer cast preserves the expected memory layout.
-unsafe impl cudarc::driver::DeviceRepr for GPUGraphQuery {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+unsafe impl cudarc::driver::DeviceRepr for GPUGraphQuery {}
 
 /// Knowledge graph query result (matches CUDA GPUQueryResult)
 #[repr(C)]
@@ -177,13 +157,9 @@ unsafe impl bytemuck::Zeroable for GPUQueryResult {}
 
 // SAFETY: GPUQueryResult has a stable C ABI layout (#[repr(C)]) matching the CUDA
 // GPUQueryResult struct. The pointer cast preserves the expected memory layout.
-unsafe impl cudarc::driver::DeviceRepr for GPUQueryResult {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+unsafe impl cudarc::driver::DeviceRepr for GPUQueryResult {}
 
-extern "C" {
+unsafe extern "C" {
     /// Initialize GPU agents
     pub fn launch_agent_init(agents: *mut GpuAgent, num_agents: u32, seed: u32);
 
@@ -461,11 +437,7 @@ unsafe impl bytemuck::Zeroable for HuffmanCodeGPU {}
 
 // SAFETY: HuffmanCodeGPU has a stable C ABI layout (#[repr(C)]) matching the CUDA
 // HuffmanCode struct. The pointer cast preserves the expected memory layout.
-unsafe impl cudarc::driver::DeviceRepr for HuffmanCodeGPU {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+unsafe impl cudarc::driver::DeviceRepr for HuffmanCodeGPU {}
 
 /// GPU Huffman tree node structure (matches CUDA HuffmanTreeNode)
 #[repr(C)]
@@ -485,8 +457,4 @@ unsafe impl bytemuck::Zeroable for HuffmanTreeNodeGPU {}
 
 // SAFETY: HuffmanTreeNodeGPU has a stable C ABI layout (#[repr(C)]) matching the CUDA
 // HuffmanTreeNode struct. The pointer cast preserves the expected memory layout.
-unsafe impl cudarc::driver::DeviceRepr for HuffmanTreeNodeGPU {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+unsafe impl cudarc::driver::DeviceRepr for HuffmanTreeNodeGPU {}

@@ -1,7 +1,7 @@
 //! GPU fitness evaluation for evolution
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr};
 use std::sync::Arc;
 
 use super::population::GpuPopulation;
@@ -21,7 +21,7 @@ pub enum FitnessType {
 
 /// GPU Fitness Evaluator
 pub struct GpuFitnessEvaluator {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     fitness_objectives: usize,
     fitness_type: FitnessType,
     /// Multi-objective fitness vectors (if applicable)
@@ -30,7 +30,7 @@ pub struct GpuFitnessEvaluator {
 
 impl GpuFitnessEvaluator {
     /// Create new fitness evaluator
-    pub fn new(device: Arc<CudaDevice>, fitness_objectives: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, fitness_objectives: usize) -> Result<Self> {
         let fitness_type = if fitness_objectives > 1 {
             FitnessType::MultiObjective
         } else {
@@ -88,21 +88,24 @@ impl GpuFitnessEvaluator {
         // Allocate fitness vectors if not already done
         if self.fitness_vectors.is_none() {
             let vector_size = pointers.population_size * self.fitness_objectives;
+            let stream = self.device.default_stream();
             // SAFETY: alloc returns uninitialized memory. fitness_vectors will be
             // written by multi-objective kernel before any reads.
-            self.fitness_vectors = Some(unsafe { self.device.alloc::<f32>(vector_size)? });
+            self.fitness_vectors = Some(unsafe { stream.alloc::<f32>(vector_size)? });
         }
 
-        let fitness_vectors = self.fitness_vectors.as_ref()?;
+        let fitness_vectors = self.fitness_vectors.as_ref().ok_or_else(|| anyhow::anyhow!("Fitness vectors not initialized"))?;
 
         // Launch multi-objective evaluation kernel
         // SAFETY: fitness_vectors pointer is valid from CudaSlice allocation.
         // GPUAgent pointer is null (not used in this implementation).
         // population_size and fitness_objectives match allocation sizes.
+        let stream = self.device.default_stream();
+        let (fitness_vec_ptr, _guard) = fitness_vectors.device_ptr(&stream);
         unsafe {
             crate::ffi::launch_multi_objective_fitness(
                 std::ptr::null_mut(), // We're not using GPUAgent struct here
-                *fitness_vectors.device_ptr() as *mut f32,
+                fitness_vec_ptr as *mut f32,
                 pointers.population_size as u32,
                 self.fitness_objectives as u32,
                 0.1,   // kernel_time_ms (example)
@@ -129,9 +132,11 @@ impl GpuFitnessEvaluator {
         // SAFETY: fitness_vectors pointer is valid from CudaSlice allocation.
         // fitness_scores pointer is valid from PopulationPointers.
         // population_size and fitness_objectives match allocation sizes.
+        let stream = self.device.default_stream();
+        let (fitness_vec_ptr, _guard) = fitness_vectors.device_ptr(&stream);
         unsafe {
             aggregate_fitness_kernel(
-                *fitness_vectors.device_ptr() as *const f32,
+                fitness_vec_ptr as *const f32,
                 pointers.fitness_scores,
                 pointers.population_size as u32,
                 self.fitness_objectives as u32,
@@ -156,7 +161,7 @@ impl GpuFitnessEvaluator {
 }
 
 // Helper kernel for aggregating multi-objective fitness
-extern "C" {
+unsafe extern "C" {
     fn aggregate_fitness_kernel(
         fitness_vectors: *const f32,
         fitness_scores: *mut f32,
@@ -171,10 +176,10 @@ mod tests {
 
     #[test]
     fn test_fitness_evaluator_creation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let evaluator = GpuFitnessEvaluator::new(device, 1)?;
             assert_eq!(evaluator.fitness_objectives, 1);
         }
+        Ok(())
     }
 }

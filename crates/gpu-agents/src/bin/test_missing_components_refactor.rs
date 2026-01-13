@@ -2,7 +2,7 @@
 //!
 //! REFACTOR phase - optimization and performance
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::{ConsensusSynthesisEngine, TemplateRegistry};
 use gpu_agents::synthesis::{NodeType, Pattern};
 use std::time::{Duration, Instant};
@@ -11,12 +11,12 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Missing Consensus/Synthesis Components (REFACTOR phase)");
     println!("=============================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Optimized engine creation
     println!("\n1. Testing optimized engine creation...");
     let start = Instant::now();
-    let mut engine = ConsensusSynthesisEngine::new(device.clone())?;
+    let mut engine = ConsensusSynthesisEngine::new(ctx.clone())?;
     engine.init_voting(10000)?; // Large scale
     engine.init_synthesis()?;
     println!("✅ Engine initialized in {:?}", start.elapsed());

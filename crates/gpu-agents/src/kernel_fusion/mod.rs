@@ -5,7 +5,7 @@
 //! single, more efficient kernels.
 
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, CudaStream};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -225,7 +225,7 @@ pub struct SharedMemoryConstraints {
 
 /// Main kernel fusion engine
 pub struct KernelFusionEngine {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: KernelFusionConfig,
     fusion_cache: HashMap<String, FusedKernel>,
     performance_history: PerformanceHistory,
@@ -234,7 +234,7 @@ pub struct KernelFusionEngine {
 
 impl KernelFusionEngine {
     /// Create new kernel fusion engine
-    pub fn new(device: Arc<CudaDevice>, config: KernelFusionConfig) -> Self {
+    pub fn new(device: Arc<CudaContext>, config: KernelFusionConfig) -> Self {
         Self {
             device,
             config,

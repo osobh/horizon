@@ -1,40 +1,39 @@
-//! Test to determine actual return type of CudaDevice::new
+//! Test to determine actual return type of CudaContext::new
 //! Following TDD approach from rust.md
 
 #[cfg(test)]
 mod tests {
-    use cudarc::driver::CudaDevice;
+    use cudarc::driver::CudaContext;
     use std::sync::Arc;
-    
+
     #[test]
-    fn test_cuda_device_new_return_type() {
+    fn test_cuda_context_new_return_type() {
         // Skip if no GPU
-        match CudaDevice::new(0) {
-            Ok(device) => {
-                // Let's check what type device actually is
-                // If this compiles, device is CudaDevice
-                let _: CudaDevice = device;
-                println!("✓ CudaDevice::new returns CudaDevice (not Arc<CudaDevice>)");
+        match CudaContext::new(0) {
+            Ok(ctx) => {
+                // In 0.18.1, CudaContext::new returns Arc<CudaContext>
+                let _: Arc<CudaContext> = ctx;
+                println!("✓ CudaContext::new returns Arc<CudaContext>");
             }
             Err(_) => {
                 println!("Skipping - no GPU available");
             }
         }
     }
-    
+
     #[test]
     fn test_arc_wrapping_pattern() {
         // Skip if no GPU
-        if let Ok(device) = CudaDevice::new(0) {
-            // Correct pattern: device is CudaDevice, wrap it in Arc
-            let arc_device: Arc<CudaDevice> = Arc::new(device);
-            
+        if let Ok(ctx) = CudaContext::new(0) {
+            // In 0.18.1, ctx is already Arc<CudaContext>
+            // No need to wrap again
+
             // Verify the type
-            fn expect_arc_cuda_device(_: Arc<CudaDevice>) {
-                println!("✓ Received Arc<CudaDevice> as expected");
+            fn expect_arc_cuda_context(_: Arc<CudaContext>) {
+                println!("✓ Received Arc<CudaContext> as expected");
             }
-            
-            expect_arc_cuda_device(arc_device);
+
+            expect_arc_cuda_context(ctx);
         }
     }
 }

@@ -7,7 +7,7 @@
 //! Following strict TDD methodology - these tests will fail initially.
 
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::{ConsensusSynthesisEngine, IntegrationConfig};
 use gpu_agents::multi_region::{
     AlibabaIntegration, AutoScalingEvent, AwsIntegration, BehavioralAnalyzer, CloudProviderManager,
@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 #[tokio::test]
 async fn test_multi_region_consensus_basic_functionality() {
     // Arrange - This will fail because MultiRegionConsensusEngine doesn't exist yet
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let base_config = IntegrationConfig::default();
     let base_engine = ConsensusSynthesisEngine::new(device, base_config).unwrap();
 
@@ -98,7 +98,7 @@ async fn test_multi_region_consensus_basic_functionality() {
 #[tokio::test]
 async fn test_disaster_recovery_failover() {
     // Test automatic failover when primary region fails
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let base_engine = ConsensusSynthesisEngine::new(device, IntegrationConfig::default()).unwrap();
 
     let config = MultiRegionConfig {
@@ -157,7 +157,7 @@ async fn test_disaster_recovery_failover() {
 #[tokio::test]
 async fn test_zero_trust_security_validation() {
     // Test zero-trust security validation across regions
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let base_engine = ConsensusSynthesisEngine::new(device, IntegrationConfig::default()).unwrap();
 
     let config = MultiRegionConfig {
@@ -218,7 +218,7 @@ async fn test_zero_trust_security_validation() {
 #[tokio::test]
 async fn test_cloud_provider_auto_scaling() {
     // Test automatic scaling across cloud providers
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let base_engine = ConsensusSynthesisEngine::new(device, IntegrationConfig::default()).unwrap();
 
     let config = MultiRegionConfig {
@@ -282,7 +282,7 @@ async fn test_cloud_provider_auto_scaling() {
 #[tokio::test]
 async fn test_cross_region_latency_optimization() {
     // Test latency optimization across regions with different network conditions
-    let device = Arc::new(CudaDevice::new(0).unwrap());
+    let device = CudaContext::new(0).unwrap();
     let base_engine = ConsensusSynthesisEngine::new(device, IntegrationConfig::default()).unwrap();
 
     let config = MultiRegionConfig {

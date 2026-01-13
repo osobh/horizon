@@ -4,7 +4,7 @@
 //! atomic operations for high-performance multi-agent scenarios.
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -77,7 +77,7 @@ pub struct AtomicEdge {
 
 /// GPU-side atomic update queue
 pub struct AtomicUpdateQueue {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Update operations buffer
     update_buffer: CudaSlice<u8>,
     /// Queue head pointer (atomic)
@@ -92,13 +92,14 @@ pub struct AtomicUpdateQueue {
 
 impl AtomicUpdateQueue {
     /// Create new atomic update queue
-    pub fn new(device: Arc<CudaDevice>, max_queue_size: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, max_queue_size: usize) -> Result<Self> {
         let update_size = std::mem::size_of::<AtomicUpdate>();
         let update_buffer_size = max_queue_size * update_size;
         // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
         // because updates are written to the buffer before they are processed by the
         // atomic update kernel. The circular queue tracks which entries are valid.
-        let update_buffer = unsafe { device.alloc::<u8>(update_buffer_size)? };
+        let stream = device.default_stream();
+        let update_buffer = unsafe { stream.alloc::<u8>(update_buffer_size)? };
 
         Ok(Self {
             device,
@@ -200,9 +201,11 @@ impl AtomicUpdateQueue {
             // SAFETY: The kernel function is called with valid device pointers from
             // CudaSlice::device_ptr(). current_head and current_tail are valid indices
             // within the circular buffer. pending_count entries from head to tail are valid.
+            let stream = self.device.default_stream();
+            let (update_buffer_ptr, _guard) = self.update_buffer.device_ptr(&stream);
             unsafe {
                 crate::kernels::launch_atomic_updates(
-                    *self.update_buffer.device_ptr() as *const u8,
+                    update_buffer_ptr as *const u8,
                     current_head,
                     current_tail,
                     self.max_queue_size as u32,
@@ -220,7 +223,7 @@ impl AtomicUpdateQueue {
 
 /// Lock-free atomic knowledge graph
 pub struct AtomicKnowledgeGraph {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Atomic node data
     nodes: CudaSlice<u8>, // Serialized AtomicNode structs
     /// Atomic edge data
@@ -247,7 +250,7 @@ pub struct AtomicKnowledgeGraph {
 impl AtomicKnowledgeGraph {
     /// Create new atomic knowledge graph
     pub fn new(
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
         max_nodes: usize,
         max_edges: usize,
         embedding_dim: usize,
@@ -256,14 +259,15 @@ impl AtomicKnowledgeGraph {
         let node_size = std::mem::size_of::<AtomicNode>();
         let edge_size = std::mem::size_of::<AtomicEdge>();
 
+        let stream = device.default_stream();
         // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
         // nodes and edges are initialized via add_node/add_edge before being read, and
         // the version tracking ensures only initialized data is accessed.
-        let nodes = unsafe { device.alloc::<u8>(max_nodes * node_size)? };
-        let edges = unsafe { device.alloc::<u8>(max_edges * edge_size)? };
-        let embeddings = device.alloc_zeros::<f32>(max_nodes * embedding_dim)?;
-        let embedding_versions = device.alloc_zeros::<u64>(max_nodes)?;
-        let adjacency_lists = device.alloc_zeros::<u32>(max_nodes * 64)?; // Max 64 edges per node
+        let nodes = unsafe { stream.alloc::<u8>(max_nodes * node_size)? };
+        let edges = unsafe { stream.alloc::<u8>(max_edges * edge_size)? };
+        let embeddings = stream.alloc_zeros::<f32>(max_nodes * embedding_dim)?;
+        let embedding_versions = stream.alloc_zeros::<u64>(max_nodes)?;
+        let adjacency_lists = stream.alloc_zeros::<u32>(max_nodes * 64)?; // Max 64 edges per node
 
         let update_queue = AtomicUpdateQueue::new(Arc::clone(&device), 10000)?;
 
@@ -423,29 +427,34 @@ impl AtomicKnowledgeGraph {
             ConsistencyLevel::Weak => self.graph_version.load(Ordering::Relaxed),
         };
 
+        let stream = self.device.default_stream();
         // Allocate GPU memory for results
-        let gpu_query = self.device.htod_sync_copy(query_embedding)?;
+        let gpu_query = stream.clone_htod(query_embedding)?;
         // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. gpu_results is
         // write-only from the kernel's perspective (stores search results).
-        let gpu_results = unsafe { self.device.alloc::<u32>(k * 2)? }; // (id, score) pairs
-                                                                       // SAFETY: gpu_version is immediately initialized via htod_copy_into below.
-        let gpu_version = unsafe { self.device.alloc::<u64>(1)? };
+        let gpu_results = unsafe { stream.alloc::<u32>(k * 2)? }; // (id, score) pairs
+        // SAFETY: gpu_version is immediately initialized via htod_copy_into below.
+        let mut gpu_version = unsafe { stream.alloc::<u64>(1)? };
 
         // Upload search version
-        self.device
-            .htod_copy_into(vec![search_version], &mut gpu_version.clone())?;
+        stream.memcpy_htod(&[search_version], &mut gpu_version)?;
 
         // Launch atomic search kernel
         // SAFETY: The kernel function is called with valid device pointers from
         // CudaSlice::device_ptr(). All buffers have been properly allocated and
         // sized. The kernel reads embeddings/versions and writes to gpu_results.
+        let (embeddings_ptr, _emb_guard) = self.embeddings.device_ptr(&stream);
+        let (versions_ptr, _ver_guard) = self.embedding_versions.device_ptr(&stream);
+        let (query_ptr, _query_guard) = gpu_query.device_ptr(&stream);
+        let (results_ptr, _res_guard) = gpu_results.device_ptr(&stream);
+        let (version_ptr, _version_guard) = gpu_version.device_ptr(&stream);
         unsafe {
             crate::kernels::launch_atomic_similarity_search(
-                *self.embeddings.device_ptr() as *const f32,
-                *self.embedding_versions.device_ptr() as *const u64,
-                *gpu_query.device_ptr() as *const f32,
-                *gpu_results.device_ptr() as *mut u32,
-                *gpu_version.device_ptr() as *const u64,
+                embeddings_ptr as *const f32,
+                versions_ptr as *const u64,
+                query_ptr as *const f32,
+                results_ptr as *mut u32,
+                version_ptr as *const u64,
                 self.max_nodes as u32,
                 self.embedding_dim as u32,
                 k as u32,
@@ -453,7 +462,7 @@ impl AtomicKnowledgeGraph {
         }
 
         // Download results
-        let results: Vec<u32> = self.device.dtoh_sync_copy(&gpu_results)?;
+        let results: Vec<u32> = stream.clone_dtoh(&gpu_results)?;
 
         // Convert to (id, score) pairs
         let mut result_pairs = Vec::new();
@@ -538,8 +547,7 @@ mod tests {
 
     #[test]
     fn test_atomic_update_queue() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let queue = AtomicUpdateQueue::new(device, 100)?;
 
             let update = AtomicUpdate {
@@ -553,12 +561,12 @@ mod tests {
 
             assert!(queue.enqueue_update(update)?);
         }
+        Ok(())
     }
 
     #[test]
     fn test_atomic_knowledge_graph_creation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let graph = AtomicKnowledgeGraph::new(device, 1000, 5000, 128)?;
 
             let stats = graph.statistics();
@@ -568,5 +576,6 @@ mod tests {
             assert_eq!(stats.max_edges, 5000);
             assert_eq!(stats.embedding_dim, 128);
         }
+        Ok(())
     }
 }

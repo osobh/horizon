@@ -1,6 +1,7 @@
 //! GPU Evolution benchmarks
 
 use anyhow::Result;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -53,15 +54,15 @@ pub struct EvolutionBenchmarkResults {
 
 /// GPU Evolution benchmark suite
 pub struct GpuEvolutionBenchmark {
-    device: Arc<cudarc::driver::CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: EvolutionBenchmarkConfig,
 }
 
 impl GpuEvolutionBenchmark {
     /// Create new benchmark suite
     pub fn new(device_id: i32, config: EvolutionBenchmarkConfig) -> Result<Self> {
-        let device = cudarc::driver::CudaDevice::new(device_id as usize)?;
-        Ok(Self { device, config })
+        let ctx = CudaContext::new(device_id as usize)?;
+        Ok(Self { ctx, config })
     }
 
     /// Run all benchmarks
@@ -116,7 +117,7 @@ impl GpuEvolutionBenchmark {
             block_size: 256,
         };
 
-        let mut engine = GpuEvolutionEngine::new(self.device.clone(), config)?;
+        let mut engine = GpuEvolutionEngine::new(self.ctx.clone(), config)?;
 
         // Initialize population
         engine.initialize_random()?;
@@ -176,7 +177,7 @@ impl GpuEvolutionBenchmark {
                 ..Default::default()
             };
 
-            let mut engine = GpuEvolutionEngine::new(self.device.clone(), config)?;
+            let mut engine = GpuEvolutionEngine::new(self.ctx.clone(), config)?;
             engine.initialize_random()?;
 
             let start = Instant::now();
@@ -215,7 +216,7 @@ impl GpuEvolutionBenchmark {
                 ..Default::default()
             };
 
-            let mut engine = GpuEvolutionEngine::new(self.device.clone(), config)?;
+            let mut engine = GpuEvolutionEngine::new(self.ctx.clone(), config)?;
             engine.initialize_random()?;
 
             // Set selection method
@@ -251,7 +252,7 @@ impl GpuEvolutionBenchmark {
                 ..Default::default()
             };
 
-            match GpuEvolutionEngine::new(self.device.clone(), config) {
+            match GpuEvolutionEngine::new(self.ctx.clone(), config) {
                 Ok(mut engine) => {
                     engine.initialize_random()?;
 
@@ -321,7 +322,7 @@ mod tests {
         };
 
         if let Ok(mut benchmark) = GpuEvolutionBenchmark::new(0, config) {
-            let results = benchmark.run_all().await?;
+            let results = benchmark.run_all().await.unwrap();
             assert!(!results.is_empty());
             assert!(results[0].total_time_ms > 0.0);
         }

@@ -1,7 +1,7 @@
 [package]
 name = "swarmlet"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["StratoSwarm Team"]
 description = "Lightweight StratoSwarm node agent for easy cluster joining"
 license = "MIT"
@@ -58,7 +58,7 @@ hostname = "0.3"
 toml = { workspace = true }
 
 # HPC Channels integration
-hpc-channels = { path = "../../../hpc-channels", optional = true, features = ["rkyv-codec"] }
+hpc-channels = { workspace = true, optional = true }
 
 # Warp format for high-speed artifact transfer (31 GB/s)
 warp-format = { path = "../../../warp/crates/warp-format", optional = true }

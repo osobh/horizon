@@ -6,12 +6,12 @@ mod tests {
     use super::super::*;
     use crate::knowledge::{GraphQuery, KnowledgeGraph, KnowledgeNode};
     use anyhow::Result;
-    use cudarc::driver::CudaDevice;
+    use cudarc::driver::CudaContext;
     use std::sync::Arc;
 
     /// Helper to check if GPU is available
     fn ensure_gpu_available() -> Result<()> {
-        match CudaDevice::new(0) {
+        match CudaContext::new(0) {
             Ok(_) => Ok(()),
             Err(e) => {
                 eprintln!("GPU not available for testing: {}", e);
@@ -24,16 +24,15 @@ mod tests {
     fn test_gpu_device_creation() -> Result<()> {
         ensure_gpu_available()?;
 
-        // Test device creation
-        let device = CudaDevice::new(0)?;
-        let device_arc = Arc::new(device);
+        // Test context creation
+        let ctx = CudaContext::new(0)?;
 
-        // Verify Arc type
-        fn verify_arc_type(_device: Arc<CudaDevice>) {
+        // Verify Arc type - in 0.18.1, CudaContext::new returns Arc<CudaContext>
+        fn verify_arc_type(_ctx: Arc<CudaContext>) {
             // Type checking happens at compile time
         }
 
-        verify_arc_type(device_arc.clone());
+        verify_arc_type(ctx.clone());
         Ok(())
     }
 
@@ -42,7 +41,7 @@ mod tests {
         ensure_gpu_available()?;
 
         // Create a simple graph
-        let mut graph = KnowledgeGraph::new();
+        let mut graph = KnowledgeGraph::new(128);
 
         // Add test nodes
         for i in 0..10 {
@@ -56,9 +55,9 @@ mod tests {
         }
 
         // Upload to GPU
-        let device = CudaDevice::new(0)?;
-        let device_arc = Arc::new(device);
-        let gpu_graph = graph.upload_to_gpu(device_arc)?;
+        let ctx = CudaContext::new(0)?;
+        let stream = ctx.default_stream();
+        let gpu_graph = graph.upload_to_gpu(ctx, stream)?;
 
         // Verify node count
         assert_eq!(gpu_graph.node_count(), 10);
@@ -71,7 +70,7 @@ mod tests {
         ensure_gpu_available()?;
 
         // Create graph with diverse embeddings
-        let mut graph = KnowledgeGraph::new();
+        let mut graph = KnowledgeGraph::new(128);
 
         for i in 0..100 {
             let node = KnowledgeNode {
@@ -84,14 +83,16 @@ mod tests {
         }
 
         // Upload to GPU
-        let device = Arc::new(CudaDevice::new(0)?);
-        let gpu_graph = graph.upload_to_gpu(device)?;
+        let ctx = CudaContext::new(0)?;
+        let stream = ctx.default_stream();
+        let gpu_graph = graph.upload_to_gpu(ctx, stream)?;
 
         // Test similarity search
         let query = GraphQuery {
-            query_type: "similarity".to_string(),
-            embedding: generate_test_embedding(5, 128),
+            query_text: "similarity".to_string(),
+            query_embedding: generate_test_embedding(5, 128),
             max_results: 5,
+            threshold: 0.5,
         };
 
         let results = gpu_graph.run_similarity_search(&query)?;
@@ -108,7 +109,7 @@ mod tests {
         ensure_gpu_available()?;
 
         // Create graph with known size
-        let mut graph = KnowledgeGraph::new();
+        let mut graph = KnowledgeGraph::new(128);
         let node_count = 1000;
 
         for i in 0..node_count {
@@ -122,8 +123,9 @@ mod tests {
         }
 
         // Upload and check memory
-        let device = Arc::new(CudaDevice::new(0)?);
-        let gpu_graph = graph.upload_to_gpu(device)?;
+        let ctx = CudaContext::new(0)?;
+        let stream = ctx.default_stream();
+        let gpu_graph = graph.upload_to_gpu(ctx, stream)?;
 
         let memory_used = gpu_graph.memory_usage();
 
@@ -195,9 +197,10 @@ mod cuda_specific_tests {
     fn test_cuda_synchronization() -> Result<()> {
         ensure_gpu_available()?;
 
-        let device = Arc::new(CudaDevice::new(0)?);
+        let ctx = CudaContext::new(0)?;
+        let _stream = ctx.default_stream();
 
-        // Test that device can be used for synchronization
+        // Test that context can be used for synchronization
         // Note: synchronization is handled internally by GPU operations
 
         Ok(())

@@ -1,7 +1,7 @@
 [package]
 name = "stratoswarm-fault-tolerance"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "Phase 4 fault tolerance system with checkpointing and recovery"
 
 [dependencies]

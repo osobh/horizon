@@ -18,6 +18,12 @@ import {
   Zap,
   Cpu,
   MoreHorizontal,
+  Activity,
+  AlertTriangle,
+  Target,
+  GitBranch,
+  Users,
+  Sparkles,
 } from 'lucide-react';
 import { useClusterStore } from '../../stores/clusterStore';
 import { useUserRole, ROLE_DISPLAY_NAMES } from '../../contexts/UserRoleContext';
@@ -140,6 +146,39 @@ const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
       { id: 'explorer', label: 'Design Explorer', path: '/evolution/explorer', icon: TrendingUp },
     ],
     visibility: ROLE_VISIBILITY.evolution,
+  },
+  {
+    id: 'observability',
+    label: 'Observability',
+    icon: Activity,
+    items: [
+      { id: 'metrics', label: 'Metrics Explorer', path: '/observability', icon: Activity },
+      { id: 'alerts', label: 'Alerts', path: '/observability/alerts', icon: AlertTriangle },
+      { id: 'targets', label: 'Targets', path: '/observability/targets', icon: Target },
+    ],
+    visibility: ROLE_VISIBILITY.observability,
+  },
+  {
+    id: 'pipelines',
+    label: 'Pipelines',
+    icon: GitBranch,
+    items: [
+      { id: 'pipelines', label: 'Pipelines', path: '/pipelines', icon: GitBranch },
+      { id: 'agents', label: 'Agents', path: '/pipelines/agents', icon: Server },
+      { id: 'approvals', label: 'Approvals', path: '/pipelines/approvals', icon: Shield },
+    ],
+    visibility: ROLE_VISIBILITY.pipelines,
+  },
+  {
+    id: 'swarm',
+    label: 'Swarm',
+    icon: Users,
+    items: [
+      { id: 'overview', label: 'Overview', path: '/swarm', icon: Users },
+      { id: 'agents', label: 'Agents', path: '/swarm/agents', icon: Activity },
+      { id: 'evolution', label: 'Evolution', path: '/swarm/evolution', icon: Sparkles },
+    ],
+    visibility: ROLE_VISIBILITY.swarm,
   },
   {
     id: 'costs',

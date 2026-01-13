@@ -8,9 +8,9 @@
 
 use super::{KnowledgeEdge, KnowledgeNode};
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr, DeviceSlice};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// Activation function for GNN layers
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -82,7 +82,7 @@ struct GpuGnnData {
 
 /// Graph Neural Network
 pub struct GraphNeuralNetwork {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: GnnConfig,
     layers: Vec<GnnLayer>,
     nodes: Vec<KnowledgeNode>,
@@ -94,7 +94,7 @@ pub struct GraphNeuralNetwork {
 
 impl GraphNeuralNetwork {
     /// Create new GNN
-    pub fn new(device: Arc<CudaDevice>, config: GnnConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: GnnConfig) -> Result<Self> {
         let mut layers = Vec::new();
 
         // Create layers
@@ -112,9 +112,10 @@ impl GraphNeuralNetwork {
 
             let bias_data = vec![0.0f32; output_dim];
 
+            let stream = device.default_stream();
             let layer = GnnLayer {
-                weight_matrix: device.htod_sync_copy(&weight_data)?,
-                bias: device.htod_sync_copy(&bias_data)?,
+                weight_matrix: stream.clone_htod(&weight_data)?,
+                bias: stream.clone_htod(&bias_data)?,
                 input_dim,
                 output_dim,
             };
@@ -318,8 +319,9 @@ impl GraphNeuralNetwork {
         layer: &GnnLayer,
     ) -> Result<Vec<Vec<f32>>> {
         // Download weights from GPU
-        let weights = self.device.dtoh_sync_copy(&layer.weight_matrix)?;
-        let bias = self.device.dtoh_sync_copy(&layer.bias)?;
+        let stream = self.device.default_stream();
+        let weights: Vec<f32> = stream.clone_dtoh(&layer.weight_matrix)?;
+        let bias: Vec<f32> = stream.clone_dtoh(&layer.bias)?;
 
         let mut output = Vec::new();
 
@@ -431,7 +433,7 @@ impl GraphNeuralNetwork {
             .map(|emb| {
                 emb.iter()
                     .enumerate()
-                    .max_by(|(_, a), (_, b)| a.partial_cmp(b)?)
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                     .map(|(idx, _)| idx as u32)
                     .unwrap_or(0)
             })
@@ -554,9 +556,10 @@ impl GraphNeuralNetwork {
         loss /= labels.len() as f32;
 
         // Backward pass (simplified - just update weights)
+        let stream = self.device.default_stream();
         for layer in &mut self.layers {
             // Download weights
-            let mut weights = self.device.dtoh_sync_copy(&layer.weight_matrix)?;
+            let mut weights: Vec<f32> = stream.clone_dtoh(&layer.weight_matrix)?;
 
             // Simple gradient descent update
             for w in &mut weights {
@@ -564,7 +567,7 @@ impl GraphNeuralNetwork {
             }
 
             // Upload updated weights
-            layer.weight_matrix = self.device.htod_sync_copy(&weights)?;
+            layer.weight_matrix = stream.clone_htod(&weights)?;
         }
 
         self.is_trained = true;
@@ -593,11 +596,12 @@ impl GraphNeuralNetwork {
         let adjacency = vec![0.0f32; num_nodes * num_nodes];
 
         // Upload to GPU
+        let stream = self.device.default_stream();
         let gpu_data = GpuGnnData {
-            node_features: self.device.htod_sync_copy(&features)?,
-            edge_indices: self.device.htod_sync_copy(&edge_indices)?,
-            edge_weights: self.device.htod_sync_copy(&edge_weights)?,
-            adjacency_matrix: self.device.htod_sync_copy(&adjacency)?,
+            node_features: stream.clone_htod(&features)?,
+            edge_indices: stream.clone_htod(&edge_indices)?,
+            edge_weights: stream.clone_htod(&edge_weights)?,
+            adjacency_matrix: stream.clone_htod(&adjacency)?,
         };
 
         self.gpu_data = Some(gpu_data);
@@ -638,11 +642,10 @@ mod rand {
         T: Default + From<f32>,
     {
         // Simple pseudo-random
-        let val = (std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_nanos()
-            % 1000) as f32
-            / 1000.0;
+        let val = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| (d.as_nanos() % 1000) as f32 / 1000.0)
+            .unwrap_or(0.5);
         T::from(val)
     }
 }

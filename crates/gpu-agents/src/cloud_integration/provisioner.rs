@@ -8,7 +8,6 @@ use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
 
 /// Cloud provisioner for multi-cloud orchestration
 pub struct CloudProvisioner {
@@ -149,15 +148,14 @@ impl CloudProvisioner {
     /// Create new cloud provisioner
     pub fn new() -> Self {
         Self {
-            providers: Arc::new(RwLock::new(HashMap::new())),
-            deployments: Arc::new(RwLock::new(HashMap::new())),
+            providers: Arc::new(DashMap::new()),
+            deployments: Arc::new(DashMap::new()),
         }
     }
 
     /// Add a cloud provider
-    pub async fn add_provider(&self, provider: Box<dyn CloudProvider>) -> Result<()> {
-        let mut providers = self.providers.write().await;
-        providers.insert(provider.name().to_string(), provider);
+    pub async fn add_provider(&self, provider: Box<dyn CloudProvider + Send + Sync>) -> Result<()> {
+        self.providers.insert(provider.name().to_string(), provider);
         Ok(())
     }
 
@@ -165,8 +163,7 @@ impl CloudProvisioner {
     pub async fn provision(&self, request: &ProvisioningRequest) -> Result<ProvisioningResult> {
         let start_time = Instant::now();
 
-        let providers = self.providers.read().await;
-        let provider = providers
+        let provider = self.providers
             .get(&request.provider)
             .ok_or_else(|| anyhow!("Provider {} not found", request.provider))?;
 
@@ -195,8 +192,7 @@ impl CloudProvisioner {
             auto_scaling_config: request.auto_scaling.clone(),
         };
 
-        let mut deployments = self.deployments.write().await;
-        deployments.insert(deployment.id.clone(), deployment);
+        self.deployments.insert(deployment.id.clone(), deployment);
 
         Ok(ProvisioningResult {
             deployment_id: response.resource_id,
@@ -216,10 +212,8 @@ impl CloudProvisioner {
         let start_time = Instant::now();
         let deployment_id = format!("multi-cloud-{}", uuid::Uuid::new_v4());
 
-        let providers = self.providers.read().await;
-
         // Determine distribution based on strategy
-        let distribution = self.calculate_distribution(request, &providers).await?;
+        let distribution = self.calculate_distribution(request).await?;
 
         let mut total_instances = 0;
         let mut total_cost = 0.0;
@@ -232,18 +226,18 @@ impl CloudProvisioner {
                 continue;
             }
 
-            let provider = providers
+            let provider_ref = self.providers
                 .get(&provider_name)
                 .ok_or_else(|| anyhow!("Provider {} not found", provider_name))?;
 
             // Select optimal region for this provider
             let region = self
-                .select_optimal_region(provider, &request.requirements)
+                .select_optimal_region(provider_ref.value().as_ref(), &request.requirements)
                 .await?;
 
             // Select instance type meeting requirements
             let instance_type = self
-                .select_instance_type(provider, &region, &request.requirements)
+                .select_instance_type(provider_ref.value().as_ref(), &region, &request.requirements)
                 .await?;
 
             let provision_request = ProvisionRequest {
@@ -260,7 +254,7 @@ impl CloudProvisioner {
                 key_pair: None,
             };
 
-            let response = provider.provision(&provision_request).await?;
+            let response = provider_ref.provision(&provision_request).await?;
 
             total_instances += instance_count;
             total_cost += response.total_cost_estimate;
@@ -282,7 +276,6 @@ impl CloudProvisioner {
     async fn calculate_distribution(
         &self,
         request: &MultiCloudRequest,
-        providers: &HashMap<String, Box<dyn CloudProvider>>,
     ) -> Result<HashMap<String, u32>> {
         let mut distribution = HashMap::new();
 
@@ -293,7 +286,7 @@ impl CloudProvisioner {
                 let remainder = request.total_instances % request.providers.len() as u32;
 
                 for (i, provider_name) in request.providers.iter().enumerate() {
-                    if providers.contains_key(provider_name) {
+                    if self.providers.contains_key(provider_name) {
                         let count =
                             instances_per_provider + if i < remainder as usize { 1 } else { 0 };
                         distribution.insert(provider_name.clone(), count);
@@ -346,7 +339,7 @@ impl CloudProvisioner {
     /// Select optimal region for provider based on requirements
     async fn select_optimal_region(
         &self,
-        provider: &Box<dyn CloudProvider>,
+        provider: &dyn CloudProvider,
         requirements: &ResourceRequirements,
     ) -> Result<String> {
         let regions = provider.list_regions().await?;
@@ -364,7 +357,7 @@ impl CloudProvisioner {
         // Otherwise pick lowest latency region
         gpu_regions
             .into_iter()
-            .min_by(|a, b| a.latency_ms.partial_cmp(&b.latency_ms)?)
+            .min_by(|a, b| a.latency_ms.partial_cmp(&b.latency_ms).unwrap_or(std::cmp::Ordering::Equal))
             .map(|r| r.id)
             .ok_or_else(|| anyhow!("No suitable region found"))
     }
@@ -372,7 +365,7 @@ impl CloudProvisioner {
     /// Select instance type meeting requirements
     async fn select_instance_type(
         &self,
-        provider: &Box<dyn CloudProvider>,
+        provider: &dyn CloudProvider,
         region: &str,
         requirements: &ResourceRequirements,
     ) -> Result<String> {
@@ -388,7 +381,7 @@ impl CloudProvisioner {
                     && (requirements.gpu_type.is_none()
                         || t.gpu_type
                             .as_ref()
-                            .map(|gt| gt.contains(requirements.gpu_type.as_ref()?))
+                            .and_then(|gt| requirements.gpu_type.as_ref().map(|req_gt| gt.contains(req_gt)))
                             .unwrap_or(false))
                     && (requirements.max_price_per_hour.is_none()
                         || t.price_per_hour <= requirements.max_price_per_hour.unwrap())
@@ -398,7 +391,7 @@ impl CloudProvisioner {
         // Pick cheapest suitable instance
         suitable_types
             .into_iter()
-            .min_by(|a, b| a.price_per_hour.partial_cmp(&b.price_per_hour)?)
+            .min_by(|a, b| a.price_per_hour.partial_cmp(&b.price_per_hour).unwrap_or(std::cmp::Ordering::Equal))
             .map(|t| t.id)
             .ok_or_else(|| anyhow!("No suitable instance type found"))
     }
@@ -411,8 +404,7 @@ impl CloudProvisioner {
     ) -> Result<ScalingResult> {
         let start_time = Instant::now();
 
-        let deployments = self.deployments.read().await;
-        let deployment = deployments
+        let deployment = self.deployments
             .get(deployment_id)
             .ok_or_else(|| anyhow!("Deployment {} not found", deployment_id))?;
 

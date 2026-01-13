@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, FileText, RefreshCw, PieChart } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { useCostsStore, CostAttribution, CostForecast, BudgetAlert } from '../../stores/costsStore';
+import { useCostsStore, CostAttribution, BudgetAlert } from '../../stores/costsStore';
 
 export default function CostsView() {
   const {

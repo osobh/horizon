@@ -122,7 +122,7 @@ mod tests {
     #[tokio::test]
     async fn test_gpu_memory_tracking() -> Result<()> {
         // RED: Test GPU memory usage tracking during storage ops
-        if cudarc::driver::CudaDevice::new(0).is_err() {
+        if cudarc::driver::CudaContext::new(0).is_err() {
             return Ok(()); // Skip if no GPU
         }
         

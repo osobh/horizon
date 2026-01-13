@@ -8,10 +8,10 @@ use crate::GpuAgent;
 // AgentId will be defined in this module for simulation
 pub struct AgentId(pub String);
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::{CudaContext, CudaStream};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tokio::time::{sleep, timeout};
+use tokio::time::sleep;
 
 /// Agent simulation configuration
 #[derive(Debug, Clone)]
@@ -83,9 +83,9 @@ pub struct ErrorStats {
 
 /// Agent simulator for large-scale testing
 pub struct AgentSimulator {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: SimulationConfig,
-    cuda_streams: Vec<CudaStream>,
+    cuda_streams: Vec<Arc<CudaStream>>,
     gpu_agents: Arc<Mutex<Vec<GpuAgent>>>,
     simulation_stats: Arc<Mutex<SimulationStats>>,
 }
@@ -105,7 +105,7 @@ struct SimulationStats {
 
 impl AgentSimulator {
     /// Create new agent simulator
-    pub fn new(device: Arc<CudaDevice>, config: SimulationConfig) -> Self {
+    pub fn new(ctx: Arc<CudaContext>, config: SimulationConfig) -> Self {
         // Create CUDA streams for parallel agent processing
         let num_streams = match config.stress_level {
             StressTestLevel::Light => 4,
@@ -116,13 +116,14 @@ impl AgentSimulator {
 
         let mut cuda_streams = Vec::with_capacity(num_streams);
         for _ in 0..num_streams {
-            if let Ok(stream) = device.fork_default_stream() {
+            // In cudarc 0.18.1, streams are created from the context
+            if let Ok(stream) = ctx.default_stream().fork() {
                 cuda_streams.push(stream);
             }
         }
 
         Self {
-            device,
+            ctx,
             config,
             cuda_streams,
             gpu_agents: Arc::new(Mutex::new(Vec::new())),
@@ -140,7 +141,7 @@ impl AgentSimulator {
 
         // Initialize simulation statistics
         {
-            let mut stats = self.simulation_stats.lock()?;
+            let mut stats = self.simulation_stats.lock().unwrap();
             stats.start_time = Some(Instant::now());
         }
 
@@ -189,10 +190,11 @@ impl AgentSimulator {
             let batch_agents = self.create_gpu_agent_batch(batch_count).await?;
 
             {
-                let mut agents = self.gpu_agents.lock()?;
+                let mut agents = self.gpu_agents.lock().unwrap();
                 agents.extend(batch_agents);
-
-                let mut stats = self.simulation_stats.lock()?;
+            }
+            {
+                let mut stats = self.simulation_stats.lock().unwrap();
                 stats.agents_created += batch_count;
                 stats.gpu_memory_used += batch_count * 1024; // Estimate 1KB per agent
             }
@@ -217,7 +219,7 @@ impl AgentSimulator {
         // Simulate CPU agent creation (placeholder - CPU agents in separate crate)
         println!("Simulating {} CPU agents...", target_cpu_agents);
         {
-            let mut stats = self.simulation_stats.lock()?;
+            let mut stats = self.simulation_stats.lock().unwrap();
             stats.agents_created += target_cpu_agents;
             stats.cpu_memory_used += target_cpu_agents * 512; // Estimate 512B per CPU agent
         }
@@ -260,7 +262,7 @@ impl AgentSimulator {
                 while Instant::now() < end_time {
                     // Simulate agent processing
                     let should_yield = {
-                        let agents_guard = agents.lock()?;
+                        let agents_guard = agents.lock().unwrap();
                         if !agents_guard.is_empty() {
                             // Process agents assigned to this stream
                             let agents_per_stream = agents_guard.len() / 8; // Distribute across streams
@@ -268,7 +270,7 @@ impl AgentSimulator {
                             let end_idx =
                                 std::cmp::min(start_idx + agents_per_stream, agents_guard.len());
 
-                            for i in start_idx..end_idx {
+                            for _i in start_idx..end_idx {
                                 // Simulate processing operation
                                 local_ops += 1;
                             }
@@ -291,7 +293,7 @@ impl AgentSimulator {
 
                 // Update global stats
                 {
-                    let mut stats_guard = stats.lock()?;
+                    let mut stats_guard = stats.lock().unwrap();
                     stats_guard.operations_processed += local_ops;
                 }
 
@@ -303,8 +305,11 @@ impl AgentSimulator {
 
         // Wait for all processing tasks to complete
         for task in tasks {
-            if let Ok(ops) = task.await {
-                operations_completed += ops;
+            match task.await {
+                Ok(ops) => operations_completed += ops,
+                Err(e) => {
+                    eprintln!("Processing task failed: {}", e);
+                }
             }
         }
 
@@ -401,7 +406,7 @@ impl AgentSimulator {
                 for _ in 0..100 {
                     // Simulate intensive operations
                     {
-                        let _agents_guard = agents.lock()?;
+                        let _agents_guard = agents.lock().unwrap();
                         // Simulate work without actually blocking
                     }
                     tokio::task::yield_now().await;
@@ -439,12 +444,12 @@ impl AgentSimulator {
                 while stress_start.elapsed() < stress_duration {
                     // Maximum stress operations
                     {
-                        let _agents_guard = agents.lock()?;
+                        let _agents_guard = agents.lock().unwrap();
                         // Simulate intensive operations
                     }
 
                     {
-                        let mut stats_guard = stats.lock()?;
+                        let mut stats_guard = stats.lock().unwrap();
                         stats_guard.operations_processed += 1;
                     }
 
@@ -528,12 +533,28 @@ impl AgentSimulator {
     async fn validate_performance(&mut self) -> Result<SimulationResults> {
         println!("Validating performance metrics...");
 
-        let stats = self.simulation_stats.lock()?;
-        let elapsed = stats.start_time.map(|t| t.elapsed()).unwrap_or_default();
+        // Extract all needed values from stats in a single locked block
+        let (
+            elapsed,
+            total_agents,
+            operations_processed,
+            errors_encountered,
+            gpu_memory_used,
+            cpu_memory_used,
+        ) = {
+            let stats = self.simulation_stats.lock().unwrap();
+            (
+                stats.start_time.map(|t| t.elapsed()).unwrap_or_default(),
+                stats.agents_created,
+                stats.operations_processed,
+                stats.errors_encountered,
+                stats.gpu_memory_used,
+                stats.cpu_memory_used,
+            )
+        };
 
-        let total_agents = stats.agents_created;
         let creation_rate = total_agents as f64 / elapsed.as_secs_f64();
-        let processing_throughput = stats.operations_processed as f64 / elapsed.as_secs_f64();
+        let processing_throughput = operations_processed as f64 / elapsed.as_secs_f64();
 
         // Build performance metrics
         let mut performance_metrics = HashMap::new();
@@ -541,19 +562,19 @@ impl AgentSimulator {
         performance_metrics.insert("processing_throughput".to_string(), processing_throughput);
         performance_metrics.insert(
             "total_operations".to_string(),
-            stats.operations_processed as f64,
+            operations_processed as f64,
         );
         performance_metrics.insert("memory_efficiency".to_string(), 0.85); // Placeholder
         performance_metrics.insert(
             "error_rate".to_string(),
-            stats.errors_encountered as f64 / stats.operations_processed.max(1) as f64,
+            errors_encountered as f64 / operations_processed.max(1) as f64,
         );
 
         // Build memory statistics
         let memory_stats = MemoryUsageStats {
-            peak_gpu_memory: stats.gpu_memory_used,
-            peak_cpu_memory: stats.cpu_memory_used,
-            avg_memory_per_agent: (stats.gpu_memory_used + stats.cpu_memory_used)
+            peak_gpu_memory: gpu_memory_used,
+            peak_cpu_memory: cpu_memory_used,
+            avg_memory_per_agent: (gpu_memory_used + cpu_memory_used)
                 / total_agents.max(1),
             tier_distribution: HashMap::new(), // Would be populated in real implementation
             allocation_efficiency: 0.85,
@@ -562,10 +583,10 @@ impl AgentSimulator {
         // Build error statistics
         let error_stats = ErrorStats {
             creation_failures: 0, // Would track actual failures
-            processing_errors: stats.errors_encountered,
+            processing_errors: errors_encountered,
             memory_failures: 0,
             timeout_errors: 0,
-            error_rate: stats.errors_encountered as f64 / stats.operations_processed.max(1) as f64,
+            error_rate: errors_encountered as f64 / operations_processed.max(1) as f64,
         };
 
         // Build resource utilization
@@ -577,9 +598,11 @@ impl AgentSimulator {
             storage_utilization: 45.7,
         };
 
+        let gpu_agents_active = self.gpu_agents.lock().unwrap().len();
+
         let results = SimulationResults {
             agents_simulated: total_agents,
-            gpu_agents_active: self.gpu_agents.lock()?.len(),
+            gpu_agents_active,
             cpu_agents_active: self.config.cpu_agent_count, // Simulated
             agent_creation_rate: creation_rate,
             processing_throughput,
@@ -598,7 +621,7 @@ impl AgentSimulator {
             ));
         }
 
-        println!("✅ Performance validation completed");
+        println!("Performance validation completed");
         println!("Agents Simulated: {}", results.agents_simulated);
         println!(
             "Creation Rate: {:.2} agents/sec",
@@ -615,7 +638,7 @@ impl AgentSimulator {
     // Helper methods for simulation operations
 
     async fn create_gpu_agent_batch(&self, count: usize) -> Result<Vec<GpuAgent>> {
-        let mut agents = Vec::with_capacity(count);
+        let agents = Vec::with_capacity(count);
 
         for i in 0..count {
             let _agent_id = AgentId(format!("gpu_agent_{}", i));
@@ -629,7 +652,7 @@ impl AgentSimulator {
 
     async fn simulate_agent_operations(&self, operation_count: usize) -> Result<()> {
         {
-            let mut stats = self.simulation_stats.lock()?;
+            let mut stats = self.simulation_stats.lock().unwrap();
             stats.operations_processed += operation_count as u64;
         }
 
@@ -643,68 +666,82 @@ impl AgentSimulator {
 
     async fn simulate_sequential_allocation(&self) -> Result<()> {
         // Simulate sequential memory allocation pattern
-        for _ in 0..100 {
-            let mut stats = self.simulation_stats.lock()?;
-            stats.memory_allocations += 1;
-            stats.gpu_memory_used += 4096; // 4KB allocation
+        {
+            let mut stats = self.simulation_stats.lock().unwrap();
+            for _ in 0..100 {
+                stats.memory_allocations += 1;
+                stats.gpu_memory_used += 4096; // 4KB allocation
+            }
         }
         Ok(())
     }
 
     async fn simulate_random_allocation(&self) -> Result<()> {
         // Simulate random memory allocation pattern
-        for _ in 0..50 {
-            let mut stats = self.simulation_stats.lock()?;
-            stats.memory_allocations += 1;
-            stats.gpu_memory_used += 8192; // 8KB allocation
+        {
+            let mut stats = self.simulation_stats.lock().unwrap();
+            for _ in 0..50 {
+                stats.memory_allocations += 1;
+                stats.gpu_memory_used += 8192; // 8KB allocation
+            }
         }
         Ok(())
     }
 
     async fn simulate_burst_allocation(&self) -> Result<()> {
         // Simulate burst memory allocation pattern
-        for _ in 0..200 {
-            let mut stats = self.simulation_stats.lock()?;
-            stats.memory_allocations += 1;
-            stats.gpu_memory_used += 2048; // 2KB allocation
+        {
+            let mut stats = self.simulation_stats.lock().unwrap();
+            for _ in 0..200 {
+                stats.memory_allocations += 1;
+                stats.gpu_memory_used += 2048; // 2KB allocation
+            }
         }
         Ok(())
     }
 
     async fn simulate_fragmented_allocation(&self) -> Result<()> {
         // Simulate fragmented memory allocation pattern
-        for _ in 0..75 {
-            let mut stats = self.simulation_stats.lock()?;
-            stats.memory_allocations += 1;
-            stats.gpu_memory_used += 16384; // 16KB allocation
+        {
+            let mut stats = self.simulation_stats.lock().unwrap();
+            for _ in 0..75 {
+                stats.memory_allocations += 1;
+                stats.gpu_memory_used += 16384; // 16KB allocation
+            }
         }
         Ok(())
     }
 
     async fn simulate_large_allocation(&self) -> Result<()> {
         // Simulate large memory allocation pattern
-        for _ in 0..10 {
-            let mut stats = self.simulation_stats.lock()?;
-            stats.memory_allocations += 1;
-            stats.gpu_memory_used += 1048576; // 1MB allocation
+        {
+            let mut stats = self.simulation_stats.lock().unwrap();
+            for _ in 0..10 {
+                stats.memory_allocations += 1;
+                stats.gpu_memory_used += 1048576; // 1MB allocation
+            }
         }
         Ok(())
     }
 
     async fn simulate_tier_migration(&self) -> Result<()> {
         // Simulate memory tier migration
-        let mut stats = self.simulation_stats.lock()?;
-        stats.operations_processed += 1;
+        {
+            let mut stats = self.simulation_stats.lock().unwrap();
+            stats.operations_processed += 1;
+        }
         // In real implementation, would trigger actual tier migration
         Ok(())
     }
 
     async fn simulate_memory_cleanup(&self) -> Result<()> {
         // Simulate memory cleanup operations
-        let mut stats = self.simulation_stats.lock()?;
-        // Simulate freeing some memory
-        stats.gpu_memory_used = (stats.gpu_memory_used as f32 * 0.8) as usize;
-        stats.cpu_memory_used = (stats.cpu_memory_used as f32 * 0.8) as usize;
+        {
+            let mut stats = self.simulation_stats.lock().unwrap();
+            // Simulate freeing some memory
+            stats.gpu_memory_used = (stats.gpu_memory_used as f32 * 0.8) as usize;
+            stats.cpu_memory_used = (stats.cpu_memory_used as f32 * 0.8) as usize;
+        }
         Ok(())
     }
 }

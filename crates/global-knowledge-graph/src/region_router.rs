@@ -411,7 +411,9 @@ impl RegionRouter {
 
     /// Least connections selection
     fn least_connections_select(&self, regions: &[RegionInfo]) -> RoutingDecision {
-        let selected = regions.iter().min_by_key(|r| r.active_connections)?;
+        let Some(selected) = regions.iter().min_by_key(|r| r.active_connections) else {
+            return self.round_robin_select(regions);
+        };
 
         RoutingDecision {
             region: selected.name.clone(),

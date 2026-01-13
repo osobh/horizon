@@ -166,6 +166,11 @@ impl PageTable {
         self.pages.len()
     }
 
+    /// Iterate over all pages
+    pub fn iter_pages(&self) -> impl Iterator<Item = (&PageId, &PageInfo)> {
+        self.pages.iter()
+    }
+
     /// Get statistics
     pub fn get_stats(&self) -> PageTableStats {
         PageTableStats {

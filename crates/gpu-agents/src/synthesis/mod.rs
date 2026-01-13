@@ -25,7 +25,7 @@ pub mod variable_buffer;
 mod tests;
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, LaunchConfig};
+use cudarc::driver::{CudaContext, LaunchConfig};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -104,7 +104,7 @@ pub struct CpuImplementation {
 
 /// Main GPU Synthesis Module
 pub struct GpuSynthesisModule {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     pattern_matcher: pattern::GpuPatternMatcher,
     template_expander: template::GpuTemplateExpander,
     ast_transformer: ast::GpuAstTransformer,
@@ -112,7 +112,7 @@ pub struct GpuSynthesisModule {
 
 impl GpuSynthesisModule {
     /// Create a new GPU synthesis module
-    pub fn new(device: Arc<CudaDevice>, max_nodes: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, max_nodes: usize) -> Result<Self> {
         let pattern_matcher = pattern::GpuPatternMatcher::new(device.clone(), max_nodes)?;
         let template_expander = template::GpuTemplateExpander::new(device.clone(), max_nodes)?;
         let ast_transformer = ast::GpuAstTransformer::new(device.clone(), max_nodes)?;
@@ -160,7 +160,7 @@ impl GpuSynthesisModule {
 }
 
 // External C functions for CUDA kernels
-extern "C" {
+unsafe extern "C" {
     pub fn launch_match_patterns(
         patterns: *const u8,
         ast_nodes: *const u8,

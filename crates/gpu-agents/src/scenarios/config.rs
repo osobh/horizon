@@ -119,10 +119,11 @@ pub struct KnowledgeConfig {
 }
 
 /// Memory access patterns for knowledge agents
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryPattern {
     /// Random access
+    #[default]
     Random,
     /// Recent items first
     Temporal,

@@ -96,6 +96,13 @@ export const ROLE_VISIBILITY: RoleVisibilityMatrix = {
     executive: 'hidden',
     infrastructure: 'primary',
   },
+  observability: {
+    researcher: 'hidden',
+    data_engineer: 'visible',
+    devops: 'primary',
+    executive: 'visible',
+    infrastructure: 'visible',
+  },
   costs: {
     researcher: 'hidden',
     data_engineer: 'hidden',
@@ -109,6 +116,20 @@ export const ROLE_VISIBILITY: RoleVisibilityMatrix = {
     devops: 'hidden',
     executive: 'primary',
     infrastructure: 'hidden',
+  },
+  pipelines: {
+    researcher: 'hidden',
+    data_engineer: 'visible',
+    devops: 'primary',
+    executive: 'hidden',
+    infrastructure: 'visible',
+  },
+  swarm: {
+    researcher: 'hidden',
+    data_engineer: 'hidden',
+    devops: 'visible',
+    executive: 'hidden',
+    infrastructure: 'primary',
   },
   settings: {
     researcher: 'visible',

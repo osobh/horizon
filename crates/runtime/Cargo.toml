@@ -13,7 +13,7 @@ tracing.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
-cust = { workspace = true, optional = true }
+# cust removed - migrated to cudarc 0.18.1
 # nvrtc = { workspace = true, optional = true }  # Temporarily disabled
 
 # UUID generation and random numbers
@@ -21,7 +21,7 @@ uuid.workspace = true
 rand.workspace = true
 
 # HPC Channels integration
-hpc-channels = { path = "../../../hpc-channels", optional = true, features = ["rkyv-codec"] }
+hpc-channels = { workspace = true, optional = true }
 
 # Internal dependencies
 stratoswarm-memory = { path = "../memory" }
@@ -31,7 +31,7 @@ futures = "0.3"
 
 [features]
 default = []
-cuda = ["cust", "stratoswarm-memory/cuda"]
+cuda = ["stratoswarm-memory/cuda"]
 cuda-alt = ["stratoswarm-memory/cuda-alt"]
 hpc-channels = ["dep:hpc-channels"]
 

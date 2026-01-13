@@ -7,7 +7,7 @@
 //! including GPU-accelerated voting, real cloud provider APIs, and async optimization.
 
 use anyhow::{Context, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus_synthesis::integration::{ConsensusSynthesisEngine, IntegrationConfig};
 use gpu_agents::multi_region::{
     LatencyOptimizationMetrics, MultiRegionConfig, MultiRegionConsensusEngine,
@@ -98,7 +98,7 @@ async fn run_optimized_performance_test() -> Result<OptimizedPerformanceResults>
     println!("Testing GPU acceleration, async optimization, and cloud integration");
 
     let test_config = OptimizedTestConfig::default();
-    let device = CudaDevice::new(0).context("Failed to initialize CUDA device")?;
+    let ctx = CudaContext::new(0).context("Failed to initialize CUDA device")?;
 
     // Configure optimized integration engine
     let integration_config = IntegrationConfig {
@@ -110,7 +110,7 @@ async fn run_optimized_performance_test() -> Result<OptimizedPerformanceResults>
             gpu_agents::consensus_synthesis::integration::ConflictStrategy::HighestVoteWins,
     };
 
-    let base_engine = ConsensusSynthesisEngine::new(device, integration_config)
+    let base_engine = ConsensusSynthesisEngine::new(ctx, integration_config)
         .context("Failed to create consensus synthesis engine")?;
 
     // Configure multi-region with all optimizations enabled

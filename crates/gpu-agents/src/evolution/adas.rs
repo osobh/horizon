@@ -3,9 +3,8 @@
 //! Implements the ADAS algorithm from "Automated Design of Agentic Systems" paper
 //! for GPU-accelerated meta-agent evolution and self-improving agentic systems.
 
-use crate::evolution::population::{GpuIndividual, GpuPopulation};
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::{CudaContext, CudaSlice, DevicePtr};
 use std::sync::Arc;
 
 /// ADAS meta-agent for automated system design
@@ -25,7 +24,7 @@ pub struct AdasMetaAgent {
 
 /// ADAS population manager for GPU-accelerated evolution
 pub struct AdasPopulation {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Population of meta-agents
     agents: Vec<AdasMetaAgent>,
     /// GPU memory for agent codes (flattened strings)
@@ -45,18 +44,19 @@ pub struct AdasPopulation {
 impl AdasPopulation {
     /// Create new ADAS population
     pub fn new(
-        device: Arc<CudaDevice>,
+        device: Arc<CudaContext>,
         population_size: usize,
         max_code_size: usize,
     ) -> Result<Self> {
         // Allocate GPU memory
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because:
+        let stream = device.default_stream();
+        // SAFETY: CudaContext::alloc returns uninitialized GPU memory. This is safe because:
         // 1. The memory will be initialized via htod_copy_into in upload_to_gpu
         // 2. The data is never read from GPU before being initialized
-        // 3. The CudaDevice handles proper GPU memory management
+        // 3. The CudaContext handles proper GPU memory management
         let total_code_size = population_size * max_code_size;
-        let agent_codes = unsafe { device.alloc::<u8>(total_code_size)? };
-        let performances = unsafe { device.alloc::<f32>(population_size)? };
+        let agent_codes = unsafe { stream.alloc::<u8>(total_code_size)? };
+        let performances = unsafe { stream.alloc::<f32>(population_size)? };
 
         Ok(Self {
             device,
@@ -114,10 +114,9 @@ impl AdasPopulation {
         }
 
         // Copy to GPU
-        self.device
-            .htod_copy_into(code_data, &mut self.agent_codes.clone())?;
-        self.device
-            .htod_copy_into(performance_data, &mut self.performances.clone())?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&code_data, &mut self.agent_codes)?;
+        stream.memcpy_htod(&performance_data, &mut self.performances)?;
 
         Ok(())
     }
@@ -125,9 +124,8 @@ impl AdasPopulation {
     /// Download agent data from GPU
     fn download_from_gpu(&mut self) -> Result<()> {
         // Download performance scores
-        let mut performance_data = vec![0f32; self.population_size];
-        self.device
-            .dtoh_sync_copy_into(&self.performances, &mut performance_data)?;
+        let stream = self.device.default_stream();
+        let performance_data = stream.clone_dtoh(&self.performances)?;
 
         // Update agent performances
         for (i, agent) in self.agents.iter_mut().enumerate() {
@@ -168,13 +166,18 @@ impl AdasPopulation {
         // CudaSlice::device_ptr(). agent_codes has population_size * max_code_size bytes,
         // and performances has population_size f32 elements. Both buffers were properly
         // allocated and match the sizes passed to the kernel.
-        unsafe {
-            crate::evolution::kernels::prepare_adas_evaluation(
-                *self.agent_codes.device_ptr() as *const u8,
-                *self.performances.device_ptr() as *mut f32,
-                self.population_size as u32,
-                self.max_code_size as u32,
-            );
+        {
+            let stream = self.device.default_stream();
+            let (codes_ptr, _guard1) = self.agent_codes.device_ptr(&stream);
+            let (perf_ptr, _guard2) = self.performances.device_ptr(&stream);
+            unsafe {
+                crate::evolution::kernels::prepare_adas_evaluation(
+                    codes_ptr as *const u8,
+                    perf_ptr as *mut f32,
+                    self.population_size as u32,
+                    self.max_code_size as u32,
+                );
+            }
         }
 
         // Evaluate each agent (this part stays on CPU for now)
@@ -194,7 +197,7 @@ impl AdasPopulation {
 
         // Sort by performance
         let mut sorted_agents = self.agents.clone();
-        sorted_agents.sort_by(|a, b| b.performance.partial_cmp(&a.performance)?);
+        sorted_agents.sort_by(|a, b| b.performance.partial_cmp(&a.performance).unwrap_or(std::cmp::Ordering::Equal));
 
         Ok(sorted_agents.into_iter().take(num_selected).collect())
     }
@@ -270,14 +273,14 @@ impl AdasPopulation {
     pub fn best_agent(&self) -> Option<&AdasMetaAgent> {
         self.agents
             .iter()
-            .max_by(|a, b| a.performance.partial_cmp(&b.performance)?)
+            .max_by(|a, b| a.performance.partial_cmp(&b.performance).unwrap_or(std::cmp::Ordering::Equal))
     }
 
     /// Get best agent from archive
     pub fn best_agent_ever(&self) -> Option<&AdasMetaAgent> {
         self.archive
             .iter()
-            .max_by(|a, b| a.performance.partial_cmp(&b.performance)?)
+            .max_by(|a, b| a.performance.partial_cmp(&b.performance).unwrap_or(std::cmp::Ordering::Equal))
     }
 
     /// Get population statistics
@@ -344,18 +347,17 @@ mod tests {
 
     #[test]
     fn test_adas_population_creation() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let pop = AdasPopulation::new(device, 32, 1024)?;
             assert_eq!(pop.population_size, 32);
             assert_eq!(pop.max_code_size, 1024);
         }
+        Ok(())
     }
 
     #[test]
     fn test_adas_seed_initialization() -> Result<(), Box<dyn std::error::Error>> {
-        if let Ok(device) = CudaDevice::new(0) {
-            let device = Arc::new(device);
+        if let Ok(device) = CudaContext::new(0) {
             let mut pop = AdasPopulation::new(device, 4, 256)?;
 
             let seeds = vec![
@@ -368,5 +370,6 @@ mod tests {
             assert_eq!(pop.agents.len(), 3);
             assert_eq!(pop.archive.len(), 3);
         }
+        Ok(())
     }
 }

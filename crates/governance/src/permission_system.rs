@@ -36,7 +36,7 @@ pub struct Role {
 }
 
 /// Individual permissions
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Permission {
     // Resource permissions
     ReadData,
@@ -201,9 +201,10 @@ impl PermissionSystem {
         );
 
         // Check cache first
-        if let Some((cached_result, cached_at)) =
+        if let Some(cached_entry) =
             self.permission_cache.get(&(agent_id.clone(), *permission))
         {
+            let (cached_result, cached_at) = cached_entry.value();
             if cached_at.timestamp() + self.cache_ttl_seconds as i64 > Utc::now().timestamp() {
                 return Ok(*cached_result);
             }

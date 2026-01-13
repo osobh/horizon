@@ -2,7 +2,7 @@
 //!
 //! RED phase - tests should fail with todo!()
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::memory_bandwidth::{
     BandwidthConfig, BandwidthProfiler, MemoryDirection,
 };
@@ -11,9 +11,9 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Memory Bandwidth Measurement (RED phase)");
     println!("===============================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     let config = BandwidthConfig::default();
-    let profiler = BandwidthProfiler::new(device, config)?;
+    let profiler = BandwidthProfiler::new(ctx, config)?;
 
     // Test 1: Pattern matching bandwidth
     println!("\n1. Testing pattern matching bandwidth...");

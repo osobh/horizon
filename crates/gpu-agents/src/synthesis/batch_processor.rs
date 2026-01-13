@@ -5,7 +5,7 @@
 use super::pattern_dynamic::DynamicGpuPatternMatcher;
 use crate::synthesis::{AstNode, Match, Pattern};
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, CudaStream};
+use cudarc::driver::{CudaContext, CudaStream};
 use futures::future::join_all;
 use std::sync::Arc;
 
@@ -32,7 +32,7 @@ impl Default for BatchConfig {
 
 /// Batch processor for pattern matching
 pub struct BatchProcessor {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: BatchConfig,
     matcher: DynamicGpuPatternMatcher,
     streams: Vec<Arc<CudaStream>>,
@@ -40,13 +40,13 @@ pub struct BatchProcessor {
 
 impl BatchProcessor {
     /// Create a new batch processor
-    pub fn new(device: Arc<CudaDevice>, config: BatchConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: BatchConfig) -> Result<Self> {
         let matcher = DynamicGpuPatternMatcher::new(device.clone())?;
 
         // Create CUDA streams for parallel execution
         let mut streams = Vec::with_capacity(config.num_streams);
         for _ in 0..config.num_streams {
-            streams.push(Arc::new(device.fork_default_stream()?));
+            streams.push(device.new_stream()?);
         }
 
         Ok(Self {
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_batch_processor_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let config = BatchConfig::default();
         let processor = BatchProcessor::new(device, config);
         assert!(processor.is_ok());
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_single_batch_processing() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let processor = BatchProcessor::new(device, BatchConfig::default())?;
 
         let patterns = vec![create_test_pattern("x"), create_test_pattern("y")];
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_multiple_batch_processing() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let processor = BatchProcessor::new(device, BatchConfig::default())?;
 
         let pattern_batches = vec![
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_batch_size_limits() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let config = BatchConfig {
             max_patterns_per_batch: 2,
             max_nodes_per_batch: 3,

@@ -1,5 +1,5 @@
 //! Minimal evolution test without statistics
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
 use std::time::Instant;
 
@@ -8,7 +8,7 @@ fn main() -> anyhow::Result<()> {
     println!("========================");
 
     // Initialize CUDA device
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
     println!("✅ CUDA device initialized");
 
     // Small test config
@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     println!("\n📊 Creating evolution engine...");
-    let mut engine = GpuEvolutionEngine::new(device, config)?;
+    let mut engine = GpuEvolutionEngine::new(ctx, config)?;
     println!("✅ Engine created");
 
     println!("\n🎲 Initializing random population...");

@@ -239,7 +239,7 @@ impl AdvancedMLPredictor {
         let best_tier = tier_probs
             .iter()
             .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b)?)
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| i)
             .unwrap_or(2); // Default to NVMe
 

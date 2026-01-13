@@ -2,7 +2,7 @@
 //!
 //! Measures actual bandwidth utilization with real pattern matching
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::synthesis::memory_bandwidth::{
     BandwidthConfig, BandwidthProfiler, MemoryDirection,
 };
@@ -34,7 +34,7 @@ fn main() -> anyhow::Result<()> {
     println!("🔬 Memory Bandwidth Benchmark for Synthesis");
     println!("{}", "=".repeat(60));
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Configure profiler
     let config = BandwidthConfig {
@@ -42,7 +42,7 @@ fn main() -> anyhow::Result<()> {
         iterations: 50,
         warmup_iterations: 5,
     };
-    let profiler = BandwidthProfiler::new(device.clone(), config)?;
+    let profiler = BandwidthProfiler::new(ctx.clone(), config)?;
 
     // Test 1: Memory copy bandwidth (baseline)
     println!("\n1. Memory Copy Bandwidth (Baseline)");
@@ -74,7 +74,7 @@ fn main() -> anyhow::Result<()> {
     println!("\n\n2. Pattern Matching Bandwidth");
     println!("{}", "-".repeat(40));
 
-    let matcher = DynamicGpuPatternMatcher::new(device.clone())?;
+    let matcher = DynamicGpuPatternMatcher::new(ctx.clone())?;
 
     for (pattern_count, ast_count) in [(1, 1000), (10, 1000), (100, 1000), (100, 10000)] {
         let patterns = create_test_patterns(pattern_count);

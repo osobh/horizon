@@ -16,6 +16,10 @@ export interface IdleResource {
   potential_savings_usd: number;
   status: ResourceStatus;
   recommended_action: string;
+  // Extended for view
+  resource_type: 'gpu' | 'cpu' | 'storage' | 'network';
+  wasted_cost_usd: number;
+  recommendation: string;
 }
 
 export interface ProfitMargin {
@@ -28,6 +32,8 @@ export interface ProfitMargin {
   margin_pct: number;
   trend_pct: number;
   period: string;
+  // Extended for view
+  service_name: string;
 }
 
 export interface VendorUtilization {
@@ -40,6 +46,10 @@ export interface VendorUtilization {
   days_remaining: number;
   status: 'underutilized' | 'optimal' | 'overutilized' | 'expiring';
   recommendations: string[];
+  // Extended for view
+  id: string;
+  contract_type: string;
+  cost_usd: number;
 }
 
 export interface ExecutiveKpi {
@@ -50,7 +60,14 @@ export interface ExecutiveKpi {
   trend_direction: 'up' | 'down' | 'stable';
   target: number | null;
   status: 'on_track' | 'at_risk' | 'off_track';
+  // Extended for view
+  id: string;
+  trend: 'up' | 'down' | 'stable';
+  change_pct: number;
 }
+
+// Alias for view compatibility
+export type ExecutiveKPI = ExecutiveKpi;
 
 export interface IntelligenceSummary {
   idle_resources: IdleResource[];
@@ -60,6 +77,11 @@ export interface IntelligenceSummary {
   vendor_utilizations: VendorUtilization[];
   kpis: ExecutiveKpi[];
   alerts: IntelligenceAlert[];
+  // Extended for view
+  overall_efficiency: number;
+  idle_resource_count: number;
+  potential_savings_usd: number;
+  average_margin: number;
 }
 
 export interface IntelligenceAlert {
@@ -70,6 +92,8 @@ export interface IntelligenceAlert {
   source: 'efficiency' | 'margin' | 'vendor' | 'executive';
   created_at: string;
   acknowledged: boolean;
+  // Extended for view
+  message: string;
 }
 
 interface IntelligenceState {
@@ -78,6 +102,7 @@ interface IntelligenceState {
   profitMargins: ProfitMargin[];
   vendorUtilizations: VendorUtilization[];
   kpis: ExecutiveKpi[];
+  executiveKpis: ExecutiveKpi[]; // Alias for kpis
   alerts: IntelligenceAlert[];
   loading: boolean;
   error: string | null;
@@ -88,6 +113,7 @@ interface IntelligenceState {
   fetchProfitMargins: (type?: string) => Promise<void>;
   fetchVendorUtilizations: () => Promise<void>;
   fetchKpis: () => Promise<void>;
+  fetchExecutiveKpis: () => Promise<void>; // Alias for fetchKpis
   fetchAlerts: () => Promise<void>;
   acknowledgeAlert: (alertId: string) => Promise<void>;
   terminateIdleResource: (resourceId: string) => Promise<void>;
@@ -99,6 +125,7 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
   profitMargins: [],
   vendorUtilizations: [],
   kpis: [],
+  executiveKpis: [],
   alerts: [],
   loading: false,
   error: null,
@@ -113,6 +140,7 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
         profitMargins: summary.profit_margins,
         vendorUtilizations: summary.vendor_utilizations,
         kpis: summary.kpis,
+        executiveKpis: summary.kpis,
         alerts: summary.alerts,
         loading: false,
       });
@@ -151,10 +179,14 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
   fetchKpis: async () => {
     try {
       const kpis = await invoke<ExecutiveKpi[]>('get_executive_kpis');
-      set({ kpis });
+      set({ kpis, executiveKpis: kpis });
     } catch (error) {
       set({ error: String(error) });
     }
+  },
+
+  fetchExecutiveKpis: async () => {
+    await get().fetchKpis();
   },
 
   fetchAlerts: async () => {

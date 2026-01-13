@@ -11,28 +11,39 @@ use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 /// Main knowledge compression engine
+///
+/// Uses cudarc 0.18 CudaContext API for GPU operations.
 pub struct KnowledgeCompressionEngine {
     config: CompressionConfig,
-    gpu_device: Option<Arc<cudarc::driver::CudaDevice>>,
+    /// CUDA context for GPU operations (cudarc 0.18+ API)
+    gpu_ctx: Option<Arc<cudarc::driver::CudaContext>>,
     metrics: Arc<RwLock<CompressionPerformanceMetrics>>,
     cache: Arc<Mutex<CompressionCache>>,
 }
 
 impl KnowledgeCompressionEngine {
     /// Create a new compression engine
+    ///
+    /// Uses cudarc 0.18 CudaContext::new() for GPU initialization.
     pub fn new(config: CompressionConfig) -> KnowledgeGraphResult<Self> {
-        let gpu_device = if config.gpu_config.enabled {
-            Some(cudarc::driver::CudaDevice::new(0)?)
+        let gpu_ctx = if config.gpu_config.enabled {
+            // CudaContext::new returns Arc<CudaContext>
+            Some(cudarc::driver::CudaContext::new(0)?)
         } else {
             None
         };
 
         Ok(Self {
             config,
-            gpu_device,
+            gpu_ctx,
             metrics: Arc::new(RwLock::new(CompressionPerformanceMetrics::default())),
             cache: Arc::new(Mutex::new(CompressionCache::new(100))),
         })
+    }
+
+    /// Get the CUDA context if GPU is enabled
+    pub fn gpu_context(&self) -> Option<&Arc<cudarc::driver::CudaContext>> {
+        self.gpu_ctx.as_ref()
     }
 
     /// Compress a knowledge graph

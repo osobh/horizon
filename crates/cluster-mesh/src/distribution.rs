@@ -281,12 +281,12 @@ impl WorkDistributor {
         // Check node affinity
         if let Some(ref affinity) = reqs.node_affinity {
             match affinity {
-                NodeAffinity::RequiredClass(ref class) => {
+                NodeAffinity::RequiredClass(class) => {
                     if node.class != *class {
                         return Ok(false);
                     }
                 }
-                NodeAffinity::RequiredNodes(ref nodes) => {
+                NodeAffinity::RequiredNodes(nodes) => {
                     if !nodes.contains(&node.id) {
                         return Ok(false);
                     }

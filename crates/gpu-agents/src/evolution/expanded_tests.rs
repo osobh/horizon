@@ -10,12 +10,12 @@ use crate::evolution::{
     MutationStrategy, SelectionStrategy,
 };
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 
 // Test utilities
-fn create_test_device() -> Result<Arc<CudaDevice>> {
-    Ok(CudaDevice::new(0)?)
+fn create_test_device() -> Result<Arc<CudaContext>> {
+    Ok(CudaContext::new(0)?)
 }
 
 fn create_test_config(population_size: usize) -> GpuEvolutionConfig {

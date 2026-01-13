@@ -44,7 +44,7 @@ impl MutationOperator for GaussianMutation {
         genome
             .iter()
             .map(|&gene| {
-                if rng.gen::<f64>() < rate {
+                if rng.r#gen::<f64>() < rate {
                     gene + normal.sample(&mut rng)
                 } else {
                     gene
@@ -83,7 +83,7 @@ impl MutationOperator for UniformMutation {
         genome
             .iter()
             .map(|&gene| {
-                if rng.gen::<f64>() < rate {
+                if rng.r#gen::<f64>() < rate {
                     gene + rng.gen_range(-self.range..=self.range)
                 } else {
                     gene
@@ -123,8 +123,8 @@ impl MutationOperator for PolynomialMutation {
         genome
             .iter()
             .map(|&gene| {
-                if rng.gen::<f64>() < rate {
-                    let u = rng.gen::<f64>();
+                if rng.r#gen::<f64>() < rate {
+                    let u = rng.r#gen::<f64>();
                     let delta = if u < 0.5 {
                         (2.0 * u).powf(1.0 / (self.eta + 1.0)) - 1.0
                     } else {

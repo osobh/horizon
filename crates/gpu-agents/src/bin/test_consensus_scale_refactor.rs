@@ -2,7 +2,7 @@
 //!
 //! REFACTOR phase - optimize implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus::scale::{ScaledConsensus, ScalingConfig};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Consensus Scaling (REFACTOR phase)");
     println!("=========================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Optimized memory allocation
     println!("\n1. Testing optimized memory allocation...");
@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let start = Instant::now();
-    let mut consensus = ScaledConsensus::new(device.clone(), config)?;
+    let mut consensus = ScaledConsensus::new(ctx.clone(), config)?;
     println!(
         "✅ Created consensus for 10000 nodes in {:?}",
         start.elapsed()
@@ -72,7 +72,7 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut stress_consensus = ScaledConsensus::new(device.clone(), stress_config)?;
+    let mut stress_consensus = ScaledConsensus::new(ctx.clone(), stress_config)?;
     let start = Instant::now();
     let stress_metrics = stress_consensus.benchmark_consensus(50000, 10)?;
     println!("✅ Stress test completed in {:?}", start.elapsed());

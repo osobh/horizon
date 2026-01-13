@@ -562,8 +562,8 @@ impl DgmSelfAssessment {
             .iter()
             .rev()
             .take(5)
-            .map(|(gen, fitness)| BenchmarkResults {
-                name: format!("Generation {}", gen),
+            .map(|(generation, fitness)| BenchmarkResults {
+                name: format!("Generation {}", generation),
                 tasks_attempted: 100, // Placeholder
                 tasks_succeeded: (fitness * 100.0) as u32,
                 avg_completion_time: 1.0,

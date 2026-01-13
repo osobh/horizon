@@ -8,7 +8,7 @@
 
 use super::{KnowledgeEdge, KnowledgeNode};
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, DeviceSlice};
 use dashmap::DashMap;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -125,7 +125,7 @@ struct GpuTemporalData {
 
 /// Temporal knowledge graph with time-based operations
 pub struct TemporalKnowledgeGraph {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     nodes: Arc<Mutex<BTreeMap<i64, Vec<TemporalNode>>>>, // Indexed by timestamp
     edges: Arc<Mutex<Vec<TemporalEdge>>>,
     node_versions: Arc<DashMap<u32, Vec<TemporalNode>>>, // Track node evolution
@@ -135,7 +135,7 @@ pub struct TemporalKnowledgeGraph {
 
 impl TemporalKnowledgeGraph {
     /// Create new temporal knowledge graph
-    pub fn new(device: Arc<CudaDevice>, max_nodes: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, max_nodes: usize) -> Result<Self> {
         Ok(Self {
             device,
             nodes: Arc::new(Mutex::new(BTreeMap::new())),
@@ -148,7 +148,7 @@ impl TemporalKnowledgeGraph {
 
     /// Add temporal node
     pub fn add_temporal_node(&mut self, node: TemporalNode) -> Result<()> {
-        let mut nodes = self.nodes.lock()?;
+        let mut nodes = self.nodes.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         nodes
             .entry(node.timestamp)
             .or_insert_with(Vec::new)
@@ -165,37 +165,42 @@ impl TemporalKnowledgeGraph {
 
     /// Add temporal edge
     pub fn add_temporal_edge(&mut self, edge: TemporalEdge) -> Result<()> {
-        let mut edges = self.edges.lock()?;
+        let mut edges = self.edges.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         edges.push(edge);
         Ok(())
     }
 
     /// Get node count
     pub fn node_count(&self) -> usize {
-        let nodes = self.nodes.lock()?;
-        nodes.values().map(|v| v.len()).sum()
+        self.nodes
+            .lock()
+            .map(|nodes| nodes.values().map(|v| v.len()).sum())
+            .unwrap_or(0)
     }
 
     /// Get edge count
     pub fn edge_count(&self) -> usize {
-        self.edges.lock()?.len()
+        self.edges.lock().map(|e| e.len()).unwrap_or(0)
     }
 
     /// Get time range of graph
     pub fn get_time_range(&self) -> (i64, i64) {
-        let nodes = self.nodes.lock()?;
+        let nodes = match self.nodes.lock() {
+            Ok(n) => n,
+            Err(_) => return (i64::MAX, i64::MIN),
+        };
         if nodes.is_empty() {
             return (i64::MAX, i64::MIN);
         }
 
-        let min_time = *nodes.keys().next()?;
-        let max_time = *nodes.keys().last()?;
+        let min_time = nodes.keys().next().copied().unwrap_or(i64::MAX);
+        let max_time = nodes.keys().last().copied().unwrap_or(i64::MIN);
         (min_time, max_time)
     }
 
     /// Query nodes within time window
     pub fn query_time_window(&self, query: TimeWindowQuery) -> Result<TimeWindowResult> {
-        let nodes = self.nodes.lock()?;
+        let nodes = self.nodes.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         let mut result_nodes = Vec::new();
 
         // Get nodes in time range
@@ -205,7 +210,7 @@ impl TemporalKnowledgeGraph {
 
         let mut result_edges = Vec::new();
         if query.include_edges {
-            let edges = self.edges.lock()?;
+            let edges = self.edges.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
             for edge in edges.iter() {
                 if edge.timestamp >= query.start_time && edge.timestamp <= query.end_time {
                     result_edges.push(edge.clone());
@@ -221,7 +226,7 @@ impl TemporalKnowledgeGraph {
 
     /// Find temporal paths between nodes
     pub fn find_temporal_paths(&self, query: TemporalPathQuery) -> Result<Vec<TemporalPath>> {
-        let edges = self.edges.lock()?;
+        let edges = self.edges.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         let mut paths = Vec::new();
 
         // Build adjacency list with temporal constraints
@@ -244,8 +249,8 @@ impl TemporalKnowledgeGraph {
         queue.push_back((vec![query.source_id], vec![0i64], 1.0f32));
 
         while let Some((path, timestamps, causality)) = queue.pop_front() {
-            let current = *path.last()?;
-            let current_time = *timestamps.last()?;
+            let current = *path.last().ok_or_else(|| anyhow!("Empty path"))?;
+            let current_time = *timestamps.last().ok_or_else(|| anyhow!("Empty timestamps"))?;
 
             if current == query.target_id {
                 paths.push(TemporalPath {
@@ -283,7 +288,7 @@ impl TemporalKnowledgeGraph {
         &self,
         config: TemporalAggregation,
     ) -> Result<AggregationResult> {
-        let nodes = self.nodes.lock()?;
+        let nodes = self.nodes.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         let (min_time, max_time) = self.get_time_range();
 
         if min_time > max_time {
@@ -446,7 +451,8 @@ impl TemporalKnowledgeGraph {
             })
             .unwrap();
 
-        let total_delay = best_path.timestamps.last()? - best_path.timestamps.first()?;
+        let total_delay = best_path.timestamps.last().copied().unwrap_or(0)
+            - best_path.timestamps.first().copied().unwrap_or(0);
 
         Ok(CausalityAnalysis {
             is_causal: true,
@@ -459,7 +465,7 @@ impl TemporalKnowledgeGraph {
     /// Detect temporal anomalies
     pub fn detect_temporal_anomalies(&self) -> Result<Vec<TemporalAnomaly>> {
         let mut anomalies = Vec::new();
-        let nodes = self.nodes.lock()?;
+        let nodes = self.nodes.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         // Collect all timestamps
         let mut all_timestamps: Vec<i64> = nodes.keys().cloned().collect();
@@ -507,8 +513,8 @@ impl TemporalKnowledgeGraph {
 
     /// Sync data to GPU
     pub fn sync_to_gpu(&mut self) -> Result<()> {
-        let nodes = self.nodes.lock()?;
-        let edges = self.edges.lock()?;
+        let nodes = self.nodes.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
+        let edges = self.edges.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         // Flatten temporal data
         let mut node_timestamps = Vec::new();
@@ -532,12 +538,13 @@ impl TemporalKnowledgeGraph {
         }
 
         // Upload to GPU
+        let stream = self.device.default_stream();
         let gpu_data = GpuTemporalData {
-            node_timestamps: self.device.htod_sync_copy(&node_timestamps)?,
-            node_valid_from: self.device.htod_sync_copy(&node_valid_from)?,
-            node_valid_to: self.device.htod_sync_copy(&node_valid_to)?,
-            edge_timestamps: self.device.htod_sync_copy(&edge_timestamps)?,
-            causality_scores: self.device.htod_sync_copy(&causality_scores)?,
+            node_timestamps: stream.clone_htod(&node_timestamps)?,
+            node_valid_from: stream.clone_htod(&node_valid_from)?,
+            node_valid_to: stream.clone_htod(&node_valid_to)?,
+            edge_timestamps: stream.clone_htod(&edge_timestamps)?,
+            causality_scores: stream.clone_htod(&causality_scores)?,
         };
 
         self.gpu_data = Some(gpu_data);

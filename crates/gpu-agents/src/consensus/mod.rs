@@ -13,7 +13,7 @@ pub mod voting;
 mod tests;
 
 use anyhow::Result;
-use cudarc::driver::{CudaDevice, LaunchConfig};
+use cudarc::driver::{CudaContext, LaunchConfig};
 use std::sync::Arc;
 
 // Define key types here instead of importing from tests
@@ -36,12 +36,8 @@ unsafe impl bytemuck::Zeroable for Vote {}
 unsafe impl cudarc::driver::ValidAsZeroBits for Vote {}
 
 // SAFETY: Vote has a stable C ABI layout (#[repr(C)]) with only types safe
-// to pass across the FFI boundary to CUDA kernels.
-unsafe impl cudarc::driver::DeviceRepr for Vote {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+// to pass across the FFI boundary to CUDA kernels. Copy is required by DeviceRepr.
+unsafe impl cudarc::driver::DeviceRepr for Vote {}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -58,12 +54,8 @@ unsafe impl bytemuck::Pod for Proposal {}
 unsafe impl bytemuck::Zeroable for Proposal {}
 
 // SAFETY: Proposal has a stable C ABI layout (#[repr(C)]) matching the CUDA
-// Proposal struct. The pointer cast preserves the expected memory layout.
-unsafe impl cudarc::driver::DeviceRepr for Proposal {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+// Proposal struct. Copy is required by DeviceRepr.
+unsafe impl cudarc::driver::DeviceRepr for Proposal {}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -80,16 +72,12 @@ unsafe impl bytemuck::Pod for ConsensusState {}
 unsafe impl bytemuck::Zeroable for ConsensusState {}
 
 // SAFETY: ConsensusState has a stable C ABI layout (#[repr(C)]) matching the CUDA
-// ConsensusState struct. The pointer cast preserves the expected memory layout.
-unsafe impl cudarc::driver::DeviceRepr for ConsensusState {
-    fn as_kernel_param(&self) -> *mut std::ffi::c_void {
-        self as *const Self as *mut std::ffi::c_void
-    }
-}
+// ConsensusState struct. Copy is required by DeviceRepr.
+unsafe impl cudarc::driver::DeviceRepr for ConsensusState {}
 
 /// Main GPU Consensus Module
 pub struct GpuConsensusModule {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     voting: voting::GpuVoting,
     leader: leader::GpuLeaderElection,
     persistence: persistence::GpuConsensusPersistence,
@@ -98,7 +86,7 @@ pub struct GpuConsensusModule {
 
 impl GpuConsensusModule {
     /// Create a new GPU consensus module
-    pub fn new(device: Arc<CudaDevice>, num_agents: usize) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, num_agents: usize) -> Result<Self> {
         let voting = voting::GpuVoting::new(Arc::clone(&device), num_agents)?;
         let leader = leader::GpuLeaderElection::new(Arc::clone(&device), num_agents)?;
 
@@ -151,7 +139,7 @@ impl GpuConsensusModule {
 }
 
 // External C functions for CUDA kernels
-extern "C" {
+unsafe extern "C" {
     pub fn launch_aggregate_votes(
         votes: *const Vote,
         vote_counts: *mut u32,

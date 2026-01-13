@@ -3,19 +3,19 @@
 
 #[cfg(test)]
 mod tests {
-    use cudarc::driver::CudaDevice;
+    use cudarc::driver::CudaContext;
     
     #[test]
     fn diagnose_cuda_device_type() {
-        // Let's check what CudaDevice::new actually returns
-        match CudaDevice::new(0) {
-            Ok(device) => {
+        // Let's check what CudaContext::new actually returns
+        match CudaContext::new(0) {
+            Ok(ctx) => {
                 // Print the type information
-                println!("Type of device: {}", std::any::type_name_of_val(&device));
-                
-                // Try to assign to check type
-                let _: CudaDevice = device;
-                println!("✓ CudaDevice::new returns CudaDevice");
+                println!("Type of ctx: {}", std::any::type_name_of_val(&ctx));
+
+                // In 0.18.1, CudaContext::new returns Arc<CudaContext> directly
+                let _: std::sync::Arc<CudaContext> = ctx;
+                println!("✓ CudaContext::new returns Arc<CudaContext>");
             }
             Err(_) => {
                 println!("No GPU available for testing");
@@ -26,29 +26,26 @@ mod tests {
     #[test]
     fn diagnose_arc_creation() {
         use std::sync::Arc;
-        
-        if let Ok(device) = CudaDevice::new(0) {
-            println!("Type before Arc: {}", std::any::type_name_of_val(&device));
-            
-            let arc_device = Arc::new(device);
-            println!("Type after Arc::new: {}", std::any::type_name_of_val(&arc_device));
-            
-            // This should be Arc<CudaDevice>
-            let _: Arc<CudaDevice> = arc_device;
-            println!("✓ Successfully created Arc<CudaDevice>");
+
+        if let Ok(ctx) = CudaContext::new(0) {
+            println!("Type from new: {}", std::any::type_name_of_val(&ctx));
+
+            // In 0.18.1, CudaContext::new already returns Arc<CudaContext>
+            // No need to wrap again
+            let _: Arc<CudaContext> = ctx;
+            println!("✓ CudaContext::new returns Arc<CudaContext> directly");
         }
     }
     
     #[test]
     fn diagnose_std_sync_arc() {
-        if let Ok(device) = CudaDevice::new(0) {
-            // Using fully qualified path
-            let arc_device = std::sync::Arc::new(device);
-            println!("Type with std::sync::Arc: {}", std::any::type_name_of_val(&arc_device));
-            
-            // Check the type
-            let _: std::sync::Arc<CudaDevice> = arc_device;
-            println!("✓ std::sync::Arc creates correct type");
+        if let Ok(ctx) = CudaContext::new(0) {
+            // In 0.18.1, CudaContext::new returns Arc<CudaContext> directly
+            println!("Type from new: {}", std::any::type_name_of_val(&ctx));
+
+            // Check the type - no wrapping needed
+            let _: std::sync::Arc<CudaContext> = ctx;
+            println!("✓ CudaContext::new returns Arc<CudaContext> directly");
         }
     }
 }

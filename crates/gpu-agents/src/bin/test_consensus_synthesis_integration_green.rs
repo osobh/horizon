@@ -2,7 +2,7 @@
 //!
 //! GREEN phase - make tests pass
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus::voting::GpuVoting;
 use gpu_agents::consensus_synthesis::integration::{
     ConsensusSynthesisEngine, IntegrationConfig, WorkflowResult,
@@ -18,7 +18,7 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Consensus + Synthesis Integration (GREEN phase)");
     println!("======================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create integrated engine
     println!("\n1. Testing integrated engine creation...");
@@ -29,7 +29,7 @@ fn main() -> anyhow::Result<()> {
         retry_attempts: 3,
         conflict_resolution_strategy: ConflictStrategy::FirstWins,
     };
-    let engine = ConsensusSynthesisEngine::new(device.clone(), config)?;
+    let engine = ConsensusSynthesisEngine::new(ctx.clone(), config)?;
     println!("✅ Engine created with voting and synthesis modules initialized");
 
     // Test 2: Submit synthesis task for consensus
@@ -142,7 +142,7 @@ fn main() -> anyhow::Result<()> {
 
     // Test 8: Task status tracking
     println!("\n8. Testing task status tracking...");
-    let statuses = engine.get_task_statuses();
+    let statuses = engine.get_task_statuses()?;
     println!("✅ Tracking {} tasks", statuses.len());
 
     for (id, (status, result)) in statuses.iter() {
@@ -167,7 +167,7 @@ fn main() -> anyhow::Result<()> {
     println!("\n10. Testing old task cleanup...");
     std::thread::sleep(Duration::from_millis(100));
     engine.cleanup_old_tasks(Duration::from_millis(50));
-    let remaining = engine.get_task_statuses().len();
+    let remaining = engine.get_task_statuses()?.len();
     println!("✅ Cleanup complete: {} tasks remaining", remaining);
 
     // Summary

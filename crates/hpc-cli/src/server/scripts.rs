@@ -467,8 +467,8 @@ mod tests {
 
     #[test]
     fn test_linux_amd64_docker_script() {
-        let gen = ScriptGenerator::new();
-        let script = gen.generate(&OsType::Linux, &Architecture::Amd64, &NodeMode::Docker);
+        let generator = ScriptGenerator::new();
+        let script = generator.generate(&OsType::Linux, &Architecture::Amd64, &NodeMode::Docker);
 
         assert!(script.contains("#!/bin/bash"));
         assert!(script.contains("Linux/amd64"));
@@ -477,8 +477,8 @@ mod tests {
 
     #[test]
     fn test_linux_arm64_binary_script() {
-        let gen = ScriptGenerator::new();
-        let script = gen.generate(&OsType::Linux, &Architecture::Arm64, &NodeMode::Binary);
+        let generator = ScriptGenerator::new();
+        let script = generator.generate(&OsType::Linux, &Architecture::Arm64, &NodeMode::Binary);
 
         assert!(script.contains("#!/bin/bash"));
         assert!(script.contains("Linux/arm64"));
@@ -487,8 +487,8 @@ mod tests {
 
     #[test]
     fn test_darwin_arm64_docker_script() {
-        let gen = ScriptGenerator::new();
-        let script = gen.generate(&OsType::Darwin, &Architecture::Arm64, &NodeMode::Docker);
+        let generator = ScriptGenerator::new();
+        let script = generator.generate(&OsType::Darwin, &Architecture::Arm64, &NodeMode::Docker);
 
         assert!(script.contains("#!/bin/bash"));
         assert!(script.contains("Darwin/arm64"));
@@ -497,8 +497,8 @@ mod tests {
 
     #[test]
     fn test_windows_amd64_binary_script() {
-        let gen = ScriptGenerator::new();
-        let script = gen.generate(&OsType::Windows, &Architecture::Amd64, &NodeMode::Binary);
+        let generator = ScriptGenerator::new();
+        let script = generator.generate(&OsType::Windows, &Architecture::Amd64, &NodeMode::Binary);
 
         // PowerShell script markers
         assert!(script.contains("$ErrorActionPreference"));
@@ -509,21 +509,21 @@ mod tests {
 
     #[test]
     fn test_script_struct() {
-        let gen = ScriptGenerator::new();
+        let generator = ScriptGenerator::new();
 
-        let linux_script = gen.generate_script(&OsType::Linux, &Architecture::Amd64, &NodeMode::Docker);
+        let linux_script = generator.generate_script(&OsType::Linux, &Architecture::Amd64, &NodeMode::Docker);
         assert_eq!(linux_script.extension, "sh");
         assert_eq!(linux_script.interpreter, "/bin/bash");
 
-        let windows_script = gen.generate_script(&OsType::Windows, &Architecture::Amd64, &NodeMode::Docker);
+        let windows_script = generator.generate_script(&OsType::Windows, &Architecture::Amd64, &NodeMode::Docker);
         assert_eq!(windows_script.extension, "ps1");
         assert_eq!(windows_script.interpreter, "powershell.exe");
     }
 
     #[test]
     fn test_custom_agent_url() {
-        let gen = ScriptGenerator::new().with_agent_url("https://custom.example.com".to_string());
-        let script = gen.generate(&OsType::Linux, &Architecture::Amd64, &NodeMode::Docker);
+        let generator = ScriptGenerator::new().with_agent_url("https://custom.example.com".to_string());
+        let script = generator.generate(&OsType::Linux, &Architecture::Amd64, &NodeMode::Docker);
 
         assert!(script.contains("https://custom.example.com"));
     }

@@ -3,7 +3,7 @@
 //! Handles large-scale consensus operations efficiently on GPU
 
 use anyhow::{anyhow, Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -44,7 +44,7 @@ pub struct ConsensusMetrics {
 
 /// Large-scale consensus handler
 pub struct ScaledConsensus {
-    pub(crate) device: Arc<CudaDevice>,
+    pub(crate) device: Arc<CudaContext>,
     pub config: ScalingConfig,
     vote_buffer: Option<CudaSlice<u32>>,
     node_states: Option<CudaSlice<u32>>,
@@ -53,22 +53,23 @@ pub struct ScaledConsensus {
 
 impl ScaledConsensus {
     /// Create a new scaled consensus handler
-    pub fn new(device: Arc<CudaDevice>, config: ScalingConfig) -> Result<Self> {
-        // Allocate buffers for scaled consensus
+    pub fn new(device: Arc<CudaContext>, config: ScalingConfig) -> Result<Self> {
+        // Allocate buffers for scaled consensus using stream (cudarc 0.18 API)
+        let stream = device.default_stream();
         // SAFETY: alloc returns uninitialized memory. vote_buffer will be written via
-        // htod_copy_into in vote_batch() before any reads. Size is from valid config.
-        let vote_buffer = unsafe { device.alloc::<u32>(config.node_count) }
+        // memcpy_htod in vote_batch() before any reads. Size is from valid config.
+        let vote_buffer = unsafe { stream.alloc::<u32>(config.node_count) }
             .context("Failed to allocate vote buffer")?;
 
         // SAFETY: alloc returns uninitialized memory. node_states will be initialized
-        // via htod_copy_into in initialize_nodes() before use. Size is from valid config.
-        let node_states = unsafe { device.alloc::<u32>(config.node_count) }
+        // via memcpy_htod in initialize_nodes() before use. Size is from valid config.
+        let node_states = unsafe { stream.alloc::<u32>(config.node_count) }
             .context("Failed to allocate node states")?;
 
         // SAFETY: alloc returns uninitialized memory for single u32. Will be written
-        // via htod_copy_into in elect_leader_scaled() before any reads.
+        // via memcpy_htod in elect_leader_scaled() before any reads.
         let leader_buffer =
-            unsafe { device.alloc::<u32>(1) }.context("Failed to allocate leader buffer")?;
+            unsafe { stream.alloc::<u32>(1) }.context("Failed to allocate leader buffer")?;
 
         Ok(Self {
             device,
@@ -95,7 +96,8 @@ impl ScaledConsensus {
             .map(|i| if i % 2 == 0 { 1 } else { 0 })
             .collect();
 
-        self.device.htod_copy_into(votes.clone(), vote_buffer)?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&votes, vote_buffer)?;
 
         // Count votes
         let yes_votes = votes.iter().filter(|&&v| v == 1).count();
@@ -117,7 +119,8 @@ impl ScaledConsensus {
             .as_mut()
             .ok_or_else(|| anyhow!("Leader buffer not initialized"))?;
 
-        self.device.htod_copy_into(vec![leader], leader_buffer)?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&[leader], leader_buffer)?;
 
         Ok(leader)
     }
@@ -195,7 +198,8 @@ impl ScaledConsensus {
 
         // Initialize all nodes as active (state = 1)
         let states = vec![1u32; count];
-        self.device.htod_copy_into(states, node_states)?;
+        let stream = self.device.default_stream();
+        stream.memcpy_htod(&states, node_states)?;
 
         Ok(())
     }
@@ -238,10 +242,11 @@ mod tests {
 
     #[test]
     fn test_consensus_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let config = ScalingConfig::default();
-        let consensus = ScaledConsensus::new(Arc::new(device), config);
+        let consensus = ScaledConsensus::new(device, config);
         // Should panic with todo!
         assert!(consensus.is_err() || consensus.is_ok());
+        Ok(())
     }
 }

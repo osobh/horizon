@@ -73,7 +73,7 @@ pub mod visualization;
 
 /// Kernel function declarations for atomic operations
 pub mod kernels {
-    extern "C" {
+    unsafe extern "C" {
         /// Launch atomic updates processing
         pub fn launch_atomic_updates(
             update_buffer: *const u8,
@@ -114,6 +114,7 @@ pub mod kernels {
 }
 
 use anyhow::Result;
+use cudarc::driver::sys;
 use cudarc::driver::DevicePtr;
 use std::sync::Arc;
 
@@ -177,9 +178,9 @@ pub struct GpuDeviceProperties {
 
 /// Get GPU device properties
 pub fn get_gpu_device_properties(device_id: i32) -> Result<GpuDeviceProperties> {
-    use cudarc::driver::CudaDevice;
+    use cudarc::driver::CudaContext;
 
-    let _device = CudaDevice::new(device_id as usize)?;
+    let _ctx = CudaContext::new(device_id as usize)?;
 
     // Get device properties using cudarc
     let props = GpuDeviceProperties {
@@ -198,7 +199,8 @@ pub fn get_gpu_device_properties(device_id: i32) -> Result<GpuDeviceProperties> 
 pub struct GpuSwarm {
     config: GpuSwarmConfig,
     _bridge: Arc<GpuCpuBridge>,
-    device: Arc<cudarc::driver::CudaDevice>,
+    ctx: Arc<cudarc::driver::CudaContext>,
+    stream: Arc<cudarc::driver::CudaStream>,
     agent_count: usize,
     gpu_agents: Option<cudarc::driver::CudaSlice<u8>>,
     gpu_config: Option<cudarc::driver::CudaSlice<u8>>,
@@ -212,13 +214,16 @@ pub struct GpuSwarm {
 impl GpuSwarm {
     /// Create a new GPU swarm
     pub fn new(config: GpuSwarmConfig) -> Result<Self> {
-        let device = cudarc::driver::CudaDevice::new(config.device_id as usize)?;
+        // CudaContext::new already returns Arc<CudaContext>
+        let ctx = cudarc::driver::CudaContext::new(config.device_id as usize)?;
+        let stream = ctx.default_stream();
         let bridge = Arc::new(GpuCpuBridge::new());
 
         Ok(Self {
             config,
             _bridge: bridge,
-            device,
+            ctx,
+            stream,
             agent_count: 0,
             gpu_agents: None,
             gpu_config: None,
@@ -245,15 +250,15 @@ impl GpuSwarm {
 
         // Allocate GPU memory for agents (256 bytes per agent)
         let agents_size = agent_count * std::mem::size_of::<GpuAgent>();
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
+        // SAFETY: CudaStream::alloc returns uninitialized GPU memory. This is safe
         // because launch_agent_init below initializes all agent data.
-        let gpu_agents = unsafe { self.device.alloc::<u8>(agents_size)? };
+        let gpu_agents = unsafe { self.stream.alloc::<u8>(agents_size)? };
 
         // Allocate GPU memory for swarm config
         let config_size = std::mem::size_of::<ffi::SwarmConfig>();
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe
-        // because htod_copy_into below initializes the entire buffer with config data.
-        let mut gpu_config = unsafe { self.device.alloc::<u8>(config_size)? };
+        // SAFETY: CudaStream::alloc returns uninitialized GPU memory. This is safe
+        // because clone_into_htod below initializes the entire buffer with config data.
+        let mut gpu_config = unsafe { self.stream.alloc::<u8>(config_size)? };
 
         // Create host-side swarm config
         let swarm_config = ffi::SwarmConfig {
@@ -272,16 +277,17 @@ impl GpuSwarm {
         let config_bytes = unsafe {
             std::slice::from_raw_parts(&swarm_config as *const _ as *const u8, config_size)
         };
-        self.device
-            .htod_copy_into(config_bytes.to_vec(), &mut gpu_config)?;
+        self.stream
+            .memcpy_htod(config_bytes, &mut gpu_config)?;
 
         // Initialize agents on GPU
         // SAFETY: gpu_agents was allocated with exactly agent_count * sizeof(GpuAgent)
         // bytes. The kernel initializes all agent data, making the previously
         // uninitialized memory safe to use after this call completes.
         unsafe {
+            let (ptr, _guard) = gpu_agents.device_ptr(&self.stream);
             ffi::launch_agent_init(
-                *gpu_agents.device_ptr() as *mut GpuAgent,
+                ptr as *mut GpuAgent,
                 agent_count as u32,
                 42, // seed
             );
@@ -307,16 +313,20 @@ impl GpuSwarm {
         // - gpu_agents was allocated and initialized in initialize()
         // - gpu_config was allocated and filled with config data in initialize()
         // The kernel reads config and updates agent state in-place.
+        let gpu_agents = self.gpu_agents.as_ref().ok_or_else(|| anyhow::anyhow!("gpu_agents not initialized"))?;
+        let gpu_config = self.gpu_config.as_ref().ok_or_else(|| anyhow::anyhow!("gpu_config not initialized"))?;
         unsafe {
+            let (agents_ptr, _agents_guard) = gpu_agents.device_ptr(&self.stream);
+            let (config_ptr, _config_guard) = gpu_config.device_ptr(&self.stream);
             ffi::launch_swarm_update(
-                *self.gpu_agents.as_ref()?.device_ptr() as *mut GpuAgent,
-                *self.gpu_config.as_ref()?.device_ptr() as *const ffi::SwarmConfig,
+                agents_ptr as *mut GpuAgent,
+                config_ptr as *const ffi::SwarmConfig,
                 0, // timestep
             );
         }
 
         // Synchronize to measure time
-        self.device.synchronize()?;
+        self.stream.synchronize()?;
 
         self.kernel_time_ms = start.elapsed().as_secs_f32() * 1000.0;
 
@@ -371,7 +381,7 @@ impl GpuSwarm {
             return Err(anyhow::anyhow!("LLM support not enabled in swarm config"));
         }
 
-        let mut llm = LlmIntegration::new(llm_config, self.device.clone())?;
+        let mut llm = LlmIntegration::new(llm_config, self.ctx.clone(), self.stream.clone())?;
         llm.load_model()?;
 
         self.llm_integration = Some(llm);
@@ -393,7 +403,7 @@ impl GpuSwarm {
         let agent_states = self.get_agent_states_for_llm()?;
 
         // Run LLM inference on GPU
-        let llm = self.llm_integration.as_ref()?;
+        let llm = self.llm_integration.as_ref().ok_or_else(|| anyhow::anyhow!("LLM integration not available"))?;
         let _responses = llm.run_inference(&agent_states)?;
 
         // Update inference timing
@@ -412,7 +422,7 @@ impl GpuSwarm {
         let agent_states = self.get_agent_states_for_llm()?;
 
         // Run LLM inference to get collective response
-        let llm = self.llm_integration.as_ref()?;
+        let llm = self.llm_integration.as_ref().ok_or_else(|| anyhow::anyhow!("LLM integration not available"))?;
         let responses = llm.run_inference(&agent_states)?;
 
         // Aggregate responses into collective intelligence
@@ -439,7 +449,7 @@ impl GpuSwarm {
             ));
         }
 
-        let gpu_graph = graph.upload_to_gpu(self.device.clone())?;
+        let gpu_graph = graph.upload_to_gpu(self.ctx.clone(), self.stream.clone())?;
         self.knowledge_graph = Some(gpu_graph);
         Ok(())
     }
@@ -456,7 +466,7 @@ impl GpuSwarm {
         }
 
         // Use real GPU operations through knowledge graph
-        let gpu_graph = self.knowledge_graph.as_ref()?;
+        let gpu_graph = self.knowledge_graph.as_ref().ok_or_else(|| anyhow::anyhow!("Knowledge graph not available"))?;
         let gpu_results = gpu_graph.run_similarity_search(query)?;
 
         // Convert GPU results to user format
@@ -515,16 +525,52 @@ impl GpuSwarm {
     }
 
     /// Get GPU agents pointer for evolution (internal use)
+    /// Note: The returned pointer is only valid while the GpuSwarm is alive
+    /// and the gpu_agents buffer hasn't been reallocated.
+    /// The caller must ensure synchronization before using the pointer.
     #[allow(dead_code)]
-    pub(crate) fn get_gpu_agents_ptr(&self) -> Option<*mut types::GpuAgent> {
-        self.gpu_agents
-            .as_ref()
-            .map(|agents| *agents.device_ptr() as *mut types::GpuAgent)
+    pub(crate) fn get_gpu_agents_ptr(&self) -> Option<sys::CUdeviceptr> {
+        self.gpu_agents.as_ref().map(|agents| {
+            // Get the device pointer with stream synchronization
+            let (ptr, _guard) = agents.device_ptr(&self.stream);
+            ptr
+        })
     }
 
-    /// Get CUDA device reference
-    pub fn get_device(&self) -> &Arc<cudarc::driver::CudaDevice> {
-        &self.device
+    /// Get CUDA context reference
+    pub fn get_context(&self) -> &Arc<cudarc::driver::CudaContext> {
+        &self.ctx
+    }
+
+    /// Get CUDA stream reference
+    pub fn get_stream(&self) -> &Arc<cudarc::driver::CudaStream> {
+        &self.stream
+    }
+
+    /// Get the number of agents in the swarm
+    pub fn agent_count(&self) -> usize {
+        self.agent_count
+    }
+
+    /// Set behavior weights for the swarm (cohesion, separation, alignment)
+    pub fn set_behavior_weights(&mut self, cohesion: f32, separation: f32, alignment: f32) -> Result<()> {
+        // If config is already on GPU, update it
+        if let Some(ref mut gpu_config) = self.gpu_config {
+            let config = ffi::SwarmConfig {
+                num_agents: self.agent_count as u32,
+                block_size: self.config.block_size,
+                evolution_interval: self.config.evolution_interval,
+                cohesion_weight: cohesion,
+                separation_weight: separation,
+                alignment_weight: alignment,
+            };
+            // SAFETY: SwarmConfig is a repr(C) struct with no padding and all POD fields.
+            let config_bytes = unsafe {
+                std::slice::from_raw_parts(&config as *const _ as *const u8, std::mem::size_of::<ffi::SwarmConfig>())
+            };
+            self.stream.memcpy_htod(config_bytes, gpu_config)?;
+        }
+        Ok(())
     }
 }
 

@@ -2,9 +2,9 @@
 //!
 //! Orchestrates memory allocation and management across 5 tiers
 
-use super::{PageId, PageInfo, PageTable, StorageConfig, TierLevel};
+use super::{PageId, PageInfo, PageTable, TierLevel};
 use anyhow::{Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr};
+use cudarc::driver::CudaContext;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -61,7 +61,7 @@ pub struct TierStatistics {
 
 /// Manages memory across all 5 tiers
 pub struct TierManager {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     config: TierConfig,
 
     // GPU memory management
@@ -86,7 +86,7 @@ pub struct TierManager {
 impl TierManager {
     /// Create new tier manager
     #[must_use = "ignoring the Result may hide tier manager initialization errors"]
-    pub fn new(device: Arc<CudaDevice>, config: TierConfig) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>, config: TierConfig) -> Result<Self> {
         // Ensure storage directories exist
         fs::create_dir_all(&config.nvme_path)?;
         fs::create_dir_all(&config.ssd_path)?;
@@ -102,7 +102,7 @@ impl TierManager {
 
         Ok(Self {
             device: Arc::clone(&device),
-            gpu_allocator: Arc::new(Mutex::new(GpuAllocator::new(device, gpu_pages)?)),
+            gpu_allocator: Arc::new(Mutex::new(GpuAllocator::new(Arc::clone(&device), gpu_pages)?)),
             cpu_allocator: Arc::new(Mutex::new(CpuAllocator::new(cpu_pages)?)),
             nvme_path: config.nvme_path.clone(),
             ssd_path: config.ssd_path.clone(),
@@ -130,7 +130,7 @@ impl TierManager {
     #[must_use = "PageId must be stored to free the allocated memory later"]
     pub fn allocate_page(&mut self, tier: TierLevel) -> Result<PageId> {
         let page_id = {
-            let mut next_id = self.next_page_id.lock()?;
+            let mut next_id = self.next_page_id.lock().unwrap();
             let id = PageId::new(*next_id);
             *next_id += 1;
             id
@@ -139,11 +139,11 @@ impl TierManager {
         let page_size = self.config.page_size_kb * 1024;
         let address = match tier {
             TierLevel::Gpu => {
-                let mut allocator = self.gpu_allocator.lock()?;
+                let mut allocator = self.gpu_allocator.lock().unwrap();
                 allocator.allocate(page_size)?
             }
             TierLevel::Cpu => {
-                let mut allocator = self.cpu_allocator.lock()?;
+                let mut allocator = self.cpu_allocator.lock().unwrap();
                 allocator.allocate(page_size)?
             }
             TierLevel::Nvme | TierLevel::Ssd | TierLevel::Hdd => {
@@ -161,19 +161,23 @@ impl TierManager {
             last_access: std::time::Instant::now(),
         };
 
-        let mut page_table = self.page_table.lock()?;
-        page_table.insert(page_id, page_info)?;
+        {
+            let mut page_table = self.page_table.lock().unwrap();
+            page_table.insert(page_id, page_info)?;
+        }
 
         // Update statistics
-        let mut stats = self.stats.lock()?;
-        match tier {
-            TierLevel::Gpu => stats.gpu_pages_allocated += 1,
-            TierLevel::Cpu => stats.cpu_pages_allocated += 1,
-            TierLevel::Nvme => stats.nvme_pages_allocated += 1,
-            TierLevel::Ssd => stats.ssd_pages_allocated += 1,
-            TierLevel::Hdd => stats.hdd_pages_allocated += 1,
+        {
+            let mut stats = self.stats.lock().unwrap();
+            match tier {
+                TierLevel::Gpu => stats.gpu_pages_allocated += 1,
+                TierLevel::Cpu => stats.cpu_pages_allocated += 1,
+                TierLevel::Nvme => stats.nvme_pages_allocated += 1,
+                TierLevel::Ssd => stats.ssd_pages_allocated += 1,
+                TierLevel::Hdd => stats.hdd_pages_allocated += 1,
+            }
+            stats.total_pages_allocated += 1;
         }
-        stats.total_pages_allocated += 1;
 
         Ok(page_id)
     }
@@ -181,17 +185,17 @@ impl TierManager {
     /// Free a page
     pub fn free_page(&mut self, page_id: PageId) -> Result<()> {
         let page_info = {
-            let mut page_table = self.page_table.lock()?;
+            let mut page_table = self.page_table.lock().unwrap();
             page_table.remove(page_id)?
         };
 
         match page_info.tier {
             TierLevel::Gpu => {
-                let mut allocator = self.gpu_allocator.lock()?;
+                let mut allocator = self.gpu_allocator.lock().unwrap();
                 allocator.free(page_info.address)?;
             }
             TierLevel::Cpu => {
-                let mut allocator = self.cpu_allocator.lock()?;
+                let mut allocator = self.cpu_allocator.lock().unwrap();
                 allocator.free(page_info.address)?;
             }
             TierLevel::Nvme | TierLevel::Ssd | TierLevel::Hdd => {
@@ -200,29 +204,31 @@ impl TierManager {
         }
 
         // Update statistics
-        let mut stats = self.stats.lock()?;
-        match page_info.tier {
-            TierLevel::Gpu => stats.gpu_pages_allocated -= 1,
-            TierLevel::Cpu => stats.cpu_pages_allocated -= 1,
-            TierLevel::Nvme => stats.nvme_pages_allocated -= 1,
-            TierLevel::Ssd => stats.ssd_pages_allocated -= 1,
-            TierLevel::Hdd => stats.hdd_pages_allocated -= 1,
+        {
+            let mut stats = self.stats.lock().unwrap();
+            match page_info.tier {
+                TierLevel::Gpu => stats.gpu_pages_allocated -= 1,
+                TierLevel::Cpu => stats.cpu_pages_allocated -= 1,
+                TierLevel::Nvme => stats.nvme_pages_allocated -= 1,
+                TierLevel::Ssd => stats.ssd_pages_allocated -= 1,
+                TierLevel::Hdd => stats.hdd_pages_allocated -= 1,
+            }
+            stats.total_pages_allocated -= 1;
         }
-        stats.total_pages_allocated -= 1;
 
         Ok(())
     }
 
     /// Get page tier
     pub fn get_page_tier(&self, page_id: PageId) -> Option<TierLevel> {
-        let page_table = self.page_table.lock()?;
+        let page_table = self.page_table.lock().ok()?;
         page_table.lookup(page_id).map(|info| info.tier)
     }
 
     /// Write data to a page
     pub fn write_page(&mut self, page_id: PageId, data: &[u8]) -> Result<()> {
         let page_info = {
-            let mut page_table = self.page_table.lock()?;
+            let mut page_table = self.page_table.lock().unwrap();
             let info = page_table.lookup_mut(page_id).context("Page not found")?;
             info.dirty = true;
             info.clone()
@@ -231,12 +237,12 @@ impl TierManager {
         match page_info.tier {
             TierLevel::Gpu => {
                 // Write to GPU memory
-                let gpu_allocator = self.gpu_allocator.lock()?;
+                let gpu_allocator = self.gpu_allocator.lock().unwrap();
                 gpu_allocator.write(page_info.address, data)?;
             }
             TierLevel::Cpu => {
                 // Write to CPU memory
-                let mut cpu_allocator = self.cpu_allocator.lock()?;
+                let mut cpu_allocator = self.cpu_allocator.lock().unwrap();
                 cpu_allocator.write(page_info.address, data)?;
             }
             TierLevel::Nvme | TierLevel::Ssd | TierLevel::Hdd => {
@@ -251,7 +257,7 @@ impl TierManager {
     /// Read data from a page
     pub fn read_page(&self, page_id: PageId) -> Result<Vec<u8>> {
         let page_info = {
-            let mut page_table = self.page_table.lock()?;
+            let mut page_table = self.page_table.lock().unwrap();
             page_table.access_page(page_id);
             page_table
                 .lookup(page_id)
@@ -261,11 +267,11 @@ impl TierManager {
 
         let data = match page_info.tier {
             TierLevel::Gpu => {
-                let gpu_allocator = self.gpu_allocator.lock()?;
+                let gpu_allocator = self.gpu_allocator.lock().unwrap();
                 gpu_allocator.read(page_info.address, self.config.page_size_kb * 1024)?
             }
             TierLevel::Cpu => {
-                let cpu_allocator = self.cpu_allocator.lock()?;
+                let cpu_allocator = self.cpu_allocator.lock().unwrap();
                 cpu_allocator.read(page_info.address, self.config.page_size_kb * 1024)?
             }
             TierLevel::Nvme | TierLevel::Ssd | TierLevel::Hdd => {
@@ -296,9 +302,12 @@ impl TierManager {
 
         // Update page table to point to new location
         {
-            let mut page_table = self.page_table.lock()?;
+            let mut page_table = self.page_table.lock().unwrap();
             // Get new address first to avoid borrowing conflicts
-            let new_address = page_table.lookup(new_page)?.address;
+            let new_address = page_table
+                .lookup(new_page)
+                .context("New page not found")?
+                .address;
 
             if let Some(info) = page_table.lookup_mut(page_id) {
                 info.tier = target_tier;
@@ -312,8 +321,10 @@ impl TierManager {
         self.free_page(page_id)?;
 
         // Update statistics
-        let mut stats = self.stats.lock()?;
-        stats.total_migrations += 1;
+        {
+            let mut stats = self.stats.lock().unwrap();
+            stats.total_migrations += 1;
+        }
 
         Ok(())
     }
@@ -327,8 +338,8 @@ impl TierManager {
     }
 
     /// Access a page (updates LRU)
-    pub fn access_page(&self, page_id: PageId) -> Result<(), Box<dyn std::error::Error>> {
-        let mut page_table = self.page_table.lock()?;
+    pub fn access_page(&self, page_id: PageId) {
+        let mut page_table = self.page_table.lock().unwrap();
         page_table.access_page(page_id);
     }
 
@@ -354,7 +365,7 @@ impl TierManager {
 
     /// Get statistics
     pub fn get_statistics(&self) -> TierStatistics {
-        let stats = self.stats.lock()?;
+        let stats = self.stats.lock().unwrap();
         let mut result = (*stats).clone();
 
         // Calculate utilization percentages
@@ -394,7 +405,7 @@ impl TierManager {
 
         // Phase 1: Identify and collect stale pages
         let stale_pages: Vec<PageId> = {
-            let page_table = self.page_table.lock()?;
+            let page_table = self.page_table.lock().unwrap();
             page_table
                 .iter_pages()
                 .filter(|(_, info)| {
@@ -418,13 +429,13 @@ impl TierManager {
 
         // Phase 2: Coalesce free memory regions in GPU allocator
         {
-            let mut gpu_alloc = self.gpu_allocator.lock()?;
+            let mut gpu_alloc = self.gpu_allocator.lock().unwrap();
             Self::coalesce_free_list(&mut gpu_alloc.free_list);
         }
 
         // Phase 3: Coalesce free memory regions in CPU allocator
         {
-            let mut cpu_alloc = self.cpu_allocator.lock()?;
+            let mut cpu_alloc = self.cpu_allocator.lock().unwrap();
             Self::coalesce_cpu_free_list(&mut cpu_alloc.free_list);
         }
 
@@ -435,7 +446,7 @@ impl TierManager {
         let stats = self.get_statistics();
         if stats.gpu_utilization_percent > 80.0 {
             let cold_gpu_pages: Vec<PageId> = {
-                let page_table = self.page_table.lock()?;
+                let page_table = self.page_table.lock().unwrap();
                 let mut pages: Vec<_> = page_table
                     .iter_pages()
                     .filter(|(_, info)| info.tier == TierLevel::Gpu)
@@ -518,7 +529,7 @@ impl TierManager {
 
         // Get all tracked page IDs
         let tracked_pages: std::collections::HashSet<u64> = {
-            let page_table = self.page_table.lock()?;
+            let page_table = self.page_table.lock().unwrap();
             page_table.iter_pages().map(|(id, _)| id.as_u64()).collect()
         };
 
@@ -644,7 +655,7 @@ impl TierManager {
 
 /// GPU memory allocator
 struct GpuAllocator {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     free_list: Vec<(u64, usize)>, // (address, size)
     allocated: HashMap<u64, usize>,
     total_size: usize,
@@ -652,7 +663,7 @@ struct GpuAllocator {
 }
 
 impl GpuAllocator {
-    fn new(device: Arc<CudaDevice>, num_pages: usize) -> Result<Self> {
+    fn new(device: Arc<CudaContext>, num_pages: usize) -> Result<Self> {
         let page_size = 4096;
         let total_size = num_pages * page_size;
 

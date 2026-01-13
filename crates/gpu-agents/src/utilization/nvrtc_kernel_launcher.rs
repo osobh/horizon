@@ -6,16 +6,15 @@
 
 use crate::synthesis::nvrtc::{CompilationOptions, KernelTemplate};
 use anyhow::{anyhow, Result};
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use dashmap::DashMap;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// NVRTC kernel launcher for dynamic kernel compilation and execution
 /// This version simulates NVRTC functionality for demonstration
 pub struct NvrtcKernelLauncher {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
     /// Cache of compiled kernel templates
     template_cache: Arc<DashMap<String, CompiledKernel>>,
     /// Compilation statistics
@@ -41,10 +40,10 @@ struct CompilationStats {
 
 impl NvrtcKernelLauncher {
     /// Create new NVRTC kernel launcher
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
         Ok(Self {
             device,
-            template_cache: Arc::new(RwLock::new(HashMap::new())),
+            template_cache: Arc::new(DashMap::new()),
             stats: Arc::new(RwLock::new(CompilationStats::default())),
         })
     }
@@ -59,7 +58,7 @@ impl NvrtcKernelLauncher {
         let start = std::time::Instant::now();
 
         // Check if already cached
-        if self.template_cache.read().await.contains_key(name) {
+        if self.template_cache.contains_key(name) {
             self.stats.write().await.cache_hits += 1;
             return Ok(());
         }
@@ -77,10 +76,7 @@ impl NvrtcKernelLauncher {
         };
 
         // Cache the compiled kernel
-        self.template_cache
-            .write()
-            .await
-            .insert(name.to_string(), compiled);
+        self.template_cache.insert(name.to_string(), compiled);
 
         // Update statistics
         let mut stats = self.stats.write().await;
@@ -174,8 +170,7 @@ impl NvrtcKernelLauncher {
         num_nodes: u32,
     ) -> Result<()> {
         // Check if kernel is compiled
-        let cache = self.template_cache.read().await;
-        if !cache.contains_key(kernel_name) {
+        if !self.template_cache.contains_key(kernel_name) {
             return Err(anyhow!("Kernel {} not compiled", kernel_name));
         }
 
@@ -228,7 +223,7 @@ impl NvrtcKernelLauncher {
 
     /// Clear all caches
     pub async fn clear_caches(&self) {
-        self.template_cache.write().await.clear();
+        self.template_cache.clear();
     }
 }
 
@@ -286,8 +281,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_kernel_compilation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
-        let launcher = NvrtcKernelLauncher::new(Arc::new(device))?;
+        let device = CudaContext::new(0)?;
+        let launcher = NvrtcKernelLauncher::new(device)?;
 
         // Test pattern matcher compilation
         let kernel_name = launcher.compile_pattern_matcher(32, 1000).await?;
@@ -296,8 +291,8 @@ mod tests {
         // Verify kernel is cached
         assert!(launcher
             .template_cache
-            .read()
-            .await
             .contains_key(&kernel_name));
+
+        Ok(())
     }
 }

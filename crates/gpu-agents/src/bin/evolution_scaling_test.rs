@@ -1,5 +1,5 @@
 //! Test evolution at different scales to find where it hangs
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
 use std::sync::Arc;
 use std::time::Instant;
@@ -9,7 +9,7 @@ fn main() -> anyhow::Result<()> {
     println!("========================");
 
     // Initialize CUDA device
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test progressively larger population sizes
     let test_sizes = vec![32, 64, 128, 256, 512, 1024];
@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
             block_size: 32, // Match smaller populations
         };
 
-        match test_single_generation(device.clone(), config) {
+        match test_single_generation(ctx.clone(), config) {
             Ok(duration_ms) => {
                 println!("  ✅ Success: {:.2} ms", duration_ms);
             }
@@ -42,11 +42,11 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn test_single_generation(
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: GpuEvolutionConfig,
 ) -> anyhow::Result<f64> {
     // Create engine
-    let mut engine = GpuEvolutionEngine::new(device, config)?;
+    let mut engine = GpuEvolutionEngine::new(ctx, config)?;
 
     // Initialize
     println!("  🔧 Initializing population...");

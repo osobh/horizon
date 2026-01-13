@@ -29,12 +29,12 @@ pub struct SynthesisCrateAdapter {
     /// Cache for compiled kernels
     kernel_cache: HashMap<String, CompiledKernel>,
     /// GPU device for execution
-    device: Arc<cudarc::driver::CudaDevice>,
+    device: Arc<cudarc::driver::CudaContext>,
 }
 
 impl SynthesisCrateAdapter {
     /// Create a new synthesis crate adapter
-    pub fn new(device: Arc<cudarc::driver::CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<cudarc::driver::CudaContext>) -> Result<Self> {
         // Configure the synthesis pipeline with mock mode disabled
         let mut interpreter_config =
             stratoswarm_synthesis::interpreter::InterpreterConfig::default();
@@ -220,14 +220,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_synthesis_adapter_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = Arc::new(cudarc::driver::CudaContext::new(0)?);
         let adapter = SynthesisCrateAdapter::new(device);
         assert!(adapter.is_ok());
     }
 
     #[tokio::test]
     async fn test_goal_to_synthesis_task() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = Arc::new(cudarc::driver::CudaContext::new(0)?);
         let adapter = SynthesisCrateAdapter::new(device)?;
 
         let goal = "Create a parallel reduction kernel for summing arrays";
@@ -241,7 +241,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_synthesize_optimized_kernel() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = Arc::new(cudarc::driver::CudaContext::new(0)?);
         let mut adapter = SynthesisCrateAdapter::new(device)?;
 
         let goal = "Optimize matrix multiplication";
@@ -263,21 +263,35 @@ mod tests {
         };
 
         let spec = pattern_to_kernel_spec(&pattern, "Test kernel creation");
-        assert_eq!(spec.name, "test_kernel");
-        assert_eq!(spec.goal_description, "Test kernel creation");
-        assert!(!spec.input_types.is_empty());
-        assert!(!spec.constraints.is_empty());
+        // KernelSpecification has operation_type, data_layout, precision, optimization_hints, performance_model
+        assert_eq!(spec.operation_type, stratoswarm_synthesis::interpreter::OperationType::MatrixMultiply);
+        assert!(!spec.optimization_hints.is_empty());
     }
 
     #[test]
     fn test_synthesized_to_gpu_format() {
         let kernel = SynthesizedKernel {
-            kernel_id: uuid::Uuid::new_v4(),
+            id: uuid::Uuid::new_v4(),
             name: "test_kernel".to_string(),
             source_code: "__global__ void test() {}".to_string(),
-            template_used: Some("basic_template".to_string()),
-            parameters: HashMap::new(),
-            metadata: Default::default(),
+            specification: stratoswarm_synthesis::KernelSpecification {
+                operation_type: stratoswarm_synthesis::interpreter::OperationType::Custom,
+                data_layout: stratoswarm_synthesis::interpreter::DataLayout {
+                    input_shape: vec![1024],
+                    output_shape: vec![1024],
+                    memory_layout: stratoswarm_synthesis::interpreter::MemoryLayout::RowMajor,
+                },
+                precision: stratoswarm_synthesis::interpreter::Precision::FP32,
+                optimization_hints: vec![],
+                performance_model: stratoswarm_synthesis::interpreter::PerformanceModel {
+                    compute_intensity: 1.0,
+                    memory_bandwidth: 100.0,
+                    expected_occupancy: 0.5,
+                },
+            },
+            compile_options: stratoswarm_synthesis::CompileOptions::default(),
+            synthesized_at: chrono::Utc::now(),
+            optimization_iterations: 1,
         };
 
         let formatted = synthesized_to_gpu_format(&kernel);
@@ -287,7 +301,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_synthesis() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = Arc::new(cudarc::driver::CudaContext::new(0)?);
         let adapter = SynthesisCrateAdapter::new(device)?;
 
         // Valid UUID
@@ -301,7 +315,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_synthesis_metrics() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = Arc::new(cudarc::driver::CudaContext::new(0)?);
         let adapter = SynthesisCrateAdapter::new(device)?;
 
         let kernel_id = uuid::Uuid::new_v4().to_string();
@@ -314,7 +328,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_synthesis_caching() -> Result<(), Box<dyn std::error::Error>> {
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = Arc::new(cudarc::driver::CudaContext::new(0)?);
         let mut adapter = SynthesisCrateAdapter::new(device)?;
 
         let goals = vec!["Vector addition", "Matrix transpose", "Reduction sum"];

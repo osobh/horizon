@@ -4,13 +4,13 @@
 use super::*;
 use crate::evolution::{GpuEvolutionConfig, GpuEvolutionEngine};
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// Test utilities
-fn create_test_device() -> Arc<CudaDevice> {
-    CudaDevice::new(0).expect("CUDA device should be available")
+fn create_test_device() -> Arc<CudaContext> {
+    CudaContext::new(0).expect("CUDA device should be available")
 }
 
 fn create_minimal_config() -> GpuEvolutionConfig {

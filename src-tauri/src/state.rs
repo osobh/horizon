@@ -2,7 +2,11 @@
 //!
 //! Centralized state for the Horizon application.
 
+use crate::argus_bridge::ArgusBridge;
 use crate::cluster_bridge::ClusterBridge;
+use crate::hpcci_bridge::HpcCiBridge;
+use crate::rustyspark_bridge::RustySparkBridge;
+use crate::stratoswarm_bridge::StratoSwarmBridge;
 use crate::costs_bridge::CostsBridge;
 use crate::data_pipeline_bridge::DataPipelineBridge;
 use crate::edge_proxy_bridge::EdgeProxyBridge;
@@ -57,6 +61,14 @@ pub struct AppState {
     pub intelligence: Arc<IntelligenceBridge>,
     /// Settings bridge for policies, quotas, and app settings
     pub settings: Arc<SettingsBridge>,
+    /// Argus bridge for observability, metrics, and alerts
+    pub argus: Arc<ArgusBridge>,
+    /// HPC-CI bridge for pipeline management
+    pub hpcci: Arc<HpcCiBridge>,
+    /// RustySpark bridge for data processing jobs
+    pub rustyspark: Arc<RustySparkBridge>,
+    /// StratoSwarm bridge for agent visualization and evolution
+    pub stratoswarm: Arc<StratoSwarmBridge>,
 }
 
 impl AppState {
@@ -79,6 +91,10 @@ impl AppState {
             costs: Arc::new(CostsBridge::new()),
             intelligence: Arc::new(IntelligenceBridge::new()),
             settings: Arc::new(SettingsBridge::new()),
+            argus: Arc::new(ArgusBridge::new()),
+            hpcci: Arc::new(HpcCiBridge::new()),
+            rustyspark: Arc::new(RustySparkBridge::new()),
+            stratoswarm: Arc::new(StratoSwarmBridge::new()),
         }
     }
 

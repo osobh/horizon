@@ -2,19 +2,18 @@
 //!
 //! GREEN phase - tests should pass with basic implementation
 
-use cudarc::driver::{CudaDevice, DeviceSlice};
+use cudarc::driver::{CudaContext, DeviceSlice};
 use gpu_agents::synthesis::variable_buffer::{BufferConfig, VariableBufferManager};
-use std::sync::Arc;
 
 fn main() -> anyhow::Result<()> {
     println!("Testing Variable Buffer Implementation (GREEN phase)");
     println!("==================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Buffer allocation
     println!("\n1. Testing buffer allocation...");
-    let mut manager = VariableBufferManager::new(device, BufferConfig::default())?;
+    let mut manager = VariableBufferManager::new(ctx, BufferConfig::default())?;
 
     manager.ensure_capacity(1024, 2048, 512)?;
     println!("✅ Buffer allocation succeeded");

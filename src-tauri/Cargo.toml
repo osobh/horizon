@@ -3,7 +3,7 @@
 [package]
 name = "horizon"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["HPC-AI Team"]
 license = "MIT OR Apache-2.0"
 description = "Unified HPC-AI Platform - Single pane of glass for the entire stack"

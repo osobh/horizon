@@ -9,7 +9,7 @@
 use crate::consensus_synthesis::integration::ConsensusSynthesisEngine;
 use crate::synthesis::SynthesisTask;
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice};
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -55,7 +55,7 @@ pub struct MultiRegionConsensusEngine {
     pub zero_trust_validator: Option<Arc<ZeroTrustValidator>>,
     pub disaster_recovery: Option<Arc<DisasterRecoveryManager>>,
     pub cloud_integration: Option<Arc<CloudProviderManager>>,
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     gpu_voting_buffer: Option<CudaSlice<u8>>,
     gpu_latency_buffer: Option<CudaSlice<f32>>,
     failed_regions: Arc<DashMap<String, bool>>,
@@ -188,7 +188,8 @@ impl MultiRegionConsensusEngine {
         base_engine: ConsensusSynthesisEngine,
         config: MultiRegionConfig,
     ) -> Result<Self> {
-        let device = base_engine.get_device().clone();
+        let ctx = base_engine.get_device().clone();
+        let stream = ctx.default_stream();
 
         // Initialize regions map
         let mut regions = HashMap::new();
@@ -201,13 +202,13 @@ impl MultiRegionConsensusEngine {
         let voting_buffer_size = max_nodes * 64; // 64 bytes per vote
                                                  // SAFETY: alloc returns uninitialized memory. gpu_voting_buffer will be written
                                                  // by GPU consensus voting kernels before any reads.
-        let gpu_voting_buffer = Some(unsafe { device.alloc::<u8>(voting_buffer_size)? });
+        let gpu_voting_buffer = Some(unsafe { stream.alloc::<u8>(voting_buffer_size)? });
 
         // GPU buffer for latency measurements
         let latency_buffer_size = config.regions.len() * std::mem::size_of::<f32>();
         // SAFETY: alloc returns uninitialized memory. gpu_latency_buffer will be written
         // when latency measurements are computed by GPU kernels.
-        let gpu_latency_buffer = Some(unsafe { device.alloc::<f32>(latency_buffer_size)? });
+        let gpu_latency_buffer = Some(unsafe { stream.alloc::<f32>(latency_buffer_size)? });
 
         let zero_trust_validator = if config.zero_trust_validation {
             Some(Arc::new(ZeroTrustValidator::new().await?))
@@ -243,17 +244,23 @@ impl MultiRegionConsensusEngine {
             auto_scaling_operations: 0,
         }));
 
+        // Convert HashMap to DashMap
+        let regions_dashmap = DashMap::new();
+        for (k, v) in regions {
+            regions_dashmap.insert(k, v);
+        }
+
         Ok(Self {
             base_engine,
-            regions: Arc::new(RwLock::new(regions)),
+            regions: Arc::new(regions_dashmap),
             zero_trust_validator,
             disaster_recovery,
             cloud_integration,
-            device,
+            ctx,
             gpu_voting_buffer,
             gpu_latency_buffer,
-            failed_regions: Arc::new(RwLock::new(HashMap::new())),
-            malicious_behaviors: Arc::new(RwLock::new(HashMap::new())),
+            failed_regions: Arc::new(DashMap::new()),
+            malicious_behaviors: Arc::new(DashMap::new()),
             auto_scaling_events: Arc::new(RwLock::new(Vec::new())),
             performance_metrics,
         })
@@ -267,14 +274,18 @@ impl MultiRegionConsensusEngine {
         let start_time = Instant::now();
 
         // Get active regions (non-failed)
-        let regions = self.regions.read().await;
-        let failed_regions = self.failed_regions.read().await;
-        let malicious_behaviors = self.malicious_behaviors.read().await;
-
-        let active_regions: Vec<String> = regions
-            .keys()
-            .filter(|region_id| !failed_regions.get(*region_id).unwrap_or(&false))
-            .cloned()
+        // DashMap uses interior mutability, no await needed
+        let active_regions: Vec<String> = self
+            .regions
+            .iter()
+            .map(|r| r.key().clone())
+            .filter(|region_id| {
+                !self
+                    .failed_regions
+                    .get(region_id)
+                    .map(|r| *r.value())
+                    .unwrap_or(false)
+            })
             .collect();
 
         // Zero-trust validation with GPU acceleration
@@ -282,9 +293,16 @@ impl MultiRegionConsensusEngine {
         if let Some(validator) = &self.zero_trust_validator {
             let gpu_validation_start = Instant::now();
 
+            // Collect malicious behaviors into HashMap for validation
+            let malicious_map: HashMap<String, MaliciousBehavior> = self
+                .malicious_behaviors
+                .iter()
+                .map(|r| (r.key().clone(), r.value().clone()))
+                .collect();
+
             // Parallel zero-trust validation across regions
             zero_trust_violations = validator
-                .validate_regions_parallel(&active_regions, &malicious_behaviors)
+                .validate_regions_parallel(&active_regions, &malicious_map)
                 .await?;
 
             let mut metrics = self.performance_metrics.write().await;
@@ -295,7 +313,7 @@ impl MultiRegionConsensusEngine {
         // Filter out malicious regions
         let trusted_regions: Vec<String> = active_regions
             .into_iter()
-            .filter(|region_id| !malicious_behaviors.contains_key(region_id))
+            .filter(|region_id| !self.malicious_behaviors.contains_key(region_id))
             .collect();
 
         // GPU-accelerated consensus voting
@@ -308,11 +326,11 @@ impl MultiRegionConsensusEngine {
         // Calculate total nodes and average latency
         let total_nodes: usize = trusted_regions
             .iter()
-            .map(|region_id| regions[region_id].node_count)
+            .filter_map(|region_id| self.regions.get(region_id).map(|r| r.node_count))
             .sum();
 
         let average_latency = self
-            .calculate_optimized_latency(&trusted_regions, &regions)
+            .calculate_optimized_latency(&trusted_regions)
             .await?;
 
         // Cloud provider auto-scaling if needed
@@ -337,7 +355,7 @@ impl MultiRegionConsensusEngine {
             None
         };
 
-        let disaster_recovery_triggered = failed_regions.len() > 0;
+        let disaster_recovery_triggered = !self.failed_regions.is_empty();
         if disaster_recovery_triggered {
             let mut metrics = self.performance_metrics.write().await;
             metrics.disaster_recovery_activations += 1;
@@ -370,14 +388,13 @@ impl MultiRegionConsensusEngine {
     async fn execute_gpu_consensus_voting(
         &self,
         trusted_regions: &[String],
-        task: &SynthesisTask,
+        _task: &SynthesisTask,
     ) -> Result<GpuConsensusResult> {
         // GPU kernel execution for parallel voting
         // This simulates GPU-accelerated consensus calculation
-        let regions = self.regions.read().await;
         let total_nodes: usize = trusted_regions
             .iter()
-            .map(|region_id| regions[region_id].node_count)
+            .filter_map(|region_id| self.regions.get(region_id).map(|r| r.node_count))
             .sum();
 
         // Simulate GPU consensus computation with parallel reduction
@@ -399,7 +416,6 @@ impl MultiRegionConsensusEngine {
     async fn calculate_optimized_latency(
         &self,
         trusted_regions: &[String],
-        regions: &HashMap<String, Region>,
     ) -> Result<f64> {
         if trusted_regions.is_empty() {
             return Ok(0.0);
@@ -410,7 +426,7 @@ impl MultiRegionConsensusEngine {
         let mut total_weight = 0.0;
 
         for region_id in trusted_regions {
-            if let Some(region) = regions.get(region_id) {
+            if let Some(region) = self.regions.get(region_id) {
                 // Weight inversely proportional to latency (lower latency = higher weight)
                 let weight = 1.0 / (region.latency_ms + 1.0);
                 total_weighted_latency += region.latency_ms * weight;
@@ -453,15 +469,11 @@ impl MultiRegionConsensusEngine {
 
     /// Simulate region failure for disaster recovery testing
     pub async fn simulate_region_failure(&mut self, region_id: &str) -> Result<()> {
-        {
-            let regions = self.regions.read().await;
-            if !regions.contains_key(region_id) {
-                return Err(anyhow!("Region {} not found", region_id));
-            }
+        if !self.regions.contains_key(region_id) {
+            return Err(anyhow!("Region {} not found", region_id));
         }
 
-        let mut failed_regions = self.failed_regions.write().await;
-        failed_regions.insert(region_id.to_string(), true);
+        self.failed_regions.insert(region_id.to_string(), true);
 
         // Trigger disaster recovery if available
         if let Some(disaster_recovery) = &self.disaster_recovery {
@@ -477,41 +489,42 @@ impl MultiRegionConsensusEngine {
         region_id: &str,
         behavior: MaliciousBehavior,
     ) -> Result<()> {
-        {
-            let regions = self.regions.read().await;
-            if !regions.contains_key(region_id) {
-                return Err(anyhow!("Region {} not found", region_id));
-            }
+        if !self.regions.contains_key(region_id) {
+            return Err(anyhow!("Region {} not found", region_id));
         }
 
-        let mut malicious_behaviors = self.malicious_behaviors.write().await;
-        malicious_behaviors.insert(region_id.to_string(), behavior);
+        self.malicious_behaviors.insert(region_id.to_string(), behavior);
         Ok(())
     }
 
     /// Simulate high load scenario for auto-scaling testing
     pub async fn simulate_high_load_scenario(&mut self, load_factor: usize) -> Result<()> {
         // GPU-accelerated load analysis and auto-scaling decision
-        let regions = self.regions.read().await;
-        let mut auto_scaling_events = self.auto_scaling_events.write().await;
+        // Collect region data first to avoid holding DashMap refs across await
+        let region_data: Vec<(String, usize)> = self
+            .regions
+            .iter()
+            .map(|r| (r.key().clone(), r.node_count))
+            .collect();
 
-        for (region_id, region) in regions.iter() {
+        for (region_id, node_count) in region_data {
             if load_factor > 500 {
                 // High load threshold
-                let new_node_count = region.node_count * 2; // Scale up
+                let new_node_count = node_count * 2; // Scale up
 
                 // Use cloud provider integration for actual scaling
                 if let Some(cloud_manager) = &self.cloud_integration {
                     cloud_manager
-                        .scale_region(region_id, new_node_count)
+                        .scale_region(&region_id, new_node_count)
                         .await?;
                 }
 
+                let mut auto_scaling_events = self.auto_scaling_events.write().await;
                 auto_scaling_events.push(AutoScalingEvent {
                     region_id: region_id.clone(),
                     provider: "aws".to_string(), // Will be determined by cloud manager
                     action: "scale_up".to_string(),
-                    node_count_before: region.node_count,
+                    node_count_before: node_count,
                     node_count_after: new_node_count,
                     timestamp: Instant::now(),
                 });
@@ -553,11 +566,11 @@ impl MultiRegionConsensusEngine {
 
     /// Get latency optimization metrics with GPU-calculated statistics
     pub async fn get_latency_optimization_metrics(&self) -> Result<LatencyOptimizationMetrics> {
-        let regions = self.regions.read().await;
         let metrics = self.performance_metrics.read().await;
 
-        let average_latency = if !regions.is_empty() {
-            regions.values().map(|r| r.latency_ms).sum::<f64>() / regions.len() as f64
+        let average_latency = if !self.regions.is_empty() {
+            let total: f64 = self.regions.iter().map(|r| r.latency_ms).sum();
+            total / self.regions.len() as f64
         } else {
             0.0
         };

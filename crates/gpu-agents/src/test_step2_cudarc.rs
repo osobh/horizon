@@ -7,7 +7,7 @@ mod step2_cudarc_tests {
 
     /// Helper to check if CUDA is available for testing
     fn cuda_available() -> bool {
-        cudarc::driver::CudaDevice::new(0).is_ok()
+        cudarc::driver::CudaContext::new(0).is_ok()
     }
 
     /// Test cudarc trait imports are available and working
@@ -22,7 +22,7 @@ mod step2_cudarc_tests {
         // These traits should be in scope after we fix imports
         use cudarc::driver::{DevicePtr, DeviceSlice};
 
-        let device = cudarc::driver::CudaDevice::new(0)?;
+        let device = cudarc::driver::CudaContext::new(0)?;
         let data = vec![1u32, 2, 3, 4];
         let gpu_slice = device.htod_copy(data)?;
 
@@ -45,7 +45,7 @@ mod step2_cudarc_tests {
 
         use cudarc::driver::{DevicePtr, DeviceSlice};
 
-        let device = cudarc::driver::CudaDevice::new(0)?;
+        let device = cudarc::driver::CudaContext::new(0)?;
 
         // Test allocation
         let host_data = vec![42u8; 1024];
@@ -66,7 +66,7 @@ mod step2_cudarc_tests {
     }
 
     /// Test device creation patterns used in benchmarks
-    /// This will fail until we fix Arc<Arc<CudaDevice>> issues
+    /// This will fail until we fix Arc<Arc<CudaContext>> issues
     #[test]
     fn test_benchmark_device_creation() -> Result<()> {
         if !cuda_available() {
@@ -75,18 +75,18 @@ mod step2_cudarc_tests {
         }
 
         // Following cuda.md: Device should be created once and shared via Arc
-        let device = cudarc::driver::CudaDevice::new(0)?;
+        let device = cudarc::driver::CudaContext::new(0)?;
 
         // Test that we can wrap in Arc (benchmark pattern)
         use std::sync::Arc;
-        let arc_device: Arc<cudarc::driver::CudaDevice> = Arc::new(device);
+        let arc_device: Arc<cudarc::driver::CudaContext> = Arc::new(device);
 
         // Test that Arc device works correctly
         assert_eq!(arc_device.id(), 0);
 
-        // This should NOT be Arc<Arc<CudaDevice>>
+        // This should NOT be Arc<Arc<CudaContext>>
         struct TestBenchmark {
-            device: Arc<cudarc::driver::CudaDevice>,
+            device: Arc<cudarc::driver::CudaContext>,
         }
 
         let _benchmark = TestBenchmark { device: arc_device };
@@ -106,7 +106,7 @@ mod step2_cudarc_tests {
 
         use cudarc::driver::{DevicePtr, DeviceSlice};
 
-        let device = cudarc::driver::CudaDevice::new(0)?;
+        let device = cudarc::driver::CudaContext::new(0)?;
 
         // Simulate streaming operation
         let input_data = vec![1u8, 2, 3, 4, 5, 6, 7, 8];
@@ -135,7 +135,7 @@ mod step2_cudarc_tests {
 
         use cudarc::driver::{DevicePtr, DeviceSlice};
 
-        let device = cudarc::driver::CudaDevice::new(0)?;
+        let device = cudarc::driver::CudaContext::new(0)?;
 
         // Test pattern used in compression: input -> output buffers
         let input_data = vec![0u8; 256];
@@ -167,7 +167,7 @@ mod step2_cudarc_tests {
         use cudarc::driver::{DevicePtr, DeviceSlice};
         use std::sync::Arc;
 
-        let device = Arc::new(cudarc::driver::CudaDevice::new(0)?);
+        let device = Arc::new(cudarc::driver::CudaContext::new(0)?);
 
         // Test multiple buffer operations
         let data1 = vec![1u32; 100];

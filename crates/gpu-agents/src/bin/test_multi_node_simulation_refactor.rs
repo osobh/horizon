@@ -2,7 +2,7 @@
 //!
 //! REFACTOR phase - optimize implementation
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::node_simulation::{MultiNodeSimulator, NodeConfig, SimulationConfig};
 use std::time::{Duration, Instant};
 
@@ -10,7 +10,7 @@ fn main() -> anyhow::Result<()> {
     println!("Testing Multi-Node Simulation on Single GPU (REFACTOR phase)");
     println!("==========================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Optimized simulator creation
     println!("\n1. Testing optimized simulator creation...");
@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let start = Instant::now();
-    let mut simulator = MultiNodeSimulator::new(device.clone(), config)?;
+    let mut simulator = MultiNodeSimulator::new(ctx.clone(), config)?;
     println!("✅ Created simulator in {:?}", start.elapsed());
 
     // Test 2: Batch node creation performance

@@ -3,7 +3,7 @@
 //! Provides enhanced template functionality including conditionals, loops, and functions
 
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice, CudaStream};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -111,7 +111,8 @@ impl CompositeTemplate {
 
 /// Main template engine with advanced operations
 pub struct TemplateEngine {
-    device: Arc<CudaDevice>,
+    device: Arc<CudaContext>,
+    stream: Arc<CudaStream>,
     functions: Arc<Mutex<HashMap<String, Box<dyn Fn(&str) -> String + Send + Sync>>>>,
     variable_buffer: Option<CudaSlice<u8>>,
     template_buffer: Option<CudaSlice<u8>>,
@@ -121,19 +122,21 @@ pub struct TemplateEngine {
 
 impl TemplateEngine {
     /// Create new template engine
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(device: Arc<CudaContext>) -> Result<Self> {
+        let stream = device.default_stream();
         let max_buffer_size = 1024 * 1024; // 1MB default
 
         // Allocate GPU buffers
         // SAFETY: alloc returns uninitialized memory. These buffers are optional and will
         // be written via encode_templates/encode_variables before any GPU kernel reads.
         // Failures return None and the engine operates in CPU-only mode.
-        let variable_buffer = unsafe { device.alloc::<u8>(max_buffer_size) }.ok();
-        let template_buffer = unsafe { device.alloc::<u8>(max_buffer_size) }.ok();
-        let output_buffer = unsafe { device.alloc::<u8>(max_buffer_size) }.ok();
+        let variable_buffer = unsafe { stream.alloc::<u8>(max_buffer_size) }.ok();
+        let template_buffer = unsafe { stream.alloc::<u8>(max_buffer_size) }.ok();
+        let output_buffer = unsafe { stream.alloc::<u8>(max_buffer_size) }.ok();
 
         Ok(Self {
             device,
+            stream,
             functions: Arc::new(Mutex::new(HashMap::new())),
             variable_buffer,
             template_buffer,
@@ -198,7 +201,7 @@ impl TemplateEngine {
 
     /// Register a template function
     pub fn register_function(&self, function: TemplateFunction) -> Result<()> {
-        let mut functions = self.functions.lock()?;
+        let mut functions = self.functions.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         functions.insert(function.name, function.func);
         Ok(())
     }
@@ -211,7 +214,7 @@ impl TemplateEngine {
     ) -> Result<String> {
         // First substitute variables
         let mut result = self.substitute_variables(template, variables)?;
-        let functions = self.functions.lock()?;
+        let functions = self.functions.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
 
         // Find function calls in template
         let re = regex::Regex::new(r"\{\{(\w+)\((\w+)\)\}\}")?;
@@ -355,7 +358,7 @@ mod tests {
 
     #[test]
     fn test_variable_substitution() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let engine = TemplateEngine::new(device)?;
 
         let mut vars = HashMap::new();
@@ -370,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_loop_expansion() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
+        let device = CudaContext::new(0)?;
         let engine = TemplateEngine::new(device)?;
 
         let loop_def = TemplateLoop::new("fruits", vec!["apple", "banana", "orange"]);

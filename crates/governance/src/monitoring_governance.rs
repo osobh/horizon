@@ -661,7 +661,7 @@ impl GovernanceMonitor {
                 .take(100) // Last 100 decisions
                 .map(|d| d.duration_ms as f64)
                 .sum::<f64>()
-                / 100.0.min(buffer.decision_metrics.len() as f64);
+                / 100.0_f64.min(buffer.decision_metrics.len() as f64);
 
             if recent_avg_latency
                 > baseline.avg_decision_latency_ms * self.anomaly_detector.detection_threshold

@@ -8,6 +8,7 @@ import DashboardView from './views/DashboardView';
 
 // New stub views
 import SchedulerView from './views/SchedulerView';
+import ObservabilityView from './views/ObservabilityView';
 import StorageView from './views/StorageView';
 import DataProcessingView from './views/DataProcessingView';
 import NetworkView from './views/NetworkView';
@@ -17,6 +18,8 @@ import IntelligenceView from './views/IntelligenceView';
 import SettingsView from './views/SettingsView';
 import TrainingView from './views/TrainingView';
 import EvolutionView from './views/EvolutionView';
+import PipelinesView from './views/PipelinesView';
+import SwarmView from './views/SwarmView';
 
 function App() {
   return (
@@ -82,11 +85,27 @@ function App() {
           <Route path="/edge/transmutation" element={<EdgeProxyView />} />
           <Route path="/edge/ddos" element={<EdgeProxyView />} />
 
+          {/* Observability (Argus) */}
+          <Route path="/observability" element={<ObservabilityView />} />
+          <Route path="/observability/metrics" element={<ObservabilityView />} />
+          <Route path="/observability/alerts" element={<ObservabilityView />} />
+          <Route path="/observability/targets" element={<ObservabilityView />} />
+
           {/* Evolution */}
           <Route path="/evolution" element={<EvolutionView />} />
           <Route path="/evolution/dgm" element={<EvolutionView />} />
           <Route path="/evolution/swarm" element={<EvolutionView />} />
           <Route path="/evolution/explorer" element={<EvolutionView />} />
+
+          {/* Swarm (StratoSwarm Agents) */}
+          <Route path="/swarm" element={<SwarmView />} />
+          <Route path="/swarm/agents" element={<SwarmView />} />
+          <Route path="/swarm/evolution" element={<SwarmView />} />
+
+          {/* Pipelines (HPC-CI) */}
+          <Route path="/pipelines" element={<PipelinesView />} />
+          <Route path="/pipelines/agents" element={<PipelinesView />} />
+          <Route path="/pipelines/approvals" element={<PipelinesView />} />
 
           {/* Costs */}
           <Route path="/costs" element={<CostsView />} />

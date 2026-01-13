@@ -3,7 +3,7 @@
 //! Demonstrates achieving 90% GPU utilization through integrated optimization
 
 use anyhow::Result;
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::utilization::{
     gpu_metrics::GpuMetricsCollector,
     integrated_optimizer::IntegratedGpuOptimizer,
@@ -24,12 +24,12 @@ async fn main() -> Result<()> {
     println!("=========================================");
     println!("Target: Achieve 90% GPU utilization through optimization\n");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Phase 1: Baseline measurement
     println!("📊 Phase 1: Baseline Measurement");
     println!("--------------------------------");
-    let baseline_util = measure_baseline_utilization(Arc::clone(&device)).await?;
+    let baseline_util = measure_baseline_utilization(Arc::clone(&ctx)).await?;
     println!("  Baseline utilization: {:.1}%", baseline_util * 100.0);
     println!(
         "  Gap to target: {:.1} percentage points\n",
@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
     println!("----------------------------------");
 
     // Create integrated optimizer
-    let optimizer = IntegratedGpuOptimizer::new(Arc::clone(&device)).await?;
+    let optimizer = IntegratedGpuOptimizer::new(Arc::clone(&ctx)).await?;
 
     // Start optimization
     optimizer.start_optimization().await?;
@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Collect metrics
-        let metrics_collector = GpuMetricsCollector::new(Arc::clone(&device));
+        let metrics_collector = GpuMetricsCollector::new(Arc::clone(&ctx));
         let metrics = metrics_collector.collect_metrics().await?;
         let current_util = metrics.compute_utilization;
         measurements.push(current_util);
@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
     println!("\n🔬 Phase 4: Detailed Benchmarks");
     println!("-------------------------------");
 
-    run_detailed_benchmarks(Arc::clone(&device)).await?;
+    run_detailed_benchmarks(Arc::clone(&ctx)).await?;
 
     // Print final report
     println!("\n📋 Optimization Report:");
@@ -122,8 +122,8 @@ async fn main() -> Result<()> {
 }
 
 /// Measure baseline GPU utilization
-async fn measure_baseline_utilization(device: Arc<CudaDevice>) -> Result<f32> {
-    let metrics_collector = GpuMetricsCollector::new(Arc::clone(&device));
+async fn measure_baseline_utilization(ctx: Arc<CudaContext>) -> Result<f32> {
+    let metrics_collector = GpuMetricsCollector::new(Arc::clone(&ctx));
     let mut samples = Vec::new();
 
     // Run baseline workload
@@ -138,10 +138,10 @@ async fn measure_baseline_utilization(device: Arc<CudaDevice>) -> Result<f32> {
 }
 
 /// Run detailed performance benchmarks
-async fn run_detailed_benchmarks(device: Arc<CudaDevice>) -> Result<()> {
+async fn run_detailed_benchmarks(ctx: Arc<CudaContext>) -> Result<()> {
     // Benchmark 1: Kernel optimization impact
     println!("\n  1. Kernel Optimization Impact:");
-    let kernel_optimizer = KernelOptimizer::new(Arc::clone(&device));
+    let kernel_optimizer = KernelOptimizer::new(Arc::clone(&ctx));
 
     let default_config = KernelConfig::default();
     let default_occupancy = kernel_optimizer.calculate_occupancy(default_config);
@@ -166,7 +166,7 @@ async fn run_detailed_benchmarks(device: Arc<CudaDevice>) -> Result<()> {
 
     // Benchmark 2: Memory coalescing impact
     println!("\n  2. Memory Coalescing Impact:");
-    let mut memory_optimizer = MemoryCoalescingOptimizer::new(Arc::clone(&device));
+    let mut memory_optimizer = MemoryCoalescingOptimizer::new(Arc::clone(&ctx));
 
     // Uncoalesced access pattern
     let uncoalesced: Vec<(u32, u64)> = (0..32)
@@ -214,8 +214,8 @@ async fn run_detailed_benchmarks(device: Arc<CudaDevice>) -> Result<()> {
         ..Default::default()
     };
 
-    let single_throughput = benchmark_scheduler(Arc::clone(&device), single_stream_config).await?;
-    let multi_throughput = benchmark_scheduler(Arc::clone(&device), multi_stream_config).await?;
+    let single_throughput = benchmark_scheduler(Arc::clone(&ctx), single_stream_config).await?;
+    let multi_throughput = benchmark_scheduler(Arc::clone(&ctx), multi_stream_config).await?;
 
     println!("     Single stream: {:.0} kernels/sec", single_throughput);
     println!("     Multi-stream (4): {:.0} kernels/sec", multi_throughput);
@@ -223,7 +223,7 @@ async fn run_detailed_benchmarks(device: Arc<CudaDevice>) -> Result<()> {
 
     // Benchmark 4: Workload scaling
     println!("\n  4. Workload Scaling:");
-    let utilization_manager = UtilizationManager::new(Arc::clone(&device))?;
+    let utilization_manager = UtilizationManager::new(Arc::clone(&ctx))?;
 
     println!("     Initial multiplier: 1.0x");
 
@@ -245,8 +245,8 @@ async fn run_detailed_benchmarks(device: Arc<CudaDevice>) -> Result<()> {
 }
 
 /// Benchmark kernel scheduler performance
-async fn benchmark_scheduler(device: Arc<CudaDevice>, config: SchedulerConfig) -> Result<f64> {
-    let scheduler = AdvancedKernelScheduler::new(device, config)?;
+async fn benchmark_scheduler(ctx: Arc<CudaContext>, config: SchedulerConfig) -> Result<f64> {
+    let scheduler = AdvancedKernelScheduler::new(ctx, config)?;
     let start = Instant::now();
     let num_kernels = 100;
 
@@ -285,10 +285,10 @@ async fn benchmark_scheduler(device: Arc<CudaDevice>, config: SchedulerConfig) -
 }
 
 /// Generate sample workload for testing
-async fn generate_workload(device: Arc<CudaDevice>) {
+async fn generate_workload(ctx: Arc<CudaContext>) -> anyhow::Result<()> {
     let scheduler_config = SchedulerConfig::default();
     let scheduler = Arc::new(tokio::sync::RwLock::new(AdvancedKernelScheduler::new(
-        Arc::clone(&device),
+        Arc::clone(&ctx),
         scheduler_config,
     )?));
 
@@ -320,4 +320,6 @@ async fn generate_workload(device: Arc<CudaDevice>) {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     });
+
+    Ok(())
 }

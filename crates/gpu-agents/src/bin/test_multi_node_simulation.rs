@@ -2,14 +2,14 @@
 //!
 //! RED phase - create failing tests
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::node_simulation::{MultiNodeSimulator, NodeConfig, SimulationConfig};
 
 fn main() -> anyhow::Result<()> {
     println!("Testing Multi-Node Simulation on Single GPU (RED phase)");
     println!("====================================================");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Test 1: Create multi-node simulator
     println!("\n1. Testing multi-node simulator creation...");
@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
         communication_buffer_size: 10 * 1024 * 1024, // 10MB
     };
 
-    let mut simulator = MultiNodeSimulator::new(device, config)?;
+    let mut simulator = MultiNodeSimulator::new(ctx, config)?;
     println!("✅ Created multi-node simulator");
 
     // Test 2: Simulate multiple nodes

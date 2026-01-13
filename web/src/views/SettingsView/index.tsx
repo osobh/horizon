@@ -69,21 +69,21 @@ export default function SettingsView() {
         <div className="bg-slate-800/50 border-b border-slate-700 px-6 py-3 flex gap-6 text-sm">
           <div>
             <span className="text-slate-400">Active Policies:</span>{' '}
-            <span className="text-green-400 font-semibold">{summary.active_policies}</span>
-            <span className="text-slate-500"> / {summary.total_policies}</span>
+            <span className="text-green-400 font-semibold">{summary.policies.filter(p => p.enabled).length}</span>
+            <span className="text-slate-500"> / {summary.policies.length}</span>
           </div>
           <div>
             <span className="text-slate-400">Configured Quotas:</span>{' '}
-            <span className="text-blue-400">{summary.total_quotas}</span>
+            <span className="text-blue-400">{summary.quotas.length}</span>
           </div>
           <div>
             <span className="text-slate-400">Theme:</span>{' '}
-            <span className="text-slate-300 capitalize">{summary.theme}</span>
+            <span className="text-slate-300 capitalize">{summary.app_settings.theme}</span>
           </div>
           <div>
             <span className="text-slate-400">Auto-refresh:</span>{' '}
-            <span className={summary.auto_refresh ? 'text-green-400' : 'text-slate-500'}>
-              {summary.auto_refresh ? 'Enabled' : 'Disabled'}
+            <span className={summary.app_settings.auto_refresh_interval_secs > 0 ? 'text-green-400' : 'text-slate-500'}>
+              {summary.app_settings.auto_refresh_interval_secs > 0 ? 'Enabled' : 'Disabled'}
             </span>
           </div>
         </div>
@@ -114,10 +114,10 @@ export default function SettingsView() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Quick Stats */}
             <div className="grid grid-cols-2 gap-4">
-              <StatCard icon={Shield} label="Policies" value={summary.total_policies.toString()} color="text-green-400" />
-              <StatCard icon={Sliders} label="Quotas" value={summary.total_quotas.toString()} color="text-blue-400" />
-              <StatCard icon={CheckCircle} label="Active Policies" value={summary.active_policies.toString()} color="text-emerald-400" />
-              <StatCard icon={XCircle} label="Inactive Policies" value={(summary.total_policies - summary.active_policies).toString()} color="text-slate-500" />
+              <StatCard icon={Shield} label="Policies" value={summary.policies.length.toString()} color="text-green-400" />
+              <StatCard icon={Sliders} label="Quotas" value={summary.quotas.length.toString()} color="text-blue-400" />
+              <StatCard icon={CheckCircle} label="Active Policies" value={summary.policies.filter(p => p.enabled).length.toString()} color="text-emerald-400" />
+              <StatCard icon={XCircle} label="Inactive Policies" value={summary.policies.filter(p => !p.enabled).length.toString()} color="text-slate-500" />
             </div>
 
             {/* Recent Policies */}
@@ -131,7 +131,7 @@ export default function SettingsView() {
                   <div key={policy.id} className="flex items-center justify-between p-2 bg-slate-700/30 rounded">
                     <div>
                       <div className="font-medium">{policy.name}</div>
-                      <div className="text-sm text-slate-400">{policy.policy_type}</div>
+                      <div className="text-sm text-slate-400">{policy.type}</div>
                     </div>
                     <span className={`px-2 py-1 rounded text-xs ${policy.enabled ? 'bg-green-500/20 text-green-400' : 'bg-slate-500/20 text-slate-400'}`}>
                       {policy.enabled ? 'Active' : 'Inactive'}
@@ -173,7 +173,7 @@ export default function SettingsView() {
                 <PolicyCard
                   key={policy.id}
                   policy={policy}
-                  onToggle={() => togglePolicy(policy.id)}
+                  onToggle={() => togglePolicy(policy.id, !policy.enabled)}
                   onDelete={() => deletePolicy(policy.id)}
                 />
               ))}
@@ -240,10 +240,14 @@ export default function SettingsView() {
                   description="Automatically refresh data at regular intervals"
                 >
                   <button
-                    onClick={() => setEditingSettings({ ...appSettings, ...editingSettings, auto_refresh: !(editingSettings?.auto_refresh ?? appSettings.auto_refresh) })}
+                    onClick={() => {
+                      const currentValue = editingSettings?.auto_refresh_interval_secs ?? appSettings.auto_refresh_interval_secs;
+                      const newValue = currentValue > 0 ? 0 : 30;
+                      setEditingSettings({ ...appSettings, ...editingSettings, auto_refresh_interval_secs: newValue });
+                    }}
                     className="text-2xl"
                   >
-                    {(editingSettings?.auto_refresh ?? appSettings.auto_refresh) ? (
+                    {((editingSettings?.auto_refresh_interval_secs ?? appSettings.auto_refresh_interval_secs) > 0) ? (
                       <ToggleRight className="w-10 h-10 text-green-400" />
                     ) : (
                       <ToggleLeft className="w-10 h-10 text-slate-500" />
@@ -257,8 +261,8 @@ export default function SettingsView() {
                 >
                   <input
                     type="number"
-                    value={editingSettings?.refresh_interval_seconds ?? appSettings.refresh_interval_seconds}
-                    onChange={(e) => setEditingSettings({ ...appSettings, ...editingSettings, refresh_interval_seconds: parseInt(e.target.value) || 30 })}
+                    value={editingSettings?.auto_refresh_interval_secs ?? appSettings.auto_refresh_interval_secs}
+                    onChange={(e) => setEditingSettings({ ...appSettings, ...editingSettings, auto_refresh_interval_secs: parseInt(e.target.value) || 30 })}
                     className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm w-24"
                     min="5"
                     max="300"
@@ -282,14 +286,14 @@ export default function SettingsView() {
                 </SettingRow>
 
                 <SettingRow
-                  label="Sound Alerts"
-                  description="Play sounds for critical alerts"
+                  label="Telemetry"
+                  description="Send anonymous usage data to improve the app"
                 >
                   <button
-                    onClick={() => setEditingSettings({ ...appSettings, ...editingSettings, sound_enabled: !(editingSettings?.sound_enabled ?? appSettings.sound_enabled) })}
+                    onClick={() => setEditingSettings({ ...appSettings, ...editingSettings, telemetry_enabled: !(editingSettings?.telemetry_enabled ?? appSettings.telemetry_enabled) })}
                     className="text-2xl"
                   >
-                    {(editingSettings?.sound_enabled ?? appSettings.sound_enabled) ? (
+                    {(editingSettings?.telemetry_enabled ?? appSettings.telemetry_enabled) ? (
                       <ToggleRight className="w-10 h-10 text-green-400" />
                     ) : (
                       <ToggleLeft className="w-10 h-10 text-slate-500" />
@@ -303,8 +307,8 @@ export default function SettingsView() {
                 >
                   <input
                     type="text"
-                    value={editingSettings?.default_cluster ?? appSettings.default_cluster}
-                    onChange={(e) => setEditingSettings({ ...appSettings, ...editingSettings, default_cluster: e.target.value })}
+                    value={editingSettings?.default_cluster ?? appSettings.default_cluster ?? ''}
+                    onChange={(e) => setEditingSettings({ ...appSettings, ...editingSettings, default_cluster: e.target.value || null })}
                     className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm w-48"
                     placeholder="localhost:8080"
                   />
@@ -381,6 +385,12 @@ function StatCard({ icon: Icon, label, value, color }: {
 }
 
 function PolicyCard({ policy, onToggle, onDelete }: { policy: Policy; onToggle: () => void; onDelete: () => void }) {
+  const getPriorityLabel = (priority: number): string => {
+    if (priority <= 3) return 'low';
+    if (priority <= 6) return 'medium';
+    return 'high';
+  };
+  const priorityLabel = getPriorityLabel(policy.priority);
   const priorityColors: Record<string, string> = {
     low: 'text-slate-400',
     medium: 'text-amber-400',
@@ -394,7 +404,7 @@ function PolicyCard({ policy, onToggle, onDelete }: { policy: Policy; onToggle: 
           <Shield className={`w-5 h-5 ${policy.enabled ? 'text-green-400' : 'text-slate-500'}`} />
           <div>
             <div className="font-medium">{policy.name}</div>
-            <div className="text-sm text-slate-400">{policy.policy_type} • Priority: <span className={priorityColors[policy.priority]}>{policy.priority}</span></div>
+            <div className="text-sm text-slate-400">{policy.type} • Priority: <span className={priorityColors[priorityLabel]}>{priorityLabel}</span></div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -422,7 +432,7 @@ function PolicyCard({ policy, onToggle, onDelete }: { policy: Policy; onToggle: 
 }
 
 function QuotaCard({ quota }: { quota: Quota }) {
-  const usagePercent = (quota.current_usage / quota.limit) * 100;
+  const usagePercent = (quota.used / quota.limit) * 100;
   const usageColor = usagePercent >= 90 ? 'bg-red-500' : usagePercent >= 70 ? 'bg-amber-500' : 'bg-green-500';
 
   return (
@@ -435,14 +445,14 @@ function QuotaCard({ quota }: { quota: Quota }) {
         <div className={`h-full ${usageColor}`} style={{ width: `${Math.min(usagePercent, 100)}%` }} />
       </div>
       <div className="text-xs text-slate-400">
-        {quota.current_usage.toLocaleString()} / {quota.limit.toLocaleString()} {quota.unit}
+        {quota.used.toLocaleString()} / {quota.limit.toLocaleString()} {quota.unit}
       </div>
     </div>
   );
 }
 
 function QuotaDetailCard({ quota, onDelete }: { quota: Quota; onDelete: () => void }) {
-  const usagePercent = (quota.current_usage / quota.limit) * 100;
+  const usagePercent = (quota.used / quota.limit) * 100;
   const usageColor = usagePercent >= 90 ? 'text-red-400' : usagePercent >= 70 ? 'text-amber-400' : 'text-green-400';
 
   return (
@@ -464,7 +474,7 @@ function QuotaDetailCard({ quota, onDelete }: { quota: Quota; onDelete: () => vo
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-slate-400">Current Usage</span>
-          <span className={usageColor}>{quota.current_usage.toLocaleString()} {quota.unit}</span>
+          <span className={usageColor}>{quota.used.toLocaleString()} {quota.unit}</span>
         </div>
         <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
           <div
@@ -476,12 +486,6 @@ function QuotaDetailCard({ quota, onDelete }: { quota: Quota; onDelete: () => vo
           <span className="text-slate-400">Limit</span>
           <span>{quota.limit.toLocaleString()} {quota.unit}</span>
         </div>
-        {quota.soft_limit && (
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Soft Limit</span>
-            <span className="text-amber-400">{quota.soft_limit.toLocaleString()} {quota.unit}</span>
-          </div>
-        )}
       </div>
     </div>
   );

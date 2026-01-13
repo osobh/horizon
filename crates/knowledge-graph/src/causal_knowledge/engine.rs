@@ -314,7 +314,7 @@ impl CausalKnowledgeEngine {
                         cause_node_id: source_id.clone(),
                         effect_node_id: target_id.clone(),
                         causal_strength: correlation.abs(),
-                        confidence: correlation.abs() * 0.9 + rng.gen::<f64>() * 0.1,
+                        confidence: correlation.abs() * 0.9 + rng.r#gen::<f64>() * 0.1,
                         temporal_delay: ChronoDuration::minutes(rng.gen_range(1..30)),
                         causal_type: CausalType::Direct,
                         evidence: self.create_mock_evidence(correlation),
@@ -556,7 +556,7 @@ impl CausalKnowledgeEngine {
         let mut rng = ChaCha8Rng::seed_from_u64((source_id.len() + target_id.len()) as u64);
 
         // Simulate correlation based on node relationships and temporal data
-        let correlation = (rng.gen::<f64>() - 0.5) * 2.0; // Range [-1, 1]
+        let correlation = (rng.r#gen::<f64>() - 0.5) * 2.0; // Range [-1, 1]
 
         // Add some temporal influence
         let temporal_factor = if temporal_index.event_count() > 0 {
@@ -574,8 +574,8 @@ impl CausalKnowledgeEngine {
         CausalEvidence {
             statistical_metrics: StatisticalMetrics {
                 correlation,
-                granger_causality: correlation.abs() * 0.8 + rng.gen::<f64>() * 0.2,
-                transfer_entropy: correlation.abs() * 0.7 + rng.gen::<f64>() * 0.3,
+                granger_causality: correlation.abs() * 0.8 + rng.r#gen::<f64>() * 0.2,
+                transfer_entropy: correlation.abs() * 0.7 + rng.r#gen::<f64>() * 0.3,
                 partial_correlation: correlation * 0.9,
                 p_value: (1.0 - correlation.abs()) * 0.05,
             },

@@ -2,7 +2,7 @@
 //!
 //! GREEN phase - working demo showcasing consensus-synthesis integration
 
-use cudarc::driver::CudaDevice;
+use cudarc::driver::CudaContext;
 use gpu_agents::consensus::voting::GpuVoting;
 use gpu_agents::consensus_synthesis::integration::{
     ConsensusSynthesisEngine, IntegrationConfig, WorkflowResult,
@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
     println!("==============================");
     println!("Demonstrating consensus-driven synthesis on GPU");
 
-    let device = CudaDevice::new(0)?;
+    let ctx = CudaContext::new(0)?;
 
     // Demo 1: Create distributed development team
     println!("\n📋 Demo 1: Creating Distributed Development Team");
@@ -34,7 +34,7 @@ fn main() -> anyhow::Result<()> {
         conflict_resolution_strategy: ConflictStrategy::HighestVoteWins,
     };
 
-    let engine = ConsensusSynthesisEngine::new(device.clone(), config)?;
+    let engine = ConsensusSynthesisEngine::new(ctx.clone(), config)?;
     println!("✅ Integration engine initialized");
 
     // Simulate development nodes (different expertise areas)
@@ -236,7 +236,7 @@ fn main() -> anyhow::Result<()> {
     println!("\n📊 Demo 7: System Monitoring");
     println!("----------------------------");
 
-    let statuses = engine.get_task_statuses();
+    let statuses = engine.get_task_statuses()?;
 
     let completed = statuses
         .values()
@@ -312,7 +312,7 @@ fn main() -> anyhow::Result<()> {
     thread::sleep(Duration::from_millis(100));
     engine.cleanup_old_tasks(Duration::from_millis(50));
 
-    let remaining = engine.get_task_statuses().len();
+    let remaining = engine.get_task_statuses()?.len();
     println!("✅ Cleanup completed: {} tasks remaining", remaining);
 
     // Final summary

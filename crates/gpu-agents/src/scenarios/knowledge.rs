@@ -170,7 +170,7 @@ impl KnowledgeAgentScenario {
         &mut self,
         swarm: &mut GpuSwarm,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let agent_count = swarm.agent_count();
+        let agent_count = swarm.agent_count;
 
         log::info!(
             "Initializing {} knowledge graphs with {} initial nodes each",

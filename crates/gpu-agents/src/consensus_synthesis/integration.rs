@@ -5,13 +5,12 @@
 use crate::consensus::voting::GpuVoting;
 use crate::evolution::engine_adapter::{ConsensusWeights, EvolutionEngineAdapter, PopulationStats};
 use crate::knowledge::graph_adapter::{
-    ConsensusOutcome, ConsensusPattern, KnowledgeGraphAdapter, SimilarPattern,
-    SynthesisPerformanceMetrics,
+    ConsensusOutcome, KnowledgeGraphAdapter, SimilarPattern, SynthesisPerformanceMetrics,
 };
-use crate::synthesis::cross_crate_adapter::{SynthesisCrateAdapter, SynthesisMetrics};
-use crate::synthesis::{AstNode, GpuSynthesisModule, SynthesisTask};
+use crate::synthesis::cross_crate_adapter::SynthesisCrateAdapter;
+use crate::synthesis::{GpuSynthesisModule, SynthesisTask};
 use anyhow::{anyhow, Context, Result};
-use cudarc::driver::{CudaDevice, CudaSlice};
+use cudarc::driver::{CudaContext, CudaSlice};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -82,7 +81,7 @@ struct TrackedTask {
 
 /// Main integration engine
 pub struct ConsensusSynthesisEngine {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     config: IntegrationConfig,
     voting_engine: Option<GpuVoting>,
     synthesis_module: Option<GpuSynthesisModule>,
@@ -98,23 +97,24 @@ pub struct ConsensusSynthesisEngine {
 
 impl ConsensusSynthesisEngine {
     /// Create new integration engine
-    pub fn new(device: Arc<CudaDevice>, config: IntegrationConfig) -> Result<Self> {
+    pub fn new(ctx: Arc<CudaContext>, config: IntegrationConfig) -> Result<Self> {
         // Initialize voting engine
-        let voting_engine = GpuVoting::new(Arc::clone(&device), 1000)?;
+        let voting_engine = GpuVoting::new(Arc::clone(&ctx), 1000)?;
 
         // Initialize synthesis module
-        let synthesis_module = GpuSynthesisModule::new(Arc::clone(&device), 10000)?;
+        let synthesis_module = GpuSynthesisModule::new(Arc::clone(&ctx), 10000)?;
 
         // Allocate GPU buffers
-        // SAFETY: CudaDevice::alloc returns uninitialized GPU memory. This is safe because
+        // SAFETY: CudaContext::alloc returns uninitialized GPU memory. This is safe because
         // vote_buffer is populated with votes before consensus processing reads it, and
         // result_buffer is write-only (stores consensus output). Both are Optional to
         // handle allocation failures gracefully.
-        let vote_buffer = unsafe { device.alloc::<u32>(1000) }.ok();
-        let result_buffer = unsafe { device.alloc::<u8>(1024 * 1024) }.ok(); // 1MB
+        let stream = ctx.default_stream();
+        let vote_buffer = unsafe { stream.alloc::<u32>(1000) }.ok();
+        let result_buffer = unsafe { stream.alloc::<u8>(1024 * 1024) }.ok(); // 1MB
 
         Ok(Self {
-            device,
+            ctx,
             config,
             voting_engine: Some(voting_engine),
             synthesis_module: Some(synthesis_module),
@@ -131,8 +131,14 @@ impl ConsensusSynthesisEngine {
 
     /// Submit a synthesis task for consensus approval
     pub fn submit_synthesis_task(&self, task: SynthesisTask) -> Result<u64> {
-        let mut tasks = self.tasks.lock()?;
-        let mut next_id = self.next_task_id.lock()?;
+        let mut tasks = self
+            .tasks
+            .lock()
+            .map_err(|e| anyhow!("Failed to lock tasks: {}", e))?;
+        let mut next_id = self
+            .next_task_id
+            .lock()
+            .map_err(|e| anyhow!("Failed to lock next_task_id: {}", e))?;
 
         let task_id = *next_id;
         *next_id += 1;
@@ -153,7 +159,10 @@ impl ConsensusSynthesisEngine {
 
     /// Collect votes from nodes for a task
     pub fn collect_votes(&self, task_id: u64, node_ids: &[u32]) -> Result<HashMap<u32, bool>> {
-        let mut tasks = self.tasks.lock()?;
+        let mut tasks = self
+            .tasks
+            .lock()
+            .map_err(|e| anyhow!("Failed to lock tasks: {}", e))?;
 
         let task = tasks
             .get_mut(&task_id)
@@ -184,7 +193,10 @@ impl ConsensusSynthesisEngine {
 
     /// Execute synthesis if consensus threshold is met
     pub fn execute_if_consensus(&self, task_id: u64, threshold: f32) -> Result<WorkflowResult> {
-        let mut tasks = self.tasks.lock()?;
+        let mut tasks = self
+            .tasks
+            .lock()
+            .map_err(|e| anyhow!("Failed to lock tasks: {}", e))?;
 
         let task = tasks
             .get_mut(&task_id)
@@ -349,20 +361,26 @@ impl ConsensusSynthesisEngine {
     }
 
     /// Get current status of all tasks
-    pub fn get_task_statuses(&self) -> HashMap<u64, (WorkflowStatus, Option<String>)> {
-        let tasks = self.tasks.lock()?;
-        tasks
+    pub fn get_task_statuses(&self) -> Result<HashMap<u64, (WorkflowStatus, Option<String>)>> {
+        let tasks = self
+            .tasks
+            .lock()
+            .map_err(|e| anyhow!("Failed to lock tasks: {}", e))?;
+        Ok(tasks
             .iter()
             .map(|(&id, task)| (id, (task.status.clone(), task.result.clone())))
-            .collect()
+            .collect())
     }
 
     /// Clean up completed tasks older than specified duration
     pub fn cleanup_old_tasks(
         &self,
         older_than: Duration,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut tasks = self.tasks.lock()?;
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut tasks = self
+            .tasks
+            .lock()
+            .map_err(|e| format!("Failed to lock tasks: {}", e))?;
         let now = Instant::now();
 
         tasks.retain(|_, task| {
@@ -372,23 +390,25 @@ impl ConsensusSynthesisEngine {
                 true
             }
         });
+
+        Ok(())
     }
 
     /// Initialize cross-crate integration adapters
     pub async fn initialize_cross_crate_integration(&mut self) -> Result<()> {
         // Initialize synthesis adapter
-        let synthesis_adapter = SynthesisCrateAdapter::new(Arc::clone(&self.device))
+        let synthesis_adapter = SynthesisCrateAdapter::new(Arc::clone(&self.ctx))
             .context("Failed to initialize synthesis adapter")?;
         self.synthesis_adapter = Some(synthesis_adapter);
 
         // Initialize evolution adapter
-        let evolution_adapter = EvolutionEngineAdapter::new(Arc::clone(&self.device))
+        let evolution_adapter = EvolutionEngineAdapter::new(Arc::clone(&self.ctx))
             .await
             .context("Failed to initialize evolution adapter")?;
         self.evolution_adapter = Some(evolution_adapter);
 
         // Initialize knowledge graph adapter
-        let knowledge_adapter = KnowledgeGraphAdapter::new(Arc::clone(&self.device))
+        let knowledge_adapter = KnowledgeGraphAdapter::new(Arc::clone(&self.ctx))
             .await
             .context("Failed to initialize knowledge graph adapter")?;
         self.knowledge_adapter = Some(knowledge_adapter);
@@ -430,7 +450,7 @@ impl ConsensusSynthesisEngine {
     /// Use evolution engines to optimize consensus weights
     pub async fn optimize_consensus_with_evolution(&mut self) -> Result<ConsensusWeights> {
         // Extract needed data before borrowing evolution_adapter mutably
-        let device = Arc::clone(&self.device);
+        let ctx = Arc::clone(&self.ctx);
         let config = self.config.clone();
 
         let evolution_adapter = self
@@ -440,7 +460,7 @@ impl ConsensusSynthesisEngine {
 
         // Create a temporary reference structure instead of passing self
         let temp_engine = ConsensusSynthesisEngine {
-            device,
+            ctx,
             config,
             voting_engine: None,
             synthesis_module: None,
@@ -546,23 +566,23 @@ impl ConsensusSynthesisEngine {
             .map(|adapter| adapter.get_metrics())
     }
 
-    /// Get CUDA device reference for multi-region integration
-    pub fn get_device(&self) -> &Arc<CudaDevice> {
-        &self.device
+    /// Get CUDA context reference for multi-region integration
+    pub fn get_device(&self) -> &Arc<CudaContext> {
+        &self.ctx
     }
 
     /// Initialize cross-crate integrations for E2E workflows
     pub async fn initialize_cross_crate_integrations(&mut self) -> Result<()> {
         // Initialize synthesis adapter
         if self.synthesis_adapter.is_none() {
-            let adapter = SynthesisCrateAdapter::new(Arc::clone(&self.device))
+            let adapter = SynthesisCrateAdapter::new(Arc::clone(&self.ctx))
                 .context("Failed to create synthesis adapter")?;
             self.synthesis_adapter = Some(adapter);
         }
 
         // Initialize evolution adapter
         if self.evolution_adapter.is_none() {
-            let adapter = EvolutionEngineAdapter::new(Arc::clone(&self.device))
+            let adapter = EvolutionEngineAdapter::new(Arc::clone(&self.ctx))
                 .await
                 .context("Failed to create evolution adapter")?;
             self.evolution_adapter = Some(adapter);
@@ -570,7 +590,7 @@ impl ConsensusSynthesisEngine {
 
         // Initialize knowledge graph adapter
         if self.knowledge_adapter.is_none() {
-            let adapter = KnowledgeGraphAdapter::new(Arc::clone(&self.device))
+            let adapter = KnowledgeGraphAdapter::new(Arc::clone(&self.ctx))
                 .await
                 .context("Failed to create knowledge graph adapter")?;
             self.knowledge_adapter = Some(adapter);

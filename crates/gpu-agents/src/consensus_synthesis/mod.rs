@@ -9,7 +9,7 @@ pub use integration::{ConflictStrategy, WorkflowStatus};
 // Main types are already public in this module
 
 use anyhow::{anyhow, Result};
-use cudarc::driver::{CudaDevice, CudaSlice, DeviceSlice};
+use cudarc::driver::{CudaContext, CudaSlice, DeviceSlice};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -19,7 +19,7 @@ use crate::synthesis::{pattern::GpuPatternMatcher, NodeType, Pattern};
 
 /// Consensus-driven synthesis engine
 pub struct ConsensusSynthesisEngine {
-    device: Arc<CudaDevice>,
+    ctx: Arc<CudaContext>,
     voting_engine: Option<GpuVoting>,
     pattern_matcher: Option<GpuPatternMatcher>,
     decision_buffer: Option<CudaSlice<u32>>,
@@ -59,15 +59,16 @@ pub struct EngineMetrics {
 
 impl ConsensusSynthesisEngine {
     /// Create new consensus-synthesis engine
-    pub fn new(device: Arc<CudaDevice>) -> Result<Self> {
+    pub fn new(ctx: Arc<CudaContext>) -> Result<Self> {
+        let stream = ctx.default_stream();
         // Allocate decision buffer for consensus results
         // SAFETY: alloc returns uninitialized memory. decision_buffer will be written
         // by consensus voting before any reads during run_consensus_round().
-        let decision_buffer = unsafe { device.alloc::<u32>(1024) }
+        let decision_buffer = unsafe { stream.alloc::<u32>(1024) }
             .map_err(|e| anyhow!("Failed to allocate decision buffer: {}", e))?;
 
         Ok(Self {
-            device,
+            ctx,
             voting_engine: None,
             pattern_matcher: None,
             decision_buffer: Some(decision_buffer),
@@ -78,13 +79,13 @@ impl ConsensusSynthesisEngine {
 
     /// Initialize voting engine
     pub fn init_voting(&mut self, num_agents: usize) -> Result<()> {
-        self.voting_engine = Some(GpuVoting::new(Arc::clone(&self.device), num_agents)?);
+        self.voting_engine = Some(GpuVoting::new(Arc::clone(&self.ctx), num_agents)?);
         Ok(())
     }
 
     /// Initialize pattern matcher
     pub fn init_synthesis(&mut self) -> Result<()> {
-        self.pattern_matcher = Some(GpuPatternMatcher::new(Arc::clone(&self.device), 1024)?);
+        self.pattern_matcher = Some(GpuPatternMatcher::new(Arc::clone(&self.ctx), 1024)?);
         Ok(())
     }
 
@@ -132,7 +133,7 @@ impl ConsensusSynthesisEngine {
             };
 
             // Run voting (simplified - in real implementation would collect votes)
-            let voting_engine = self.voting_engine.as_ref()?;
+            let voting_engine = self.voting_engine.as_ref().ok_or_else(|| anyhow::anyhow!("Voting engine not initialized"))?;
 
             // Create votes for the proposal
             let votes = vec![
@@ -297,9 +298,10 @@ mod tests {
 
     #[test]
     fn test_engine_creation() -> Result<(), Box<dyn std::error::Error>> {
-        let device = CudaDevice::new(0)?;
-        let engine = ConsensusSynthesisEngine::new(device);
+        let ctx = CudaContext::new(0)?;
+        let engine = ConsensusSynthesisEngine::new(ctx);
         assert!(engine.is_ok());
+        Ok(())
     }
 
     #[test]
