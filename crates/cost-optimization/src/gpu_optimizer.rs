@@ -845,7 +845,7 @@ mod tests {
 
         // Register a device
         let device = create_test_device("0", 80.0, 0.0);
-        optimizer.register_device(device).await?;
+        optimizer.register_device(device).await.unwrap();
 
         // Request allocation
         let request = create_test_request(20.0, 25.0, false);
@@ -864,11 +864,11 @@ mod tests {
 
         // Register a device
         let device = create_test_device("0", 80.0, 0.0);
-        optimizer.register_device(device).await?;
+        optimizer.register_device(device).await.unwrap();
 
         // First allocation (non-exclusive)
         let request1 = create_test_request(20.0, 25.0, false);
-        let allocation1 = optimizer.allocate(request1).await?;
+        let allocation1 = optimizer.allocate(request1).await.unwrap();
 
         // Second allocation (exclusive) should fail
         let request2 = create_test_request(20.0, 25.0, true);
@@ -893,7 +893,8 @@ mod tests {
         // Register devices with different available memory
         optimizer
             .register_device(create_test_device("0", 40.0, 0.0))
-            .await?;
+            .await
+            .unwrap();
         optimizer
             .register_device(create_test_device("1", 80.0, 0.0))
             .await
@@ -920,7 +921,8 @@ mod tests {
         // Register devices with different available memory
         optimizer
             .register_device(create_test_device("0", 40.0, 0.0))
-            .await?;
+            .await
+            .unwrap();
         optimizer
             .register_device(create_test_device("1", 80.0, 0.0))
             .await
@@ -948,7 +950,8 @@ mod tests {
         for i in 0..3 {
             optimizer
                 .register_device(create_test_device(&i.to_string(), 80.0, 0.0))
-                .await?;
+                .await
+                .unwrap();
         }
 
         // Make multiple allocations
@@ -979,7 +982,8 @@ mod tests {
         // Register a single device
         optimizer
             .register_device(create_test_device("0", 80.0, 0.0))
-            .await?;
+            .await
+            .unwrap();
 
         // Make multiple small allocations
         let mut allocations = Vec::new();
@@ -1008,7 +1012,8 @@ mod tests {
         // Register device
         optimizer
             .register_device(create_test_device("0", 80.0, 0.0))
-            .await?;
+            .await
+            .unwrap();
 
         // Make allocation
         let request = create_test_request(40.0, 50.0, false);
@@ -1037,7 +1042,7 @@ mod tests {
         config.gpu_costs.insert("A100".to_string(), 3.0);
         config.gpu_costs.insert("T4".to_string(), 0.5);
 
-        let optimizer = GpuOptimizer::new(config)?;
+        let optimizer = GpuOptimizer::new(config).unwrap();
 
         // Register devices with different models
         let mut device1 = create_test_device("0", 80.0, 0.0);
@@ -1065,7 +1070,7 @@ mod tests {
         // Register different GPU models
         let mut device1 = create_test_device("0", 80.0, 0.0);
         device1.model = "A100".to_string();
-        optimizer.register_device(device1).await?;
+        optimizer.register_device(device1).await.unwrap();
 
         let mut device2 = create_test_device("1", 32.0, 0.0);
         device2.model = "V100".to_string();
@@ -1087,7 +1092,8 @@ mod tests {
         // Register device
         optimizer
             .register_device(create_test_device("0", 80.0, 0.0))
-            .await?;
+            .await
+            .unwrap();
 
         // Make allocations
         for i in 0..3 {
@@ -1109,7 +1115,7 @@ mod tests {
         // Register devices with different compute capabilities
         let mut device1 = create_test_device("0", 80.0, 0.0);
         device1.compute_capability = 7.5;
-        optimizer.register_device(device1).await?;
+        optimizer.register_device(device1).await.unwrap();
 
         let mut device2 = create_test_device("1", 80.0, 0.0);
         device2.compute_capability = 8.6;

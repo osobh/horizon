@@ -373,7 +373,7 @@ mod tests {
         let values = vec![10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0];
         let snapshots = create_test_snapshots(values);
 
-        let stats = calculator.calculate_statistics(&snapshots)?;
+        let stats = calculator.calculate_statistics(&snapshots).unwrap();
 
         assert_eq!(stats.avg_utilization, 55.0);
         assert_eq!(stats.peak_utilization, 100.0);
@@ -394,7 +394,7 @@ mod tests {
         values.extend(vec![10.0, 20.0, 30.0, 40.0]); // 4 non-idle values
 
         let snapshots = create_test_snapshots(values);
-        let stats = calculator.calculate_statistics(&snapshots)?;
+        let stats = calculator.calculate_statistics(&snapshots).unwrap();
 
         let expected_idle_percentage = (3.0 / 7.0) * 100.0; // ~42.86%
         assert!((stats.idle_percentage - expected_idle_percentage).abs() < 0.01);
@@ -428,7 +428,7 @@ mod tests {
         let values = vec![10.0, 20.0, 30.0, 40.0, 50.0];
         let snapshots = create_test_snapshots(values);
 
-        let rolling_stats = calculator.calculate_rolling_statistics(&snapshots, 3)?;
+        let rolling_stats = calculator.calculate_rolling_statistics(&snapshots, 3).unwrap();
 
         // Should have 3 rolling windows: [10,20,30], [20,30,40], [30,40,50]
         assert_eq!(rolling_stats.len(), 3);
@@ -484,7 +484,7 @@ mod tests {
         // Perfect positive correlation
         let x = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let y = vec![2.0, 4.0, 6.0, 8.0, 10.0];
-        let correlation = calculator.calculate_correlation(&x, &y)?;
+        let correlation = calculator.calculate_correlation(&x, &y).unwrap();
         assert!((correlation - 1.0).abs() < 0.001);
 
         // Perfect negative correlation

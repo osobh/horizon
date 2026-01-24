@@ -573,7 +573,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_identity_creation() {
+    async fn test_identity_creation() -> anyhow::Result<()> {
         let config = IdentityConfig::default();
         let provider = IdentityProvider::new(config)?;
 
@@ -587,10 +587,11 @@ mod tests {
         assert_eq!(identity.state, IdentityState::PendingVerification);
         assert_eq!(identity.failed_attempts, 0);
         assert!(identity.auth_factors.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_auth_factor_enrollment() {
+    async fn test_auth_factor_enrollment() -> anyhow::Result<()> {
         let config = IdentityConfig::default();
         let provider = IdentityProvider::new(config)?;
 
@@ -624,10 +625,11 @@ mod tests {
         assert!(updated_identity
             .auth_factors
             .contains(&AuthFactorType::Totp));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_authentication_with_mfa() {
+    async fn test_authentication_with_mfa() -> anyhow::Result<()> {
         let mut config = IdentityConfig::default();
         config.mfa_requirement = MfaRequirement::Required;
         let provider = IdentityProvider::new(config)?;
@@ -680,10 +682,11 @@ mod tests {
 
         assert_eq!(session.identity_id, identity.id);
         assert_eq!(session.auth_factors_used.len(), 2);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_failed_authentication_lockout() {
+    async fn test_failed_authentication_lockout() -> anyhow::Result<()> {
         let mut config = IdentityConfig::default();
         config.max_auth_attempts = 3;
         config.mfa_requirement = MfaRequirement::None; // Disable MFA for this test
@@ -728,10 +731,11 @@ mod tests {
             )
             .await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_continuous_authentication() {
+    async fn test_continuous_authentication() -> anyhow::Result<()> {
         let mut config = IdentityConfig::default();
         config.continuous_auth_enabled = true;
         config.session_timeout = Duration::milliseconds(100); // Very short for testing
@@ -775,10 +779,11 @@ mod tests {
             .verify_continuous_auth(session.session_id)
             .await
             .unwrap());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_session_revocation() {
+    async fn test_session_revocation() -> anyhow::Result<()> {
         let mut config = IdentityConfig::default();
         config.mfa_requirement = MfaRequirement::None; // Disable MFA for this test
         let provider = IdentityProvider::new(config)?;
@@ -811,10 +816,11 @@ mod tests {
         let result = provider.verify_continuous_auth(session.session_id).await;
         assert!(result.is_err());
         assert!(matches!(result, Err(ZeroTrustError::SessionInvalid { .. })));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_biometric_authentication() {
+    async fn test_biometric_authentication() -> anyhow::Result<()> {
         let mut config = IdentityConfig::default();
         config.mfa_requirement = MfaRequirement::None; // Disable MFA for this test
         let provider = IdentityProvider::new(config)?;
@@ -850,10 +856,11 @@ mod tests {
         assert!(session
             .auth_factors_used
             .contains(&AuthFactorType::Biometric));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_hardware_token_mfa() {
+    async fn test_hardware_token_mfa() -> anyhow::Result<()> {
         let mut config = IdentityConfig::default();
         config.mfa_requirement = MfaRequirement::RequiredWithHardware;
         let provider = IdentityProvider::new(config)?;
@@ -905,10 +912,11 @@ mod tests {
         assert!(session
             .auth_factors_used
             .contains(&AuthFactorType::HardwareToken));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_identity_state_transitions() {
+    async fn test_identity_state_transitions() -> anyhow::Result<()> {
         let config = IdentityConfig::default();
         let provider = IdentityProvider::new(config)?;
 
@@ -948,10 +956,11 @@ mod tests {
             )
             .await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_verification_levels() {
+    async fn test_verification_levels() -> anyhow::Result<()> {
         let mut config = IdentityConfig::default();
         config.verification_level = VerificationLevel::Critical;
         config.mfa_requirement = MfaRequirement::RequiredWithHardware;
@@ -995,10 +1004,11 @@ mod tests {
         assert!(session
             .auth_factors_used
             .contains(&AuthFactorType::HardwareToken));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_token_generation_uniqueness() {
+    async fn test_token_generation_uniqueness() -> anyhow::Result<()> {
         let config = IdentityConfig::default();
         let provider = IdentityProvider::new(config)?;
 
@@ -1009,10 +1019,11 @@ mod tests {
             let token = provider.generate_token()?;
             assert!(tokens.insert(token));
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_concurrent_authentication() {
+    async fn test_concurrent_authentication() -> anyhow::Result<()> {
         let mut config = IdentityConfig::default();
         config.mfa_requirement = MfaRequirement::None; // Disable MFA for this test
         let provider = Arc::new(IdentityProvider::new(config).unwrap());
@@ -1053,5 +1064,6 @@ mod tests {
             let result = handle.await?;
             assert!(result.is_ok());
         }
+        Ok(())
     }
 }

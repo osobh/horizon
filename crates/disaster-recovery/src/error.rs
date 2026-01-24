@@ -113,25 +113,27 @@ mod tests {
     use std::io::{Error as IoError, ErrorKind};
 
     #[test]
-    fn test_backup_failed_error() {
+    fn test_backup_failed_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::BackupFailed {
             reason: "Disk full".to_string(),
         };
         assert!(error.to_string().contains("Backup failed: Disk full"));
+        Ok(())
     }
 
     #[test]
-    fn test_restore_failed_error() {
+    fn test_restore_failed_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::RestoreFailed {
             reason: "Corrupted backup file".to_string(),
         };
         assert!(error
             .to_string()
             .contains("Restore failed: Corrupted backup file"));
+        Ok(())
     }
 
     #[test]
-    fn test_failover_failed_error() {
+    fn test_failover_failed_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::FailoverFailed {
             source_site: "primary-db".to_string(),
             target_site: "secondary-db".to_string(),
@@ -142,10 +144,11 @@ mod tests {
         assert!(error_str.contains("primary-db"));
         assert!(error_str.contains("secondary-db"));
         assert!(error_str.contains("Target not available"));
+        Ok(())
     }
 
     #[test]
-    fn test_replication_lag_exceeded_error() {
+    fn test_replication_lag_exceeded_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::ReplicationLagExceeded {
             lag_seconds: 120,
             threshold_seconds: 60,
@@ -154,10 +157,11 @@ mod tests {
         assert!(error_str.contains("Replication lag exceeded"));
         assert!(error_str.contains("120s"));
         assert!(error_str.contains("60s"));
+        Ok(())
     }
 
     #[test]
-    fn test_integrity_check_failed_error() {
+    fn test_integrity_check_failed_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::IntegrityCheckFailed {
             details: "Checksum mismatch in table users".to_string(),
         };
@@ -165,10 +169,11 @@ mod tests {
         assert!(error
             .to_string()
             .contains("Checksum mismatch in table users"));
+        Ok(())
     }
 
     #[test]
-    fn test_rto_exceeded_error() {
+    fn test_rto_exceeded_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::RTOExceeded {
             actual_seconds: 300,
             target_seconds: 180,
@@ -177,10 +182,11 @@ mod tests {
         assert!(error_str.contains("RTO exceeded"));
         assert!(error_str.contains("300s"));
         assert!(error_str.contains("180s"));
+        Ok(())
     }
 
     #[test]
-    fn test_rpo_violated_error() {
+    fn test_rpo_violated_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::RPOViolated {
             loss_seconds: 600,
             target_seconds: 300,
@@ -189,10 +195,11 @@ mod tests {
         assert!(error_str.contains("RPO violated"));
         assert!(error_str.contains("data loss of 600s"));
         assert!(error_str.contains("300s"));
+        Ok(())
     }
 
     #[test]
-    fn test_health_check_failed_error() {
+    fn test_health_check_failed_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::HealthCheckFailed {
             service: "database-cluster".to_string(),
             reason: "Connection timeout".to_string(),
@@ -201,10 +208,11 @@ mod tests {
         assert!(error_str.contains("Health check failed"));
         assert!(error_str.contains("database-cluster"));
         assert!(error_str.contains("Connection timeout"));
+        Ok(())
     }
 
     #[test]
-    fn test_snapshot_failed_error() {
+    fn test_snapshot_failed_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::SnapshotFailed {
             operation: "create".to_string(),
             reason: "Insufficient storage space".to_string(),
@@ -212,10 +220,11 @@ mod tests {
         let error_str = error.to_string();
         assert!(error_str.contains("Snapshot create failed"));
         assert!(error_str.contains("Insufficient storage space"));
+        Ok(())
     }
 
     #[test]
-    fn test_runbook_failed_error() {
+    fn test_runbook_failed_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::RunbookFailed {
             runbook_id: "failover-db-001".to_string(),
             step: "validate-target".to_string(),
@@ -225,10 +234,11 @@ mod tests {
         assert!(error_str.contains("Runbook failover-db-001 execution failed"));
         assert!(error_str.contains("step validate-target"));
         assert!(error_str.contains("Target validation failed"));
+        Ok(())
     }
 
     #[test]
-    fn test_resource_unavailable_error() {
+    fn test_resource_unavailable_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::ResourceUnavailable {
             resource: "backup-storage".to_string(),
             reason: "Maintenance window".to_string(),
@@ -236,10 +246,11 @@ mod tests {
         let error_str = error.to_string();
         assert!(error_str.contains("Resource backup-storage unavailable"));
         assert!(error_str.contains("Maintenance window"));
+        Ok(())
     }
 
     #[test]
-    fn test_configuration_error() {
+    fn test_configuration_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::ConfigurationError {
             message: "Invalid replication lag threshold".to_string(),
         };
@@ -247,28 +258,31 @@ mod tests {
         assert!(error
             .to_string()
             .contains("Invalid replication lag threshold"));
+        Ok(())
     }
 
     #[test]
-    fn test_network_error() {
+    fn test_network_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::NetworkError {
             details: "DNS resolution failed for replica.example.com".to_string(),
         };
         assert!(error.to_string().contains("Network error"));
         assert!(error.to_string().contains("DNS resolution failed"));
+        Ok(())
     }
 
     #[test]
-    fn test_storage_error() {
+    fn test_storage_error() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::StorageError {
             details: "Write failed: disk quota exceeded".to_string(),
         };
         assert!(error.to_string().contains("Storage error"));
         assert!(error.to_string().contains("disk quota exceeded"));
+        Ok(())
     }
 
     #[test]
-    fn test_io_error_conversion() {
+    fn test_io_error_conversion() -> anyhow::Result<()> {
         let io_error = IoError::new(ErrorKind::NotFound, "Backup file not found");
         let dr_error = DisasterRecoveryError::from(io_error);
 
@@ -278,10 +292,11 @@ mod tests {
             }
             _ => panic!("Expected IoError variant"),
         }
+        Ok(())
     }
 
     #[test]
-    fn test_json_error_conversion() {
+    fn test_json_error_conversion() -> anyhow::Result<()> {
         let json_error = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();
         let dr_error = DisasterRecoveryError::from(json_error);
 
@@ -291,10 +306,11 @@ mod tests {
             }
             _ => panic!("Expected JsonError variant"),
         }
+        Ok(())
     }
 
     #[test]
-    fn test_bincode_error_conversion() {
+    fn test_bincode_error_conversion() -> anyhow::Result<()> {
         let data = vec![1, 2, 3]; // Invalid bincode data for String
         let result: Result<String, bincode::Error> = bincode::deserialize(&data);
         if let Err(bincode_error) = result {
@@ -306,10 +322,11 @@ mod tests {
                 _ => panic!("Expected BincodeError variant"),
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn test_error_debug_format() {
+    fn test_error_debug_format() -> anyhow::Result<()> {
         let errors = vec![
             DisasterRecoveryError::BackupFailed {
                 reason: "test".to_string(),
@@ -370,20 +387,22 @@ mod tests {
             assert!(!debug_str.is_empty());
             assert!(debug_str.contains("DisasterRecoveryError"));
         }
+        Ok(())
     }
 
     #[test]
-    fn test_error_source() {
+    fn test_error_source() -> anyhow::Result<()> {
         use std::error::Error;
 
         let io_error = IoError::new(ErrorKind::PermissionDenied, "access denied");
         let dr_error = DisasterRecoveryError::IoError { source: io_error };
 
         assert!(dr_error.source().is_some());
+        Ok(())
     }
 
     #[test]
-    fn test_error_chain() {
+    fn test_error_chain() -> anyhow::Result<()> {
         use std::error::Error;
 
         let io_error = IoError::new(ErrorKind::BrokenPipe, "pipe broken");
@@ -403,10 +422,11 @@ mod tests {
 
         assert!(error_chain.len() >= 1);
         assert!(error_chain[0].contains("I/O error"));
+        Ok(())
     }
 
     #[test]
-    fn test_disaster_recovery_result_type() {
+    fn test_disaster_recovery_result_type() -> anyhow::Result<()> {
         let success: DisasterRecoveryResult<i32> = Ok(42);
         assert!(success.is_ok());
         assert_eq!(success.unwrap(), 42);
@@ -415,10 +435,11 @@ mod tests {
             reason: "test".to_string(),
         });
         assert!(failure.is_err());
+        Ok(())
     }
 
     #[test]
-    fn test_error_edge_cases() {
+    fn test_error_edge_cases() -> anyhow::Result<()> {
         // Test with empty strings
         let error1 = DisasterRecoveryError::BackupFailed {
             reason: String::new(),
@@ -437,10 +458,11 @@ mod tests {
             message: "配置错误".to_string(),
         };
         assert!(error3.to_string().contains("配置错误"));
+        Ok(())
     }
 
     #[test]
-    fn test_error_equality() {
+    fn test_error_equality() -> anyhow::Result<()> {
         // Test that errors with same content are formatted consistently
         let error1 = DisasterRecoveryError::BackupFailed {
             reason: "test".to_string(),
@@ -450,19 +472,21 @@ mod tests {
         };
 
         assert_eq!(error1.to_string(), error2.to_string());
+        Ok(())
     }
 
     #[test]
-    fn test_send_sync_traits() {
+    fn test_send_sync_traits() -> anyhow::Result<()> {
         fn assert_send<T: Send>() {}
         fn assert_sync<T: Sync>() {}
 
         assert_send::<DisasterRecoveryError>();
         assert_sync::<DisasterRecoveryError>();
+        Ok(())
     }
 
     #[test]
-    fn test_comprehensive_error_variants() {
+    fn test_comprehensive_error_variants() -> anyhow::Result<()> {
         // Test all error variants are covered
         let all_variants = vec![
             "BackupFailed",
@@ -486,10 +510,11 @@ mod tests {
 
         // Verify we have tests for all variants
         assert_eq!(all_variants.len(), 17);
+        Ok(())
     }
 
     #[test]
-    fn test_numeric_field_edge_cases() {
+    fn test_numeric_field_edge_cases() -> anyhow::Result<()> {
         // Test zero values
         let error1 = DisasterRecoveryError::ReplicationLagExceeded {
             lag_seconds: 0,
@@ -504,10 +529,11 @@ mod tests {
         };
         assert!(error2.to_string().contains("1s"));
         assert!(error2.to_string().contains("0s"));
+        Ok(())
     }
 
     #[test]
-    fn test_complex_error_scenarios() {
+    fn test_complex_error_scenarios() -> anyhow::Result<()> {
         // Test complex failover scenario
         let error = DisasterRecoveryError::FailoverFailed {
             source_site: "primary-db-cluster-01.us-east.example.com".to_string(),
@@ -519,5 +545,6 @@ mod tests {
         assert!(error_str.contains("primary-db-cluster-01.us-east.example.com"));
         assert!(error_str.contains("secondary-db-cluster-02.us-west.example.com"));
         assert!(error_str.contains("Network partition detected"));
+        Ok(())
     }
 }

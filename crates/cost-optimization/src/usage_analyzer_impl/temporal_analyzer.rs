@@ -415,7 +415,7 @@ mod tests {
         let analyzer = TemporalAnalyzer::new(config);
 
         let snapshots = create_test_snapshots(168, "daily_pattern"); // 1 week
-        let result = analyzer.analyze_temporal_patterns(&snapshots)?;
+        let result = analyzer.analyze_temporal_patterns(&snapshots).unwrap();
 
         assert_eq!(result.hourly_pattern.len(), 24);
 
@@ -432,7 +432,7 @@ mod tests {
         let analyzer = TemporalAnalyzer::new(config);
 
         let snapshots = create_test_snapshots(336, "weekly_pattern"); // 2 weeks
-        let result = analyzer.analyze_temporal_patterns(&snapshots)?;
+        let result = analyzer.analyze_temporal_patterns(&snapshots).unwrap();
 
         assert_eq!(result.daily_pattern.len(), 7);
 
@@ -449,7 +449,7 @@ mod tests {
         let analyzer = TemporalAnalyzer::new(config);
 
         let snapshots = create_test_snapshots(100, "spiky");
-        let (peaks, lows) = analyzer.find_peak_and_low_periods(&snapshots)?;
+        let (peaks, lows) = analyzer.find_peak_and_low_periods(&snapshots).unwrap();
 
         assert!(!peaks.is_empty());
         assert!(!lows.is_empty());
@@ -504,7 +504,7 @@ mod tests {
         let analyzer = TemporalAnalyzer::new(config);
 
         let empty_snapshots = Vec::new();
-        let (peaks, lows) = analyzer.find_peak_and_low_periods(&empty_snapshots)?;
+        let (peaks, lows) = analyzer.find_peak_and_low_periods(&empty_snapshots).unwrap();
 
         assert!(peaks.is_empty());
         assert!(lows.is_empty());

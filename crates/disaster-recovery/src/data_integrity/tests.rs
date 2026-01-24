@@ -24,17 +24,18 @@ mod tests {
     }
 
     #[test]
-    fn test_checksum_algorithm_properties() {
+    fn test_checksum_algorithm_properties() -> anyhow::Result<()> {
         assert_eq!(ChecksumAlgorithm::SHA256.output_length(), 32);
         assert_eq!(ChecksumAlgorithm::SHA512.output_length(), 64);
         assert_eq!(ChecksumAlgorithm::CRC32.output_length(), 4);
         assert_eq!(ChecksumAlgorithm::MD5.output_length(), 16);
         assert_eq!(ChecksumAlgorithm::Blake2b.output_length(), 64);
         assert_eq!(ChecksumAlgorithm::XXHash.output_length(), 8);
+        Ok(())
     }
 
     #[test]
-    fn test_integrity_status_serialization() {
+    fn test_integrity_status_serialization() -> anyhow::Result<()> {
         let statuses = vec![
             IntegrityStatus::Verified,
             IntegrityStatus::Corrupted,
@@ -50,10 +51,11 @@ mod tests {
             let deserialized: IntegrityStatus = serde_json::from_str(&serialized).unwrap();
             assert_eq!(status, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_corruption_detection_creation() {
+    fn test_corruption_detection_creation() -> anyhow::Result<()> {
         let object_id = Uuid::new_v4();
         let mut detection = CorruptionDetection::new(
             object_id,
@@ -69,10 +71,11 @@ mod tests {
         detection.add_affected_range(100, 200);
         assert_eq!(detection.affected_ranges.len(), 1);
         assert_eq!(detection.total_corrupted_bytes(), 100);
+        Ok(())
     }
 
     #[test]
-    fn test_repair_record_lifecycle() {
+    fn test_repair_record_lifecycle() -> anyhow::Result<()> {
         let detection_id = Uuid::new_v4();
         let object_id = Uuid::new_v4();
         let mut repair = RepairRecord::new(
@@ -93,10 +96,11 @@ mod tests {
         assert!(repair.success);
         assert_eq!(repair.bytes_repaired, 1024);
         assert!(repair.duration.is_some());
+        Ok(())
     }
 
     #[test]
-    fn test_audit_trail() {
+    fn test_audit_trail() -> anyhow::Result<()> {
         let mut trail = AuditTrail::new(100);
         assert!(trail.is_empty());
 
@@ -112,10 +116,11 @@ mod tests {
 
         let recent = trail.get_recent_entries(10);
         assert_eq!(recent.len(), 1);
+        Ok(())
     }
 
     #[test]
-    fn test_metrics_recording() {
+    fn test_metrics_recording() -> anyhow::Result<()> {
         use chrono::Duration;
         let mut metrics = IntegrityMetrics::default();
 
@@ -132,10 +137,11 @@ mod tests {
 
         assert_eq!(metrics.verification_success_rate(), 1.0);
         assert_eq!(metrics.repair_success_rate(), 1.0);
+        Ok(())
     }
 
     #[test]
-    fn test_verification_task_scheduling() {
+    fn test_verification_task_scheduling() -> anyhow::Result<()> {
         let object = create_test_object("/test/file.dat");
         let mut task = VerificationTask::new(
             object,
@@ -153,10 +159,11 @@ mod tests {
         assert_eq!(task.run_count, 1);
         assert_eq!(task.success_count, 1);
         assert_eq!(task.success_rate(), 1.0);
+        Ok(())
     }
 
     #[test]
-    fn test_config_validation() {
+    fn test_config_validation() -> anyhow::Result<()> {
         let mut config = DataIntegrityConfig::default();
         assert!(config.validate().is_ok());
 
@@ -166,22 +173,25 @@ mod tests {
         config.enabled_algorithms.push(ChecksumAlgorithm::SHA256);
         config.default_algorithm = ChecksumAlgorithm::SHA512;
         assert!(config.validate().is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_checksum_calculation() {
+    async fn test_checksum_calculation() -> anyhow::Result<()> {
         let data = b"Hello, World!";
         let checksum = calculate_checksum(data, ChecksumAlgorithm::SHA256).unwrap();
         assert_eq!(checksum.len(), 32);
 
         let checksum2 = calculate_checksum(data, ChecksumAlgorithm::SHA256).unwrap();
         assert!(verify_checksum(&checksum, &checksum2));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_manager_creation() {
+    async fn test_manager_creation() -> anyhow::Result<()> {
         let config = DataIntegrityConfig::default();
         let manager = DataIntegrityManager::new(config);
         assert!(manager.is_ok());
+        Ok(())
     }
 }

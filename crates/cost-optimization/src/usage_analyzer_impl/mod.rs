@@ -520,7 +520,7 @@ mod tests {
 
         // Invalid idle threshold
         config.idle_threshold = -1.0;
-        let analyzer = UsageAnalyzer::new(config.clone())?;
+        let analyzer = UsageAnalyzer::new(config.clone()).unwrap();
         assert!(analyzer.validate_config().is_err());
 
         // Invalid overprovision threshold

@@ -298,15 +298,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_create_test_runbook() {
+    fn test_create_test_runbook() -> anyhow::Result<()> {
         let runbook = create_test_runbook("Test");
         assert_eq!(runbook.name, "Test");
         assert_eq!(runbook.steps.len(), 2);
         assert!(runbook.enabled);
+        Ok(())
     }
 
     #[test]
-    fn test_validate_runbook_structure() {
+    fn test_validate_runbook_structure() -> anyhow::Result<()> {
         let runbook = create_test_runbook("Valid");
         assert!(validate_runbook_structure(&runbook).is_ok());
 
@@ -319,10 +320,11 @@ mod tests {
         let mut invalid_runbook = runbook.clone();
         invalid_runbook.name.clear();
         assert!(validate_runbook_structure(&invalid_runbook).is_err());
+        Ok(())
     }
 
     #[test]
-    fn test_execution_state_transitions() {
+    fn test_execution_state_transitions() -> anyhow::Result<()> {
         use ExecutionState::*;
 
         // Valid transitions
@@ -339,10 +341,11 @@ mod tests {
         assert!(!is_valid_state_transition(Completed, Running));
         assert!(!is_valid_state_transition(Failed, Running));
         assert!(!is_valid_state_transition(Cancelled, Running));
+        Ok(())
     }
 
     #[test]
-    fn test_step_configuration_validation() {
+    fn test_step_configuration_validation() -> anyhow::Result<()> {
         let runbook = create_test_runbook("Test");
         let step = &runbook.steps[0];
 
@@ -352,18 +355,20 @@ mod tests {
         let mut invalid_step = step.clone();
         invalid_step.timeout_seconds = 0;
         assert!(validate_step_configuration(&invalid_step).is_err());
+        Ok(())
     }
 
     #[test]
-    fn test_create_minimal_runbook() {
+    fn test_create_minimal_runbook() -> anyhow::Result<()> {
         let runbook = create_minimal_runbook();
         assert_eq!(runbook.name, "Minimal Test Runbook");
         assert_eq!(runbook.steps.len(), 1);
         assert!(validate_runbook_structure(&runbook).is_ok());
+        Ok(())
     }
 
     #[test]
-    fn test_test_helpers() {
+    fn test_test_helpers() -> anyhow::Result<()> {
         let context = create_test_context();
         assert_eq!(context.user, "test");
         assert_eq!(context.host, "localhost");
@@ -371,5 +376,6 @@ mod tests {
         let trigger = create_test_trigger();
         assert_eq!(trigger.trigger_type, TriggerType::Manual);
         assert_eq!(trigger.triggered_by, "test_user");
+        Ok(())
     }
 }

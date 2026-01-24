@@ -80,63 +80,79 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_backup_manager_creation() {
+    fn test_backup_manager_creation() -> anyhow::Result<()> {
         let config = BackupConfig::default();
         let manager = BackupManager::new(config);
         assert!(manager.is_ok());
+        Ok(())
     }
 
     #[test]
-    fn test_failover_coordinator_creation() {
+    fn test_failover_coordinator_creation() -> anyhow::Result<()> {
         let config = FailoverConfig::default();
         let coordinator = FailoverCoordinator::new(config);
         assert!(coordinator.is_ok());
+        Ok(())
     }
 
     #[test]
-    fn test_replication_manager_creation() {
+    fn test_replication_manager_creation() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config);
         assert!(manager.is_ok());
+        Ok(())
     }
 
     #[test]
-    fn test_health_monitor_creation() {
+    fn test_health_monitor_creation() -> anyhow::Result<()> {
         let config = HealthMonitorConfig::default();
         let monitor = HealthMonitor::new(config);
         assert!(monitor.is_ok());
+        Ok(())
     }
 
     #[test]
-    fn test_recovery_planner_creation() {
+    fn test_recovery_planner_creation() -> anyhow::Result<()> {
         let config = RecoveryPlannerConfig::default();
         let planner = RecoveryPlanner::new(config);
         assert!(planner.is_ok());
+        Ok(())
     }
 
     #[test]
-    fn test_snapshot_manager_creation() {
-        let config = SnapshotManagerConfig::default();
-        let manager = SnapshotManager::new(config);
-        assert!(manager.is_ok());
+    fn test_snapshot_manager_creation() -> anyhow::Result<()> {
+        use crate::snapshot_manager::{SnapshotConfig, StorageBackend};
+
+        let config = SnapshotConfig {
+            retention_days: 30,
+            compression_enabled: true,
+            encryption_enabled: false,
+            max_snapshots: 10,
+            storage_backend: StorageBackend::Local("/tmp".to_string()),
+        };
+        let _manager = SnapshotManager::new(config);
+        // SnapshotManager::new returns Self, not Result
+        Ok(())
     }
 
     #[test]
-    fn test_data_integrity_manager_creation() {
+    fn test_data_integrity_manager_creation() -> anyhow::Result<()> {
         let config = DataIntegrityConfig::default();
         let manager = DataIntegrityManager::new(config);
         assert!(manager.is_ok());
+        Ok(())
     }
 
     #[test]
-    fn test_runbook_executor_creation() {
+    fn test_runbook_executor_creation() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         let executor = RunbookExecutor::new(config);
         assert!(executor.is_ok());
+        Ok(())
     }
 
     #[test]
-    fn test_disaster_recovery_error_types() {
+    fn test_disaster_recovery_error_types() -> anyhow::Result<()> {
         let error = DisasterRecoveryError::BackupFailed {
             reason: "test error".to_string(),
         };
@@ -147,19 +163,21 @@ mod tests {
             }
             _ => panic!("Unexpected error type"),
         }
+        Ok(())
     }
 
     #[test]
-    fn test_recovery_tiers() {
+    fn test_recovery_tiers() -> anyhow::Result<()> {
         assert_eq!(RecoveryTier::Critical.default_rto_minutes(), 60);
         assert_eq!(RecoveryTier::Essential.default_rto_minutes(), 240);
         assert_eq!(RecoveryTier::Important.default_rto_minutes(), 1440);
         assert_eq!(RecoveryTier::Standard.default_rto_minutes(), 4320);
         assert_eq!(RecoveryTier::NonCritical.default_rto_minutes(), 10080);
+        Ok(())
     }
 
     #[test]
-    fn test_backup_types() {
+    fn test_backup_types() -> anyhow::Result<()> {
         let types = vec![
             BackupType::Full,
             BackupType::Incremental,
@@ -172,10 +190,11 @@ mod tests {
             let deserialized: BackupType = serde_json::from_str(&serialized)?;
             assert_eq!(backup_type, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_health_status_values() {
+    fn test_health_status_values() -> anyhow::Result<()> {
         let statuses = vec![
             HealthStatus::Healthy,
             HealthStatus::Degraded,
@@ -189,5 +208,6 @@ mod tests {
             let deserialized: HealthStatus = serde_json::from_str(&serialized).unwrap();
             assert_eq!(status, deserialized);
         }
+        Ok(())
     }
 }

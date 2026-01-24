@@ -62,7 +62,7 @@ mod tests {
     }
 
     #[test]
-    fn test_graph_node_serialization() {
+    fn test_graph_node_serialization() -> serde_json::Result<()> {
         let node = GraphNode {
             id: Uuid::new_v4(),
             data: vec![10, 20, 30],
@@ -75,6 +75,7 @@ mod tests {
         assert_eq!(node.id, deserialized.id);
         assert_eq!(node.data, deserialized.data);
         assert_eq!(node.node_type, deserialized.node_type);
+        Ok(())
     }
 
     #[test]
@@ -119,7 +120,7 @@ mod tests {
     }
 
     #[test]
-    fn test_graph_edge_serialization() {
+    fn test_graph_edge_serialization() -> serde_json::Result<()> {
         let edge = GraphEdge {
             id: Uuid::new_v4(),
             from_node: Uuid::new_v4(),
@@ -136,6 +137,7 @@ mod tests {
         assert_eq!(edge.to_node, deserialized.to_node);
         assert_eq!(edge.edge_type, deserialized.edge_type);
         assert_eq!(edge.weight, deserialized.weight);
+        Ok(())
     }
 
     #[test]
@@ -256,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn test_unicode_node_types() {
+    fn test_unicode_node_types() -> serde_json::Result<()> {
         let node = GraphNode {
             id: Uuid::new_v4(),
             data: vec![1, 2, 3],
@@ -268,5 +270,6 @@ mod tests {
         let serialized = serde_json::to_string(&node)?;
         let deserialized: GraphNode = serde_json::from_str(&serialized)?;
         assert_eq!(deserialized.node_type, "概念节点");
+        Ok(())
     }
 }

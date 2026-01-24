@@ -797,7 +797,7 @@ mod tests {
     use std::net::Ipv4Addr;
 
     #[tokio::test]
-    async fn test_segment_creation() {
+    async fn test_segment_creation() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -814,10 +814,11 @@ mod tests {
         assert_eq!(segment.segment_type, SegmentType::Internal);
         assert_eq!(segment.trust_level, TrustLevel::High);
         assert_eq!(segment.security_zone, SecurityZone::Private);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_policy_creation() {
+    async fn test_policy_creation() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -852,10 +853,11 @@ mod tests {
         assert_eq!(policy.name, "internal-to-dmz");
         assert_eq!(policy.action, PolicyAction::Allow);
         assert_eq!(policy.state, PolicyState::Active);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_connection_evaluation() {
+    async fn test_connection_evaluation() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -920,10 +922,11 @@ mod tests {
         let decision = manager.evaluate_connection(&connection).await?;
         assert_eq!(decision.action, PolicyAction::Allow);
         assert!(!decision.matching_policies.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_default_deny() {
+    async fn test_default_deny() -> anyhow::Result<()> {
         let mut config = NetworkPolicyConfig::default();
         config.default_deny = true;
         let manager = NetworkPolicyManager::new(config)?;
@@ -946,10 +949,11 @@ mod tests {
         let decision = manager.evaluate_connection(&connection).await?;
         assert_eq!(decision.action, PolicyAction::Deny);
         assert_eq!(decision.reason, "No matching policy found");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_traffic_analysis() {
+    async fn test_traffic_analysis() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -977,10 +981,11 @@ mod tests {
             .unwrap();
         assert_eq!(analysis.anomalies.len(), 2); // Unusual port + high transfer
         assert!(analysis.threat_level >= ThreatLevel::Medium);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_policy_priority() {
+    async fn test_policy_priority() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -1042,10 +1047,11 @@ mod tests {
 
         let decision = manager.evaluate_connection(&connection).await?;
         assert_eq!(decision.action, PolicyAction::Deny); // Higher priority policy wins
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_policy_conditions() {
+    async fn test_policy_conditions() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -1061,8 +1067,8 @@ mod tests {
 
         // Add time window condition
         let condition = PolicyCondition::TimeWindow {
-            start_time: chrono::NaiveTime::from_hms_opt(9, 0, 0)?,
-            end_time: chrono::NaiveTime::from_hms_opt(17, 0, 0)?,
+            start_time: chrono::NaiveTime::from_hms_opt(9, 0, 0).unwrap(),
+            end_time: chrono::NaiveTime::from_hms_opt(17, 0, 0).unwrap(),
             days: [
                 chrono::Weekday::Mon,
                 chrono::Weekday::Tue,
@@ -1100,10 +1106,11 @@ mod tests {
         // In production, we'd mock the time
         let decision = manager.evaluate_connection(&connection).await?;
         assert!(decision.action == PolicyAction::Allow || decision.action == PolicyAction::Deny);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_policy_state_management() {
+    async fn test_policy_state_management() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -1139,10 +1146,11 @@ mod tests {
         // Disabled policy should not match
         let decision = manager.evaluate_connection(&connection).await?;
         assert!(decision.matching_policies.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_segment_policies() {
+    async fn test_segment_policies() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -1173,10 +1181,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(policies.len(), 3);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_port_range_matching() {
+    async fn test_port_range_matching() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -1253,10 +1262,11 @@ mod tests {
 
         let decision2 = manager.evaluate_connection(&connection2).await?;
         assert_eq!(decision2.action, PolicyAction::Deny); // Default deny
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_policy_caching() {
+    async fn test_policy_caching() -> anyhow::Result<()> {
         let config = NetworkPolicyConfig::default();
         let manager = NetworkPolicyManager::new(config)?;
 
@@ -1288,5 +1298,6 @@ mod tests {
         let decision2 = manager.evaluate_connection(&connection).await?;
         assert_eq!(decision2.action, PolicyAction::Allow);
         assert_eq!(decision1.matching_policies, decision2.matching_policies);
+        Ok(())
     }
 }

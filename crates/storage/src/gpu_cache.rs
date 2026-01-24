@@ -401,7 +401,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gpu_cache_creation() {
+    fn test_gpu_cache_creation() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(1000, 1024 * 1024);
         assert_eq!(cache.max_entries, 1000);
         assert_eq!(cache.max_memory, 1024 * 1024);
@@ -410,10 +410,11 @@ mod tests {
         assert_eq!(stats.total_entries, 0);
         assert_eq!(stats.hits, 0);
         assert_eq!(stats.misses, 0);
+        Ok(())
     }
 
     #[test]
-    fn test_gpu_cache_put_get() {
+    fn test_gpu_cache_put_get() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(10, 1024);
         let node = NodeRecord::new(42, 7);
 
@@ -427,17 +428,18 @@ mod tests {
         // Cache hit
         let result = cache.get(42)?;
         assert!(result.is_some());
-        assert_eq!(result.unwrap().id, 42);
+        assert_eq!(result.clone().unwrap().id, 42);
         assert_eq!(result.unwrap().type_id, 7);
 
         let stats = cache.stats()?;
         assert_eq!(stats.hits, 1);
         assert_eq!(stats.misses, 1);
         assert_eq!(stats.total_entries, 1);
+        Ok(())
     }
 
     #[test]
-    fn test_gpu_cache_update() {
+    fn test_gpu_cache_update() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(10, 1024);
         let mut node = NodeRecord::new(42, 7);
 
@@ -450,16 +452,17 @@ mod tests {
         assert!(updated);
 
         // Verify update
-        let result = cache.get(42).unwrap()?;
+        let result = cache.get(42)?.unwrap();
         assert_eq!(result.type_id, 8);
 
         // Update non-existent node
         let updated = cache.update(99, node)?;
         assert!(!updated);
+        Ok(())
     }
 
     #[test]
-    fn test_gpu_cache_remove() {
+    fn test_gpu_cache_remove() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(10, 1024);
         let node = NodeRecord::new(42, 7);
 
@@ -476,10 +479,11 @@ mod tests {
         // Remove non-existent node
         let removed = cache.remove(42)?;
         assert!(removed.is_none());
+        Ok(())
     }
 
     #[test]
-    fn test_gpu_cache_clear() {
+    fn test_gpu_cache_clear() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(10, 1024);
 
         // Add multiple nodes
@@ -493,10 +497,11 @@ mod tests {
         // Clear cache
         cache.clear()?;
         assert_eq!(cache.stats().unwrap().total_entries, 0);
+        Ok(())
     }
 
     #[test]
-    fn test_gpu_cache_lru_eviction() {
+    fn test_gpu_cache_lru_eviction() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(3, 1024 * 1024); // Small cache
 
         // Fill cache
@@ -521,10 +526,11 @@ mod tests {
         // Last items should still be there
         let result = cache.get(3)?;
         assert!(result.is_some());
+        Ok(())
     }
 
     #[test]
-    fn test_gpu_cache_dirty_entries() {
+    fn test_gpu_cache_dirty_entries() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(10, 1024);
         let node1 = NodeRecord::new(1, 1);
         let node2 = NodeRecord::new(2, 2);
@@ -549,6 +555,7 @@ mod tests {
         cache.mark_clean(&[3])?;
         let dirty = cache.get_dirty_entries()?;
         assert_eq!(dirty.len(), 0);
+        Ok(())
     }
 
     #[test]
@@ -560,13 +567,14 @@ mod tests {
 
     // TDD: Test avg_memory_per_entry with zero entries
     #[test]
-    fn test_cache_stats_avg_memory_zero_entries() {
+    fn test_cache_stats_avg_memory_zero_entries() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(10, 1024);
         let stats = cache.stats()?;
 
         // When no entries, avg_memory_per_entry should return 0.0
         assert_eq!(stats.avg_memory_per_entry(), 0.0);
         assert_eq!(stats.total_entries, 0);
+        Ok(())
     }
 
     // TDD: Test error paths for mutex poisoning
@@ -579,7 +587,7 @@ mod tests {
         // Poison the mutex
         let entries_clone = cache.entries.clone();
         let handle = thread::spawn(move || {
-            let _guard = entries_clone.lock()?;
+            let _guard = entries_clone.lock().unwrap();
             panic!("Poison mutex");
         });
         let _ = handle.join();
@@ -591,7 +599,7 @@ mod tests {
 
     // TDD: Test memory limit enforcement
     #[test]
-    fn test_gpu_cache_memory_limit() {
+    fn test_gpu_cache_memory_limit() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(1000, 1000); // Reasonable memory limit
         let node = NodeRecord::new(42, 7);
 
@@ -602,11 +610,12 @@ mod tests {
         // Just verify that cache tracks memory usage
         assert!(stats.memory_usage > 0);
         assert!(stats.total_entries > 0);
+        Ok(())
     }
 
     // TDD RED Phase: Test get method access_order mutex poisoning (lines 116-117)
     #[test]
-    fn test_get_access_order_mutex_poisoning() {
+    fn test_get_access_order_mutex_poisoning() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(10, 1024);
         let node = NodeRecord::new(42, 7);
         cache.put(42, node)?;
@@ -614,7 +623,7 @@ mod tests {
         // Poison the access_order mutex
         let access_order_clone = cache.access_order.clone();
         let handle = thread::spawn(move || {
-            let _guard = access_order_clone.lock()?;
+            let _guard = access_order_clone.lock().unwrap();
             panic!("Poison access_order mutex");
         });
         let _ = handle.join();
@@ -628,11 +637,12 @@ mod tests {
             }
             _ => panic!("Expected LockPoisoned error"),
         }
+        Ok(())
     }
 
     // TDD RED Phase: Test get method stats mutex poisoning (lines 120-121)
     #[test]
-    fn test_get_stats_mutex_poisoning() {
+    fn test_get_stats_mutex_poisoning() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(10, 1024);
         let node = NodeRecord::new(42, 7);
         cache.put(42, node)?;
@@ -640,7 +650,7 @@ mod tests {
         // Poison the stats mutex
         let stats_clone = cache.stats.clone();
         let handle = thread::spawn(move || {
-            let _guard = stats_clone.lock()?;
+            let _guard = stats_clone.lock().unwrap();
             panic!("Poison stats mutex");
         });
         let _ = handle.join();
@@ -654,6 +664,7 @@ mod tests {
             }
             _ => panic!("Expected LockPoisoned error"),
         }
+        Ok(())
     }
 
     // TDD RED Phase: Test put method mutex poisoning scenarios
@@ -664,7 +675,7 @@ mod tests {
         // Test entries mutex poisoning
         let entries_clone = cache.entries.clone();
         let handle = thread::spawn(move || {
-            let _guard = entries_clone.lock()?;
+            let _guard = entries_clone.lock().unwrap();
             panic!("Poison entries mutex");
         });
         let _ = handle.join();
@@ -682,7 +693,7 @@ mod tests {
 
     // TDD RED Phase: Test remove method mutex poisoning
     #[test]
-    fn test_remove_mutex_poisoning() {
+    fn test_remove_mutex_poisoning() -> Result<(), crate::StorageError> {
         let cache = GpuCache::new(10, 1024);
         let node = NodeRecord::new(42, 7);
         cache.put(42, node)?;
@@ -690,7 +701,7 @@ mod tests {
         // Poison the entries mutex
         let entries_clone = cache.entries.clone();
         let handle = thread::spawn(move || {
-            let _guard = entries_clone.lock()?;
+            let _guard = entries_clone.lock().unwrap();
             panic!("Poison entries mutex");
         });
         let _ = handle.join();
@@ -704,6 +715,7 @@ mod tests {
             }
             _ => panic!("Expected LockPoisoned error"),
         }
+        Ok(())
     }
 
     // TDD RED Phase: Test clear method mutex poisoning
@@ -714,7 +726,7 @@ mod tests {
         // Poison the entries mutex
         let entries_clone = cache.entries.clone();
         let handle = thread::spawn(move || {
-            let _guard = entries_clone.lock()?;
+            let _guard = entries_clone.lock().unwrap();
             panic!("Poison entries mutex");
         });
         let _ = handle.join();
@@ -738,7 +750,7 @@ mod tests {
         // Poison the stats mutex
         let stats_clone = cache.stats.clone();
         let handle = thread::spawn(move || {
-            let _guard = stats_clone.lock()?;
+            let _guard = stats_clone.lock().unwrap();
             panic!("Poison stats mutex");
         });
         let _ = handle.join();

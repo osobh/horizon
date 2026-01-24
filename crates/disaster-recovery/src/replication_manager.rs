@@ -891,7 +891,7 @@ mod tests {
     }
 
     #[test]
-    fn test_replication_mode_serialization() {
+    fn test_replication_mode_serialization() -> anyhow::Result<()> {
         let modes = vec![
             ReplicationMode::Synchronous,
             ReplicationMode::Asynchronous,
@@ -904,10 +904,11 @@ mod tests {
             let deserialized: ReplicationMode = serde_json::from_str(&serialized)?;
             assert_eq!(mode, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_replication_topology() {
+    fn test_replication_topology() -> anyhow::Result<()> {
         let topologies = vec![
             ReplicationTopology::MasterSlave,
             ReplicationTopology::MultiMaster,
@@ -921,10 +922,11 @@ mod tests {
             let deserialized: ReplicationTopology = serde_json::from_str(&serialized).unwrap();
             assert_eq!(topology, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_conflict_resolution_strategies() {
+    fn test_conflict_resolution_strategies() -> anyhow::Result<()> {
         let strategies = vec![
             ConflictResolution::LastWriteWins,
             ConflictResolution::FirstWriteWins,
@@ -938,27 +940,30 @@ mod tests {
             let deserialized: ConflictResolution = serde_json::from_str(&serialized).unwrap();
             assert_eq!(strategy, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_replication_config_default() {
+    fn test_replication_config_default() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         assert_eq!(config.default_mode, ReplicationMode::Asynchronous);
         assert_eq!(config.lag_threshold_ms, 5000);
         assert_eq!(config.batch_size, 1000);
         assert!(config.compression_enabled);
         assert!(config.encryption_enabled);
+        Ok(())
     }
 
     #[test]
-    fn test_replication_manager_creation() {
+    fn test_replication_manager_creation() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config);
         assert!(manager.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_add_replication_node() {
+    async fn test_add_replication_node() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
 
@@ -967,10 +972,11 @@ mod tests {
 
         assert_eq!(manager.nodes.len(), 1);
         assert!(manager.nodes.contains_key(&node_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_validate_node() {
+    async fn test_validate_node() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
 
@@ -985,10 +991,11 @@ mod tests {
         node.priority = 0;
         let result = manager.add_node(node).await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_remove_node() {
+    async fn test_remove_node() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
 
@@ -998,10 +1005,11 @@ mod tests {
         let result = manager.remove_node(node_id).await;
         assert!(result.is_ok());
         assert!(!manager.nodes.contains_key(&node_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_create_replication_stream() {
+    async fn test_create_replication_stream() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
         manager.start().await.unwrap();
@@ -1021,10 +1029,11 @@ mod tests {
 
         let metrics = manager.get_metrics();
         assert_eq!(metrics.active_streams, 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_validate_stream() {
+    async fn test_validate_stream() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
 
@@ -1045,10 +1054,11 @@ mod tests {
         let stream = create_test_stream(master_id, vec![]);
         let result = manager.create_stream(stream).await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_stream_state_transitions() {
+    async fn test_stream_state_transitions() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
         manager.start().await.unwrap();
@@ -1078,10 +1088,11 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         assert!(!manager.streams.contains_key(&stream_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_replication_lag_monitoring() {
+    async fn test_replication_lag_monitoring() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
 
@@ -1091,10 +1102,11 @@ mod tests {
 
         let lag = manager.get_replication_lag(slave_id);
         assert_eq!(lag, Some(1500));
+        Ok(())
     }
 
     #[test]
-    fn test_data_filter() {
+    fn test_data_filter() -> anyhow::Result<()> {
         let filter = DataFilter {
             filter_type: FilterType::Table,
             pattern: "users.*".to_string(),
@@ -1104,10 +1116,11 @@ mod tests {
         assert_eq!(filter.filter_type, FilterType::Table);
         assert_eq!(filter.pattern, "users.*");
         assert!(filter.include);
+        Ok(())
     }
 
     #[test]
-    fn test_transform_rule() {
+    fn test_transform_rule() -> anyhow::Result<()> {
         let rule = TransformRule {
             id: Uuid::new_v4(),
             name: "Encrypt PII".to_string(),
@@ -1120,10 +1133,11 @@ mod tests {
         assert_eq!(rule.source_field, "ssn");
         assert_eq!(rule.target_field, "ssn_encrypted");
         assert_eq!(rule.transform_type, TransformType::Encrypt);
+        Ok(())
     }
 
     #[test]
-    fn test_replication_conflict() {
+    fn test_replication_conflict() -> anyhow::Result<()> {
         let conflict = ReplicationConflict {
             id: Uuid::new_v4(),
             timestamp: Utc::now(),
@@ -1139,10 +1153,11 @@ mod tests {
         assert_eq!(conflict.conflict_type, ConflictType::ConcurrentUpdate);
         assert!(conflict.resolution_result.is_none());
         assert!(conflict.resolved_at.is_none());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_conflict_detection_and_resolution() {
+    async fn test_conflict_detection_and_resolution() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
 
@@ -1177,10 +1192,11 @@ mod tests {
 
         let resolved = manager.conflicts.get(&conflict_id).unwrap();
         assert!(resolved.resolved_at.is_some());
+        Ok(())
     }
 
     #[test]
-    fn test_replication_position() {
+    fn test_replication_position() -> anyhow::Result<()> {
         let pos = ReplicationPosition {
             timestamp: 12345,
             transaction_id: "tx-001".to_string(),
@@ -1190,10 +1206,11 @@ mod tests {
         assert_eq!(pos.timestamp, 12345);
         assert_eq!(pos.transaction_id, "tx-001");
         assert_eq!(pos.offset, 1000);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_topology_setting() {
+    async fn test_topology_setting() -> anyhow::Result<()> {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).unwrap();
 
@@ -1202,5 +1219,6 @@ mod tests {
 
         manager.set_topology(ReplicationTopology::Chain)?;
         assert_eq!(*manager.topology.read(), ReplicationTopology::Chain);
+        Ok(())
     }
 }

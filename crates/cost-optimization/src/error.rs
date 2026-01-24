@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_metrics_error() {
         let error = CostOptimizationError::MetricsError {
-            source: "Prometheus API timeout".to_string(),
+            message: "Prometheus API timeout".to_string(),
         };
         assert_eq!(
             error.to_string(),
@@ -302,7 +302,7 @@ mod tests {
                 message: String::new(),
             },
             CostOptimizationError::MetricsError {
-                source: String::new(),
+                message: String::new(),
             },
             CostOptimizationError::GpuUnavailable {
                 gpu_id: String::new(),

@@ -190,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn test_storage_stats_serialization() {
+    fn test_storage_stats_serialization() -> serde_json::Result<()> {
         let stats = StorageStats {
             total_bytes: 16384,
             used_bytes: 8192,
@@ -215,6 +215,7 @@ mod tests {
             stats.write_throughput_mbps,
             deserialized.write_throughput_mbps
         );
+        Ok(())
     }
 
     #[test]

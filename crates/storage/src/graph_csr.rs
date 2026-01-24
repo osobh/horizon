@@ -293,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_edge() {
+    fn test_add_edge() -> Result<(), crate::StorageError> {
         let mut csr = GraphCSR::new(5);
 
         csr.add_edge(0, 1, 10, 0.5)?;
@@ -304,6 +304,7 @@ mod tests {
         assert_eq!(csr.degree(0)?, 2);
         assert_eq!(csr.degree(1)?, 1);
         assert_eq!(csr.degree(2)?, 0);
+        Ok(())
     }
 
     #[test]
@@ -320,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_edges() {
+    fn test_get_edges() -> Result<(), crate::StorageError> {
         let mut csr = GraphCSR::new(5);
 
         csr.add_edge(0, 1, 10, 0.5)?;
@@ -341,10 +342,11 @@ mod tests {
         assert_eq!(edges[2].target, 4);
         assert_eq!(edges[2].edge_type, 12);
         assert_eq!(edges[2].weight, 0.9);
+        Ok(())
     }
 
     #[test]
-    fn test_has_edge() {
+    fn test_has_edge() -> Result<(), crate::StorageError> {
         let mut csr = GraphCSR::new(5);
 
         csr.add_edge(0, 1, 10, 0.5)?;
@@ -354,10 +356,11 @@ mod tests {
         assert!(csr.has_edge(0, 2).unwrap());
         assert!(!csr.has_edge(0, 3).unwrap());
         assert!(!csr.has_edge(1, 0).unwrap());
+        Ok(())
     }
 
     #[test]
-    fn test_edge_timestamps() {
+    fn test_edge_timestamps() -> Result<(), crate::StorageError> {
         let mut csr = GraphCSR::new(3);
 
         let before = GraphCSR::current_timestamp();
@@ -368,10 +371,11 @@ mod tests {
         assert!(!edges.is_empty());
         assert!(edges[0].timestamp >= before);
         assert!(edges[0].timestamp <= after);
+        Ok(())
     }
 
     #[test]
-    fn test_multiple_sources() {
+    fn test_multiple_sources() -> Result<(), crate::StorageError> {
         let mut csr = GraphCSR::new(4);
 
         // Add edges from different source nodes
@@ -397,10 +401,11 @@ mod tests {
         // Check non-existent edges
         assert!(!csr.has_edge(2, 1).unwrap());
         assert!(!csr.has_edge(3, 0).unwrap());
+        Ok(())
     }
 
     #[test]
-    fn test_empty_node_edges() {
+    fn test_empty_node_edges() -> Result<(), crate::StorageError> {
         let csr = GraphCSR::new(5);
 
         let edges: Vec<Edge> = csr.get_edges(0).unwrap().collect();
@@ -408,6 +413,7 @@ mod tests {
 
         assert_eq!(csr.degree(0)?, 0);
         assert_eq!(csr.degree(4)?, 0);
+        Ok(())
     }
 
     #[test]
@@ -435,7 +441,7 @@ mod tests {
     }
 
     #[test]
-    fn test_has_edge_out_of_bounds() {
+    fn test_has_edge_out_of_bounds() -> Result<(), crate::StorageError> {
         let csr = GraphCSR::new(3);
 
         // Test has_edge with out of bounds source node
@@ -448,5 +454,6 @@ mod tests {
         // Test has_edge with valid source but out of bounds target (should return Ok(false))
         let result = csr.has_edge(0, 100);
         assert_eq!(result?, false);
+        Ok(())
     }
 }

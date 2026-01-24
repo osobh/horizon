@@ -840,7 +840,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_session_creation() {
+    async fn test_session_creation() -> anyhow::Result<()> {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config)?;
 
@@ -862,10 +862,11 @@ mod tests {
         assert_eq!(session.state, SessionState::Active);
         assert!(!session.token.is_empty());
         assert!(!session.refresh_token.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_token_validation() {
+    async fn test_token_validation() -> anyhow::Result<()> {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config)?;
 
@@ -892,10 +893,11 @@ mod tests {
         let invalid_validation = manager.validate_token("invalid_token").await?;
         assert!(!invalid_validation.valid);
         assert!(!invalid_validation.errors.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_session_refresh() {
+    async fn test_session_refresh() -> anyhow::Result<()> {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config)?;
 
@@ -923,10 +925,11 @@ mod tests {
         assert_ne!(refreshed.token, old_token);
         assert_eq!(refreshed.session_id, session.session_id);
         assert_eq!(refreshed.state, SessionState::Active);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_concurrent_session_limit() {
+    async fn test_concurrent_session_limit() -> anyhow::Result<()> {
         let mut config = SessionConfig::default();
         config.max_concurrent_sessions = 2;
         let manager = SessionManager::new(config)?;
@@ -955,10 +958,11 @@ mod tests {
             .create_session(user_id, binding, AuthMethod::Password)
             .await;
         assert!(result.is_err());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_session_verification() {
+    async fn test_session_verification() -> anyhow::Result<()> {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config)?;
 
@@ -980,10 +984,11 @@ mod tests {
         assert!(verification.verified);
         assert!(verification.required_actions.is_empty());
         assert!(verification.risk_score < 0.5);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_token_rotation() {
+    async fn test_token_rotation() -> anyhow::Result<()> {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config)?;
 
@@ -1013,10 +1018,11 @@ mod tests {
         // New token should be valid
         let new_validation = manager.validate_token(&new_token).await?;
         assert!(new_validation.valid);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_session_revocation() {
+    async fn test_session_revocation() -> anyhow::Result<()> {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config)?;
 
@@ -1042,12 +1048,13 @@ mod tests {
         assert!(!validation.valid);
 
         // Session state should be revoked
-        let revoked_session = manager.sessions.get(&session.session_id)?;
+        let revoked_session = manager.sessions.get(&session.session_id).unwrap();
         assert_eq!(revoked_session.state, SessionState::Revoked);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_activity_tracking() {
+    async fn test_activity_tracking() -> anyhow::Result<()> {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config)?;
 
@@ -1084,12 +1091,13 @@ mod tests {
                 .unwrap();
         }
 
-        let updated_session = manager.sessions.get(&session.session_id)?;
+        let updated_session = manager.sessions.get(&session.session_id).unwrap();
         assert_eq!(updated_session.metadata.activity_log.len(), 5);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_permission_checking() {
+    async fn test_permission_checking() -> anyhow::Result<()> {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config)?;
 
@@ -1136,10 +1144,11 @@ mod tests {
             .check_permission(session.session_id, "delete")
             .await
             .unwrap());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_user_sessions_retrieval() {
+    async fn test_user_sessions_retrieval() -> anyhow::Result<()> {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config)?;
 
@@ -1163,10 +1172,11 @@ mod tests {
         let user_sessions = manager.get_user_sessions(user_id).await?;
         assert_eq!(user_sessions.len(), 3);
         assert!(user_sessions.iter().all(|s| s.user_id == user_id));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_session_risk_calculation() {
+    async fn test_session_risk_calculation() -> anyhow::Result<()> {
         let mut config = SessionConfig::default();
         config.idle_timeout = Duration::minutes(5);
         config.token_rotation_interval = Duration::minutes(10);
@@ -1187,7 +1197,7 @@ mod tests {
             .unwrap();
 
         // Simulate aging session
-        let mut session_mut = manager.sessions.get_mut(&session.session_id)?;
+        let mut session_mut = manager.sessions.get_mut(&session.session_id).unwrap();
         session_mut.created_at = Utc::now() - Duration::hours(5);
         session_mut.last_activity = Utc::now() - Duration::minutes(3);
         session_mut.last_rotation = Utc::now() - Duration::minutes(15);
@@ -1209,10 +1219,11 @@ mod tests {
         assert!(!verification.verified);
         assert!(verification.risk_score > 0.5);
         assert!(!verification.required_actions.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_session_binding_verification() {
+    async fn test_session_binding_verification() -> anyhow::Result<()> {
         let mut config = SessionConfig::default();
         config.session_binding = true;
         let manager = SessionManager::new(config)?;
@@ -1244,5 +1255,6 @@ mod tests {
         let mut different_device = binding.clone();
         different_device.device_id = Some(Uuid::new_v4());
         assert!(!manager.check_binding(&session, &different_device));
+        Ok(())
     }
 }

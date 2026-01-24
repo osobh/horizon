@@ -371,7 +371,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[tokio::test]
-    async fn test_graph_storage_create() {
+    async fn test_graph_storage_create() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let _storage = GraphStorage::create(dir.path().to_path_buf(), 1000)
             .await
@@ -383,10 +383,11 @@ mod tests {
         assert!(dir.path().join("wal").exists());
         assert!(dir.path().join("snapshots").exists());
         assert!(dir.path().join("nodes/records.bin").exists());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_node_write_read() {
+    async fn test_node_write_read() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let storage = GraphStorage::create(dir.path().to_path_buf(), 100)
             .await
@@ -403,10 +404,11 @@ mod tests {
         assert_eq!(read_node.type_id, 7);
         assert_eq!(read_node.flags, node_flags::ACTIVE | node_flags::VERIFIED);
         assert_eq!(read_node.importance_score, 0.85);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_node_update() {
+    async fn test_node_update() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let storage = GraphStorage::create(dir.path().to_path_buf(), 100)
             .await
@@ -434,10 +436,11 @@ mod tests {
         assert_eq!(updated.embedding_offset, 1234);
         assert_eq!(updated.importance_score, 0.95);
         assert!(updated.access_count > 0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_edge_operations() {
+    async fn test_edge_operations() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let storage = GraphStorage::create(dir.path().to_path_buf(), 100)
             .await
@@ -465,10 +468,11 @@ mod tests {
         // Check that node's edge count was updated
         let node = storage.read_node(1).await?;
         assert_eq!(node.edge_count, 2);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_invalid_node_id() {
+    async fn test_invalid_node_id() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let storage = GraphStorage::create(dir.path().to_path_buf(), 10)
             .await
@@ -482,10 +486,11 @@ mod tests {
             Err(StorageError::InvalidNode { id, .. }) => assert_eq!(id, 100),
             _ => panic!("Expected InvalidNode error"),
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_node_count() {
+    async fn test_node_count() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let storage = GraphStorage::create(dir.path().to_path_buf(), 100)
             .await
@@ -498,10 +503,11 @@ mod tests {
 
         storage.write_node(&NodeRecord::new(10, 1)).await?;
         assert_eq!(storage.node_count().await?, 11); // 0-10
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_checkpoint() {
+    async fn test_checkpoint() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let storage = GraphStorage::create(dir.path().to_path_buf(), 100)
             .await
@@ -511,10 +517,11 @@ mod tests {
         storage.checkpoint().await?;
 
         // Checkpoint should succeed without error
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_open_existing_storage() {
+    async fn test_open_existing_storage() -> anyhow::Result<()> {
         let dir = tempdir()?;
 
         // Create storage first
@@ -540,19 +547,21 @@ mod tests {
 
         // Verify max_nodes is calculated correctly
         assert_eq!(storage2.max_nodes, 100);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_open_nonexistent_storage() {
+    async fn test_open_nonexistent_storage() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let nonexistent_path = dir.path().join("nonexistent");
 
         let result = GraphStorage::open(nonexistent_path).await;
         assert!(matches!(result, Err(StorageError::StorageNotInitialized)));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_batch_write_nodes() {
+    async fn test_batch_write_nodes() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let storage = GraphStorage::create(dir.path().to_path_buf(), 100)
             .await
@@ -578,10 +587,11 @@ mod tests {
 
         // Verify node count is updated correctly (should be 6: 0-5)
         assert_eq!(storage.node_count().await?, 6);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_empty_batch_write() {
+    async fn test_empty_batch_write() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let storage = GraphStorage::create(dir.path().to_path_buf(), 100)
             .await
@@ -590,10 +600,11 @@ mod tests {
         // Empty batch should succeed without error
         storage.write_nodes_batch(&[]).await?;
         assert_eq!(storage.node_count().await?, 0);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_batch_write_invalid_node() {
+    async fn test_batch_write_invalid_node() -> anyhow::Result<()> {
         let dir = tempdir()?;
         let storage = GraphStorage::create(dir.path().to_path_buf(), 10)
             .await
@@ -612,6 +623,7 @@ mod tests {
 
         // Verify no nodes were written
         assert_eq!(storage.node_count().await?, 0);
+        Ok(())
     }
 
     //    #[tokio::test]

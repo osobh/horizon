@@ -27,6 +27,7 @@ sha2 = "0.10"
 base64 = "0.13"
 
 [dev-dependencies]
+anyhow = "1.0"
 tempfile = "3.14"
 criterion = "0.5"
 proptest = "1.6"

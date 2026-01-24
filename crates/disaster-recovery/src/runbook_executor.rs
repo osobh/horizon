@@ -52,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    fn test_runbook_category_serialization() {
+    fn test_runbook_category_serialization() -> anyhow::Result<()> {
         let categories = vec![
             RunbookCategory::DisasterRecovery,
             RunbookCategory::Maintenance,
@@ -69,10 +69,11 @@ mod tests {
             let deserialized: RunbookCategory = serde_json::from_str(&serialized).unwrap();
             assert_eq!(category, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_execution_state_transitions() {
+    fn test_execution_state_transitions() -> anyhow::Result<()> {
         let states = vec![
             ExecutionState::PendingApproval,
             ExecutionState::CheckingPrerequisites,
@@ -91,10 +92,11 @@ mod tests {
             let deserialized: ExecutionState = serde_json::from_str(&serialized).unwrap();
             assert_eq!(state, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_step_types() {
+    fn test_step_types() -> anyhow::Result<()> {
         let types = vec![
             StepType::Command,
             StepType::ApiCall,
@@ -113,39 +115,43 @@ mod tests {
             let deserialized: StepType = serde_json::from_str(&serialized).unwrap();
             assert_eq!(step_type, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_runbook_executor_config_default() {
+    fn test_runbook_executor_config_default() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         assert_eq!(config.max_concurrent_executions, 10);
         assert_eq!(config.default_step_timeout_seconds, 300);
         assert_eq!(config.default_manual_timeout_minutes, 60);
         assert!(config.execution_history_enabled);
         assert!(config.step_validation_enabled);
+        Ok(())
     }
 
     #[test]
-    fn test_runbook_executor_creation() {
+    fn test_runbook_executor_creation() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         let executor = RunbookExecutor::new(config);
         assert!(executor.is_ok());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_register_runbook() {
+    async fn test_register_runbook() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         let executor = RunbookExecutor::new(config).unwrap();
 
         let runbook = create_test_runbook_internal("Test Runbook");
         let runbook_id = executor.register_runbook(runbook.clone()).await?;
 
-        let registered = executor.get_runbook(runbook_id)?;
+        let registered = executor.get_runbook(runbook_id).unwrap();
         assert_eq!(registered.name, "Test Runbook");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_validate_runbook() {
+    async fn test_validate_runbook() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         let executor = RunbookExecutor::new(config).unwrap();
 
@@ -167,10 +173,11 @@ mod tests {
             let result = executor.register_runbook(runbook).await;
             assert!(result.is_err());
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_execute_runbook() {
+    async fn test_execute_runbook() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         let executor = RunbookExecutor::new(config).unwrap();
         executor.start().await.unwrap();
@@ -193,10 +200,11 @@ mod tests {
         assert_eq!(execution.state, ExecutionState::Completed);
         assert_eq!(execution.progress, 1.0);
         assert_eq!(execution.step_executions.len(), 2);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_cancel_execution() {
+    async fn test_cancel_execution() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         let executor = RunbookExecutor::new(config).unwrap();
         executor.start().await.unwrap();
@@ -220,10 +228,11 @@ mod tests {
 
         let execution = executor.get_execution_status(execution_id).unwrap();
         assert_eq!(execution.state, ExecutionState::Cancelled);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_list_runbooks_by_category() {
+    async fn test_list_runbooks_by_category() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         let executor = RunbookExecutor::new(config).unwrap();
 
@@ -251,10 +260,11 @@ mod tests {
         // List all
         let all_runbooks = executor.list_runbooks(None);
         assert_eq!(all_runbooks.len(), 2);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_execution_logging() {
+    async fn test_execution_logging() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         let executor = RunbookExecutor::new(config).unwrap();
         executor.start().await.unwrap();
@@ -283,10 +293,11 @@ mod tests {
             .filter(|log| log.step_id.is_some())
             .collect();
         assert!(!step_logs.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn test_action_types() {
+    fn test_action_types() -> anyhow::Result<()> {
         let types = vec![
             ActionType::Shell,
             ActionType::Http,
@@ -302,10 +313,11 @@ mod tests {
             let deserialized: ActionType = serde_json::from_str(&serialized).unwrap();
             assert_eq!(action_type, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_failure_actions() {
+    fn test_failure_actions() -> anyhow::Result<()> {
         let actions = vec![
             FailureAction::Stop,
             FailureAction::Continue,
@@ -319,10 +331,11 @@ mod tests {
             let deserialized: FailureAction = serde_json::from_str(&serialized).unwrap();
             assert_eq!(action, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_retry_config_default() {
+    fn test_retry_config_default() -> anyhow::Result<()> {
         let config = RetryConfig::default();
         assert_eq!(config.max_attempts, 3);
         assert_eq!(config.delay_seconds, 5);
@@ -334,10 +347,11 @@ mod tests {
         assert!(config
             .retry_conditions
             .contains(&RetryCondition::NetworkError));
+        Ok(())
     }
 
     #[test]
-    fn test_comparison_operators() {
+    fn test_comparison_operators() -> anyhow::Result<()> {
         let operators = vec![
             ComparisonOperator::Equals,
             ComparisonOperator::NotEquals,
@@ -352,10 +366,11 @@ mod tests {
             let deserialized: ComparisonOperator = serde_json::from_str(&serialized).unwrap();
             assert_eq!(operator, deserialized);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_trigger_types() {
+    fn test_trigger_types() -> anyhow::Result<()> {
         let triggers = vec![
             TriggerType::Manual,
             TriggerType::Scheduled,
@@ -369,10 +384,11 @@ mod tests {
             let deserialized: TriggerType = serde_json::from_str(&serialized).unwrap();
             assert_eq!(trigger, deserialized);
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_metrics_tracking() {
+    async fn test_metrics_tracking() -> anyhow::Result<()> {
         let config = RunbookExecutorConfig::default();
         let executor = RunbookExecutor::new(config).unwrap();
         executor.start().await.unwrap();
@@ -399,10 +415,11 @@ mod tests {
         let metrics = executor.get_metrics();
         assert_eq!(metrics.total_runbooks, 3);
         assert!(metrics.success_rate >= 0.0 && metrics.success_rate <= 1.0);
+        Ok(())
     }
 
     #[test]
-    fn test_prerequisite_types() {
+    fn test_prerequisite_types() -> anyhow::Result<()> {
         let types = vec![
             PrerequisiteType::Software,
             PrerequisiteType::Service,
@@ -418,5 +435,6 @@ mod tests {
             let deserialized: PrerequisiteType = serde_json::from_str(&serialized).unwrap();
             assert_eq!(prereq_type, deserialized);
         }
+        Ok(())
     }
 }

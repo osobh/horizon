@@ -782,7 +782,7 @@ mod tests {
             ..Default::default()
         };
 
-        let tracker = ResourceTracker::new(config)?;
+        let tracker = ResourceTracker::new(config).unwrap();
 
         // Start monitoring
         let result = tracker.start().await;
@@ -803,7 +803,7 @@ mod tests {
             ..Default::default()
         };
 
-        let tracker = ResourceTracker::new(config)?;
+        let tracker = ResourceTracker::new(config).unwrap();
 
         // Add more snapshots than max size
         for i in 0..10 {
